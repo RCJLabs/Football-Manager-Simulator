@@ -116,3 +116,32 @@ test('the verdict follows the title, then the run, then the table', () => {
   assert.equal(compareResults(moreWins, card({ rank: 4 })).better, 1);
   assert.match(compareResults(moreWins, card({ rank: 4 })).verdict, /more wins/);
 });
+
+test('the same league plays out identically until a decision differs, which is what makes the comparison mean something', async () => {
+  const origin = league(75);
+  const code = await encodeLeagueCode(origin, PLAYERS);
+  const open = async () => leagueFromSnapshot(await decodeLeagueCode(code), PLAYERS, byId);
+  const run = (lg, change) => {
+    if (change) {
+      const u = userTeamIndex(lg), me = lg.teams[u];
+      [me.slots.RB1, me.slots.RB2] = [me.slots.RB2, me.slots.RB1];
+      me.depthSorted = true;
+    }
+    return playOut(lg);
+  };
+  const a = seasonResult(run(await open(), false), byId, PLAYERS);
+  const b = seasonResult(run(await open(), false), byId, PLAYERS);
+  // Every game seed comes from the league seed, so two people who decide nothing get the same season.
+  assert.equal(a.fp, b.fp);
+  assert.deepEqual(a.record, b.record);
+  assert.equal(a.rank, b.rank);
+  assert.equal(compareResults(a, b).better, 0, 'identical play is a dead heat');
+
+  // One decision, one different season.
+  const c = seasonResult(run(await open(), true), byId, PLAYERS);
+  assert.equal(a.fp, c.fp, 'still the same league');
+  assert.notDeepEqual(a.record, c.record, 'starting the other back changed the season');
+  const cmp = compareResults(a, c);
+  assert.ok(cmp.ok);
+  assert.notEqual(cmp.better, 0);
+});
