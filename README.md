@@ -13,7 +13,8 @@ Draft real football players from every era at their prime season — Otto Graham
 - **Two league modes.** A fantasy league of 8, 10 or 12 clubs with a 13 to 14 game slate and a short bracket, or a **pro league**: the full 32 teams in two conferences of four divisions, a 17-game season built the way the real league builds one, division standings with tiebreakers, seven playoff seeds per conference with a bye for the top seed, and a neutral-site final. Home teams get a modest edge (about 55/45 between equals).
 - **Injuries that change the season.** Every play carries a small chance that somebody gets hurt, weighted by who was involved and how fragile the position is. A hurt player leaves the game on the spot, the next man on the depth chart starts, and a position left short gets a street free agent worse than anyone on the wire. Weeks out carry across the schedule, a QB2 slot exists because of it, and a dial (Off / Low / Normal / High) keeps rates well under the real league's.
 - **In-season roster moves.** A waiver wire with weekly priority (rolling in fantasy leagues, reverse standings in the pro league), a two-claim weekly limit, AI clubs that work the wire too, and position-matched trades with AI general managers who judge every offer on lineup strength and refuse to be fleeced. A trade deadline and a full transaction log.
-- **Season hub.** Standings, playoff picture, season leaders, box scores, then another season with the same rosters or a new league.
+- **A dynasty loop.** Every player carries a contract from his auction price. In the offseason each club keeps a handful at a raised price (three years running at most), everyone else goes back to the pool, and the market reopens with whatever cap is left, worst club first. AI clubs keep their bargains, not their names. Or run it back with the same rosters if you prefer.
+- **Season hub.** Standings, playoff picture, season leaders, box scores, and a history card that keeps every season's champion and your finish.
 - **Box scores** with passing/rushing/receiving/defense/kicking lines, scoring summary, full play-by-play, and PPR fantasy points.
 - **Offline-capable PWA** with local save, export/import. Phone-first layout: no horizontal scrolling at 360px, verified on every screen by the smoke test.
 
@@ -38,6 +39,7 @@ npm run auction      # compare roster variety: auction vs snake draft
 npm run strategy     # measure whether how you bid changes how much you win
 npm run moves        # AI waiver activity over a season and a fleece test of the trade evaluator
 npm run injuries     # injury rates by dial setting, weeks lost per club, and what a missing QB costs
+npm run dynasty      # keeper counts, cap committed and roster turnover over four-season runs
 npm run icons        # re-rasterize icons/icon.svg to PNG (needs Playwright)
 npm run smoke        # headless browser pass: full game flow + layout overflow checks
 ```
@@ -65,7 +67,8 @@ src/engine/auction.js                    salary-cap auction: pricing, AI bidding
 src/engine/season.js                     league, schedule, standings, playoffs, stat rollups
 src/engine/transactions.js               free agents, waiver claims, trades, AI roster moves
 src/engine/injuries.js                   injury rolls, replacement-level fill-ins, the weeks-out ledger
-src/ui/views/*.js                        screens (home, setup, draft, team, season, moves, game, box score, players, settings)
+src/engine/offseason.js                  contracts, keepers, the offseason market
+src/ui/views/*.js                        screens (home, setup, draft, auction, team, season, moves, offseason, game, box score, players, settings)
 scripts/                                 validator, calibration, icon generator, synthetic pools for tests
 tests/                                   node:test suites
 ```

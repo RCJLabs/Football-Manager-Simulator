@@ -2,6 +2,7 @@ import { html, render, raw } from '../../util.js';
 import { createLeague, startSeason, FANTASY_SIZES } from '../../engine/season.js';
 import { ROSTER_SLOTS } from '../../data/positions.js';
 import { INJURY_LEVEL_LABELS, DEFAULT_INJURY_LEVEL } from '../../engine/injuries.js';
+import { defaultKeepers } from '../../engine/season.js';
 import { autoDraftAll, RNG } from '../../engine/draft.js';
 import { autoCompleteAll } from '../../engine/auction.js';
 import { PRO_TEAMS, CONFERENCES, DIVISIONS } from '../../data/pro.js';
@@ -60,6 +61,11 @@ export function view(root, params, ctx) {
           <small class="muted">Normal costs a club about one starter a week, well under the real league's rate. High is closer to it. Hurt players sit out and the next man on the depth chart plays; the waiver wire is where you find cover.</small>
         </div>
         <div>
+          <label>Keepers per club</label>
+          <select name="keepers" style="max-width:12rem">${[0, 3, 6, 9, 12, 18, 22].map((n) => html`<option value="${n}" ${n === defaultKeepers('fantasy') ? 'selected' : ''}>${n === 0 ? 'None: full re-auction every year' : `${n} players`}</option>`)}</select>
+          <small class="muted">Each offseason a club keeps this many players (a keeper costs last year's price plus 15% or $3; three years running at most) and the rest go back to the pool. Fantasy leagues default to 6, the pro league to 18.</small>
+        </div>
+        <div>
           <label>Game control</label>
           <label class="check"><input type="checkbox" name="coach"> Coach mode: I call the offensive plays in my games</label>
           <label class="check"><input type="checkbox" name="coachDef"> …and the defensive calls too</label>
@@ -82,6 +88,7 @@ export function view(root, params, ctx) {
     form.name.placeholder = pro ? 'Leave blank to keep the franchise name' : '';
     form.querySelector('#typeNote').hidden = !pro;
     if (pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="snake"]').checked = true;
+    if (!form.dataset.touchedKeepers) form.keepers.value = String(defaultKeepers(pro ? 'pro' : 'fantasy'));
     if (!pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="auction"]').checked = true;
     if (pro) { form.name.value = form.name.value === 'Time Travelers' ? '' : form.name.value; form.abbr.value = form.abbr.value === 'TTV' ? '' : form.abbr.value; }
     else { if (!form.name.value) form.name.value = 'Time Travelers'; if (!form.abbr.value) form.abbr.value = 'TTV'; }
@@ -89,6 +96,7 @@ export function view(root, params, ctx) {
   modeInputs.forEach((i) => i.addEventListener('change', syncMode));
   form.querySelectorAll('input[name="type"]').forEach((i) => i.addEventListener('change', () => { form.dataset.touchedType = '1'; }));
 
+  form.keepers.addEventListener('change', () => { form.dataset.touchedKeepers = '1'; });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = new FormData(form);
@@ -107,6 +115,7 @@ export function view(root, params, ctx) {
       draftType,
       user,
       injuries: f.get('injuries') || DEFAULT_INJURY_LEVEL,
+      keepers: Number(f.get('keepers')),
     });
     league.settings.coachMode = f.get('coach') === 'on';
     league.settings.coachDefense = f.get('coachDef') === 'on';

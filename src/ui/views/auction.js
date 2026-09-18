@@ -39,7 +39,7 @@ export function view(root, params, ctx) {
   const left = slotsLeft(me);
   const open = openSlotsByPos(me);
   const sold = a.sold.length;
-  const totalToSell = league.teams.length * TOTAL_SLOTS;
+  const totalToSell = a.sold.length + league.teams.reduce((s, t) => s + slotsLeft(t), 0);
   const nominator = currentNominator(a, league);
 
   const header = html`
@@ -237,7 +237,7 @@ function complete(root, ctx, league, u) {
   render(root, html`<div id="auction-done">
     <div class="card">
       <h1 style="margin:0">Auction complete</h1>
-      <p class="muted">You spent $${spent} of $${a.budget} on ${buys.length} players. $${a.budgets[u]} left on the table.</p>
+      <p class="muted">You spent $${spent} of $${a.startBudgets ? a.startBudgets[u] : a.budget} on ${buys.length} players. $${a.budgets[u]} left on the table.${league.offseason ? ` Season ${league.season} is next.` : ''}</p>
       <button class="btn primary lg block" id="start">Start the season</button>
     </div>
     <div class="grid grid-3" style="margin-top:.75rem">

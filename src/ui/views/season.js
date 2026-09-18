@@ -25,6 +25,7 @@ export function view(root, params, ctx) {
   const league = state.league;
   if (!league) { ctx.navigate('#/new'); return; }
   if (league.phase === 'draft') { ctx.navigate(league.draftType === 'auction' ? '#/auction' : '#/draft'); return; }
+  if (league.phase === 'offseason') { ctx.navigate('#/offseason'); return; }
   const pro = isPro(league);
   const u = userTeamIndex(league);
   const me = league.teams[u];
@@ -52,8 +53,9 @@ export function view(root, params, ctx) {
       <h1>${champ.name} are the champions</h1>
       <p class="muted">Season ${league.season} · ${rec(champ)} in the regular season${champ.isUser ? ' · That\'s you!' : ''}</p>
       <div class="btn-group" style="justify-content:center;margin-top:.75rem">
-        <button class="btn primary" id="again">Play another season with these rosters</button>
-        <a class="btn" href="#/new">Start a new league</a>
+        <a class="btn primary lg" href="#/offseason">Start the offseason: keepers, then the ${league.draftType === 'auction' ? 'auction' : 'draft'}</a>
+        <button class="btn" id="again">Run it back with these rosters</button>
+        <a class="btn ghost" href="#/new">Start a new league</a>
       </div>
     </div>`;
   } else if (myGame) {
@@ -198,7 +200,7 @@ export function view(root, params, ctx) {
           <div class="table-wrap"><table><tbody>${raw(powerShown.map((p, i) => { const gm = GM_PERSONALITIES.find((g) => g.id === p.team.gm); return `<tr class="clickable ${p.team.isUser ? 'me' : ''}" data-team="${p.idx}"><td>${i + 1}</td><td>${teamChip(p.team, { responsive: true }).__raw}</td><td class="hide-sm">${gm ? `<span class="badge gm">${gm.name}</span>` : '<span class="badge">You</span>'}</td><td class="num"><b>${p.power}</b></td></tr>`; }).join(''))}</tbody></table></div>
           ${pro && !powerShown.some((p) => p.team.isUser) ? html`<small class="muted">You are ranked ${power.findIndex((p) => p.team.isUser) + 1} of 32 (${power.find((p) => p.team.isUser).power}).</small>` : ''}
         </div>
-        ${league.history && league.history.length ? html`<div class="card tight"><h3>Past champions</h3>${raw(league.history.map((h) => `<div class="row between"><span>Season ${h.season}</span>${teamChip(league.teams[h.champion]).__raw}</div>`).join(''))}</div>` : ''}
+        ${league.history && league.history.length ? html`<div class="card tight"><h3>History</h3>${raw(league.history.map((h) => `<div class="row between" style="font-size:.9rem"><span>Season ${h.season}</span><span>${teamChip(league.teams[h.champion], { abbr: true }).__raw} 🏆${h.user ? ` <small class="muted">· you ${h.user.record.w}-${h.user.record.l}, ${h.user.rank}${['th', 'st', 'nd', 'rd'][(h.user.rank % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][h.user.rank % 100] || 'th'}</small>` : ''}</span></div>`).join(''))}</div>` : ''}
       </div>
     </div>
   </div>`);

@@ -32,7 +32,7 @@ export function view(root, params, ctx) {
     render(root, html`
       <div class="card" style="text-align:center">
         <h1>Draft complete</h1>
-        <p class="muted">${league.teams.length} rosters are set. The schedule is a double round-robin, then the top ${league.teams.length >= 6 ? 4 : 2} make the playoffs.</p>
+        <p class="muted">${league.teams.length} rosters are set.${league.offseason ? ` Season ${league.season} is next.` : ''}</p>
         <div class="btn-group" style="justify-content:center">
           <a class="btn" href="#/team/${u}">Review my roster</a>
           <button class="btn primary lg" id="start">Start the season</button>

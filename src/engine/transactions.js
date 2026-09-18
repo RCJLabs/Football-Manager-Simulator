@@ -22,7 +22,7 @@ export const DEFAULT_WAIVER_LIMIT = 2;
 export const MAX_TRADE_SIDE = 3;
 
 /** How keen each GM personality is to work the wire. */
-const ACTIVITY = { analytics: 0.9, gambler: 0.75, balanced: 0.6, defense: 0.55, trenches: 0.55, airraid: 0.5, ground: 0.45, oldschool: 0.3 };
+const ACTIVITY = { modern: 0.9, gambler: 0.75, balanced: 0.6, defense: 0.55, trenches: 0.55, airraid: 0.5, ground: 0.45, oldschool: 0.3 };
 
 const STARTERS = {};
 for (const s of ROSTER_SLOTS) if (s.starter) STARTERS[s.pos] = (STARTERS[s.pos] || 0) + 1;
@@ -284,7 +284,7 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId) {
   const before = lineupStrength(team.slots, byId, league);
   const after = lineupStrength(slotsAfter(team, aiGives, aiGets, byId), byId, league);
   const delta = Math.round((after - before) * 10) / 10;
-  const greed = { analytics: 8, trenches: 6, defense: 5, balanced: 4, gambler: 2, airraid: 4, ground: 4, oldschool: 5 }[team.gm] ?? 4;
+  const greed = { modern: 8, trenches: 6, defense: 5, balanced: 4, gambler: 2, airraid: 4, ground: 4, oldschool: 5 }[team.gm] ?? 4;
   const accept = delta >= greed;
   let reason;
   if (accept) reason = delta >= greed * 3 ? 'They jump at it.' : 'They think about it, then agree.';

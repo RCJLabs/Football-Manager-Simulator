@@ -37,7 +37,7 @@ function blankTeam(t) {
  * mode 'pro': 32 franchises; `franchise` is the index the user takes over, and
  * any user name/abbr/color given overrides that franchise's identity.
  */
-export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 'auction', budget, mode = 'fantasy', franchise = 0, injuries = DEFAULT_INJURY_LEVEL } = {}) {
+export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 'auction', budget, mode = 'fantasy', franchise = 0, injuries = DEFAULT_INJURY_LEVEL, keepers } = {}) {
   seed = seed ?? Math.floor(Math.random() * 4294967295);
   const rng = new RNG(seed);
   let teams;
@@ -79,7 +79,9 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
     results: [],
     history: [],
     injuries: {},
-    settings: { coachMode: false, coachDefense: false, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL },
+    contracts: {},
+    offseason: null,
+    settings: { coachMode: false, coachDefense: false, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode) },
   };
   assignGms(league, rng);
   if (draftType === 'auction') league.auction = createAuction(league, rng, budget ? { budget } : {});
@@ -97,10 +99,43 @@ export function migrateLeague(league) {
   if (!league || (league.version || 1) >= LEAGUE_VERSION) return league;
   for (const t of league.teams) for (const s of ROSTER_SLOTS) if (!(s.id in t.slots)) t.slots[s.id] = null;
   league.injuries ??= {};
+  league.contracts ??= {};
+  league.offseason ??= null;
   league.settings ??= {};
   league.settings.injuries ??= DEFAULT_INJURY_LEVEL;
+  league.settings.keepers ??= defaultKeepers(league.mode);
   league.version = LEAGUE_VERSION;
   return league;
+}
+
+/** How many players a club carries into the next season by default: a real re-auction in a fantasy league, a mostly stable roster in the pro league. */
+export function defaultKeepers(mode) {
+  return mode === 'pro' ? 18 : 6;
+}
+
+/**
+ * Every rostered player carries a contract: the price he went for at auction
+ * (or the round he was drafted in), how many seasons running he has been kept,
+ * and when it started. A player who arrived off the wire is on a minimum deal.
+ * Idempotent, so it can run at season start and again at the offseason.
+ */
+export function syncContracts(league) {
+  league.contracts ??= {};
+  const soldPrice = new Map((league.auction?.sold || []).map((s) => [s.playerId, s.price]));
+  const draftRound = new Map((league.draft?.picks || []).map((p) => [p.playerId, p.round]));
+  const owned = new Set();
+  for (const t of league.teams) {
+    for (const s of ROSTER_SLOTS) {
+      const id = t.slots[s.id];
+      if (!id) continue;
+      owned.add(id);
+      if (league.contracts[id]) continue;
+      if (league.draftType === 'auction') league.contracts[id] = { salary: soldPrice.get(id) ?? 1, kept: 0, since: league.season };
+      else league.contracts[id] = { round: draftRound.get(id) ?? ROSTER_SLOTS.length, kept: 0, since: league.season };
+    }
+  }
+  for (const id of Object.keys(league.contracts)) if (!owned.has(id)) delete league.contracts[id];
+  return league.contracts;
 }
 
 export function userTeamIndex(league) {
@@ -273,7 +308,9 @@ export function startSeason(league, byId) {
   league.schedule = isPro(league) ? buildProSchedule(league.teams, rng, league.season) : buildSchedule(league.teams.length, rng);
   league.week = 1;
   league.phase = 'season';
+  league.offseason = null;
   league.rngState = rng.state;
+  syncContracts(league);
   return league;
 }
 
@@ -567,7 +604,16 @@ export function advanceWeek(league) {
 function crown(league, idx) {
   league.champion = idx;
   league.phase = 'complete';
-  (league.history ??= []).push({ season: league.season, champion: idx, record: { ...league.teams[idx].record } });
+  const table = standings(league);
+  const u = userTeamIndex(league);
+  (league.history ??= []).push({
+    season: league.season,
+    champion: idx,
+    record: { ...league.teams[idx].record },
+    // Where everyone finished, so the hub can tell a dynasty's story.
+    finish: table.map((r) => r.idx),
+    user: { rank: table.findIndex((r) => r.idx === u) + 1, record: { ...league.teams[u].record } },
+  });
 }
 
 export function powerRankings(league, byId) {

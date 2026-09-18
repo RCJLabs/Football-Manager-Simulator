@@ -7,6 +7,7 @@ import * as setup from './ui/views/setup.js';
 import * as draft from './ui/views/draft.js';
 import * as auction from './ui/views/auction.js';
 import * as moves from './ui/views/moves.js';
+import * as offseason from './ui/views/offseason.js';
 import * as team from './ui/views/team.js';
 import * as season from './ui/views/season.js';
 import * as game from './ui/views/game.js';
@@ -44,6 +45,7 @@ function renderNav() {
       const auctionLeague = s.league.draftType === 'auction';
       items.push({ href: auctionLeague ? '#/auction' : '#/draft', label: auctionLeague ? 'Auction' : 'Draft', match: auctionLeague ? '/auction' : '/draft' });
     }
+    else if (s.league.phase === 'offseason') items.push({ href: '#/offseason', label: 'Offseason', match: '/offseason' });
     else items.push({ href: '#/season', label: 'Season', match: '/season' });
     const u = s.league.teams.findIndex((t) => t.isUser);
     items.push({ href: `#/team/${u}`, label: 'My Team', match: `/team/${u}` });
@@ -61,6 +63,7 @@ route('/draft', () => mount(draft));
 route('/auction', () => mount(auction));
 route('/moves/:tab', (p) => mount(moves, p));
 route('/moves', () => mount(moves));
+route('/offseason', () => mount(offseason));
 route('/team/:idx', (p) => mount(team, p));
 route('/season', () => mount(season));
 route('/game', () => mount(game));

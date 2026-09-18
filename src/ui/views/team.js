@@ -39,6 +39,8 @@ export function view(root, params, ctx) {
     if (!p) return `<li class="prow dim"><span class="badge slot">${slot.id}</span><div class="who"><div class="meta">empty${canEdit && league.phase === 'season' ? ' · <a href="#/moves">claim a free agent</a>' : ''}</div></div><div class="act"></div></li>`;
     const fp = stats[p.id] ? fantasyPoints(stats[p.id]) : 0;
     const inj = injuries[p.id];
+    const c = league.contracts?.[p.id];
+    const deal = c ? (league.draftType === 'auction' ? `<span class="badge" title="contract">$${c.salary}${c.kept ? ` · kept ${c.kept}×` : ''}</span>` : c.kept ? `<span class="badge" title="keeper">kept ${c.kept}×</span>` : '') : '';
     // A bench player starts when the man ahead of him is hurt.
     const healthyAhead = ROSTER_SLOTS.filter((x) => x.pos === slot.pos).slice(0, i).filter((x) => team.slots[x.id] && !injuries[team.slots[x.id]]).length;
     const stepsUp = !inj && !slot.starter && healthyAhead < ROSTER_SLOTS.filter((x) => x.pos === slot.pos && x.starter).length;
@@ -47,7 +49,7 @@ export function view(root, params, ctx) {
       : '';
     return playerItem(p, {
       cls: inj ? 'dim' : slot.starter || stepsUp ? '' : 'dim',
-      meta: `<span class="badge slot">${slot.id}</span>${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge" style="background:#2c4a37;color:#cfe6d6">starts</span>' : '<span class="badge">bench</span>'}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
+      meta: `<span class="badge slot">${slot.id}</span>${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge" style="background:#2c4a37;color:#cfe6d6">starts</span>' : '<span class="badge">bench</span>'}${deal}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
       action: arrows,
       era: false,
     });

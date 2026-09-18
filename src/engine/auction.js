@@ -40,7 +40,7 @@ const GLAMOUR = { QB: 2.3, RB: 1.6, WR: 1.5, TE: 0.95, DL: 0.95, LB: 0.75, CB: 0
 const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) => [k, Math.pow(v, 0.72)]));
 
 /** How much of a GM's valuation comes from real win impact rather than hype. */
-const SAVVY = { analytics: 0.7, trenches: 0.62, defense: 0.5, balanced: 0.34, gambler: 0.26, ground: 0.16, oldschool: 0.18, airraid: 0.1 };
+const SAVVY = { modern: 0.7, trenches: 0.62, defense: 0.5, balanced: 0.34, gambler: 0.26, ground: 0.16, oldschool: 0.18, airraid: 0.1 };
 
 /**
  * Once a club has its starters at a position, the next man is a bench player:
@@ -152,18 +152,22 @@ export function priceGuide(auction, league, pool) {
   return { prices, worth, repl, totalSlots, moneyLeft };
 }
 
-export function createAuction(league, rng, { budget = DEFAULT_BUDGET } = {}) {
-  return {
+export function createAuction(league, rng, { budget = DEFAULT_BUDGET, budgets = null, order = null, taken = {} } = {}) {
+  const start = budgets ? budgets.slice() : league.teams.map(() => budget);
+  const a = {
     type: 'auction',
     budget,
-    budgets: league.teams.map(() => budget),
-    order: rng.shuffle([...Array(league.teams.length).keys()]),
+    startBudgets: start.slice(),
+    budgets: start,
+    order: order ? order.slice() : rng.shuffle([...Array(league.teams.length).keys()]),
     nomIndex: 0,
     current: null,
     sold: [],
-    taken: {},
+    taken: { ...taken },
     complete: false,
   };
+  if (currentNominator(a, league) == null) a.complete = true;
+  return a;
 }
 
 export function currentNominator(auction, league) {

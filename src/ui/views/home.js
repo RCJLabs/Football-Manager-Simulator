@@ -24,7 +24,7 @@ export function view(root, params, ctx) {
   }
   const u = league.teams.findIndex((t) => t.isUser);
   const me = league.teams[u];
-  const cont = league.phase === 'draft' ? (league.draftType === 'auction' ? '#/auction' : '#/draft') : '#/season';
+  const cont = league.phase === 'draft' ? (league.draftType === 'auction' ? '#/auction' : '#/draft') : league.phase === 'offseason' ? '#/offseason' : '#/season';
   render(root, html`
     <div class="card">
       <div class="row between">

@@ -195,6 +195,44 @@ try {
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('gridiron-eras:state:v1')).league.week);
   console.log('persisted week:', saved);
 
+  // Play the season out, then run the offseason: keepers, the auction, season two.
+  for (let i = 0; i < 40 && !(await page.$('.champ')); i++) {
+    const sim = await page.$('#simWeek');
+    if (sim) { await sim.click(); await page.waitForSelector('#advance'); }
+    const adv = await page.$('#advance');
+    if (adv) { await adv.click(); await sleep(60); } else break;
+  }
+  if (!(await page.$('.champ'))) errors.push('the season never produced a champion');
+  await checkOverflow('season complete');
+  await shot('09e-champion');
+  await page.click('a[href="#/offseason"]');
+  await page.waitForSelector('#offseason-view');
+  await checkOverflow('offseason');
+  await shot('09f-offseason');
+  await page.click('button[data-keep]');
+  await page.waitForSelector('button[data-keep].primary');
+  await page.click('#autoKeep');
+  await sleep(80);
+  await checkOverflow('offseason keepers picked');
+  await page.click('#confirm');
+  await page.waitForSelector('#autoAll');
+  await checkOverflow('offseason auction');
+  await shot('09g-offseason-auction');
+  await page.click('#autoAll');
+  await page.waitForSelector('#start');
+  // The store saves on a short debounce; wait for the finished market to land.
+  const marketSaved = await page.waitForFunction(() => { const lg = JSON.parse(localStorage.getItem('gridiron-eras:state:v1')).league; return lg.season === 2 && lg.auction && lg.auction.complete; }, null, { timeout: 5000 }).then(() => true).catch(() => false);
+  if (!marketSaved) errors.push('the offseason auction never persisted as complete in season 2');
+  const leftover = await page.evaluate(() => { const lg = JSON.parse(localStorage.getItem('gridiron-eras:state:v1')).league; return { kept: Object.values(lg.contracts).filter((c) => c.kept > 0).length, full: lg.teams.every((t) => Object.values(t.slots).every(Boolean)) }; });
+  if (!leftover.full) errors.push('the offseason auction left a slot open');
+  if (!leftover.kept) errors.push('no keeper survived into season 2');
+  await page.click('#start');
+  await page.waitForSelector('#season-view');
+  const phaseText = await page.$eval('#season-view .muted', (e) => e.textContent);
+  if (!/Season 2/.test(phaseText)) errors.push(`hub reads "${phaseText}" after the offseason, expected season 2`);
+  await checkOverflow('season two hub');
+  await shot('09h-season2');
+
   // The snake draft is still an option and must still work.
   await page.evaluate(() => localStorage.clear());
   await page.goto(`http://localhost:${port}/#/new`);

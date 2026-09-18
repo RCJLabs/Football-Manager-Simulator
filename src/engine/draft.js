@@ -19,17 +19,30 @@ export function openSlotsByPos(team) {
   return out;
 }
 
-export function createDraft(league, rng) {
+export function createDraft(league, rng, { order = null, taken = {} } = {}) {
   const n = league.teams.length;
-  const order = rng.shuffle([...Array(n).keys()]);
-  return {
-    order,
+  const draft = {
+    order: order ? order.slice() : rng.shuffle([...Array(n).keys()]),
     round: 1,
     pickInRound: 0,
     picks: [],
-    taken: {},
+    taken: { ...taken },
     complete: false,
   };
+  settlePointer(league, draft);
+  return draft;
+}
+
+/** Move the pointer off any club whose roster is already full; end the draft when everyone's is. */
+export function settlePointer(league, draft) {
+  let guard = 0;
+  while (!draft.complete && guard++ < TOTAL_ROUNDS * draft.order.length + 1) {
+    if (league.teams.every((t) => openSlots(t).length === 0) || draft.round > TOTAL_ROUNDS) { draft.complete = true; return; }
+    if (openSlots(league.teams[currentPicker(draft)]).length > 0) return;
+    draft.pickInRound++;
+    if (draft.pickInRound >= draft.order.length) { draft.pickInRound = 0; draft.round++; }
+  }
+  draft.complete = true;
 }
 
 /** Team index whose turn it is. */
@@ -127,6 +140,7 @@ export function makePick(league, draft, player) {
     draft.round++;
     if (draft.round > TOTAL_ROUNDS) draft.complete = true;
   }
+  settlePointer(league, draft);
   return teamIdx;
 }
 

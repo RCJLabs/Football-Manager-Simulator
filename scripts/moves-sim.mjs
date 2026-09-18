@@ -13,7 +13,7 @@ import { overall } from '../src/engine/ratings.js';
 // 1. A season of AI waivers: how many claims land, how much lineup strength they add.
 let claims = 0, gain = 0, seasons = 0;
 for (let seed = 1; seed <= 12; seed++) {
-  const league = createLeague({ name: 'M', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed, draftType: 'auction' });
+  const league = createLeague({ name: 'M', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed, draftType: 'auction', injuries: 'off' });
   autoCompleteAll(league.auction, league, PLAYERS, new RNG(seed), byId);
   startSeason(league, byId);
   const before = league.teams.map((t) => lineupStrength(t.slots, byId));
@@ -29,7 +29,7 @@ for (let seed = 1; seed <= 12; seed++) {
 console.log(`AI waivers: ${(claims / seasons).toFixed(1)} claims per 8-team season, +${(gain / (seasons * 7)).toFixed(1)} lineup strength per AI club`);
 
 // 2. Trade evaluator: random one-for-one, position-matched offers from the user.
-const league = createLeague({ name: 'M', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 99, draftType: 'auction' });
+const league = createLeague({ name: 'M', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 99, draftType: 'auction', injuries: 'off' });
 autoCompleteAll(league.auction, league, PLAYERS, new RNG(99), byId);
 startSeason(league, byId);
 const rng = new RNG(5);

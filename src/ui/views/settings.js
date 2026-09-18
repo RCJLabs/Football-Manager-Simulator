@@ -18,6 +18,11 @@ export function view(root, params, ctx) {
             <select id="injuries" style="max-width:10rem">${Object.entries(INJURY_LEVEL_LABELS).map(([k, label]) => html`<option value="${k}" ${(league.settings.injuries || 'normal') === k ? 'selected' : ''}>${label}</option>`)}</select>
           </div>
           <small class="muted">Applies to games from now on. Players already hurt stay hurt.</small>
+          <div class="row" style="margin-top:.8rem;gap:.5rem;align-items:center">
+            <label style="margin:0">Keepers per club</label>
+            <select id="keepers" style="max-width:12rem">${[0, 3, 6, 9, 12, 18, 22].map((n) => html`<option value="${n}" ${(league.settings.keepers ?? 6) === n ? 'selected' : ''}>${n === 0 ? 'None' : n}</option>`)}</select>
+          </div>
+          <small class="muted">How many players each club carries into next season's market.</small>
         ` : html`<p class="muted">Create a league to set coach mode.</p>`}
         <div class="slider-row" style="margin-top:1rem">
           <div class="lbl"><span>Autoplay speed</span><b id="speedLbl">${(s.prefs.autoplayMs / 1000).toFixed(1)}s per play</b></div>
@@ -46,6 +51,7 @@ export function view(root, params, ctx) {
     root.querySelector('#coach').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.coachMode = e.target.checked; }));
     root.querySelector('#coachDef').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.coachDefense = e.target.checked; }));
     root.querySelector('#injuries').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.injuries = e.target.value; }, { silent: true }));
+    root.querySelector('#keepers').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.keepers = Number(e.target.value); }, { silent: true }));
   }
   const speed = root.querySelector('#speed');
   speed.addEventListener('input', () => { root.querySelector('#speedLbl').textContent = `${(speed.value / 1000).toFixed(1)}s per play`; });
