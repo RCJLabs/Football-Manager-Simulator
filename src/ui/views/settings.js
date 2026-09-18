@@ -1,6 +1,7 @@
 import { html, render, download } from '../../util.js';
 import { exportJSON, importJSON, resetAll } from '../../store.js';
 import { modal } from '../components.js';
+import { INJURY_LEVEL_LABELS } from '../../engine/injuries.js';
 
 export function view(root, params, ctx) {
   const s = ctx.getState();
@@ -12,6 +13,11 @@ export function view(root, params, ctx) {
         ${league ? html`
           <label class="check"><input type="checkbox" id="coach" ${league.settings.coachMode ? 'checked' : ''}> Coach mode — call offensive plays in my games</label>
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="coachDef" ${league.settings.coachDefense ? 'checked' : ''}> Call defensive plays too</label>
+          <div class="row" style="margin-top:.8rem;gap:.5rem;align-items:center">
+            <label style="margin:0">Injuries</label>
+            <select id="injuries" style="max-width:10rem">${Object.entries(INJURY_LEVEL_LABELS).map(([k, label]) => html`<option value="${k}" ${(league.settings.injuries || 'normal') === k ? 'selected' : ''}>${label}</option>`)}</select>
+          </div>
+          <small class="muted">Applies to games from now on. Players already hurt stay hurt.</small>
         ` : html`<p class="muted">Create a league to set coach mode.</p>`}
         <div class="slider-row" style="margin-top:1rem">
           <div class="lbl"><span>Autoplay speed</span><b id="speedLbl">${(s.prefs.autoplayMs / 1000).toFixed(1)}s per play</b></div>
@@ -39,6 +45,7 @@ export function view(root, params, ctx) {
   if (league) {
     root.querySelector('#coach').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.coachMode = e.target.checked; }));
     root.querySelector('#coachDef').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.coachDefense = e.target.checked; }));
+    root.querySelector('#injuries').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.injuries = e.target.value; }, { silent: true }));
   }
   const speed = root.querySelector('#speed');
   speed.addEventListener('input', () => { root.querySelector('#speedLbl').textContent = `${(speed.value / 1000).toFixed(1)}s per play`; });

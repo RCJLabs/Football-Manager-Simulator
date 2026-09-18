@@ -4,6 +4,7 @@
 
 import { RNG, clamp, edge } from './rng.js';
 import { composites } from './ratings.js';
+import { injuryChance, rollSeverity, POS_RISK, injuryText, fillLineup } from './injuries.js';
 import {
   chooseOffense, chooseDefense, goForTwo, onsideKick, tempoSeconds, wantsTimeout,
   fgDistance, fgProbability, halfSecondsLeft, scoreDiff, OFFENSE_CALLS,
@@ -18,7 +19,8 @@ const HOME_KEYS = ['passBlock', 'runBlock', 'passRush', 'blitzRush', 'runStop', 
 
 /**
  * teams: [home, away] each { id, name, abbr, color, lineup, strategy, isUser }
- * options: { seed, playoff, homeAdvantage (default true; false at a neutral site) }
+ * options: { seed, playoff, homeAdvantage (default true; false at a neutral site),
+ *            injuryLevel (0 = none, 1 = the default dial; see injuries.js) }
  */
 export function createGame(home, away, options = {}) {
   const seed = options.seed ?? Math.floor(Math.random() * 4294967296);
@@ -26,17 +28,18 @@ export function createGame(home, away, options = {}) {
   const teams = [home, away].map((t) => ({
     id: t.id, name: t.name, abbr: t.abbr, color: t.color, isUser: !!t.isUser,
     strategy: { ...t.strategy },
-    lineup: t.lineup,
-    comp: composites(t.lineup),
+    lineup: cloneLineup(t.lineup),
+    comp: null,
+    injuries: [],
   }));
   const homeAdvantage = options.homeAdvantage !== false;
-  if (homeAdvantage) for (const k of HOME_KEYS) teams[0].comp[k] += HOME_EDGE;
   const receiving = rng.int(0, 1);
   const g = {
     seed,
     rngState: rng.state,
     playoff: !!options.playoff,
     neutral: !homeAdvantage,
+    injuryLevel: options.injuryLevel ?? 0,
     teams,
     score: [0, 0],
     quarter: 1,
@@ -60,8 +63,87 @@ export function createGame(home, away, options = {}) {
     pendingCall: null,
   };
   g.rngState = rng.state;
+  rebuildComp(g, 0);
+  rebuildComp(g, 1);
   logEvent(g, { type: 'info', text: `${teams[receiving].name} will receive the opening kickoff.` });
   return g;
+}
+
+function cloneLineup(lineup) {
+  const out = {};
+  for (const [pos, arr] of Object.entries(lineup || {})) out[pos] = arr.slice();
+  return out;
+}
+
+/**
+ * Team composites come from whoever is still standing: a position group left
+ * short by injury is padded with replacement-level players first, and the home
+ * side's edge is re-applied so it survives a mid-game rebuild.
+ */
+function rebuildComp(g, side) {
+  const comp = composites(fillLineup(g.teams[side].lineup));
+  if (side === 0 && !g.neutral) for (const k of HOME_KEYS) comp[k] += HOME_EDGE;
+  g.teams[side].comp = comp;
+}
+
+/**
+ * One roll per play for an injury somewhere on the field. The victim is drawn
+ * from the players the play actually involved, weighted by how exposed each
+ * one was and by how fragile the position is. A hurt player leaves the game
+ * on the spot: he is dropped from the lineup, the unit ratings are rebuilt,
+ * and the season layer reads his weeks out from the game's injury list.
+ */
+function maybeInjure(g, rng, o, off, defT) {
+  if (!g.injuryLevel) return;
+  if (!rng.chance(injuryChance(g.injuryLevel, o.type))) return;
+  const oc = g.teams[off].comp, dc = g.teams[defT].comp;
+  const cands = [];
+  const add = (side, p, w) => { if (p && !p.replacement && g.teams[side].lineup[p.pos]?.some((x) => x.id === p.id)) cands.push({ side, p, w: w * (POS_RISK[p.pos] ?? 1) }); };
+  const rnd = (arr) => (arr && arr.length ? arr[rng.int(0, arr.length - 1)] : null);
+  const backSeven = (c) => [...(c.lb || []), ...(c.cb || []), ...(c.s || [])];
+  switch (o.type) {
+    case 'run':
+      add(off, o.carrier, 1.0); add(defT, o.tackler, 0.55); add(off, rnd(oc.ol), 0.35); add(defT, rnd(dc.dl), 0.35); add(defT, rnd(dc.lb), 0.2);
+      break;
+    case 'pass':
+      add(off, o.target, 0.9); add(defT, o.tackler, 0.5); add(off, oc.qb, o.pressured ? 0.6 : 0.25); add(off, rnd(oc.ol), 0.3); add(defT, rnd(dc.dl), 0.3); add(defT, o.defender, 0.25);
+      break;
+    case 'incomplete':
+      add(off, o.target, 0.3); add(off, oc.qb, o.pressured ? 0.5 : 0.2); add(off, rnd(oc.ol), 0.2); add(defT, rnd(dc.dl), 0.2); add(defT, o.defender, 0.15);
+      break;
+    case 'sack':
+      add(off, oc.qb, 1.6); add(defT, o.sacker, 0.3); add(off, rnd(oc.ol), 0.3);
+      break;
+    case 'int':
+      add(defT, o.interceptor, 0.6); add(off, o.target, 0.4); add(off, oc.qb, 0.2);
+      break;
+    case 'fumble':
+      add(off, o.carrier || o.target || oc.qb, 0.8); add(defT, o.tackler || o.sacker, 0.5); add(off, rnd(oc.ol), 0.3); add(defT, rnd(dc.dl), 0.3);
+      break;
+    case 'kickoff': case 'punt': {
+      const rs = o.returnSide ?? defT;
+      if (!o.returner) return;
+      add(rs, o.returner, 0.9); add(1 - rs, rnd(backSeven(g.teams[1 - rs].comp)), 0.6);
+      break;
+    }
+    case 'fg':
+      add(off, oc.k, 0.5);
+      break;
+    default:
+      return;
+  }
+  if (!cands.length) return;
+  const pick = rng.weighted(cands, cands.map((c) => c.w));
+  injure(g, pick.side, pick.p, rollSeverity(rng));
+}
+
+function injure(g, side, p, { kind, weeks }) {
+  const t = g.teams[side];
+  for (const pos of Object.keys(t.lineup)) t.lineup[pos] = t.lineup[pos].filter((x) => x.id !== p.id);
+  t.injuries.push({ id: p.id, name: p.name, pos: p.pos, kind, weeks, q: g.quarter, clock: g.clock });
+  statFor(g.stats[side], p.id).games = 1;
+  rebuildComp(g, side);
+  logEvent(g, { type: 'injury', team: side, text: injuryText(p, kind, weeks) });
 }
 
 function getRng(g) {
@@ -331,6 +413,7 @@ function doKickoff(g, rng) {
     }
     g.ballOn = ballOn;
     logEvent(g, { type: 'kickoff', text: `${g.teams[kicking].abbr} kickoff. ${returner ? shortName(returner) : 'Return'} to ${spot(g, receiving, ballOn)}.` });
+    maybeInjure(g, rng, { type: 'kickoff', returner, returnSide: receiving }, kicking, receiving);
   }
   g.freeKick = false;
   g.phase = 'play';
@@ -426,6 +509,7 @@ function doPlay(g, rng, calls) {
   }
   o.call = offCall; o.defCall = defCall;
   applyOutcome(g, rng, o, situation);
+  maybeInjure(g, rng, o, off, defT);
 }
 
 function qbName(g) {
@@ -516,11 +600,11 @@ function resolveRun(g, rng, call, defCall) {
       const recoverer = pickTackler(g, defT, 'run', rng);
       if (recoverer) statFor(g.stats[defT], recoverer.id).def.fr++;
       text += `, recovered by ${recoverer ? shortName(recoverer) : g.teams[defT].abbr}!`;
-      return { type: 'fumble', yards, elapsed: 6, clockStops: true, turnover: true, text, carrier, returnYds: rng.int(0, 6) };
+      return { type: 'fumble', yards, elapsed: 6, clockStops: true, turnover: true, text, carrier, tackler, returnYds: rng.int(0, 6) };
     }
     text += `, recovered by ${g.teams[off].abbr}.`;
   }
-  return { type: 'run', yards, elapsed: rng.int(5, 8), clockStops: oob || td, oob, td, text: text + (fumble || td ? '' : '.'), carrier };
+  return { type: 'run', yards, elapsed: rng.int(5, 8), clockStops: oob || td, oob, td, text: text + (fumble || td ? '' : '.'), carrier, tackler };
 }
 
 function pickReceiver(g, rng, comp, call) {
@@ -595,13 +679,13 @@ function resolvePass(g, rng, call, defCall) {
         if (rng.chance(0.55)) {
           const rec = pickTackler(g, defT, 'run', rng);
           if (rec) statFor(g.stats[defT], rec.id).def.fr++;
-          return { type: 'fumble', yards, elapsed: 6, clockStops: true, turnover: true, returnYds: rng.int(0, 5),
+          return { type: 'fumble', yards, elapsed: 6, clockStops: true, turnover: true, returnYds: rng.int(0, 5), carrier: qb, sacker,
             text: `${shortName(qb)} sacked by ${sacker ? shortName(sacker) : 'the defense'} for ${yardsText(yards)}. FUMBLE, recovered by ${rec ? shortName(rec) : g.teams[defT].abbr}!` };
         }
-        return { type: 'sack', yards, elapsed: 6, clockStops: false,
+        return { type: 'sack', yards, elapsed: 6, clockStops: false, sacker,
           text: `${shortName(qb)} sacked by ${sacker ? shortName(sacker) : 'the defense'} for ${yardsText(yards)}. Fumble recovered by ${g.teams[off].abbr}.` };
       }
-      return { type: 'sack', yards, elapsed: rng.int(5, 7), clockStops: false, safety: g.ballOn + yards <= 0,
+      return { type: 'sack', yards, elapsed: rng.int(5, 7), clockStops: false, sacker, safety: g.ballOn + yards <= 0,
         text: `${shortName(qb)} sacked by ${sacker ? shortName(sacker) : 'the defense'} for ${yardsText(yards)}${g.ballOn + yards <= 0 ? ' — SAFETY!' : '.'}` };
     }
     // Scramble.
@@ -616,7 +700,7 @@ function resolvePass(g, rng, call, defCall) {
       const tackler = pickTackler(g, defT, 'run', rng);
       if (tackler && !td) statFor(g.stats[defT], tackler.id).def.tkl++;
       const oob = rng.chance(0.4);
-      return { type: 'run', yards, td, oob, elapsed: rng.int(5, 8), clockStops: td || oob, carrier: qb,
+      return { type: 'run', yards, td, oob, elapsed: rng.int(5, 8), clockStops: td || oob, carrier: qb, tackler,
         text: `${shortName(qb)} escapes pressure and scrambles for ${yardsText(yards)}${td ? ' — TOUCHDOWN!' : tackler ? ` (${shortName(tackler)}).` : '.'}` };
     }
   }
@@ -658,7 +742,7 @@ function resolvePass(g, rng, call, defCall) {
     const intSpot = g.ballOn + spotAir; // from offense perspective
     const defSpot = 100 - intSpot; // from defense perspective after catch
     const endSpot = defSpot + ret;
-    return { type: 'int', yards: 0, elapsed: rng.int(6, 10), clockStops: true, turnover: true, interceptor: picker,
+    return { type: 'int', yards: 0, elapsed: rng.int(6, 10), clockStops: true, turnover: true, interceptor: picker, target,
       intSpot, returnYds: ret, defTd: endSpot >= 100,
       text: `${shortName(qb)} ${callVerb(call)} intended for ${shortName(target)} is INTERCEPTED by ${shortName(picker)}${endSpot >= 100 ? ' and returned for a TOUCHDOWN!' : ret >= 15 ? ` and returned ${ret} yards.` : '.'}` };
   }
@@ -670,7 +754,7 @@ function resolvePass(g, rng, call, defCall) {
     const txt = drop ? `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} — DROPPED.`
       : pd ? `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} broken up by ${shortName(prim)}.`
       : `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} — incomplete${pressured ? ' under pressure' : ''}.`;
-    return { type: 'incomplete', yards: 0, elapsed: rng.int(4, 7), clockStops: true, text: txt, target };
+    return { type: 'incomplete', yards: 0, elapsed: rng.int(4, 7), clockStops: true, text: txt, target, pressured, defender: prim };
   }
 
   // Completion.
@@ -698,13 +782,13 @@ function resolvePass(g, rng, call, defCall) {
     if (rng.chance(0.5)) {
       const rec = pickTackler(g, defT, 'run', rng);
       if (rec) statFor(g.stats[defT], rec.id).def.fr++;
-      return { type: 'fumble', yards, elapsed: 7, clockStops: true, turnover: true, returnYds: rng.int(0, 8),
+      return { type: 'fumble', yards, elapsed: 7, clockStops: true, turnover: true, returnYds: rng.int(0, 8), target, tackler, pressured,
         text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}. FUMBLE, recovered by ${rec ? shortName(rec) : g.teams[defT].abbr}!` };
     }
-    return { type: 'pass', yards, elapsed: 7, clockStops: false, target,
+    return { type: 'pass', yards, elapsed: 7, clockStops: false, target, tackler, pressured, defender: prim,
       text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}. Fumble recovered by ${g.teams[off].abbr}.` };
   }
-  return { type: 'pass', yards, td, oob, elapsed: rng.int(6, 9), clockStops: td || oob, target,
+  return { type: 'pass', yards, td, oob, elapsed: rng.int(6, 9), clockStops: td || oob, target, tackler, pressured, defender: prim,
     text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}${td ? ' — TOUCHDOWN!' : tackler ? ` (${shortName(tackler)}).` : '.'}` };
 }
 
@@ -823,11 +907,11 @@ function resolvePunt(g, rng) {
   if (ps) { ps.p.yds += dist; ps.p.lng = Math.max(ps.p.lng, dist); if (netTo <= 20) ps.p.in20++; }
   if (finalTo >= 100) {
     if (returner) statFor(g.stats[defT], returner.id).ret.td++;
-    return { type: 'punt', yards: 0, elapsed: 10, clockStops: true, puntReturnTd: true, text: `${name} punts ${dist} yards. ${returner ? shortName(returner) : 'Returner'} takes it back for a TOUCHDOWN!` };
+    return { type: 'punt', yards: 0, elapsed: 10, clockStops: true, puntReturnTd: true, returner, text: `${name} punts ${dist} yards. ${returner ? shortName(returner) : 'Returner'} takes it back for a TOUCHDOWN!` };
   }
   finalTo = clamp(finalTo, 1, 99);
   const text = `${name} punts ${dist} yards${fairCatch ? ', fair catch' : ret ? `, returned ${ret} yards` : ''}${netTo <= 20 && !ret ? ' — inside the 20' : ''}.`;
-  return { type: 'punt', yards: 0, elapsed: fairCatch ? 5 : rng.int(6, 10), clockStops: true, puntTo: finalTo, text };
+  return { type: 'punt', yards: 0, elapsed: fairCatch ? 5 : rng.int(6, 10), clockStops: true, puntTo: finalTo, returner: ret ? returner : null, text };
 }
 
 // ---------------------------------------------------------------------------

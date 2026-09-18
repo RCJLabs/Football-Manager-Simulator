@@ -16,6 +16,7 @@ import { GM_PERSONALITIES } from '../data/teams.js';
 import { overall } from './ratings.js';
 import { TRUE_LEVERAGE } from './auction.js';
 import { standings, isPro, sortDepthCharts } from './season.js';
+import { availability, weeksLeft, SEASON_ENDING } from './injuries.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
 export const MAX_TRADE_SIDE = 3;
@@ -39,7 +40,13 @@ export function freeAgents(league, pool) {
 }
 
 export function slotOf(team, playerId) {
+  if (!playerId) return null;
   return ROSTER_SLOTS.find((s) => team.slots[s.id] === playerId)?.id || null;
+}
+
+/** An unfilled slot at a position, if the roster has one (older saves, or a bench slot left open). */
+export function emptySlotAt(team, pos) {
+  return ROSTER_SLOTS.find((s) => s.pos === pos && !team.slots[s.id])?.id || null;
 }
 
 export function waiverLimit(league) {
@@ -63,11 +70,12 @@ export function movesOpen(league) {
  * quarter. Position groups are sorted by overall first, so a trade is judged
  * by the lineup it produces rather than by whoever happens to sit in slot one.
  */
-export function lineupStrength(slots, byId) {
+export function lineupStrength(slots, byId, league = null) {
   const groups = {};
   for (const s of ROSTER_SLOTS) {
     const p = byId.get(slots[s.id]);
-    if (p) (groups[s.pos] ??= []).push(overall(p));
+    // A hurt player counts for the share of the remaining season he will play.
+    if (p) (groups[s.pos] ??= []).push(overall(p) * (league ? availability(league, p.id) : 1));
   }
   let total = 0;
   for (const [pos, arr] of Object.entries(groups)) {
@@ -104,14 +112,25 @@ export function fileClaim(league, teamIdx, addId, dropId, byId) {
   initWaivers(league);
   if (!movesOpen(league)) throw new Error('The waiver wire is closed until next season');
   const team = league.teams[teamIdx];
-  const add = byId.get(addId), drop = byId.get(dropId);
-  if (!add || !drop) throw new Error('Unknown player');
+  const add = byId.get(addId);
+  if (!add) throw new Error('Unknown player');
   if (ownerMap(league).has(addId)) throw new Error(`${add.name} is on a roster`);
-  if (!slotOf(team, dropId)) throw new Error(`${drop.name} is not on your roster`);
-  if (add.pos !== drop.pos) throw new Error(`Swap a ${add.pos} for a ${add.pos}; you offered a ${drop.pos}`);
   const mine = claimsThisWeek(league, teamIdx);
   if (mine.some((c) => c.add === addId)) throw new Error(`You already have a claim in for ${add.name}`);
-  if (mine.some((c) => c.drop === dropId)) throw new Error(`${drop.name} is already the drop in another claim`);
+  if (dropId) {
+    const drop = byId.get(dropId);
+    if (!drop) throw new Error('Unknown player');
+    if (!slotOf(team, dropId)) throw new Error(`${drop.name} is not on your roster`);
+    if (add.pos !== drop.pos) throw new Error(`Swap a ${add.pos} for a ${add.pos}; you offered a ${drop.pos}`);
+    if (mine.some((c) => c.drop === dropId)) throw new Error(`${drop.name} is already the drop in another claim`);
+  } else {
+    // No drop named: the claim goes into an open slot at that position, one claim per open slot.
+    const open = ROSTER_SLOTS.filter((s) => s.pos === add.pos && !team.slots[s.id]).length;
+    const pending = mine.filter((c) => !c.drop && byId.get(c.add)?.pos === add.pos).length;
+    if (!open) throw new Error(`No open ${add.pos} slot; name a player to release`);
+    if (pending >= open) throw new Error(`You already have a claim for the open ${add.pos} slot`);
+    dropId = null;
+  }
   if (mine.length >= waiverLimit(league)) throw new Error(`Only ${waiverLimit(league)} claims a week`);
   const claim = { team: teamIdx, add: addId, drop: dropId, week: league.week, filed: league.claims.length };
   league.claims.push(claim);
@@ -128,7 +147,10 @@ export function cancelClaim(league, teamIdx, addId) {
 /** AI clubs look for the single best upgrade at each position and file for it. */
 export function aiFileClaims(league, pool, byId, rng) {
   initWaivers(league);
-  const fa = freeAgents(league, pool);
+  const inj = league.injuries || {};
+  const left = weeksLeft(league);
+  // Nobody claims a man who cannot play.
+  const fa = freeAgents(league, pool).filter((p) => !inj[p.id]);
   const byPos = {};
   for (const p of fa) (byPos[p.pos] ??= []).push(p);
   for (const arr of Object.values(byPos)) arr.sort((a, b) => overall(b) - overall(a));
@@ -137,24 +159,30 @@ export function aiFileClaims(league, pool, byId, rng) {
     const gm = GM_PERSONALITIES.find((g) => g.id === team.gm);
     const activity = ACTIVITY[team.gm] ?? 0.5;
     if (rng && !rng.chance(activity)) return;
-    const before = lineupStrength(team.slots, byId);
+    const before = lineupStrength(team.slots, byId, league);
     const options = [];
     for (const s of ROSTER_SLOTS) {
       const cur = byId.get(team.slots[s.id]);
       const best = (byPos[s.pos] || [])[0];
-      if (!cur || !best) continue;
-      if (overall(best) < overall(cur) + 2) continue;
-      const after = lineupStrength(withSwap(team.slots, s.id, best.id), byId);
+      if (!best) continue;
+      if (cur) {
+        const hurt = inj[cur.id];
+        // A hurt player who will be back this season keeps his spot unless the
+        // pickup is better anyway; one done for the year is fair game.
+        const doneForYear = hurt && (hurt.weeks >= SEASON_ENDING || hurt.weeks >= left);
+        if (!doneForYear && overall(best) < overall(cur) + 2) continue;
+      }
+      const after = lineupStrength(withSwap(team.slots, s.id, best.id), byId, league);
       const gain = after - before;
-      if (gain >= 6) options.push({ slot: s.id, add: best.id, drop: cur.id, gain });
+      if (gain >= 6) options.push({ slot: s.id, add: best.id, drop: cur ? cur.id : null, gain });
     }
     options.sort((a, b) => b.gain - a.gain);
     const used = new Set();
     let filed = 0;
     for (const o of options) {
       if (filed >= waiverLimit(league)) break;
-      if (used.has(o.add) || used.has(o.drop)) continue;
-      try { fileClaim(league, ti, o.add, o.drop, byId); used.add(o.add); used.add(o.drop); filed++; } catch { /* limit or conflict */ }
+      if (used.has(o.add) || (o.drop && used.has(o.drop))) continue;
+      try { fileClaim(league, ti, o.add, o.drop, byId); used.add(o.add); if (o.drop) used.add(o.drop); filed++; } catch { /* limit or conflict */ }
     }
     void gm;
   });
@@ -174,15 +202,15 @@ export function processWaivers(league, byId) {
   const results = [];
   for (const c of claims) {
     const team = league.teams[c.team];
-    const slotId = slotOf(team, c.drop);
-    const add = byId.get(c.add), drop = byId.get(c.drop);
+    const add = byId.get(c.add), drop = c.drop ? byId.get(c.drop) : null;
+    const slotId = c.drop ? slotOf(team, c.drop) : add ? emptySlotAt(team, add.pos) : null;
     let ok = false, reason = '';
-    if (!add || !drop) reason = 'unknown player';
+    if (!add || (c.drop && !drop)) reason = 'unknown player';
     else if (owned.has(c.add)) reason = `${add.name} went to ${league.teams[owned.get(c.add)].abbr} on priority`;
-    else if (!slotId) reason = `${drop.name} was no longer on the roster`;
+    else if (!slotId) reason = c.drop ? `${drop.name} was no longer on the roster` : `no open ${add.pos} slot was left`;
     else {
       team.slots[slotId] = c.add;
-      owned.delete(c.drop);
+      if (c.drop) owned.delete(c.drop);
       owned.set(c.add, c.team);
       ok = true;
       league.transactions.push({ week: league.week, season: league.season, type: 'waiver', team: c.team, add: c.add, drop: c.drop });
@@ -253,8 +281,8 @@ function slotsAfter(team, gives, gets, byId) {
  */
 export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId) {
   const team = league.teams[aiIdx];
-  const before = lineupStrength(team.slots, byId);
-  const after = lineupStrength(slotsAfter(team, aiGives, aiGets, byId), byId);
+  const before = lineupStrength(team.slots, byId, league);
+  const after = lineupStrength(slotsAfter(team, aiGives, aiGets, byId), byId, league);
   const delta = Math.round((after - before) * 10) / 10;
   const greed = { analytics: 8, trenches: 6, defense: 5, balanced: 4, gambler: 2, airraid: 4, ground: 4, oldschool: 5 }[team.gm] ?? 4;
   const accept = delta >= greed;
@@ -301,7 +329,7 @@ export function rostersValid(league, byId) {
   for (const t of league.teams) {
     for (const s of ROSTER_SLOTS) {
       const id = t.slots[s.id];
-      if (!id) return { ok: false, reason: `${t.abbr} ${s.id} empty` };
+      if (!id) { if (s.starter) return { ok: false, reason: `${t.abbr} ${s.id} empty` }; continue; }
       const p = byId.get(id);
       if (!p) return { ok: false, reason: `${t.abbr} ${s.id} unknown ${id}` };
       if (p.pos !== s.pos) return { ok: false, reason: `${t.abbr} ${s.id} holds a ${p.pos}` };

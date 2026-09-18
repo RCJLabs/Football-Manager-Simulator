@@ -7,7 +7,8 @@ import {
   freeAgents, fileClaim, cancelClaim, claimsThisWeek, waiverLimit, tradeDeadlineWeek, tradesOpen, movesOpen,
   validateTrade, proposeTrade, lineupStrength, initWaivers, slotOf,
 } from '../../engine/transactions.js';
-import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge } from '../components.js';
+import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge, outBadge } from '../components.js';
+import { emptySlotAt } from '../../engine/transactions.js';
 
 const ui = { tab: 'fa', pos: 'ALL', era: 'ALL', q: '', limit: 60, partner: null, give: new Set(), get: new Set() };
 
@@ -22,6 +23,8 @@ export function view(root, params, ctx) {
   const me = league.teams[u];
   const open = movesOpen(league);
   const fa = freeAgents(league, ctx.players);
+  const injuries = league.injuries || {};
+  const inj = (p) => outBadge(injuries[p.id]).__raw;
   const mine = claimsThisWeek(league, u);
   const limit = waiverLimit(league);
   const deadline = tradeDeadlineWeek(league);
@@ -45,6 +48,8 @@ export function view(root, params, ctx) {
       <div class="tabs" id="eraTabs">${raw(['ALL', ...ERAS].map((e) => `<button class="tab ${ui.era === e ? 'active' : ''}" data-era="${e}">${e}</button>`).join(''))}</div>
       <input type="search" id="q" placeholder="Search player or team…" value="${ui.q}">
       <ul class="plist" style="margin-top:.5rem">${raw(shown.map((p) => playerItem(p, {
+        meta: inj(p),
+        cls: injuries[p.id] ? 'dim' : '',
         action: open ? `<button class="btn sm primary" data-claim="${esc(p.id)}" ${mine.length >= limit || mine.some((c) => c.add === p.id) ? 'disabled' : ''}>${mine.some((c) => c.add === p.id) ? 'Claimed' : 'Claim'}</button>` : '',
       })).join(''))}</ul>
       ${shown.length === 0 ? html`<p class="empty">Nobody matches those filters.</p>` : ''}
@@ -52,18 +57,18 @@ export function view(root, params, ctx) {
   } else if (ui.tab === 'claims') {
     body = html`
       ${last.length ? html`<div class="notice" style="margin-bottom:.6rem"><b>Last week's wire:</b> ${raw(last.map((r) => `${r.ok ? '✔' : '✘'} ${esc(ctx.byId.get(r.add)?.name)}${r.ok ? ' joined, ' + esc(ctx.byId.get(r.drop)?.name) + ' released' : ' — ' + esc(r.reason)}`).join('<br>'))}</div>` : ''}
-      ${mine.length ? raw(`<ul class="plist">${mine.map((c) => { const a = ctx.byId.get(c.add), d = ctx.byId.get(c.drop); return playerItem(a, { attrs: false, meta: ` · drops <b>${esc(d.name)}</b> (${overall(d)})`, action: `<button class="btn sm danger" data-cancel="${esc(c.add)}">Cancel</button>` }); }).join('')}</ul>`) : html`<p class="empty">No claims filed this week. Up to ${limit} resolve when the week advances.</p>`}`;
+      ${mine.length ? raw(`<ul class="plist">${mine.map((c) => { const a = ctx.byId.get(c.add), d = c.drop ? ctx.byId.get(c.drop) : null; return playerItem(a, { attrs: false, meta: d ? ` · drops <b>${esc(d.name)}</b> (${overall(d)})` : ` · into the open <b>${a.pos}</b> slot`, action: `<button class="btn sm danger" data-cancel="${esc(c.add)}">Cancel</button>` }); }).join('')}</ul>`) : html`<p class="empty">No claims filed this week. Up to ${limit} resolve when the week advances.</p>`}`;
   } else if (ui.tab === 'trade') {
     const partner = league.teams[ui.partner];
     const list = (team, sel, key) => `<ul class="plist">${ROSTER_SLOTS.map((s) => {
       const p = ctx.byId.get(team.slots[s.id]);
       if (!p) return '';
       const on = sel.has(p.id);
-      return playerItem(p, { attrs: false, cls: on ? 'me' : '', meta: ` · <span class="badge slot">${s.id}</span>`, action: `<button class="btn sm ${on ? 'primary' : ''}" data-${key}="${esc(p.id)}">${on ? 'Selected' : 'Select'}</button>` });
+      return playerItem(p, { attrs: false, cls: on ? 'me' : '', meta: ` · <span class="badge slot">${s.id}</span>${inj(p)}`, action: `<button class="btn sm ${on ? 'primary' : ''}" data-${key}="${esc(p.id)}">${on ? 'Selected' : 'Select'}</button>` });
     }).join('')}</ul>`;
     const give = [...ui.give].filter((id) => slotOf(me, id)), get = [...ui.get].filter((id) => slotOf(partner, id));
     const v = give.length || get.length ? validateTrade(league, u, ui.partner, give, get, ctx.byId) : null;
-    const strengthNow = lineupStrength(me.slots, ctx.byId);
+    const strengthNow = lineupStrength(me.slots, ctx.byId, league);
     body = html`
       <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${tradesOpen(league) ? `Trades are open through week ${deadline}. Positions must match on both sides, up to three players each. The other club judges the lineup it would field afterwards.` : league.phase === 'season' ? `The trade deadline passed after week ${deadline}.` : 'Trades are open during the regular season only.'}</p>
       <div class="row" style="gap:.5rem;align-items:center">
@@ -142,22 +147,30 @@ export function view(root, params, ctx) {
 
   function openClaim(p) {
     const options = ROSTER_SLOTS.filter((s) => s.pos === p.pos).map((s) => ctx.byId.get(me.slots[s.id])).filter(Boolean);
+    const openSlot = emptySlotAt(me, p.pos);
+    const hurtNote = injuries[p.id] ? html`<p class="notice">He is hurt: ${injuries[p.id].kind}, out ${fmtWeeksSafe(injuries[p.id].weeks)}. You can still claim him and wait.</p>` : '';
     const m = modal(html`
       <div class="row between"><h2 style="margin:0">Claim ${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
-      <p class="muted">${ovrBadge(p)} ${posBadge(p.pos)} ${p.season} ${p.team}. Who goes to make room?</p>
-      <ul class="plist">${raw(options.map((d) => playerItem(d, { attrs: false, meta: ` · <span class="badge slot">${slotOf(me, d.id)}</span>`, action: `<button class="btn sm primary" data-drop="${esc(d.id)}">Release</button>` })).join(''))}</ul>
+      <p class="muted">${ovrBadge(p)} ${posBadge(p.pos)} ${p.season} ${p.team}. ${openSlot ? 'Fill the open slot, or release someone.' : 'Who goes to make room?'}</p>
+      ${hurtNote}
+      ${openSlot ? html`<button class="btn primary block" data-drop="" style="margin-bottom:.5rem">Into the open ${openSlot} slot</button>` : ''}
+      <ul class="plist">${raw(options.map((d) => playerItem(d, { attrs: false, meta: ` · <span class="badge slot">${slotOf(me, d.id)}</span>${inj(d)}`, action: `<button class="btn sm primary" data-drop="${esc(d.id)}">Release</button>` })).join(''))}</ul>
       <small class="muted">The claim resolves when the week advances; higher waiver priority wins a contested player.</small>`);
     m.el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-drop]');
       if (!b) return;
       try {
-        ctx.update((s) => { fileClaim(s.league, u, p.id, b.dataset.drop, ctx.byId); }, { silent: true });
+        ctx.update((s) => { fileClaim(s.league, u, p.id, b.dataset.drop || null, ctx.byId); }, { silent: true });
         toast(`Claim filed for ${p.name}`);
         m.close();
         redraw();
       } catch (err) { toast(err.message); }
     });
   }
+}
+
+function fmtWeeksSafe(w) {
+  return w >= 50 ? 'for the season' : `${w} week${w === 1 ? '' : 's'}`;
 }
 
 function ordinalOf(n) {

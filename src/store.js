@@ -1,4 +1,6 @@
 // Single persisted app state. league + in-progress game + preferences.
+import { migrateLeague } from './engine/season.js';
+
 const KEY = 'gridiron-eras:state:v1';
 
 const listeners = new Set();
@@ -16,6 +18,7 @@ export function load() {
     if (raw) {
       const parsed = JSON.parse(raw);
       state = { ...state, ...parsed, prefs: { ...state.prefs, ...(parsed.prefs || {}) } };
+      if (state.league) migrateLeague(state.league);
     }
   } catch (e) {
     console.warn('Could not load saved state', e);
@@ -69,6 +72,7 @@ export function importJSON(text) {
   const parsed = JSON.parse(text);
   if (!parsed || typeof parsed !== 'object' || !('league' in parsed)) throw new Error('Not a Gridiron Eras save file');
   state = { ...state, ...parsed, prefs: { ...state.prefs, ...(parsed.prefs || {}) } };
+  if (state.league) migrateLeague(state.league);
   saveNow();
   notify();
 }

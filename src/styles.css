@@ -105,6 +105,8 @@ tr.dim td { color: var(--muted); }
 .badge.era { background: #3b3a2b; color: #e6dfb0; }
 .badge.gm { background: #2c3a4a; color: #cfe0f0; }
 .badge.slot { background: #24382b; color: #b9d2c3; font-family: var(--mono); }
+.badge.out { background: #4a2626; color: #ffb3b0; }
+.badge.rep { background: #3a3a3a; color: #cfcfcf; }
 .ovr { display: inline-flex; align-items: center; justify-content: center; min-width: 2.3rem; height: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: 6px; background: #333; color: #fff; flex: none; }
 .ovr.o95 { background: #d4a017; color: #1a1a1a; } .ovr.o90 { background: #3a9d5a; } .ovr.o85 { background: #2f7d9a; } .ovr.o80 { background: #5b6b7a; } .ovr.o0 { background: #444; }
 .attr { font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -197,6 +199,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .pbp li .sit { display: block; color: var(--muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
 .pbp li.scoring { background: rgba(87, 204, 153, 0.12); border-left: 3px solid var(--good); }
 .pbp li.turnover { background: rgba(239, 100, 97, 0.12); border-left: 3px solid var(--bad); }
+.pbp li.injury { background: rgba(239, 100, 97, 0.08); border-left: 3px dashed var(--bad); font-style: italic; }
 .pbp li.drive { background: var(--bg-3); color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .pbp li.quarter, .pbp li.final { background: #0b1410; font-weight: 700; text-align: center; }
 .pbp li.latest { animation: flash 0.6s ease; }

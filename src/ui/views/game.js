@@ -93,7 +93,7 @@ export function view(root, params, ctx) {
 
     const last = g.lastCall && g.phase !== 'kickoff' && !g.final ? `Last: ${OFFENSE_CALLS[g.lastCall.off]?.label || g.lastCall.off} vs ${DEFENSE_CALLS[g.lastCall.def]?.label || g.lastCall.def}` : '';
     const logItems = g.log.slice().reverse().map((e, i) => {
-      const cls = e.type === 'drive' ? 'drive' : e.type === 'quarter' || e.type === 'final' || e.type === 'info' ? 'quarter' : e.scoring ? 'scoring' : (e.type === 'int' || e.type === 'fumble' || /Turnover on downs/.test(e.text)) ? 'turnover' : '';
+      const cls = e.type === 'drive' ? 'drive' : e.type === 'injury' ? 'injury' : e.type === 'quarter' || e.type === 'final' || e.type === 'info' ? 'quarter' : e.scoring ? 'scoring' : (e.type === 'int' || e.type === 'fumble' || /Turnover on downs/.test(e.text)) ? 'turnover' : '';
       return `<li class="${cls} ${i === 0 ? 'latest' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`;
     }).join('');
 

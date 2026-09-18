@@ -1,6 +1,7 @@
 import { html, render, raw, pct } from '../../util.js';
 import { fantasyPoints, fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { teamChip, esc } from '../components.js';
+import { replacementFromId, fmtWeeks } from '../../engine/injuries.js';
 
 export function view(root, params, ctx) {
   const state = ctx.getState();
@@ -10,28 +11,33 @@ export function view(root, params, ctx) {
   if (params.kind === 'live') {
     if (!state.game) { ctx.navigate('#/season'); return; }
     const g = state.game.g;
-    box = { teams: g.teams, score: g.score, teamStats: [g.stats[0].team, g.stats[1].team], players: [g.stats[0].players, g.stats[1].players], log: g.log, overtime: g.quarter >= 5, final: g.final, back: '#/game' };
+    box = { teams: g.teams, score: g.score, teamStats: [g.stats[0].team, g.stats[1].team], players: [g.stats[0].players, g.stats[1].players], log: g.log, overtime: g.quarter >= 5, final: g.final, back: '#/game', injuries: g.teams.map((t) => t.injuries || []) };
   } else {
     const list = params.kind === 'p' ? league.playoffs?.rounds[Number(params.a) - 1]?.games : league.schedule[Number(params.a) - 1]?.games;
     const entry = list && list[Number(params.b)];
     if (!entry || !entry.result) { render(root, html`<div class="card"><p class="empty">No box score for that game.</p><a class="btn" href="#/season">Back</a></div>`); return; }
     const r = entry.result;
-    box = { teams: [league.teams[entry.home], league.teams[entry.away]], score: r.score, teamStats: r.teamStats, players: r.players, log: r.log, overtime: r.overtime, final: true, back: '#/season',
+    box = { teams: [league.teams[entry.home], league.teams[entry.away]], score: r.score, teamStats: r.teamStats, players: r.players, log: r.log, overtime: r.overtime, final: true, back: '#/season', injuries: r.injuries || [[], []],
       title: params.kind === 'p' ? league.playoffs.rounds[Number(params.a) - 1].name : `Week ${params.a}` };
   }
   const [h, a] = box.teams;
   const ts = box.teamStats;
   const cmp = (label, f, fmt = (v) => v) => `<div class="l">${fmt(f(ts[0]))}</div><div class="m">${label}</div><div>${fmt(f(ts[1]))}</div>`;
   const scoring = (box.log || []).filter((e) => e.scoring);
+  const injuryRows = (box.injuries || []).flatMap((list, side) => list.map((x) => {
+    const p = ctx.byId.get(x.id);
+    const when = x.weeks === 0 ? 'left the game' : `out ${fmtWeeks(x.weeks)}`;
+    return `<li>${teamChip(box.teams[side], { abbr: true }).__raw} <b>${esc(p ? p.name : x.name || x.id)}</b> <small class="muted">${p ? p.pos : x.pos || ''}</small> — ${esc(x.kind)}, ${when}</li>`;
+  })).join('');
 
   const tables = (side) => {
     if (!box.players) return '<p class="muted" style="font-size:.85rem">Player lines are kept for your games and the playoffs; this one has team totals only. Season totals for everyone are on their team page.</p>';
     const P = box.players[side];
-    const rows = Object.entries(P).map(([id, s]) => ({ p: ctx.byId.get(id), s })).filter((r) => r.p);
+    const rows = Object.entries(P).map(([id, s]) => ({ p: ctx.byId.get(id) || replacementFromId(id), s })).filter((r) => r.p);
     const tbl = (title, cols, filter, sortBy) => {
       const rs = rows.filter(filter).sort((x, y) => sortBy(y.s) - sortBy(x.s));
       if (!rs.length) return '';
-      return `<h3 style="margin-top:.75rem">${title}</h3><div class="table-wrap"><table><thead><tr><th>Player</th>${cols.map((c) => `<th class="num">${c[0]}</th>`).join('')}</tr></thead><tbody>${rs.map((r) => `<tr><td><b>${esc(r.p.name)}</b> <small class="muted">${r.p.pos}</small></td>${cols.map((c) => `<td class="num">${c[1](r.s)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      return `<h3 style="margin-top:.75rem">${title}</h3><div class="table-wrap"><table><thead><tr><th>Player</th>${cols.map((c) => `<th class="num">${c[0]}</th>`).join('')}</tr></thead><tbody>${rs.map((r) => `<tr><td><b>${esc(r.p.name)}</b> <small class="muted">${r.p.pos}</small>${r.p.replacement ? ' <span class="badge rep">fill-in</span>' : ''}</td>${cols.map((c) => `<td class="num">${c[1](r.s)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
     };
     return `
       ${tbl('Passing', [['C/ATT', (s) => `${s.pass.cmp}/${s.pass.att}`], ['YDS', (s) => s.pass.yds], ['TD', (s) => s.pass.td], ['INT', (s) => s.pass.int], ['SCK', (s) => s.pass.sck], ['LNG', (s) => s.pass.lng]], (r) => r.s.pass.att > 0 || r.s.pass.sck > 0, (s) => s.pass.yds)}
@@ -67,6 +73,7 @@ export function view(root, params, ctx) {
         ${raw(cmp('Possession', (t) => fmtClock(t.top)))}
       </div>
     </div>
+    ${injuryRows ? html`<div class="card tight" style="margin-top:.75rem"><h3>Injuries</h3><ul class="plain ticker">${raw(injuryRows)}</ul></div>` : ''}
     ${scoring.length ? html`<div class="card tight" style="margin-top:.75rem"><h3>Scoring summary</h3><ul class="plain ticker">${raw(scoring.map((e) => `<li><small class="muted">${fmtQuarter(e.q)} ${fmtClock(e.clock)}</small> ${e.text} <b class="mono">${e.score ? `${e.score[0]}–${e.score[1]}` : ''}</b></li>`).join(''))}</ul></div>` : ''}
     <div class="grid grid-2" style="margin-top:.75rem">
       <div class="card tight"><h2 style="font-size:1rem">${teamChip(h)}</h2>${raw(tables(0))}</div>

@@ -1,5 +1,7 @@
 import { html, render, raw } from '../../util.js';
-import { currentWeek, userTeamIndex, userGameThisWeek, simulateWeekAi, weekComplete, advanceWeek, standings, proStandings, powerRankings, teamForGame, gameSeed, weekNumber, recordResult, newSeasonSameRosters, isPro } from '../../engine/season.js';
+import { currentWeek, userTeamIndex, userGameThisWeek, simulateWeekAi, weekComplete, advanceWeek, standings, proStandings, powerRankings, teamForGame, gameOptions, weekNumber, recordResult, newSeasonSameRosters, isPro } from '../../engine/season.js';
+import { ROSTER_SLOTS } from '../../data/positions.js';
+import { fmtWeeks } from '../../engine/injuries.js';
 import { createGame, simulateGame } from '../../engine/game.js';
 import { fantasyPoints } from '../../engine/stats.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
@@ -38,6 +40,9 @@ export function view(root, params, ctx) {
   const kindOf = () => (playoffs ? 'p' : 'w');
   const weekNoOf = () => (playoffs ? league.playoffs.round : league.week);
 
+  const injuries = league.injuries || {};
+  const hurtList = (ti) => ROSTER_SLOTS.map((s) => league.teams[ti].slots[s.id]).filter((id) => id && injuries[id]).map((id) => ({ p: ctx.byId.get(id), inj: injuries[id] }));
+
   // ----- matchup card -----
   let matchupCard = '';
   if (league.phase === 'complete') {
@@ -66,6 +71,7 @@ export function view(root, params, ctx) {
         <div class="side right"><small class="muted">${rec(league.teams[myGame.away])}</small>${teamChip(league.teams[myGame.away], { responsive: true })}</div>
       </div>
       <p class="muted" style="font-size:.9rem">Power: you ${myPower} · them ${oppPower}${gm ? ` · ${gm.name} GM (${gm.blurb.toLowerCase().replace(/\.$/, '')})` : ''}</p>
+      ${hurtList(u).length || hurtList(oppIdx).length ? html`<p class="muted" style="font-size:.85rem;margin-top:-.4rem">${hurtList(u).length ? html`You are missing <b>${hurtList(u).map((x) => `${x.p.name} (${x.p.pos})`).join(', ')}</b>. ` : ''}${hurtList(oppIdx).length ? html`They are missing <b>${hurtList(oppIdx).map((x) => `${x.p.name} (${x.p.pos})`).join(', ')}</b>.` : ''}</p>` : ''}
       <div class="btn-group">
         ${myGame.result
           ? html`<a class="btn" href="#/box/${kindOf()}/${weekNoOf()}/${myGameIdx}">Box score</a>`
@@ -157,6 +163,13 @@ export function view(root, params, ctx) {
     <div class="btn-group"><a class="btn sm" href="#/moves">Free agents</a><a class="btn sm" href="#/moves/trade">Trades</a></div>
   </div>` : '';
   const powerShown = pro ? power.slice(0, 12) : power;
+  const myHurt = hurtList(u);
+  const leagueHurt = Object.keys(injuries).length;
+  const injuryCard = league.phase === 'season' || league.phase === 'playoffs' ? html`<div class="card tight">
+    <h3>Injuries</h3>
+    ${myHurt.length ? raw(`<ul class="plain ticker" style="max-height:none">${myHurt.map(({ p, inj }) => `<li><b>${p.name}</b> <small class="muted">${p.pos}</small> — ${inj.kind}, <b>${fmtWeeks(inj.weeks)}</b></li>`).join('')}</ul>`) : html`<p class="muted" style="margin:0;font-size:.85rem">Your club is healthy.</p>`}
+    <small class="muted" style="display:block;margin-top:.4rem">${leagueHurt} player${leagueHurt === 1 ? '' : 's'} out league-wide · injuries set to ${league.settings.injuries || 'normal'}${myHurt.length ? html` · <a href="#/team/${u}">depth chart</a>` : ''}</small>
+  </div>` : '';
 
   render(root, html`<div id="season-view">
     <div class="row between" style="margin-bottom:.75rem">
@@ -174,6 +187,7 @@ export function view(root, params, ctx) {
         </details>
       </div>
       <div class="stack">
+        ${injuryCard}
         ${movesCard}
         <div class="card tight">
           <h3>Season leaders</h3>
@@ -195,7 +209,7 @@ export function view(root, params, ctx) {
     if (tr) ctx.navigate(`#/team/${tr.dataset.team}`);
   });
   el.querySelector('#play')?.addEventListener('click', () => {
-    const g = createGame(teamForGame(league, myGame.home, ctx.byId), teamForGame(league, myGame.away, ctx.byId), { seed: gameSeed(league, weekNumber(league), myGame.home, myGame.away), playoff: playoffs, homeAdvantage: !myGame.neutral });
+    const g = createGame(teamForGame(league, myGame.home, ctx.byId), teamForGame(league, myGame.away, ctx.byId), gameOptions(league, myGame));
     ctx.update((s) => { s.game = { weekNo: weekNumber(league), phase: league.phase, entryIdx: myGameIdx, g }; }, { silent: true });
     ctx.navigate('#/game');
   });
@@ -204,7 +218,7 @@ export function view(root, params, ctx) {
       const lg = s.league;
       const w = currentWeek(lg);
       const entry = w.games[myGameIdx];
-      const g = createGame(teamForGame(lg, entry.home, ctx.byId), teamForGame(lg, entry.away, ctx.byId), { seed: gameSeed(lg, weekNumber(lg), entry.home, entry.away), playoff: lg.phase === 'playoffs', homeAdvantage: !entry.neutral });
+      const g = createGame(teamForGame(lg, entry.home, ctx.byId), teamForGame(lg, entry.away, ctx.byId), gameOptions(lg, entry));
       simulateGame(g);
       recordResult(lg, weekNumber(lg), entry, g, { keepLog: true });
       simulateWeekAi(lg, ctx.byId);

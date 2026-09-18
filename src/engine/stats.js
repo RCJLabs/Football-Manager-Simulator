@@ -67,6 +67,7 @@ export function fmtQuarter(q) {
 }
 
 export function shortName(p) {
+  if (p.replacement) return p.name;
   const parts = p.name.split(' ');
   if (parts.length === 1) return p.name;
   const suffix = /^(Jr\.?|Sr\.?|II|III|IV)$/.test(parts[parts.length - 1]) ? ` ${parts.pop()}` : '';

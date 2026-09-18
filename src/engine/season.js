@@ -16,8 +16,9 @@ import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats } from '
 import { buildLineup, teamPower, overall } from './ratings.js';
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { createGame, simulateGame } from './game.js';
+import { INJURY_LEVELS, DEFAULT_INJURY_LEVEL, recordGameInjuries, tickInjuries } from './injuries.js';
 
-export const LEAGUE_VERSION = 2;
+export const LEAGUE_VERSION = 3;
 export const FANTASY_SIZES = [8, 10, 12];
 export const PRO_SIZE = 32;
 
@@ -36,7 +37,7 @@ function blankTeam(t) {
  * mode 'pro': 32 franchises; `franchise` is the index the user takes over, and
  * any user name/abbr/color given overrides that franchise's identity.
  */
-export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 'auction', budget, mode = 'fantasy', franchise = 0 } = {}) {
+export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 'auction', budget, mode = 'fantasy', franchise = 0, injuries = DEFAULT_INJURY_LEVEL } = {}) {
   seed = seed ?? Math.floor(Math.random() * 4294967295);
   const rng = new RNG(seed);
   let teams;
@@ -77,7 +78,8 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
     champion: null,
     results: [],
     history: [],
-    settings: { coachMode: false, coachDefense: false },
+    injuries: {},
+    settings: { coachMode: false, coachDefense: false, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL },
   };
   assignGms(league, rng);
   if (draftType === 'auction') league.auction = createAuction(league, rng, budget ? { budget } : {});
@@ -86,8 +88,38 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
   return league;
 }
 
+/**
+ * Bring a saved league up to the current shape. Version 3 added the QB2 bench
+ * slot and the injury ledger; an older roster gets an empty slot, which the
+ * waiver wire can fill.
+ */
+export function migrateLeague(league) {
+  if (!league || (league.version || 1) >= LEAGUE_VERSION) return league;
+  for (const t of league.teams) for (const s of ROSTER_SLOTS) if (!(s.id in t.slots)) t.slots[s.id] = null;
+  league.injuries ??= {};
+  league.settings ??= {};
+  league.settings.injuries ??= DEFAULT_INJURY_LEVEL;
+  league.version = LEAGUE_VERSION;
+  return league;
+}
+
 export function userTeamIndex(league) {
   return league.teams.findIndex((t) => t.isUser);
+}
+
+/** The injury dial as a rate multiplier for createGame. */
+export function injuryLevel(league) {
+  return INJURY_LEVELS[league.settings?.injuries] ?? INJURY_LEVELS[DEFAULT_INJURY_LEVEL];
+}
+
+/** createGame options for a schedule entry: seed, playoff flag, home edge, injury dial. */
+export function gameOptions(league, entry) {
+  return {
+    seed: gameSeed(league, weekNumber(league), entry.home, entry.away),
+    playoff: league.phase === 'playoffs',
+    homeAdvantage: !entry.neutral,
+    injuryLevel: injuryLevel(league),
+  };
 }
 
 export function isPro(league) {
@@ -251,7 +283,7 @@ export function gameSeed(league, week, home, away) {
 
 export function teamForGame(league, idx, byId) {
   const t = league.teams[idx];
-  return { id: t.id, name: t.name, abbr: t.abbr, color: t.color, isUser: t.isUser, strategy: t.strategy, lineup: buildLineup(t.slots, byId) };
+  return { id: t.id, name: t.name, abbr: t.abbr, color: t.color, isUser: t.isUser, strategy: t.strategy, lineup: buildLineup(t.slots, byId, league.injuries) };
 }
 
 export function currentWeek(league) {
@@ -286,8 +318,10 @@ export function recordResult(league, week, gameEntry, g, { keepLog = false, keep
     players: keepPlayers ? [compactPlayers(g.stats[0].players), compactPlayers(g.stats[1].players)] : null,
     log: keepLog ? g.log : null,
     drives: keepLog ? g.drives : null,
+    injuries: g.teams.map((t) => (t.injuries || []).map((x) => ({ id: x.id, kind: x.kind, weeks: x.weeks }))),
   };
   gameEntry.result = result;
+  recordGameInjuries(league, g, [gameEntry.home, gameEntry.away], week);
   if (league.phase === 'season') {
     home.record.pf += hs; home.record.pa += as; away.record.pf += as; away.record.pa += hs;
     if (hs > as) { home.record.w++; away.record.l++; } else if (as > hs) { away.record.w++; home.record.l++; } else { home.record.t++; away.record.t++; }
@@ -321,11 +355,7 @@ export function simulateWeekAi(league, byId, { includeUser = false } = {}) {
     if (entry.result || entry.bye) continue;
     const isUserGame = entry.home === u || entry.away === u;
     if (isUserGame && !includeUser) continue;
-    const g = createGame(teamForGame(league, entry.home, byId), teamForGame(league, entry.away, byId), {
-      seed: gameSeed(league, weekNumber(league), entry.home, entry.away),
-      playoff,
-      homeAdvantage: !entry.neutral,
-    });
+    const g = createGame(teamForGame(league, entry.home, byId), teamForGame(league, entry.away, byId), gameOptions(league, entry));
     simulateGame(g);
     recordResult(league, weekNumber(league), entry, g, { keepLog: isUserGame, keepPlayers: isUserGame || playoff });
   }
@@ -505,6 +535,7 @@ function pushFinal(league) {
 /** Advance to the next week / playoff round once every game is in. */
 export function advanceWeek(league) {
   if (!weekComplete(league)) return false;
+  tickInjuries(league, weekNumber(league));
   if (league.phase === 'season') {
     if (league.week >= league.schedule.length) startPlayoffs(league);
     else league.week++;
@@ -540,7 +571,7 @@ function crown(league, idx) {
 }
 
 export function powerRankings(league, byId) {
-  return league.teams.map((t, i) => ({ idx: i, team: t, power: teamPower(buildLineup(t.slots, byId)) })).sort((a, b) => b.power - a.power);
+  return league.teams.map((t, i) => ({ idx: i, team: t, power: teamPower(buildLineup(t.slots, byId, league.injuries)) })).sort((a, b) => b.power - a.power);
 }
 
 /** Keep rosters, wipe records, and start another season. */
@@ -553,6 +584,7 @@ export function newSeasonSameRosters(league, byId) {
   league.playoffs = null;
   league.champion = null;
   league.results = [];
+  league.injuries = {};
   startSeason(league, byId);
   return league;
 }

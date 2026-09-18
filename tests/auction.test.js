@@ -112,9 +112,11 @@ test('nominating is limited to positions the team still needs', () => {
   assert.ok(cands.length > 0);
   for (const p of cands) assert.ok(canRoster(league.teams[t], p.pos));
   // Fill every quarterback slot on that team, then quarterbacks stop being nominatable.
-  const qb = pool.find((p) => p.pos === 'QB' && a.taken[p.id] == null);
-  league.teams[t].slots.QB1 = qb.id;
-  a.taken[qb.id] = t;
+  for (const slot of ROSTER_SLOTS.filter((s) => s.pos === 'QB')) {
+    const qb = pool.find((p) => p.pos === 'QB' && a.taken[p.id] == null);
+    league.teams[t].slots[slot.id] = qb.id;
+    a.taken[qb.id] = t;
+  }
   assert.ok(!nominatable(a, league, pool, t).some((p) => p.pos === 'QB'));
   assert.throws(() => nominate(a, league, pool, pool.find((p) => p.pos === 'QB' && a.taken[p.id] == null).id, byId), /No open QB slot/);
 });

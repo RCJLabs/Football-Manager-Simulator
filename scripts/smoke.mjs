@@ -50,6 +50,7 @@ try {
   await page.waitForSelector('#setup');
   await page.check('input[name="coach"]');
   await page.check('input[name="type"][value="auction"]');
+  await page.check('input[name="injuries"][value="high"]');
   await checkOverflow('setup');
   await page.click('button[type="submit"]');
 
@@ -181,7 +182,12 @@ try {
 
   await page.goto(`http://localhost:${port}/#/settings`);
   await page.waitForSelector('#speed');
+  await page.waitForSelector('#injuries');
+  await page.selectOption('#injuries', 'normal');
   await checkOverflow('settings');
+  // The store saves on a short debounce.
+  const dialSaved = await page.waitForFunction(() => JSON.parse(localStorage.getItem('gridiron-eras:state:v1')).league.settings.injuries === 'normal', null, { timeout: 3000 }).then(() => true).catch(() => false);
+  if (!dialSaved) errors.push('injury dial change was not saved');
 
   await page.goto(`http://localhost:${port}/#/season`);
   await page.reload();

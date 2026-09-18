@@ -96,6 +96,8 @@ export function rankForTeam(league, draft, pool, teamIdx, rng) {
     const filled = SLOT_COUNTS[p.pos] - open[p.pos];
     if (p.pos === 'RB' && filled >= 1 && draft.round < 12) value -= 4;
     if (p.pos === 'WR' && filled >= 3 && draft.round < 16) value -= 5;
+    // A backup quarterback is insurance, not a starter: last few rounds.
+    if (p.pos === 'QB' && filled >= 1 && draft.round <= TOTAL_ROUNDS - 4) value -= 14;
     if (rng) value += rng.normal(0, 1.6);
     ranked.push({ player: p, value });
   }

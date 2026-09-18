@@ -42,6 +42,15 @@ const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) =
 /** How much of a GM's valuation comes from real win impact rather than hype. */
 const SAVVY = { analytics: 0.7, trenches: 0.62, defense: 0.5, balanced: 0.34, gambler: 0.26, ground: 0.16, oldschool: 0.18, airraid: 0.1 };
 
+/**
+ * Once a club has its starters at a position, the next man is a bench player:
+ * RB2 still shares carries and WR4 sees a few targets, but a second
+ * quarterback only plays if the first one is hurt.
+ */
+const STARTERS_AT = {};
+for (const s of ROSTER_SLOTS) if (s.starter) STARTERS_AT[s.pos] = (STARTERS_AT[s.pos] || 0) + 1;
+const BENCH_VALUE = { QB: 0.3, RB: 0.75, WR: 0.7 };
+
 export { TRUE_LEVERAGE, GLAMOUR };
 
 export function openSlots(team) {
@@ -210,6 +219,9 @@ export function aiMaxBid(auction, league, pool, teamIdx, player, guide, rng) {
   const open = openSlotsByPos(team)[player.pos] || 0;
   if (open >= left) v *= 1.6;
   else if (open > 0 && left <= 4) v *= 1.15;
+
+  // Starters are bought; this would be a bench player.
+  if (SLOT_COUNTS[player.pos] - open >= (STARTERS_AT[player.pos] || 0)) v *= BENCH_VALUE[player.pos] ?? 0.5;
 
   // Kickers and punters are a last-rounds problem, not a budget item.
   if ((player.pos === 'K' || player.pos === 'P') && left > 3) v = Math.min(v, Math.max(MIN_BID, dollarsPerSlot * 0.5));

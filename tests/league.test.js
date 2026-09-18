@@ -65,9 +65,14 @@ test('user picks interleave with AI picks in snake order', () => {
   assert.throws(() => makePick(league, league.draft, qb), /already taken/);
   runAiPicks(league, league.draft, pool, rng);
   assert.equal(currentPicker(league.draft), u);
-  // No second QB slot -> picking another QB must fail
+  // One backup slot: a second QB goes to QB2, a third has nowhere to go.
   const qb2 = availablePlayers(league.draft, pool).find((p) => p.pos === 'QB');
-  assert.throws(() => makePick(league, league.draft, qb2), /No open QB slot/);
+  makePick(league, league.draft, qb2);
+  assert.equal(league.teams[u].slots.QB2, qb2.id);
+  runAiPicks(league, league.draft, pool, rng);
+  assert.equal(currentPicker(league.draft), u);
+  const qb3 = availablePlayers(league.draft, pool).find((p) => p.pos === 'QB');
+  assert.throws(() => makePick(league, league.draft, qb3), /No open QB slot/);
 });
 
 test('a full season runs to a champion with consistent standings', () => {

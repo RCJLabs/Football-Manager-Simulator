@@ -6,11 +6,12 @@ Draft real football players from every era at their prime season — Otto Graham
 
 ## What's in the box
 
-- **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…). $200 buys 26 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about five wins a season over paying sticker price. A plain snake draft is still an option.
+- **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…). $200 buys 27 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about five wins a season over paying sticker price. A plain snake draft is still an option.
 - **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime.
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself.
 - **1,269 real players** from the 1940s to 2025, one prime season each, on a real talent curve: the top tenth are stars, the median is a solid starter, the bottom quarter should not be starting. A 32-team league drafts 832 of them, so somebody does.
 - **Two league modes.** A fantasy league of 8, 10 or 12 clubs with a 13 to 14 game slate and a short bracket, or a **pro league**: the full 32 teams in two conferences of four divisions, a 17-game season built the way the real league builds one, division standings with tiebreakers, seven playoff seeds per conference with a bye for the top seed, and a neutral-site final. Home teams get a modest edge (about 55/45 between equals).
+- **Injuries that change the season.** Every play carries a small chance that somebody gets hurt, weighted by who was involved and how fragile the position is. A hurt player leaves the game on the spot, the next man on the depth chart starts, and a position left short gets a street free agent worse than anyone on the wire. Weeks out carry across the schedule, a QB2 slot exists because of it, and a dial (Off / Low / Normal / High) keeps rates well under the real league's.
 - **In-season roster moves.** A waiver wire with weekly priority (rolling in fantasy leagues, reverse standings in the pro league), a two-claim weekly limit, AI clubs that work the wire too, and position-matched trades with AI general managers who judge every offer on lineup strength and refuse to be fleeced. A trade deadline and a full transaction log.
 - **Season hub.** Standings, playoff picture, season leaders, box scores, then another season with the same rosters or a new league.
 - **Box scores** with passing/rushing/receiving/defense/kicking lines, scoring summary, full play-by-play, and PPR fantasy points.
@@ -36,6 +37,7 @@ npm run calibrate    # simulate 300 games between synthetic teams and print leag
 npm run auction      # compare roster variety: auction vs snake draft
 npm run strategy     # measure whether how you bid changes how much you win
 npm run moves        # AI waiver activity over a season and a fleece test of the trade evaluator
+npm run injuries     # injury rates by dial setting, weeks lost per club, and what a missing QB costs
 npm run icons        # re-rasterize icons/icon.svg to PNG (needs Playwright)
 npm run smoke        # headless browser pass: full game flow + layout overflow checks
 ```
@@ -62,6 +64,7 @@ src/engine/draft.js                      snake draft with value-over-replacement
 src/engine/auction.js                    salary-cap auction: pricing, AI bidding, bid resolution
 src/engine/season.js                     league, schedule, standings, playoffs, stat rollups
 src/engine/transactions.js               free agents, waiver claims, trades, AI roster moves
+src/engine/injuries.js                   injury rolls, replacement-level fill-ins, the weeks-out ledger
 src/ui/views/*.js                        screens (home, setup, draft, team, season, moves, game, box score, players, settings)
 scripts/                                 validator, calibration, icon generator, synthetic pools for tests
 tests/                                   node:test suites

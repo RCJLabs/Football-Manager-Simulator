@@ -28,12 +28,14 @@ const topN = (arr, key, n) => arr.slice().sort((a, b) => b.r[key] - a.r[key]).sl
  * Returns { QB: [..], RB: [..], WR: [..], TE: [..], OL: [..], DL: [..], LB: [..], CB: [..], S: [..], K: [..], P: [..] }
  * in depth-chart order (slot order).
  */
-export function buildLineup(slots, byId) {
+export function buildLineup(slots, byId, injuries = null) {
   const lineup = {};
   for (const slot of ROSTER_SLOTS) {
     const id = slots[slot.id];
     const p = byId.get(id);
     if (!p) continue;
+    // A player on the injury ledger sits; the next man in the group moves up.
+    if (injuries && injuries[id]) continue;
     (lineup[slot.pos] ??= []).push(p);
   }
   return lineup;

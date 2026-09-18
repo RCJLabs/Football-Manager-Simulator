@@ -1,5 +1,7 @@
 import { html, render, raw } from '../../util.js';
 import { createLeague, startSeason, FANTASY_SIZES } from '../../engine/season.js';
+import { ROSTER_SLOTS } from '../../data/positions.js';
+import { INJURY_LEVEL_LABELS, DEFAULT_INJURY_LEVEL } from '../../engine/injuries.js';
 import { autoDraftAll, RNG } from '../../engine/draft.js';
 import { autoCompleteAll } from '../../engine/auction.js';
 import { PRO_TEAMS, CONFERENCES, DIVISIONS } from '../../data/pro.js';
@@ -42,13 +44,20 @@ export function view(root, params, ctx) {
         <div>
           <label>How you build your team</label>
           <label class="check"><input type="radio" name="type" value="auction" checked> <span><b>Auction</b> — $200 cap, bid against the other GMs. Star names cost star money, so you cannot have everything.</span></label>
-          <label class="check"><input type="radio" name="type" value="snake"> <span><b>Draft</b> — take turns picking, 26 rounds. The pro league's natural fit: you make 26 picks and the other 31 rooms pick around you.</span></label>
+          <label class="check"><input type="radio" name="type" value="snake"> <span><b>Draft</b> — take turns picking, ${ROSTER_SLOTS.length} rounds. The pro league's natural fit: you make ${ROSTER_SLOTS.length} picks and the other 31 rooms pick around you.</span></label>
           <small class="muted" id="typeNote" hidden>A 32-team auction is 832 lots. It works, but set the "only ask me about players rated" slider high or it is a long evening.</small>
         </div>
         <div>
           <label>Who builds it</label>
           <label class="check"><input type="radio" name="draft" value="manual" checked> I'll do it myself</label>
           <label class="check"><input type="radio" name="draft" value="auto"> Fill my roster automatically and jump to the season</label>
+        </div>
+        <div>
+          <label>Injuries</label>
+          <div class="row" style="gap:.25rem .9rem;flex-wrap:wrap">
+            ${Object.entries(INJURY_LEVEL_LABELS).map(([k, label]) => html`<label class="check" style="margin:0"><input type="radio" name="injuries" value="${k}" ${k === DEFAULT_INJURY_LEVEL ? 'checked' : ''}> ${label}</label>`)}
+          </div>
+          <small class="muted">Normal costs a club about one starter a week, well under the real league's rate. High is closer to it. Hurt players sit out and the next man on the depth chart plays; the waiver wire is where you find cover.</small>
         </div>
         <div>
           <label>Game control</label>
@@ -97,6 +106,7 @@ export function view(root, params, ctx) {
       franchise: Number(f.get('franchise')),
       draftType,
       user,
+      injuries: f.get('injuries') || DEFAULT_INJURY_LEVEL,
     });
     league.settings.coachMode = f.get('coach') === 'on';
     league.settings.coachDefense = f.get('coachDef') === 'on';

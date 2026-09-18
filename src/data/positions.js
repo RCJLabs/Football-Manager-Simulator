@@ -44,9 +44,12 @@ export const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', '
 
 // Roster template. Every team drafts exactly one player per slot.
 // `starter` slots take the field; bench slots rotate in (RB2 shares carries,
-// WR4 gets a few targets). Order within a position group = depth chart order.
+// WR4 gets a few targets) and step up when a starter is hurt. QB2 exists
+// because a quarterback injury without a backup is a season-defining event.
+// Order within a position group = depth chart order.
 export const ROSTER_SLOTS = [
   { id: 'QB1', pos: 'QB', starter: true },
+  { id: 'QB2', pos: 'QB', starter: false },
   { id: 'RB1', pos: 'RB', starter: true },
   { id: 'RB2', pos: 'RB', starter: false },
   { id: 'WR1', pos: 'WR', starter: true },

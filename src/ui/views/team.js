@@ -2,7 +2,8 @@ import { html, render, raw } from '../../util.js';
 import { ROSTER_SLOTS, POSITION_ORDER } from '../../data/positions.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { buildLineup, teamPower, overall } from '../../engine/ratings.js';
-import { playerItem, playerModal, teamChip, esc } from '../components.js';
+import { playerItem, playerModal, teamChip, esc, outBadge } from '../components.js';
+import { fillLineup, fmtWeeks } from '../../engine/injuries.js';
 import { fantasyPoints } from '../../engine/stats.js';
 
 const STRATEGY_FIELDS = [
@@ -19,8 +20,12 @@ export function view(root, params, ctx) {
   const idx = Number(params.idx);
   const team = league.teams[idx];
   if (!team) { ctx.navigate('#/'); return; }
-  const lineup = buildLineup(team.slots, ctx.byId);
+  const injuries = league.injuries || {};
+  // Who actually takes the field this week: hurt players sit, short groups get fill-ins.
+  const lineup = fillLineup(buildLineup(team.slots, ctx.byId, injuries));
   const power = teamPower(lineup);
+  const hurt = ROSTER_SLOTS.map((s) => team.slots[s.id]).filter((id) => id && injuries[id]).map((id) => ({ p: ctx.byId.get(id), inj: injuries[id] }));
+  const fillIns = Object.values(lineup).flat().filter((p) => p.replacement);
   const gm = GM_PERSONALITIES.find((g) => g.id === team.gm);
   const canEdit = team.isUser;
   const stats = team.seasonStats.players;
@@ -31,14 +36,18 @@ export function view(root, params, ctx) {
   });
 
   const depthRows = groups.flatMap((g) => g.slots.map(({ slot, i, total, p }) => {
-    if (!p) return `<li class="prow dim"><span class="badge slot">${slot.id}</span><div class="who"><div class="meta">empty</div></div><div class="act"></div></li>`;
+    if (!p) return `<li class="prow dim"><span class="badge slot">${slot.id}</span><div class="who"><div class="meta">empty${canEdit && league.phase === 'season' ? ' · <a href="#/moves">claim a free agent</a>' : ''}</div></div><div class="act"></div></li>`;
     const fp = stats[p.id] ? fantasyPoints(stats[p.id]) : 0;
+    const inj = injuries[p.id];
+    // A bench player starts when the man ahead of him is hurt.
+    const healthyAhead = ROSTER_SLOTS.filter((x) => x.pos === slot.pos).slice(0, i).filter((x) => team.slots[x.id] && !injuries[team.slots[x.id]]).length;
+    const stepsUp = !inj && !slot.starter && healthyAhead < ROSTER_SLOTS.filter((x) => x.pos === slot.pos && x.starter).length;
     const arrows = canEdit && total > 1
       ? `${i > 0 ? `<button class="btn sm ghost" data-move="${slot.id}" data-dir="-1" aria-label="Move up">▲</button>` : ''}${i < total - 1 ? `<button class="btn sm ghost" data-move="${slot.id}" data-dir="1" aria-label="Move down">▼</button>` : ''}`
       : '';
     return playerItem(p, {
-      cls: slot.starter ? '' : 'dim',
-      meta: `<span class="badge slot">${slot.id}</span>${slot.starter ? '' : '<span class="badge">bench</span>'}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
+      cls: inj ? 'dim' : slot.starter || stepsUp ? '' : 'dim',
+      meta: `<span class="badge slot">${slot.id}</span>${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge" style="background:#2c4a37;color:#cfe6d6">starts</span>' : '<span class="badge">bench</span>'}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
       action: arrows,
       era: false,
     });
@@ -59,6 +68,11 @@ export function view(root, params, ctx) {
         <ul class="plist">${raw(depthRows)}</ul>
       </div>
       <div class="stack">
+        ${hurt.length || fillIns.length ? html`<div class="card tight">
+          <h3>Injury report</h3>
+          ${hurt.length ? raw(`<ul class="plain ticker" style="max-height:none">${hurt.map(({ p, inj }) => `<li><b>${esc(p.name)}</b> <small class="muted">${p.pos}</small> — ${esc(inj.kind)}, <b>${fmtWeeks(inj.weeks)}</b></li>`).join('')}</ul>`) : ''}
+          ${fillIns.length ? html`<p class="muted" style="font-size:.85rem;margin:.4rem 0 0">${fillIns.length === 1 ? 'A replacement-level fill-in starts at' : 'Replacement-level fill-ins start at'} ${fillIns.map((p) => p.pos).join(', ')}. ${canEdit ? html`<a href="#/moves">Find cover on the wire.</a>` : ''}</p>` : ''}
+        </div>` : ''}
         <div class="card tight">
           <h3>Strategy ${canEdit ? '' : html`<small class="muted">(AI)</small>`}</h3>
           ${STRATEGY_FIELDS.map((f) => html`<div class="slider-row">

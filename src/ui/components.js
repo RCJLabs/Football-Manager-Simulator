@@ -1,4 +1,5 @@
 import { html, raw, esc, textOn } from '../util.js';
+import { fmtWeeks } from '../engine/injuries.js';
 import { overall } from '../engine/ratings.js';
 import { POSITIONS, eraOf } from '../data/positions.js';
 
@@ -13,6 +14,12 @@ export function ovrBadge(p) {
 
 export function posBadge(pos) {
   return html`<span class="badge pos">${pos}</span>`;
+}
+
+/** Injury marker for a player on the league ledger: OUT · 3 wk, OUT · season. */
+export function outBadge(inj) {
+  if (!inj) return raw('');
+  return raw(`<span class="badge out" title="${esc(inj.kind || 'injured')}">OUT · ${fmtWeeks(inj.weeks)}</span>`);
 }
 
 export function eraBadge(season) {
