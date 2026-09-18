@@ -1,16 +1,19 @@
 import { html, render, raw } from '../../util.js';
 import { POSITION_ORDER } from '../../data/positions.js';
 import { seasonAwards, hallOfFame, RECORD_LABELS, TEAM_RECORD_LABELS, HOF_THRESHOLD, HOF_MIN_SEASONS } from '../../engine/awards.js';
-import { playerModal, teamChip, esc, posBadge } from '../components.js';
+import { playerModal, teamChip, esc, posBadge, toast } from '../components.js';
+import { seasonResult, encodeResultCode, decodeResultCode, compareResults, cardSeasons, fmtRecord } from '../../engine/result.js';
+import { drawSeasonCard, shareCanvas } from '../share-card.js';
 
-const ui = { tab: 'race' };
-const TABS = [['race', 'This season'], ['honours', 'Honours'], ['records', 'Records'], ['hall', 'Hall of Fame']];
+const ui = { tab: 'race', cardSeason: null, theirs: null, error: '', paste: '' };
+const TABS = [['race', 'This season'], ['honours', 'Honours'], ['records', 'Records'], ['hall', 'Hall of Fame'], ['card', 'Season card']];
 
 export function view(root, params, ctx) {
   const { league } = ctx.getState();
   if (!league) { ctx.navigate('#/new'); return; }
   if (league.phase === 'draft') { ctx.navigate(league.draftType === 'auction' ? '#/auction' : '#/draft'); return; }
   if (params && params.tab) { if (TABS.some(([k]) => k === params.tab)) ui.tab = params.tab; delete params.tab; }
+  const ordOf = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
   const byId = ctx.byId;
   const name = (id) => esc(byId.get(id)?.name || id);
   const who = (e) => (e ? `<span class="tap" data-show="${esc(e.id)}"><b>${name(e.id)}</b></span> ${posBadge(byId.get(e.id)?.pos || '').__raw} ${teamChip(league.teams[e.team], { abbr: true }).__raw}` : '<span class="muted">—</span>');
@@ -56,6 +59,46 @@ export function view(root, params, ctx) {
       <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">Season and team records cover every club. Single-game records come from games that kept player lines: yours and the playoffs.</p>
       <div class="card tight"><h3>Players</h3><div class="table-wrap"><table><tbody>${raw(playerRows || '<tr><td class="muted">Nothing yet.</td></tr>')}</tbody></table></div></div>
       <div class="card tight" style="margin-top:.75rem"><h3>Teams</h3><div class="table-wrap"><table><tbody>${raw(teamRows || '<tr><td class="muted">Nothing yet.</td></tr>')}</tbody></table></div></div>` : html`<p class="empty">The record book opens when a season ends.</p>`;
+  } else if (ui.tab === 'card') {
+    const seasons = cardSeasons(league);
+    if (!seasons.length) {
+      body = html`<p class="empty">A season card is made when a season ends. Play one out and come back.</p>`;
+    } else {
+      const season = seasons.includes(ui.cardSeason) ? ui.cardSeason : seasons[0];
+      ui.cardSeason = season;
+      const mine = seasonResult(league, byId, ctx.players, season);
+      const r = mine.record;
+      const cmp = ui.theirs ? compareResults(mine, ui.theirs) : null;
+      const cell = (v, win) => `<td class="num" style="${win > 0 ? 'color:var(--good);font-weight:700' : ''}">${esc(String(v))}</td>`;
+      body = html`
+        <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">Open a friend's league code, play the same season, then swap cards to see who did more with the same rosters. A card carries the result only, so it stays readable whatever the simulation does later.</p>
+        <div class="grid grid-2">
+          <div class="card tight">
+            <div class="row between"><h3 style="margin:0">Your season</h3>${seasons.length > 1 ? html`<select id="cardSeason" style="max-width:9rem">${seasons.map((n) => html`<option value="${n}" ${n === season ? 'selected' : ''}>Season ${n}</option>`)}</select>` : ''}</div>
+            <p style="margin:.4rem 0 0;font-size:1.6rem;font-weight:800">${fmtRecord(r)}</p>
+            <p class="muted" style="margin:0">${ordOf(mine.rank)} of ${mine.teams} · PF ${r.pf} · PA ${r.pa}</p>
+            <p style="margin:.4rem 0 0"><b style="color:${mine.champion && mine.champion.mine ? 'var(--accent)' : 'inherit'}">${mine.playoff.replace(/^./, (x) => x.toUpperCase())}</b></p>
+            <div class="kv" style="margin-top:.5rem">
+              <dt>Champion</dt><dd>${mine.champion ? mine.champion.name : '—'}</dd>
+              <dt>MVP</dt><dd>${mine.mvp ? `${mine.mvp.name} · ${mine.mvp.pos} · ${mine.mvp.club}` : '—'}</dd>
+              <dt>Your best</dt><dd>${mine.best.length ? mine.best.map((b) => `${b.name} (${b.pts})`).join(', ') : '—'}</dd>
+            </div>
+            <div class="btn-group" style="margin-top:.5rem"><button class="btn" id="copyCard">Copy card code</button><button class="btn" id="cardImage">Share as image</button></div>
+            <textarea id="cardOut" rows="3" readonly hidden style="margin-top:.5rem;font-family:var(--mono);font-size:.75rem"></textarea>
+          </div>
+          <div class="card tight">
+            <h3>Compare a friend's card</h3>
+            <textarea id="theirCard" rows="3" placeholder="Paste their card code">${ui.paste}</textarea>
+            <div class="btn-group" style="margin-top:.4rem"><button class="btn primary" id="compare">Compare</button>${ui.theirs ? html`<button class="btn ghost" id="clearCmp">Clear</button>` : ''}</div>
+            ${ui.error ? html`<p class="notice" style="margin-top:.5rem">${ui.error}</p>` : ''}
+            ${cmp && !cmp.ok ? html`<p class="notice" style="margin-top:.5rem">${cmp.reason}</p>` : ''}
+            ${cmp && cmp.ok ? html`
+              <p style="margin:.5rem 0 .3rem"><b style="color:${cmp.better > 0 ? 'var(--good)' : cmp.better < 0 ? 'var(--bad)' : 'inherit'}">${cmp.verdict}</b></p>
+              ${cmp.sameChampion ? html`<p class="muted" style="margin:0 0 .4rem;font-size:.85rem">The same club won it in both.</p>` : html`<p class="muted" style="margin:0 0 .4rem;font-size:.85rem">Different champions, from the same starting rosters.</p>`}
+              <div class="table-wrap"><table><thead><tr><th></th><th class="num">You</th><th class="num">Them</th></tr></thead><tbody>${raw(cmp.rows.map((row) => `<tr><td>${esc(row.label)}</td>${cell(row.mine, row.win)}${cell(row.theirs, -row.win)}</tr>`).join(''))}</tbody></table></div>` : ''}
+          </div>
+        </div>`;
+    }
   } else {
     const { inducted, onTrack } = hallOfFame(league);
     const resume = (r) => {
@@ -79,6 +122,32 @@ export function view(root, params, ctx) {
     <div style="margin-top:.75rem">${body}</div>
   </div>`);
   const el = root.querySelector('#awards-view');
-  el.querySelector('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { ui.tab = b.dataset.tab; view(root, params, ctx); } });
+  const redraw = () => view(root, params, ctx);
+  el.querySelector('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { ui.tab = b.dataset.tab; ui.error = ''; redraw(); } });
+  el.querySelector('#cardSeason')?.addEventListener('change', (e) => { ui.cardSeason = Number(e.target.value); ui.theirs = null; ui.error = ''; redraw(); });
+  el.querySelector('#copyCard')?.addEventListener('click', async () => {
+    const out = el.querySelector('#cardOut');
+    const code = await encodeResultCode(seasonResult(league, byId, ctx.players, ui.cardSeason));
+    out.value = code; out.hidden = false;
+    try { await navigator.clipboard.writeText(code); toast(`Card copied (${code.length} characters)`); }
+    catch { out.select(); toast('Copy the code from the box'); }
+  });
+  el.querySelector('#cardImage')?.addEventListener('click', async () => {
+    try {
+      const mine = seasonResult(league, byId, ctx.players, ui.cardSeason);
+      const how = await shareCanvas(drawSeasonCard(mine), `${(mine.club.name || 'season').replace(/\W+/g, '-').toLowerCase()}-season-${mine.season}.png`);
+      toast(how === 'shared' ? 'Shared' : 'Saved as a PNG');
+    } catch (err) { if (err && err.name !== 'AbortError') toast(err.message); }
+  });
+  el.querySelector('#theirCard')?.addEventListener('input', (e) => { ui.paste = e.target.value; });
+  el.querySelector('#compare')?.addEventListener('click', async () => {
+    const text = el.querySelector('#theirCard').value;
+    ui.paste = text;
+    ui.error = '';
+    try { ui.theirs = await decodeResultCode(text); }
+    catch (err) { ui.theirs = null; ui.error = err.message; }
+    redraw();
+  });
+  el.querySelector('#clearCmp')?.addEventListener('click', () => { ui.theirs = null; ui.error = ''; ui.paste = ''; redraw(); });
   el.addEventListener('click', (e) => { const show = e.target.closest('[data-show]'); if (show && byId.get(show.dataset.show)) playerModal(byId.get(show.dataset.show)); });
 }

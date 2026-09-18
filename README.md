@@ -17,6 +17,7 @@ Draft real football players from every era at their prime season — Otto Graham
 - **In-season roster moves.** A waiver wire with weekly priority (rolling in fantasy leagues, reverse standings in the pro league), a two-claim weekly limit, AI clubs that work the wire too, and position-matched trades with AI general managers who judge every offer on lineup strength and refuse to be fleeced. A trade deadline and a full transaction log.
 - **A dynasty loop.** Every player carries a contract from his auction price. In the offseason each club keeps a handful at a raised price (three years running at most), everyone else goes back to the pool, and the market reopens with whatever cap is left, worst club first. AI clubs keep their bargains, not their names. Or run it back with the same rosters if you prefer.
 - **Season hub.** Standings with clinch markers, playoff picture, season leaders, box scores, and a history card that keeps every season's champion and your finish.
+- **Season cards.** Finish a season and copy a short card: your record, where you finished, how far you went, the champion, the MVP and your three biggest seasons. Paste a friend's card, after you have both played the same shared league, to see who did more with the same rosters. Shareable as an image.
 - **Awards, records, a hall of fame.** An MVP race scored against each player's own position, players of the year on both sides of the ball, an all-league team, a record book of season, single-game and team marks, and careers that build a résumé toward induction.
 - **Box scores** with passing/rushing/receiving/defense/kicking lines, scoring summary, full play-by-play, and PPR fantasy points.
 - **Offline-capable PWA** with save slots for several leagues, export/import, a pasteable league code that opens the same rosters on another device, and a roster card you can share as an image. Phone-first layout: no horizontal scrolling at 360px, verified on every screen by the smoke test.
@@ -64,6 +65,7 @@ index.html, manifest.webmanifest, sw.js   app shell + PWA
 src/main.js, router.js, store.js         boot, hash router, persisted state (localStorage)
 src/slots.js                             save slots: several leagues in one browser
 src/engine/share.js                      league codes: a pasteable snapshot of a league
+src/engine/result.js                     season cards and the comparison between two of them
 src/data/positions.js                    position attributes, overall weights, roster template
 src/data/names.js, tuning.js             fictional names, rating overrides
 src/data/players.js                      the player database (1,269 prime-season snapshots)

@@ -60,6 +60,7 @@ export function view(root, params, ctx) {
       <div class="btn-group" style="justify-content:center;margin-top:.75rem">
         <a class="btn primary lg" href="#/offseason">Start the offseason: keepers, then the ${league.draftType === 'auction' ? 'auction' : 'draft'}</a>
         <button class="btn" id="again">Run it back with these rosters</button>
+        <a class="btn" href="#/awards/card">Season card</a>
         <a class="btn ghost" href="#/new">Start a new league</a>
       </div>
     </div>`;

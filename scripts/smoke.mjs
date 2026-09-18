@@ -310,6 +310,29 @@ try {
   await page.waitForSelector('#awards-view');
   await checkOverflow('awards honours');
   await shot('09e2-honours');
+
+  // The season card: copy it, then compare it against itself to prove the loop closes.
+  await page.goto(`http://localhost:${port}/#/awards/card`);
+  await page.waitForSelector('#copyCard');
+  await checkOverflow('season card');
+  await shot('09e3-card');
+  await page.click('#copyCard');
+  await page.waitForSelector('#cardOut:not([hidden])');
+  const cardCode = await page.$eval('#cardOut', (t) => t.value);
+  if (!/^GR[01]\./.test(cardCode)) errors.push(`season card code looks wrong: ${cardCode.slice(0, 16)}`);
+  await page.fill('#theirCard', cardCode);
+  await page.click('#compare');
+  await page.waitForSelector('#awards-view table');
+  const verdict = await page.$eval('#awards-view', (e) => e.textContent);
+  if (!/Dead heat/.test(verdict)) errors.push('comparing a card with itself did not read as a dead heat');
+  await checkOverflow('season card comparison');
+  await shot('09e4-compare');
+  // A code from a different league is refused rather than compared.
+  await page.fill('#theirCard', 'GR0.bm9wZQ');
+  await page.click('#compare');
+  await sleep(200);
+  const refused = await page.$eval('#awards-view', (e) => e.textContent);
+  if (!/not a season card|damaged or incomplete|different leagues|version/.test(refused)) errors.push('a bad card code was not refused');
   await page.goto(`http://localhost:${port}/#/awards/hall`);
   await page.waitForSelector('#awards-view');
   await checkOverflow('hall of fame');

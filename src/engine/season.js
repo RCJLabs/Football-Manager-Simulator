@@ -12,7 +12,7 @@ import { DEFAULT_STRATEGY } from './playcall.js';
 import { RNG, hashSeed } from './rng.js';
 import { createDraft, assignGms } from './draft.js';
 import { createAuction } from './auction.js';
-import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats } from './stats.js';
+import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats, fantasyPoints } from './stats.js';
 import { buildLineup, teamPower, overall } from './ratings.js';
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { createGame, simulateGame } from './game.js';
@@ -715,6 +715,23 @@ export function advanceWeek(league) {
   return true;
 }
 
+/** How far a club went, read off the bracket. */
+export function playoffRun(league, teamIdx) {
+  const po = league.playoffs;
+  if (!po) return { made: false, text: 'no playoffs' };
+  if (!po.pools.some((p) => p.seeds.includes(teamIdx))) return { made: false, text: 'missed the playoffs' };
+  if (league.champion === teamIdx) return { made: true, won: true, text: 'won the title' };
+  let lastRound = null;
+  for (const r of po.rounds) {
+    const game = r.games.find((g) => g.home === teamIdx || g.away === teamIdx);
+    if (!game || !game.result) continue;
+    const won = (game.home === teamIdx) === (game.result.score[0] >= game.result.score[1]);
+    if (!won) return { made: true, won: false, text: `lost in the ${r.name}` };
+    lastRound = r.name;
+  }
+  return { made: true, won: false, text: lastRound ? `reached the ${lastRound}` : 'made the playoffs' };
+}
+
 function crown(league, idx) {
   league.champion = idx;
   league.phase = 'complete';
@@ -726,10 +743,26 @@ function crown(league, idx) {
     record: { ...league.teams[idx].record },
     // Where everyone finished, so the hub can tell a dynasty's story.
     finish: table.map((r) => r.idx),
-    user: { rank: table.findIndex((r) => r.idx === u) + 1, record: { ...league.teams[u].record } },
+    // Enough for a season card, kept now because the table resets next season.
+    user: {
+      rank: table.findIndex((r) => r.idx === u) + 1,
+      record: { ...league.teams[u].record },
+      playoff: playoffRun(league, u).text,
+      club: { name: league.teams[u].name, abbr: league.teams[u].abbr, color: league.teams[u].color },
+      best: bestOf(league.teams[u], playerIndex),
+    },
     divRanks: isPro(league) ? Object.fromEntries(proStandings(league).flatMap((conf) => conf.divisions.flatMap((dv) => dv.rows.map((r, i) => [r.idx, i + 1])))) : null,
   });
   if (playerIndex) closeSeasonBooks(league, playerIndex);
+}
+
+/** A club's three biggest fantasy seasons, for the history entry. */
+function bestOf(team, byId) {
+  if (!byId) return [];
+  return Object.entries(team.seasonStats?.players || {})
+    .map(([id, s]) => ({ p: byId.get(id), s })).filter((x) => x.p)
+    .sort((a, b) => fantasyPoints(b.s) - fantasyPoints(a.s)).slice(0, 3)
+    .map(({ p, s }) => ({ name: p.name, pos: p.pos, pts: Math.round(fantasyPoints(s) * 10) / 10 }));
 }
 
 // The season engine is player-agnostic; the app registers the player index once

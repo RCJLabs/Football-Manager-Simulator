@@ -326,12 +326,18 @@ The roadmap above is finished. What followed, and what is left:
 
 12. **Injured reserve.** *Shipped; see Injuries and depth above.* A long injury was a dead roster slot, so the only answer to a season-ending knee was to cut the player.
 
-13. **A replayable share code.** *Not built, and the audit argues against building it as written.* The code is a snapshot of a league at the start of a season, which is enough for a friend to play the same rosters. Turning it into a true replay is not blocked by determinism: the league seed, every game seed and the RNG state are already stored, and the only unseeded values are the league id and creation time, which a snapshot fixes. The cost is elsewhere.
+13. **A replayable share code.** *Not built; replaced by 14 after the audit below.* The code is a snapshot of a league at the start of a season, which is enough for a friend to play the same rosters. Turning it into a true replay is not blocked by determinism: the league seed, every game seed and the RNG state are already stored, and the only unseeded values are the league id and creation time, which a snapshot fixes. The cost is elsewhere.
 
    A replay log would have to carry every human decision in order: about twenty-five league-level ones (nominations, a maximum bid on each of 208 to 864 auction lots, claims and cancels, proposed trades, accepted and declined offers, keeper picks, injured-reserve moves, slider changes, depth-chart reorders, and the choice to play or sim each week), plus every coach-mode call, which is roughly nine hundred entries in a fourteen-game season. That is a log format, a size problem, and a versioning story.
 
    The versioning is the real objection. A replay is only valid against the exact engine that produced it, and the constants move: penalty rates, injury rates, replacement level, general-manager greed, the keeper raise and the offer gate all changed while the ten items were being built, each one re-measured. Every such change invalidates every stored replay, so the feature would need a frozen engine version per code and a migration path, for a payoff the snapshot already mostly delivers.
 
-   What the idea was actually for — two people playing the same league and comparing — is better served by a small result card: the final table, your record, the champion and the MVP, exported from a finished season and compared against a friend's. That is a fraction of the work and does not rot when a constant moves. It is not built either; it is the honest version of the request.
+   What the idea was actually for, two people playing the same league and comparing, is served instead by the season card below.
+
+14. **Season cards.** *Shipped.* A card is a pasteable code carrying one club's finished season: its record, where it finished, how far it went in the playoffs, the champion, the MVP and its own three biggest fantasy seasons. Around 400 characters. It is stamped with a fingerprint of the league it was played in, which is the seed, the mode, the number of clubs, the season number and the player pool, so two cards from different leagues are refused rather than quietly compared.
+
+   Everything a card needs is written into the history entry when the title is decided, not read from the live table, so a card survives into later seasons and does not depend on any engine constant. That is the whole point of choosing it over a replay: retuning the simulation cannot invalidate a card.
+
+   The comparison orders two seasons by winning the title, then how far each club went, then the table, then wins, then point differential, and says which of those decided it. A dead heat says so. The screen shows the row-by-row table alongside, and notes whether the same club won it in both, which is the interesting question when two people play the same rosters.
 
 Smaller items that did not make the list: an 18-week pro calendar (folded into 5), two-minute-drill timeouts for the coach-mode user, a compare-players view, keyboard and screen-reader passes on the auction room, and an in-app explainer for what actually wins games (the leverage table is documented above, not surfaced in the product).

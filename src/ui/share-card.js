@@ -38,6 +38,55 @@ export function drawRosterCard(league, team, byId, { title } = {}) {
   return canvas;
 }
 
+/** The season card as a picture: club, record, where it finished, the title and the MVP. */
+export function drawSeasonCard(result) {
+  const W = 720, H = 460;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const c = canvas.getContext('2d');
+  c.fillStyle = '#0f1a12'; c.fillRect(0, 0, W, H);
+  c.fillStyle = result.club.color || '#e63946'; c.fillRect(0, 0, W, 10);
+  c.textBaseline = 'top';
+  c.fillStyle = '#e8efe9'; c.font = 'bold 34px system-ui, sans-serif';
+  c.fillText(result.club.name, 28, 34);
+  c.fillStyle = '#9db3a3'; c.font = '18px system-ui, sans-serif';
+  c.fillText(`${result.league} · season ${result.season} · ${result.teams} clubs`, 28, 78);
+
+  const r = result.record;
+  c.fillStyle = '#e8efe9'; c.font = 'bold 56px system-ui, sans-serif';
+  c.fillText(`${r.w}-${r.l}${r.t ? `-${r.t}` : ''}`, 28, 118);
+  c.fillStyle = '#9db3a3'; c.font = '18px system-ui, sans-serif';
+  c.fillText(`${ordinal(result.rank)} of ${result.teams} · PF ${r.pf} · PA ${r.pa}`, 28, 186);
+  c.fillStyle = result.champion && result.champion.mine ? '#e9c46a' : '#9db3a3';
+  c.font = 'bold 22px system-ui, sans-serif';
+  c.fillText(result.playoff.replace(/^./, (x) => x.toUpperCase()), 28, 218);
+
+  let y = 268;
+  const line = (label, value, accent) => {
+    c.fillStyle = '#9db3a3'; c.font = '14px system-ui, sans-serif';
+    c.fillText(label.toUpperCase(), 28, y);
+    c.fillStyle = accent || '#e8efe9'; c.font = '20px system-ui, sans-serif';
+    c.fillText(value, 28, y + 20);
+    y += 54;
+  };
+  if (result.champion) line('Champion', result.champion.name, result.champion.mine ? '#e9c46a' : '#e8efe9');
+  if (result.mvp) line('Most valuable player', `${result.mvp.name} · ${result.mvp.pos} · ${result.mvp.club}`, result.mvp.mine ? '#e9c46a' : '#e8efe9');
+  if (result.best && result.best.length) {
+    c.fillStyle = '#9db3a3'; c.font = '14px system-ui, sans-serif';
+    c.fillText('YOUR SEASON', 28, y);
+    c.fillStyle = '#e8efe9'; c.font = '18px system-ui, sans-serif';
+    c.fillText(result.best.map((b) => `${b.name} ${b.pts}`).join('   ·   '), 28, y + 20);
+  }
+  c.fillStyle = '#9db3a3'; c.font = '14px system-ui, sans-serif';
+  c.fillText('Gridiron Eras · all-time fantasy football', 28, H - 30);
+  return canvas;
+}
+
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 export async function shareCanvas(canvas, filename) {
   const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
   if (!blob) throw new Error('Could not render the card');

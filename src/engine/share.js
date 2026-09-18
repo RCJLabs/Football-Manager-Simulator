@@ -18,8 +18,8 @@ export function poolFingerprint(players) {
   return `${players.length}-${h.toString(36)}`;
 }
 
-const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-const unb64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
+export const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+export const unb64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
 
 async function deflate(bytes) {
   if (typeof CompressionStream === 'undefined') return null;
@@ -33,6 +33,31 @@ async function inflate(bytes) {
   const w = ds.writable.getWriter();
   w.write(bytes); w.close();
   return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+}
+
+/**
+ * Pack an object into a pasteable code with the given two-letter tag: deflated
+ * where the browser can, plain base64url where it cannot. Both codes decode.
+ */
+export async function packCode(tag, obj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  const packed = await deflate(bytes);
+  return packed ? `${tag}1.${b64url(packed)}` : `${tag}0.${b64url(bytes)}`;
+}
+
+/** The other direction. Throws if the text is not a code with this tag. */
+export async function unpackCode(tag, code, what = 'code') {
+  const text = String(code || '').trim().replace(/\s+/g, '');
+  const m = new RegExp(`^${tag}([01])\\.([A-Za-z0-9_-]+)$`).exec(text);
+  if (!m) throw new Error(`That is not a ${what}`);
+  // A truncated or edited code decodes to nonsense; say so plainly rather
+  // than leaking a decompression or JSON error to the screen.
+  try {
+    const bytes = unb64url(m[2]);
+    return JSON.parse(new TextDecoder().decode(m[1] === '1' ? await inflate(bytes) : bytes));
+  } catch {
+    throw new Error(`That ${what} is damaged or incomplete. Copy the whole thing and try again.`);
+  }
 }
 
 /** What the code carries. Player ids become pool indices to keep it short. */
@@ -55,19 +80,11 @@ export function snapshot(league, players) {
 }
 
 export async function encodeLeagueCode(league, players) {
-  const json = JSON.stringify(snapshot(league, players));
-  const bytes = new TextEncoder().encode(json);
-  const packed = await deflate(bytes);
-  return packed ? `GE1.${b64url(packed)}` : `GE0.${b64url(bytes)}`;
+  return packCode('GE', snapshot(league, players));
 }
 
 export async function decodeLeagueCode(code) {
-  const text = String(code || '').trim().replace(/\s+/g, '');
-  const m = /^GE([01])\.([A-Za-z0-9_-]+)$/.exec(text);
-  if (!m) throw new Error('That is not a league code');
-  const bytes = unb64url(m[2]);
-  const json = new TextDecoder().decode(m[1] === '1' ? await inflate(bytes) : bytes);
-  const snap = JSON.parse(json);
+  const snap = await unpackCode('GE', code, 'league code');
   if (snap.v !== CODE_VERSION) throw new Error(`League code version ${snap.v} is not supported`);
   return snap;
 }
