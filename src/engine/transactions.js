@@ -15,8 +15,9 @@ import { ROSTER_SLOTS } from '../data/positions.js';
 import { GM_PERSONALITIES } from '../data/teams.js';
 import { overall } from './ratings.js';
 import { TRUE_LEVERAGE } from './auction.js';
-import { standings, isPro, sortDepthCharts } from './season.js';
+import { standings, isPro, sortDepthCharts, playoffFieldSize } from './season.js';
 import { availability, weeksLeft, SEASON_ENDING } from './injuries.js';
+import { aiAdjustStrategies } from './gm.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
 export const MAX_TRADE_SIDE = 3;
@@ -284,13 +285,57 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId) {
   const before = lineupStrength(team.slots, byId, league);
   const after = lineupStrength(slotsAfter(team, aiGives, aiGets, byId), byId, league);
   const delta = Math.round((after - before) * 10) / 10;
-  const greed = { modern: 8, trenches: 6, defense: 5, balanced: 4, gambler: 2, airraid: 4, ground: 4, oldschool: 5 }[team.gm] ?? 4;
+  const greed = aiGreed(team);
   const accept = delta >= greed;
   let reason;
   if (accept) reason = delta >= greed * 3 ? 'They jump at it.' : 'They think about it, then agree.';
   else if (delta < 0) reason = `${team.abbr} would be worse off. They pass.`;
   else reason = `Not enough in it for ${team.abbr}. They want roughly ${Math.ceil((greed - delta) / 2)} more points of lineup value.`;
   return { accept, delta, before, after, reason };
+}
+
+/** How much a club must gain, in lineup strength, to agree to a deal. */
+export function aiGreed(team) {
+  return { modern: 8, trenches: 6, defense: 5, balanced: 4, gambler: 2, airraid: 4, ground: 4, oldschool: 5 }[team.gm] ?? 4;
+}
+
+/**
+ * AI clubs deal with each other: surplus for need. A club with a good bench
+ * player at one position and a weak starter at another looks for a club in
+ * the mirror-image situation and swaps two for two, positions matching, so
+ * both lineups get better by at least their greed. A few pairs are tried a
+ * week; deals are logged like any other.
+ */
+export function aiTrades(league, byId, rng, { pairs = 4 } = {}) {
+  if (!tradesOpen(league)) return [];
+  const ai = league.teams.map((t, i) => (t.isUser ? -1 : i)).filter((i) => i >= 0);
+  if (ai.length < 2) return [];
+  const done = [];
+  const positions = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S'];
+  const group = (team, pos) => ROSTER_SLOTS.filter((s) => s.pos === pos).map((s) => ({ slot: s, id: team.slots[s.id], p: byId.get(team.slots[s.id]) })).filter((x) => x.p);
+  const bestBench = (team, pos) => group(team, pos).filter((x) => !x.slot.starter).sort((a, b) => overall(b.p) - overall(a.p))[0] || null;
+  const worstStarter = (team, pos) => group(team, pos).filter((x) => x.slot.starter).sort((a, b) => overall(a.p) - overall(b.p))[0] || null;
+  for (let n = 0; n < pairs; n++) {
+    const a = ai[rng.int(0, ai.length - 1)];
+    const b = ai[rng.int(0, ai.length - 1)];
+    if (a === b) continue;
+    const A = league.teams[a], B = league.teams[b];
+    const baseA = lineupStrength(A.slots, byId, league), baseB = lineupStrength(B.slots, byId, league);
+    let best = null;
+    for (const P of positions) for (const Q of positions) {
+      if (P === Q) continue;
+      const aP = bestBench(A, P) || worstStarter(A, P), aQ = worstStarter(A, Q);
+      const bP = worstStarter(B, P), bQ = bestBench(B, Q) || worstStarter(B, Q);
+      if (!aP || !aQ || !bP || !bQ) continue;
+      const aGives = [aP.id, aQ.id], bGives = [bP.id, bQ.id];
+      if (!validateTrade(league, a, b, aGives, bGives, byId).ok) continue;
+      const gainA = lineupStrength(slotsAfter(A, aGives, bGives, byId), byId, league) - baseA;
+      const gainB = lineupStrength(slotsAfter(B, bGives, aGives, byId), byId, league) - baseB;
+      if (gainA >= aiGreed(A) && gainB >= aiGreed(B) && (!best || gainA + gainB > best.total)) best = { aGives, bGives, total: gainA + gainB };
+    }
+    if (best) done.push(executeTrade(league, a, b, best.aGives, best.bGives, byId));
+  }
+  return done;
 }
 
 export function executeTrade(league, aIdx, bIdx, aGives, bGives, byId) {
@@ -347,6 +392,10 @@ export function rostersValid(league, byId) {
  */
 export function advanceWeekWithMoves(league, byId, pool, rng, advance) {
   if (league.phase === 'season' && weekIsComplete(league)) {
+    // The AI's week: read the table and drift the sliders, deal among themselves, then work the wire.
+    const field = new Set(standings(league).slice(0, playoffFieldSize(league.teams.length)).map((r) => r.idx));
+    aiAdjustStrategies(league, { inField: (i) => field.has(i) });
+    aiTrades(league, byId, rng);
     aiFileClaims(league, pool, byId, rng);
     processWaivers(league, byId);
   }

@@ -6,7 +6,7 @@ Draft real football players from every era at their prime season — Otto Graham
 
 ## What's in the box
 
-- **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…). $200 buys 27 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about two to three wins a season over paying sticker price. A plain snake draft is still an option.
+- **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…) who game-plan each opponent, drift their strategy with the season and trade among themselves. $200 buys 27 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about two to three wins a season over paying sticker price. A plain snake draft is still an option.
 - **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime, and flags: false starts, holding, interference, roughing and the rest, at rates tied to the players on the field.
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself. A live win-probability curve, a drive chart and a game story (turning points, stars, injuries) come with every game you play.
 - **1,269 real players** from the 1940s to 2025, one prime season each, on a real talent curve: the top tenth are stars, the median is a solid starter, the bottom quarter should not be starting. A 32-team league drafts 832 of them, so somebody does.
@@ -73,6 +73,7 @@ src/engine/offseason.js                  contracts, keepers, the offseason marke
 src/engine/clinch.js                     conservative clinch and elimination markers
 src/engine/winprob.js                    win probability fitted to the simulation
 src/engine/awards.js                     season honours, the record book, careers and the hall of fame
+src/engine/gm.js                         AI game plans and weekly strategy drift
 src/ui/charts.js                         inline-SVG win probability and drive charts, the game story
 src/ui/views/*.js                        screens (home, setup, draft, auction, team, season, moves, offseason, awards, game, box score, players, settings)
 scripts/                                 validator, calibration, icon generator, synthetic pools for tests

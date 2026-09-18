@@ -7,6 +7,7 @@ import { composites } from './ratings.js';
 import { injuryChance, rollSeverity, POS_RISK, injuryText, fillLineup } from './injuries.js';
 import { rollPreSnap, rollHolding, rollDefensiveFoul, rollReturnFoul, walkOff, penaltyLabel } from './penalties.js';
 import { winProbability, priorMargin } from './winprob.js';
+import { makeGameplan } from './gm.js';
 import {
   chooseOffense, chooseDefense, goForTwo, onsideKick, tempoSeconds, wantsTimeout,
   fgDistance, fgProbability, halfSecondsLeft, scoreDiff, OFFENSE_CALLS,
@@ -71,6 +72,8 @@ export function createGame(home, away, options = {}) {
   rebuildComp(g, 1);
   // What the stronger roster and the home crowd are worth over a full game; the win-probability model spends it as the clock runs.
   g.prior = priorMargin(home, away, !homeAdvantage);
+  // AI clubs read the matchup and adjust; a human's sliders are left alone.
+  for (const side of [0, 1]) if (!teams[side].isUser || options.planForUser) teams[side].plan = makeGameplan(teams[side].comp, teams[1 - side].comp);
   logEvent(g, { type: 'info', text: `${teams[receiving].name} will receive the opening kickoff.` });
   g.lastEvent.wp = winProbability(g);
   return g;

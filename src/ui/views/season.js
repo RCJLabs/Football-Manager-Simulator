@@ -3,6 +3,9 @@ import { currentWeek, userTeamIndex, userGameThisWeek, simulateWeekAi, weekCompl
 import { ROSTER_SLOTS } from '../../data/positions.js';
 import { fmtWeeks } from '../../engine/injuries.js';
 import { clinchMarkers, markerLetter, MARKER_LEGEND } from '../../engine/clinch.js';
+import { makeGameplan } from '../../engine/gm.js';
+import { composites, buildLineup } from '../../engine/ratings.js';
+import { fillLineup } from '../../engine/injuries.js';
 import { createGame, simulateGame } from '../../engine/game.js';
 import { fantasyPoints } from '../../engine/stats.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
@@ -75,6 +78,7 @@ export function view(root, params, ctx) {
         <div class="side right"><small class="muted">${rec(league.teams[myGame.away])}</small>${teamChip(league.teams[myGame.away], { responsive: true })}</div>
       </div>
       <p class="muted" style="font-size:.9rem">Power: you ${myPower} · them ${oppPower}${gm ? ` · ${gm.name} GM (${gm.blurb.toLowerCase().replace(/\.$/, '')})` : ''}</p>
+      ${(() => { if (myGame.result || opp.isUser) return ''; const oc = composites(fillLineup(buildLineup(opp.slots, ctx.byId, injuries))), mc = composites(fillLineup(buildLineup(me.slots, ctx.byId, injuries))); const notes = makeGameplan(oc, mc).notes; return notes.length ? html`<p class="muted" style="font-size:.85rem;margin-top:-.4rem">Their game plan: ${notes.join('; ')}.</p>` : ''; })()}
       ${hurtList(u).length || hurtList(oppIdx).length ? html`<p class="muted" style="font-size:.85rem;margin-top:-.4rem">${hurtList(u).length ? html`You are missing <b>${hurtList(u).map((x) => `${x.p.name} (${x.p.pos})`).join(', ')}</b>. ` : ''}${hurtList(oppIdx).length ? html`They are missing <b>${hurtList(oppIdx).map((x) => `${x.p.name} (${x.p.pos})`).join(', ')}</b>.` : ''}</p>` : ''}
       <div class="btn-group">
         ${myGame.result

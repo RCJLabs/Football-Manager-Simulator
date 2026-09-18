@@ -3,6 +3,8 @@
 //   { passRate: 0.35..0.70, aggression: 0..1 (4th down), tempo: 0..1,
 //     blitzRate: 0..1, deepShell: 0..1 }
 
+import { effectiveStrategy } from './gm.js';
+
 export const OFFENSE_CALLS = {
   run_in:     { label: 'Inside Run',  kind: 'run' },
   run_out:    { label: 'Outside Run', kind: 'run' },
@@ -84,7 +86,8 @@ export function isClockKill(g, team) {
  */
 export function chooseOffense(g, rng) {
   const team = g.possession;
-  const strat = g.teams[team].strategy;
+  const plan = g.teams[team].plan || null;
+  const strat = effectiveStrategy(g.teams[team].strategy, plan);
   const comp = g.teams[team].comp;
   const oppTimeouts = g.timeouts[1 - team];
   const diff = scoreDiff(g, team);
@@ -143,6 +146,7 @@ export function chooseOffense(g, rng) {
     const qb = comp.qb;
     if (qb && qb.r.thp >= 92) w.pass_deep += 4;
     if (qb && qb.r.thp <= 78) w.pass_deep -= 4;
+    if (plan) { w.pass_deep += plan.deep || 0; w.screen += plan.screen || 0; }
     const keys = Object.keys(w);
     return rng.weighted(keys, keys.map((k) => Math.max(0.5, w[k])));
   }
@@ -209,7 +213,7 @@ export function fourthDownDecision(g, rng) {
 /** Choose a defensive call given situation. */
 export function chooseDefense(g, rng) {
   const team = 1 - g.possession;
-  const strat = g.teams[team].strategy;
+  const strat = effectiveStrategy(g.teams[team].strategy, g.teams[team].plan || null);
   const diff = scoreDiff(g, team); // from defense's perspective
   const toGo = g.toGo;
   let w = { base: 55, run_stop: 15, blitz: 20, deep: 10 };

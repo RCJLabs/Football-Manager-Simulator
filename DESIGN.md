@@ -90,21 +90,23 @@ at the default setting and penalties on:
 
 | Strategy | Wins of 14 | Point differential | Average finish of 8 | Titles of 24 |
 |---|---|---|---|---|
-| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.6 | +12 | 3.8 | 4 |
-| Value shopper (bid 1.15× true worth) | 7.3 | +15 | 4.2 | 4 |
-| Skill players first (1.5× asking at QB/RB/WR/TE) | 6.8 | −11 | 4.8 | 1 |
-| Trenches first (1.7× worth on the lines) | 6.0 | −31 | 5.4 | 1 |
-| Market follower (pay the asking price) | 5.2 | −61 | 6.3 | 1 |
-| Spread the budget evenly | 4.7 | −78 | 6.8 | 0 |
+| Value shopper (bid 1.15× true worth) | 7.7 | +21 | 3.5 | 6 |
+| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 6.8 | −6 | 5.0 | 1 |
+| Skill players first (1.5× asking at QB/RB/WR/TE) | 6.1 | −32 | 5.2 | 3 |
+| Trenches first (1.7× worth on the lines) | 5.6 | −42 | 5.7 | 0 |
+| Market follower (pay the asking price) | 5.0 | −60 | 6.4 | 0 |
+| Spread the budget evenly | 4.5 | −83 | 6.8 | 0 |
 
 About three wins separate the best approach from the worst, so how you bid is
 still the main thing that decides a season, though the gap has narrowed from
 four since injuries and penalties began adding noise a roster cannot control.
 The lesson is learnable from play: buy the positions the room undervalues, and
-do not pay a premium for a name. Stars and scrubs closed the gap on value
-shopping once the pool gained a real tail and the QB2 slot gave a star-heavy
-roster cover, because concentrating money buys genuinely better starters, while
-spreading the budget evenly buys a roster of mediocrities.
+do not pay a premium for a name. Stars and scrubs had closed the gap on value
+shopping once the pool gained a real tail, then fell back a win when AI clubs
+learned to game-plan: a roster of stars behind scrub lines now gets its
+quarterback blitzed and its run game stacked, which is exactly what a real
+coordinator would do to it. Spreading the budget evenly still buys a roster
+of mediocrities.
 
 Re-run `npm run strategy` after any change to pricing, leverage or the player
 pool; these numbers move.
@@ -233,6 +235,18 @@ The record book keeps season marks (twelve player categories), single-game marks
 
 Careers accumulate per player across seasons: games, totals, honours, statistical titles and rings (every member of the champion's roster gets one). The hall of fame is a résumé score: a point a season, four for an MVP, two for a player-of-the-year award or a title, one and a half per all-league selection, half per statistical title, and a point per 300 fantasy points; induction at 12 with at least three seasons. That is deliberately reachable in a short dynasty and deliberately not reachable by longevity alone. Established: the scoring above. Speculation: whether the leverage exponent lets non-quarterbacks win often enough; it has not been measured over many seasons.
 
+## AI general managers (`gm.js`)
+
+Three things an AI club does that a preset never did.
+
+**A game plan.** At kickoff each AI side reads the matchup from the two clubs' composites and adjusts its sliders for this game only: quick throws and screens when the other rush beats its line, more runs at a soft front, more passing when its quarterback beats their coverage, deep shots at a slow secondary; on defence, pressure at a weak line (and a heavy blitz at a replacement-level fill-in), a stacked box against a strong run game, a shell over a great passer. The human's sliders are the human's own; the matchup card tells you what the other side plans, which is the invitation to answer it.
+
+**Weekly drift.** After each week every AI club drifts its sliders from its own season: toward the pass when the passing game is the efficient unit, away from it when the passer is being sacked, toward the blitz when points are pouring in, toward aggression when the playoff line is slipping away late and toward caution when it is safe. Every slider stays within 0.12 of the personality's base, so a Ground & Pound club never turns into an Air Raid.
+
+**Deals among themselves.** Surplus for need: a club with a good bench player at one position and a weak starter at another looks for a club in the mirror image and swaps two for two, positions matching, when both lineups improve by at least their greed. A few pairs are tried each week before the deadline and every deal lands in the log, so the human can see the market move without being in every trade.
+
+Depth charts were already revisited after every waiver claim and trade. Not built: AI clubs proposing trades to the human (the position-matching rule leaves few deals that are good for both sides and worth the interruption) and any memory of a specific opponent beyond the ratings.
+
 ## UI
 
 Vanilla ES modules, hash router, one persisted state object (`store.js`). Views re-render from state; the live game view manages its own DOM and autoplay timer. Everything is relative-path so it deploys to a GitHub Pages subpath. Service worker: network-first for HTML, cache-first for assets (bump `CACHE` in `sw.js` on every release or installed clients keep the old CSS).
@@ -264,7 +278,7 @@ third season, not by effort.
 
 7. **Awards, records and a hall of fame.** *Shipped; see Awards above.* Evidence at the time: `seasonStats` and `history` already hold everything needed, and the completion screen shows only the champion. MVP, offensive and defensive player of the year, all-league teams, single-season and career records per franchise. Touches `season.js` (a `records` structure) and the completion view. Risk: low; the leverage table decides MVP weighting, so a quarterback wins most years unless the formula corrects for position.
 
-8. **Smarter AI general managers.** Evidence: personalities are static presets; AI clubs never change a strategy slider, never revisit a depth chart after the season-start sort, and never respond to what beat them last week. Touches `playcall.js` (per-opponent adjustments: blitz more against a weak line, run against a weak front) and a weekly AI housekeeping pass. Risk: a smarter field narrows the strategy spread measured in the auction section; re-measure and keep the spread near four wins.
+8. **Smarter AI general managers.** *Shipped; see AI general managers above.* Evidence at the time: personalities are static presets; AI clubs never change a strategy slider, never revisit a depth chart after the season-start sort, and never respond to what beat them last week. Touches `playcall.js` (per-opponent adjustments: blitz more against a weak line, run against a weak front) and a weekly AI housekeeping pass. Risk: a smarter field narrows the strategy spread measured in the auction section; re-measure and keep the spread near four wins.
 
 9. **Save slots and shareable leagues.** Evidence: `store.js` holds one league under one localStorage key; a second league overwrites the first, and export/import is the only backup. Because every game is seeded, a league is reproducible from its seed and pick history, so a short share code could rebuild a league on another device and a roster card could be rendered to an image for sharing. Touches `store.js`, settings view, a canvas renderer. Risk: the players file must stay byte-identical for codes to replay; version the code with the data file's hash.
 
