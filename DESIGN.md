@@ -326,6 +326,12 @@ The roadmap above is finished. What followed, and what is left:
 
 12. **Injured reserve.** *Shipped; see Injuries and depth above.* A long injury was a dead roster slot, so the only answer to a season-ending knee was to cut the player.
 
-13. **A replayable share code.** *Not built.* The code is a snapshot of a league at the start of a season. Making it a true replay needs coach-mode calls, slider changes, claims, trades and keeper choices recorded in order, which is a log format and a migration story of its own. Everything else is already seeded.
+13. **A replayable share code.** *Not built, and the audit argues against building it as written.* The code is a snapshot of a league at the start of a season, which is enough for a friend to play the same rosters. Turning it into a true replay is not blocked by determinism: the league seed, every game seed and the RNG state are already stored, and the only unseeded values are the league id and creation time, which a snapshot fixes. The cost is elsewhere.
+
+   A replay log would have to carry every human decision in order: about twenty-five league-level ones (nominations, a maximum bid on each of 208 to 864 auction lots, claims and cancels, proposed trades, accepted and declined offers, keeper picks, injured-reserve moves, slider changes, depth-chart reorders, and the choice to play or sim each week), plus every coach-mode call, which is roughly nine hundred entries in a fourteen-game season. That is a log format, a size problem, and a versioning story.
+
+   The versioning is the real objection. A replay is only valid against the exact engine that produced it, and the constants move: penalty rates, injury rates, replacement level, general-manager greed, the keeper raise and the offer gate all changed while the ten items were being built, each one re-measured. Every such change invalidates every stored replay, so the feature would need a frozen engine version per code and a migration path, for a payoff the snapshot already mostly delivers.
+
+   What the idea was actually for — two people playing the same league and comparing — is better served by a small result card: the final table, your record, the champion and the MVP, exported from a finished season and compared against a friend's. That is a fraction of the work and does not rot when a constant moves. It is not built either; it is the honest version of the request.
 
 Smaller items that did not make the list: an 18-week pro calendar (folded into 5), two-minute-drill timeouts for the coach-mode user, a compare-players view, keyboard and screen-reader passes on the auction room, and an in-app explainer for what actually wins games (the leverage table is documented above, not surfaced in the product).
