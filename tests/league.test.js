@@ -36,7 +36,7 @@ test('schedule is a double round-robin with one game per team per week', () => {
 });
 
 test('auto draft fills every slot with the right position and no duplicates', () => {
-  const league = createLeague({ name: 'T', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 3 });
+  const league = createLeague({ name: 'T', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 3, draftType: 'snake' });
   const rng = new RNG(league.rngState);
   autoDraftAll(league, league.draft, pool, rng);
   assert.ok(league.draft.complete);
@@ -54,7 +54,7 @@ test('auto draft fills every slot with the right position and no duplicates', ()
 });
 
 test('user picks interleave with AI picks in snake order', () => {
-  const league = createLeague({ name: 'T', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 4, seed: 9 });
+  const league = createLeague({ name: 'T', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 4, seed: 9, draftType: 'snake' });
   const u = league.teams.findIndex((t) => t.isUser);
   const rng = new RNG(league.rngState);
   runAiPicks(league, league.draft, pool, rng);
@@ -71,7 +71,7 @@ test('user picks interleave with AI picks in snake order', () => {
 });
 
 test('a full season runs to a champion with consistent standings', () => {
-  const league = createLeague({ name: 'T', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 6, seed: 21 });
+  const league = createLeague({ name: 'T', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 6, seed: 21, draftType: 'snake' });
   const rng = new RNG(league.rngState);
   autoDraftAll(league, league.draft, pool, rng);
   league.rngState = rng.state;

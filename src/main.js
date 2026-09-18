@@ -5,6 +5,7 @@ import { toast } from './ui/components.js';
 import * as home from './ui/views/home.js';
 import * as setup from './ui/views/setup.js';
 import * as draft from './ui/views/draft.js';
+import * as auction from './ui/views/auction.js';
 import * as team from './ui/views/team.js';
 import * as season from './ui/views/season.js';
 import * as game from './ui/views/game.js';
@@ -38,7 +39,10 @@ function renderNav() {
   const path = currentRoute()?.path || '/';
   const items = [{ href: '#/', label: 'Home', match: '/' }];
   if (s.league) {
-    if (s.league.phase === 'draft') items.push({ href: '#/draft', label: 'Draft', match: '/draft' });
+    if (s.league.phase === 'draft') {
+      const auctionLeague = s.league.draftType === 'auction';
+      items.push({ href: auctionLeague ? '#/auction' : '#/draft', label: auctionLeague ? 'Auction' : 'Draft', match: auctionLeague ? '/auction' : '/draft' });
+    }
     else items.push({ href: '#/season', label: 'Season', match: '/season' });
     const u = s.league.teams.findIndex((t) => t.isUser);
     items.push({ href: `#/team/${u}`, label: 'My Team', match: `/team/${u}` });
@@ -52,6 +56,7 @@ function renderNav() {
 route('/', () => mount(home));
 route('/new', () => mount(setup));
 route('/draft', () => mount(draft));
+route('/auction', () => mount(auction));
 route('/team/:idx', (p) => mount(team, p));
 route('/season', () => mount(season));
 route('/game', () => mount(game));

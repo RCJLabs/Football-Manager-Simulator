@@ -6,7 +6,7 @@ import { GM_PERSONALITIES } from '../../data/teams.js';
 import { teamChip, toast, modal } from '../components.js';
 
 export function fmtPhase(league) {
-  if (league.phase === 'draft') return 'Drafting';
+  if (league.phase === 'draft') return league.draftType === 'auction' ? 'Auction in progress' : 'Drafting';
   if (league.phase === 'season') return `Season ${league.season} · Week ${league.week} of ${league.schedule.length}`;
   if (league.phase === 'playoffs') return `Season ${league.season} · Playoffs · ${league.playoffs.rounds[league.playoffs.round - 1].name}`;
   return `Season ${league.season} complete`;
@@ -16,7 +16,7 @@ export function view(root, params, ctx) {
   const state = ctx.getState();
   const league = state.league;
   if (!league) { ctx.navigate('#/new'); return; }
-  if (league.phase === 'draft') { ctx.navigate('#/draft'); return; }
+  if (league.phase === 'draft') { ctx.navigate(league.draftType === 'auction' ? '#/auction' : '#/draft'); return; }
   const u = userTeamIndex(league);
   const me = league.teams[u];
   const wk = currentWeek(league);

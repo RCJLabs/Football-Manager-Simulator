@@ -3,13 +3,14 @@ import { AI_TEAMS } from '../data/teams.js';
 import { DEFAULT_STRATEGY } from './playcall.js';
 import { RNG, hashSeed } from './rng.js';
 import { createDraft, assignGms } from './draft.js';
+import { createAuction } from './auction.js';
 import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats } from './stats.js';
 import { buildLineup, teamPower } from './ratings.js';
 import { createGame, simulateGame } from './game.js';
 
 export const LEAGUE_VERSION = 1;
 
-export function createLeague({ name, user, numTeams = 8, seed } = {}) {
+export function createLeague({ name, user, numTeams = 8, seed, draftType = 'auction', budget } = {}) {
   seed = seed ?? Math.floor(Math.random() * 4294967295);
   const rng = new RNG(seed);
   const aiPool = rng.shuffle(AI_TEAMS).slice(0, numTeams - 1);
@@ -28,6 +29,7 @@ export function createLeague({ name, user, numTeams = 8, seed } = {}) {
     id: `lg-${seed.toString(36)}-${Date.now().toString(36)}`,
     name: name || 'All-Time League',
     seed,
+    draftType,
     created: Date.now(),
     season: 1,
     teams,
@@ -41,7 +43,8 @@ export function createLeague({ name, user, numTeams = 8, seed } = {}) {
     settings: { coachMode: false, coachDefense: false },
   };
   assignGms(league, rng);
-  league.draft = createDraft(league, rng);
+  if (draftType === 'auction') league.auction = createAuction(league, rng, budget ? { budget } : {});
+  else league.draft = createDraft(league, rng);
   league.rngState = rng.state;
   return league;
 }

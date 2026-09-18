@@ -6,7 +6,7 @@ Draft real football players from every era at their prime season — Otto Graham
 
 ## What's in the box
 
-- **Snake draft** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…). 26-man rosters: QB, 2 RB, 4 WR, TE, 5 OL, 4 DL, 3 LB, 2 CB, 2 S, K, P.
+- **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…). $200 buys 26 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about five wins a season over paying sticker price. A plain snake draft is still an option.
 - **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime.
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself.
 - **Season mode.** Double round-robin schedule, standings, season leaders, playoffs, champion. Play another season with the same rosters or start a new league.
@@ -30,6 +30,8 @@ ES modules require http(s); opening `index.html` via `file://` will not work.
 npm test             # engine tests (node:test, no dependencies)
 npm run validate     # schema-check src/data/players.js
 npm run calibrate    # simulate 300 games between synthetic teams and print league averages
+npm run auction      # compare roster variety: auction vs snake draft
+npm run strategy     # measure whether how you bid changes how much you win
 npm run icons        # re-rasterize icons/icon.svg to PNG (needs Playwright)
 npm run smoke        # headless browser pass: full game flow + layout overflow checks
 ```
@@ -52,6 +54,7 @@ src/engine/game.js                       the simulation state machine (kickoff �
 src/engine/playcall.js                   AI play-calling, 4th-down logic, timeouts, tempo
 src/engine/ratings.js                    overall ratings and team composite ratings
 src/engine/draft.js                      snake draft with value-over-replacement AI
+src/engine/auction.js                    salary-cap auction: pricing, AI bidding, bid resolution
 src/engine/season.js                     league, schedule, standings, playoffs, stat rollups
 src/ui/views/*.js                        screens (home, setup, draft, team, season, game, box score, players, settings)
 scripts/                                 validator, calibration, icon generator, synthetic pools for tests

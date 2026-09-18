@@ -44,13 +44,67 @@ Situational pass/run mix from strategy sliders plus down, distance, field positi
 
 Leverage, measured by boosting one position group 8 points on an otherwise equal synthetic team: QB → 69% wins, WR → 66%, RB/OL/DL → 62%, LB/CB → 61%, S → 58%, K → no effect on win rate. Boosting every group by 2 points wins ~78% because the effects stack. In a snake draft with the value-over-replacement AI, total talent equalizes (team power spread ≈ 1 point), so AI-vs-AI seasons are close to coin flips and the user's edge comes from out-drafting the AI and from strategy. Constants to reach for when tuning: `baseComp`, `baseInt`, `yacMean`, `stuffP`, the run `base` normals, `pressureP`, and the `edge()` k values (bigger k = flatter response to rating gaps).
 
+## The auction (`auction.js`)
+
+The snake draft had a structural problem: it hands every team 26 players from the
+same pool in alternating order, so total talent equalizes. Measured over ten
+simulated seasons, the best-built roster in a league beat the worst by half a win.
+The central activity of the game had almost no consequence.
+
+The auction fixes it with a $200 cap and 26 slots. Teams take turns nominating a
+player they have room for; the nominator automatically opens at $1, so every
+nomination sells and the room cannot stall. Each team states a maximum, the
+highest maximum wins, and the winner pays one dollar more than the runner-up, so
+bidding your true limit is never punished. A team always keeps $1 per unfilled
+slot, which guarantees every roster fills.
+
+### Why the price guide is deliberately wrong
+
+The first version priced players by measured win impact. That made the market
+efficient, and an efficient market with equal budgets hands every team the same
+quality of roster: roster variety went up, but the link between roster quality
+and wins went to zero. Parity came back through the front door.
+
+So the asking price is built from **reputation**, not value: convex in overall
+rating, multiplied by a `GLAMOUR` weight where quarterbacks, backs and receivers
+are expensive and guards and safeties are cheap. Separately, `TRUE_LEVERAGE`
+holds the measured per-player win impact. The gap between the two is the game.
+Each AI GM sees a blend of the two according to a `SAVVY` rating, so the
+Analytics GM chases value while the Air Raid GM chases names, and the market is
+beatable without being free money.
+
+Measured over twenty leagues with the human team following fixed strategies:
+
+| Strategy | Wins of 14 | Point differential | Average finish of 8 |
+|---|---|---|---|
+| Value shopper (bid by true worth) | 8.6 | +48 | 2.5 |
+| Stars and scrubs | 6.6 | −5 | 4.7 |
+| Trenches first | 5.8 | −25 | 5.6 |
+| Pay the asking price | 4.7 | −59 | 6.8 |
+| Spread the budget evenly | 4.5 | −70 | 6.8 |
+| Chase the famous names | 3.9 | −77 | 7.5 |
+
+Roughly five wins separate the best approach from the worst, so how you bid is
+now the main thing that decides a season. The lesson is learnable from play: buy
+the positions the room undervalues, and do not pay a premium for a name.
+
+Known limitation: the top lot goes for about $35 of $200, where a real fantasy
+auction sees 25 to 35 percent of budget on one player. The player pool is flat
+(everyone is rated 75 to 97), which caps how expensive any single player can get.
+A deeper pool with a real tail would widen this.
+
+The snake draft is still available as a league option, and `draftType` on the
+league selects between them.
+
 ## Draft AI (`draft.js`)
 
 Value over replacement: for each position, the replacement level is the overall of the Nth-best available player where N is the league's remaining demand at that position. Pick = highest (overall − replacement) × positional impact multiplier (QB 2.6, CB 1.1, RB/WR 1.0, DL 0.9 … K 0.5, P 0.35, mirroring measured sim leverage) × GM personality weights (+ era bias for Old School / Analytics) + noise. Kickers and punters are held until the last three rounds unless forced. A slot-count guard guarantees every roster fills.
 
 ## Rating distribution
 
-Hand-written ratings for an all-star pool cluster near the top (the 58th-best offensive lineman was still a 90). `scripts/stretch-ratings.mjs` was run once to widen each position so the top is untouched and the weakest entry sits near 75 overall, protecting each player's best attribute. Medians now sit at 85–89 by position. Edit rows freely; rerun the stretch only if you add many entries at the bottom.
+Hand-written ratings for an all-star pool cluster near the top (the 58th-best offensive lineman was still a 90). `scripts/auction-sim.mjs` compares roster variety between the two draft types and
+`scripts/strategy-sim.mjs` measures whether bidding strategy changes results.
+`scripts/stretch-ratings.mjs` was run once to widen each position so the top is untouched and the weakest entry sits near 75 overall, protecting each player's best attribute. Medians now sit at 85–89 by position. Edit rows freely; rerun the stretch only if you add many entries at the bottom.
 
 ## League (`season.js`)
 

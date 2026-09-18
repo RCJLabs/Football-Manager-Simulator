@@ -24,7 +24,7 @@ export function view(root, params, ctx) {
   }
   const u = league.teams.findIndex((t) => t.isUser);
   const me = league.teams[u];
-  const cont = league.phase === 'draft' ? '#/draft' : '#/season';
+  const cont = league.phase === 'draft' ? (league.draftType === 'auction' ? '#/auction' : '#/draft') : '#/season';
   render(root, html`
     <div class="card">
       <div class="row between">
@@ -46,7 +46,7 @@ export function view(root, params, ctx) {
     <div class="features" style="margin-top:1rem">
       <a class="feature" href="#/players"><b>Player pool</b><span class="muted">Browse every player and who owns them.</span></a>
       <a class="feature" href="#/settings"><b>Settings</b><span class="muted">Coach mode, export/import, reset.</span></a>
-      <a class="feature" href="${cont}"><b>${league.phase === 'draft' ? 'Back to the draft' : 'League hub'}</b><span class="muted">Schedule, standings, playoffs.</span></a>
+      <a class="feature" href="${cont}"><b>${league.phase === 'draft' ? 'Back to the auction room' : 'League hub'}</b><span class="muted">Schedule, standings, playoffs.</span></a>
     </div>
   `);
 }

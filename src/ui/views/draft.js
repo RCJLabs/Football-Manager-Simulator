@@ -13,6 +13,7 @@ const PAGE = 120;
 export function view(root, params, ctx) {
   const { league } = ctx.getState();
   if (!league) { ctx.navigate('#/new'); return; }
+  if (league.draftType === 'auction') { ctx.navigate('#/auction'); return; }
   if (league.phase !== 'draft') { ctx.navigate('#/season'); return; }
   const draft = league.draft;
   const u = league.teams.findIndex((t) => t.isUser);
@@ -82,7 +83,7 @@ export function view(root, params, ctx) {
       <div class="stack">
         <div class="card tight">
           <h3>Recent picks</h3>
-          <ul class="plain ticker">${raw(recent.map((pk) => { const p = ctx.byId.get(pk.playerId); const t = league.teams[pk.team]; return `<li class="${t.isUser ? 'me' : ''}"><small class="muted">#${pk.overall}</small> ${teamChip(t, { abbr: true }).__raw} — <b>${esc(p.name)}</b> <small class="muted">${p.pos} · ${p.season}</small></li>`; }).join('')) || '<li class="muted">You have the first pick.</li>'}</ul>
+          <ul class="plain ticker">${raw(recent.map((pk) => { const p = ctx.byId.get(pk.playerId); const t = league.teams[pk.team]; return `<li class="${t.isUser ? 'me' : ''}"><small class="muted">#${pk.overall}</small> ${teamChip(t, { abbr: true }).__raw} — <b>${esc(p.name)}</b> <small class="muted">${p.pos} · ${p.season}</small></li>`; }).join('') || '<li class="muted">You have the first pick.</li>')}</ul>
         </div>
         <div class="card tight">
           <h3>My roster (${myPicks.length}/${TOTAL_ROUNDS})</h3>

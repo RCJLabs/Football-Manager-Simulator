@@ -8,7 +8,8 @@ const ui = { pos: 'ALL', era: 'ALL', q: '', owned: 'all', limit: 120 };
 
 export function view(root, params, ctx) {
   const { league } = ctx.getState();
-  const owner = (p) => (league && league.draft && league.draft.taken[p.id] != null ? league.teams[league.draft.taken[p.id]] : null);
+  const taken = league ? (league.auction || league.draft || {}).taken || {} : {};
+  const owner = (p) => (taken[p.id] != null ? league.teams[taken[p.id]] : null);
 
   function list() {
     const q = ui.q.trim().toLowerCase();

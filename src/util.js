@@ -10,8 +10,10 @@ export function html(strings, ...vals) {
     out += s;
     if (i < vals.length) {
       const v = vals[i];
-      if (v && v.__raw) out += v.__raw;
-      else if (Array.isArray(v)) out += v.map((x) => (x && x.__raw ? x.__raw : esc(x))).join('');
+      // Test for the marker, not its truthiness: raw('') is a legitimate value
+      // and must render as nothing rather than as a stringified object.
+      if (isRaw(v)) out += v.__raw;
+      else if (Array.isArray(v)) out += v.map((x) => (isRaw(x) ? x.__raw : esc(x))).join('');
       else if (v === false || v == null) out += '';
       else out += esc(v);
     }
@@ -21,8 +23,11 @@ export function html(strings, ...vals) {
 
 export const raw = (s) => ({ __raw: String(s) });
 
+/** True for a value produced by raw() or html(), including an empty one. */
+export const isRaw = (v) => !!v && typeof v === 'object' && typeof v.__raw === 'string';
+
 export function render(root, tpl) {
-  root.innerHTML = tpl && tpl.__raw != null ? tpl.__raw : String(tpl);
+  root.innerHTML = isRaw(tpl) ? tpl.__raw : String(tpl ?? '');
 }
 
 export function debounce(fn, ms) {

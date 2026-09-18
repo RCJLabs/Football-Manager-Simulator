@@ -10,7 +10,9 @@
     "validate": "node scripts/validate-players.mjs",
     "calibrate": "node scripts/calibrate.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "auction": "node scripts/auction-sim.mjs",
+    "strategy": "node scripts/strategy-sim.mjs"
   },
   "engines": { "node": ">=20" },
   "license": "MIT"

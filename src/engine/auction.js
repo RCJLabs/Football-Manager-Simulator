@@ -1,0 +1,378 @@
+// Salary-cap auction draft.
+//
+// Why this exists: a snake draft hands every team 26 players from the same pool
+// in alternating order, so total talent equalizes and the draft stops mattering.
+// A budget forces trade-offs. You can buy Brady, Rice and Nacua, but then your
+// line is replacement level and the pass rush gets home.
+//
+// Flow: teams take turns nominating a player they have room for. The nominator
+// automatically opens at $1, so every nomination sells. Each team states a
+// maximum (an eBay-style proxy bid); the highest maximum wins and pays one
+// dollar more than the runner-up. A team always keeps $1 per unfilled slot, so
+// every roster is guaranteed to fill.
+
+import { ROSTER_SLOTS, SLOT_COUNTS } from '../data/positions.js';
+import { GM_PERSONALITIES } from '../data/teams.js';
+import { overall } from './ratings.js';
+import { clamp } from './rng.js';
+
+export const DEFAULT_BUDGET = 200;
+export const MIN_BID = 1;
+export const TOTAL_SLOTS = ROSTER_SLOTS.length;
+
+/**
+ * Two different numbers drive this auction, and the gap between them is the
+ * whole game.
+ *
+ * TRUE_LEVERAGE is measured: boost one position group by 8 points on an
+ * otherwise equal synthetic team, take the extra win rate, divide by the number
+ * of starters at that position. It is what a player is actually worth.
+ *
+ * GLAMOUR is what the room pays. Quarterbacks, backs and receivers carry the
+ * headlines; guards and safeties do not. A market priced purely on true value
+ * would be efficient, and an efficient market with equal budgets hands every
+ * team the same quality of roster, which is exactly the parity problem the
+ * auction is meant to solve. Pricing on reputation instead leaves real bargains
+ * on the board for a manager who knows where games are won.
+ */
+const TRUE_LEVERAGE = { QB: 16.6, TE: 9.3, RB: 5.0, WR: 4.4, CB: 4.2, S: 3.0, LB: 2.7, DL: 2.45, OL: 1.9, K: 0.35, P: 0.2 };
+const GLAMOUR = { QB: 2.3, RB: 1.6, WR: 1.5, TE: 0.95, DL: 0.95, LB: 0.75, CB: 0.7, S: 0.6, OL: 0.5, K: 0.22, P: 0.14 };
+const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) => [k, Math.pow(v, 0.72)]));
+
+/** How much of a GM's valuation comes from real win impact rather than hype. */
+const SAVVY = { analytics: 0.7, trenches: 0.62, defense: 0.5, balanced: 0.34, gambler: 0.26, ground: 0.16, oldschool: 0.18, airraid: 0.1 };
+
+export { TRUE_LEVERAGE, GLAMOUR };
+
+export function openSlots(team) {
+  return ROSTER_SLOTS.filter((s) => !team.slots[s.id]);
+}
+
+export function openSlotsByPos(team) {
+  const out = {};
+  for (const s of openSlots(team)) out[s.pos] = (out[s.pos] || 0) + 1;
+  return out;
+}
+
+export function slotsLeft(team) {
+  return openSlots(team).length;
+}
+
+/** Most a team can bid while still keeping $1 for every other unfilled slot. */
+export function maxAffordable(auction, teamIdx, league) {
+  const left = slotsLeft(league.teams[teamIdx]);
+  if (left <= 0) return 0;
+  return Math.max(0, auction.budgets[teamIdx] - (left - 1) * MIN_BID);
+}
+
+export function canRoster(team, pos) {
+  return (openSlotsByPos(team)[pos] || 0) > 0;
+}
+
+export function availablePlayers(auction, pool) {
+  return pool.filter((p) => auction.taken[p.id] == null);
+}
+
+/** League-wide unfilled slots per position. */
+function demandByPos(league) {
+  const d = {};
+  for (const t of league.teams) for (const [pos, n] of Object.entries(openSlotsByPos(t))) d[pos] = (d[pos] || 0) + n;
+  return d;
+}
+
+/**
+ * Replacement level per position: the overall of the last player who would still
+ * find a roster spot if demand were filled purely by rating.
+ */
+function replacementLevels(available, demand) {
+  const byPos = {};
+  for (const p of available) (byPos[p.pos] ??= []).push(p);
+  const out = {};
+  for (const [pos, arr] of Object.entries(byPos)) {
+    arr.sort((a, b) => overall(b) - overall(a));
+    const need = Math.max(1, demand[pos] || 1);
+    const idx = Math.min(arr.length - 1, need - 1);
+    out[pos] = overall(arr[idx]);
+  }
+  return out;
+}
+
+/** What the room pays: star power, convex in rating, glamour by position. */
+function marketRaw(p) {
+  return Math.pow(Math.max(2, overall(p) - 68), 2.1) * (GLAMOUR[p.pos] ?? 1);
+}
+
+/** What the player is actually worth: talent above replacement times leverage. */
+function trueRaw(p, repl) {
+  const above = overall(p) - (repl[p.pos] ?? 60);
+  return Math.max(0.35, above + 1.5) * (LEVERAGE[p.pos] ?? 1);
+}
+
+/**
+ * A live price guide: what each remaining player should cost if the money left
+ * in the league is spent on the slots left to fill. Recomputed as teams buy, so
+ * prices rise when a position runs short and fall when money dries up.
+ */
+export function priceGuide(auction, league, pool) {
+  const available = availablePlayers(auction, pool);
+  const demand = demandByPos(league);
+  const repl = replacementLevels(available, demand);
+  const totalSlots = Object.values(demand).reduce((s, n) => s + n, 0);
+  if (!totalSlots) return { prices: new Map(), repl, totalSlots: 0 };
+
+  // The players most likely to actually be bought, by position demand.
+  const byPos = {};
+  for (const p of available) (byPos[p.pos] ??= []).push(p);
+  const contenders = [];
+  for (const [pos, arr] of Object.entries(byPos)) {
+    arr.sort((a, b) => overall(b) - overall(a));
+    for (const p of arr.slice(0, demand[pos] || 0)) contenders.push(p);
+  }
+  const moneyLeft = auction.budgets.reduce((s, b, i) => s + (slotsLeft(league.teams[i]) > 0 ? b : 0), 0);
+  // Every bought player costs at least $1; the rest of the money chases stars.
+  const discretionary = Math.max(0, moneyLeft - totalSlots * MIN_BID);
+  const mScale = discretionary / (contenders.reduce((s, p) => s + marketRaw(p), 0) || 1);
+  const tScale = discretionary / (contenders.reduce((s, p) => s + trueRaw(p, repl), 0) || 1);
+
+  const prices = new Map();
+  const worth = new Map();
+  for (const p of available) {
+    prices.set(p.id, Math.max(MIN_BID, Math.round(MIN_BID + marketRaw(p) * mScale)));
+    worth.set(p.id, Math.max(MIN_BID, Math.round(MIN_BID + trueRaw(p, repl) * tScale)));
+  }
+  return { prices, worth, repl, totalSlots, moneyLeft };
+}
+
+export function createAuction(league, rng, { budget = DEFAULT_BUDGET } = {}) {
+  return {
+    type: 'auction',
+    budget,
+    budgets: league.teams.map(() => budget),
+    order: rng.shuffle([...Array(league.teams.length).keys()]),
+    nomIndex: 0,
+    current: null,
+    sold: [],
+    taken: {},
+    complete: false,
+  };
+}
+
+export function currentNominator(auction, league) {
+  const n = auction.order.length;
+  for (let i = 0; i < n; i++) {
+    const t = auction.order[(auction.nomIndex + i) % n];
+    if (slotsLeft(league.teams[t]) > 0) return t;
+  }
+  return null;
+}
+
+function advanceNominator(auction) {
+  auction.nomIndex = (auction.nomIndex + 1) % auction.order.length;
+}
+
+/** Everyone the nominating team is allowed to put up: positions it still needs. */
+export function nominatable(auction, league, pool, teamIdx) {
+  const team = league.teams[teamIdx];
+  const open = openSlotsByPos(team);
+  return availablePlayers(auction, pool).filter((p) => open[p.pos] > 0);
+}
+
+/**
+ * What an AI team will pay at most. Combines the price guide with the GM's
+ * taste, how badly the roster needs the position, and budget pressure: a team
+ * sitting on money relative to its remaining slots bids up, a team that already
+ * splurged drops out. That pressure is what produces stars-and-scrubs rosters
+ * next to balanced ones instead of eight identical teams.
+ */
+export function aiMaxBid(auction, league, pool, teamIdx, player, guide, rng) {
+  const team = league.teams[teamIdx];
+  if (!canRoster(team, player.pos)) return 0;
+  const cap = maxAffordable(auction, teamIdx, league);
+  if (cap < MIN_BID) return 0;
+
+  const gm = GM_PERSONALITIES.find((g) => g.id === team.gm) || GM_PERSONALITIES[0];
+  // Each GM sees a blend of the asking price and what the player is really
+  // worth. The shrewd ones chase value; the rest chase names.
+  const savvy = typeof team.savvy === 'number' ? team.savvy : (SAVVY[team.gm] ?? 0.3);
+  const asking = guide.prices.get(player.id) ?? MIN_BID;
+  const real = guide.worth.get(player.id) ?? asking;
+  let v = asking * (1 - savvy) + real * savvy;
+  // Personalities bid distinctly, or every roster converges again.
+  v *= Math.pow(gm.pos[player.pos] ?? 1, 2.5);
+  if (gm.era) v *= Math.pow(gm.era(player.season), 2);
+
+  const left = slotsLeft(team);
+  const dollarsPerSlot = auction.budgets[teamIdx] / Math.max(1, left);
+  const marketPerSlot = guide.totalSlots ? guide.moneyLeft / guide.totalSlots : dollarsPerSlot;
+  v *= clamp(dollarsPerSlot / Math.max(1, marketPerSlot), 0.55, 1.75);
+
+  // Running out of roster spots at a position it still must fill: pay up.
+  const open = openSlotsByPos(team)[player.pos] || 0;
+  if (open >= left) v *= 1.6;
+  else if (open > 0 && left <= 4) v *= 1.15;
+
+  // Kickers and punters are a last-rounds problem, not a budget item.
+  if ((player.pos === 'K' || player.pos === 'P') && left > 3) v = Math.min(v, Math.max(MIN_BID, dollarsPerSlot * 0.5));
+
+  v *= rng.normal(1, 0.13);
+  return clamp(Math.round(v), 0, cap);
+}
+
+/** Put a player up for bidding. The nominator opens at $1, so nothing stalls. */
+export function nominate(auction, league, pool, playerId, byId) {
+  if (auction.complete) throw new Error('The auction is over');
+  if (auction.current) throw new Error('Bidding is already open');
+  if (auction.taken[playerId] != null) throw new Error('That player is already sold');
+  const teamIdx = currentNominator(auction, league);
+  if (teamIdx == null) throw new Error('Every roster is full');
+  const player = byId.get(playerId);
+  if (!player) throw new Error('Unknown player');
+  if (!canRoster(league.teams[teamIdx], player.pos)) throw new Error(`No open ${player.pos} slot`);
+  auction.current = { playerId, nominator: teamIdx };
+  return auction.current;
+}
+
+/** AI picks the best player it can afford at a position it still needs. */
+export function aiNominate(auction, league, pool, rng, byId) {
+  const teamIdx = currentNominator(auction, league);
+  const guide = priceGuide(auction, league, pool);
+  const cands = nominatable(auction, league, pool, teamIdx);
+  if (!cands.length) return null;
+  const cap = maxAffordable(auction, teamIdx, league);
+  const gm = GM_PERSONALITIES.find((g) => g.id === league.teams[teamIdx].gm) || GM_PERSONALITIES[0];
+  // Prefer players it can actually win, weighted by taste.
+  const scored = cands.map((p) => {
+    const price = guide.prices.get(p.id) ?? MIN_BID;
+    const taste = Math.pow(gm.pos[p.pos] ?? 1, 2.5) * (gm.era ? gm.era(p.season) : 1);
+    const reach = price <= cap ? 1 : 0.15;
+    return { p, w: (overall(p) - 70) * taste * reach };
+  });
+  const best = scored.sort((a, b) => b.w - a.w).slice(0, 6);
+  const choice = rng.weighted(best.map((x) => x.p), best.map((x) => Math.max(0.1, x.w)));
+  return nominate(auction, league, pool, choice.id, byId);
+}
+
+/**
+ * Close bidding on the open nomination.
+ * `userMax` is the human team's maximum (0 to pass). Returns the sale.
+ */
+export function settle(auction, league, pool, rng, byId, userMax = 0) {
+  const cur = auction.current;
+  if (!cur) throw new Error('Nothing is up for bidding');
+  const player = byId.get(cur.playerId);
+  const guide = priceGuide(auction, league, pool);
+
+  const bids = [];
+  for (let t = 0; t < league.teams.length; t++) {
+    const team = league.teams[t];
+    if (!canRoster(team, player.pos)) continue;
+    const cap = maxAffordable(auction, t, league);
+    if (cap < MIN_BID) continue;
+    let max = team.isUser
+      ? clamp(Math.floor(Number(userMax) || 0), 0, cap)
+      : aiMaxBid(auction, league, pool, t, player, guide, rng);
+    if (t === cur.nominator) max = Math.max(max, MIN_BID); // the opening bid
+    if (max >= MIN_BID) bids.push({ team: t, max });
+  }
+  if (!bids.length) {
+    // Only possible if the nominator somehow lost the slot; return him to the pool.
+    auction.current = null;
+    advanceNominator(auction);
+    return null;
+  }
+
+  bids.sort((a, b) => b.max - a.max || rng.next() - 0.5);
+  const winner = bids[0];
+  const runnerUp = bids[1];
+  const price = runnerUp ? Math.min(winner.max, runnerUp.max + 1) : MIN_BID;
+
+  const team = league.teams[winner.team];
+  const slot = openSlots(team).find((s) => s.pos === player.pos);
+  team.slots[slot.id] = player.id;
+  auction.budgets[winner.team] -= price;
+  auction.taken[player.id] = winner.team;
+  const sale = {
+    playerId: player.id, team: winner.team, price, slot: slot.id,
+    nominator: cur.nominator, bidders: bids.length,
+    underbid: runnerUp ? runnerUp.max : 0,
+  };
+  auction.sold.push(sale);
+  auction.current = null;
+  advanceNominator(auction);
+  if (currentNominator(auction, league) == null) auction.complete = true;
+  return sale;
+}
+
+/**
+ * Should the human be asked about this nomination? Skipped when they cannot
+ * roster the player, cannot outbid the floor, or the player is below the
+ * threshold they set, so the auction does not become 208 taps.
+ */
+export function shouldAskUser(auction, league, pool, byId, minOverall = 0) {
+  const cur = auction.current;
+  if (!cur) return false;
+  const u = league.teams.findIndex((t) => t.isUser);
+  if (u < 0) return false;
+  const team = league.teams[u];
+  const player = byId.get(cur.playerId);
+  if (!canRoster(team, player.pos)) return false;
+  if (maxAffordable(auction, u, league) <= MIN_BID) return false;
+  if (cur.nominator === u) return true;
+  return overall(player) >= minOverall;
+}
+
+/**
+ * Run the auction forward until the human has to act: their nomination turn, or
+ * a nomination worth asking them about. Returns why it stopped.
+ */
+export function advanceToUser(auction, league, pool, rng, byId, { minOverall = 0, maxSteps = 600 } = {}) {
+  const u = league.teams.findIndex((t) => t.isUser);
+  let steps = 0;
+  while (!auction.complete && steps++ < maxSteps) {
+    if (auction.current) {
+      if (shouldAskUser(auction, league, pool, byId, minOverall)) return 'bid';
+      settle(auction, league, pool, rng, byId, 0);
+      continue;
+    }
+    const nom = currentNominator(auction, league);
+    if (nom == null) { auction.complete = true; break; }
+    if (nom === u && slotsLeft(league.teams[u]) > 0) return 'nominate';
+    aiNominate(auction, league, pool, rng, byId);
+  }
+  return auction.complete ? 'complete' : 'stalled';
+}
+
+/** Fill every remaining roster without human input. */
+export function autoCompleteAll(auction, league, pool, rng, byId, { maxSteps = 2000 } = {}) {
+  let steps = 0;
+  while (!auction.complete && steps++ < maxSteps) {
+    if (auction.current) { settle(auction, league, pool, rng, byId, autoUserMax(auction, league, pool, rng, byId)); continue; }
+    if (currentNominator(auction, league) == null) { auction.complete = true; break; }
+    aiNominate(auction, league, pool, rng, byId);
+  }
+  return auction;
+}
+
+/** What the human team would bid if it were run by the AI. */
+export function autoUserMax(auction, league, pool, rng, byId) {
+  const u = league.teams.findIndex((t) => t.isUser);
+  if (u < 0 || !auction.current) return 0;
+  const player = byId.get(auction.current.playerId);
+  const guide = priceGuide(auction, league, pool);
+  const saved = league.teams[u].gm;
+  league.teams[u].gm = saved || 'balanced';
+  const bid = aiMaxBid(auction, league, pool, u, player, guide, rng);
+  league.teams[u].gm = saved;
+  return bid;
+}
+
+/** Spend summary per team, for the auction board and post-draft review. */
+export function spendByPos(auction, league, byId, teamIdx) {
+  const out = {};
+  for (const s of auction.sold) {
+    if (s.team !== teamIdx) continue;
+    const p = byId.get(s.playerId);
+    out[p.pos] = (out[p.pos] || 0) + s.price;
+  }
+  return out;
+}

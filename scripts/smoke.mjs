@@ -49,22 +49,38 @@ try {
   await page.click('a[href="#/new"]');
   await page.waitForSelector('#setup');
   await page.check('input[name="coach"]');
+  await page.check('input[name="type"][value="auction"]');
   await checkOverflow('setup');
   await page.click('button[type="submit"]');
 
-  await page.waitForSelector('.plist .prow');
-  await checkOverflow('draft');
-  await shot('02-draft');
-  await page.click('button[data-draft]');
-  await page.waitForSelector('.ticker li.me');
-  await checkOverflow('draft after pick');
+  // Auction room: nominate, bid, pass, then hand the rest to the AI.
+  await page.waitForSelector('#auction-view');
+  await checkOverflow('auction');
+  await shot('02-auction');
+  let bought = 0;
+  for (let i = 0; i < 24; i++) {
+    const nom = await page.$('button[data-nom]');
+    if (nom) { await nom.click(); await sleep(30); await checkOverflow('auction bidding'); continue; }
+    const bid = await page.$('#bid');
+    if (bid) {
+      // Alternate between bidding the slider value and passing.
+      if (bought % 2 === 0) { await bid.click(); bought++; } else { await page.click('#pass'); bought++; }
+      await sleep(30);
+      continue;
+    }
+    break;
+  }
+  await shot('03-auction-bid');
+  await checkOverflow('auction after bids');
   await page.click('#autoAll');
   await page.waitForSelector('#start');
+  await checkOverflow('auction complete');
+  await shot('04-auction-done');
   await page.click('#start');
 
   await page.waitForSelector('#play');
   await checkOverflow('season hub');
-  await shot('03-season');
+  await shot('05-season');
 
   await page.click('#play');
   await page.waitForSelector('.scoreboard');
@@ -77,7 +93,7 @@ try {
     await sleep(20);
   }
   await checkOverflow('live game mid-drive');
-  await shot('04-game');
+  await shot('06-game');
   for (let i = 0; i < 3 && !(await page.$('#simEnd')); i++) {
     const pat = await page.$('[data-pat="xp"]');
     if (pat) await pat.click();
@@ -85,12 +101,12 @@ try {
   }
   await page.click('#simEnd');
   await page.waitForSelector('#finish');
-  await shot('05-final');
+  await shot('07-final');
 
   await page.click('a[href="#/box/live"]');
   await page.waitForSelector('.stat-compare');
   await checkOverflow('box score');
-  await shot('06-box');
+  await shot('08-box');
 
   await page.goto(`http://localhost:${port}/#/game`);
   await page.waitForSelector('#finish');
@@ -101,19 +117,19 @@ try {
   await page.click('#simWeek');
   await page.waitForSelector('#advance');
   await checkOverflow('season after week 1');
-  await shot('07-week2');
+  await shot('09-week2');
 
   await page.goto(`http://localhost:${port}/#/team/0`);
   await page.waitForSelector('.slider-row');
   await checkOverflow('team page');
-  await shot('08-team');
+  await shot('10-team');
 
   await page.goto(`http://localhost:${port}/#/players`);
   await page.waitForSelector('.plist .prow');
   await page.fill('#q', 'rice');
   await sleep(120);
   await checkOverflow('player pool');
-  await shot('09-players');
+  await shot('11-players');
 
   await page.goto(`http://localhost:${port}/#/settings`);
   await page.waitForSelector('#speed');
@@ -124,6 +140,22 @@ try {
   await page.waitForSelector('#advance');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('gridiron-eras:state:v1')).league.week);
   console.log('persisted week:', saved);
+
+  // The snake draft is still an option and must still work.
+  await page.evaluate(() => localStorage.clear());
+  await page.goto(`http://localhost:${port}/#/new`);
+  await page.waitForSelector('#setup');
+  await page.check('input[name="type"][value="snake"]');
+  await page.click('button[type="submit"]');
+  await page.waitForSelector('#draft-view .plist .prow');
+  await checkOverflow('snake draft');
+  await page.click('button[data-draft]');
+  await page.waitForSelector('.ticker li.me');
+  await page.click('#autoAll');
+  await page.waitForSelector('#start');
+  await page.click('#start');
+  await page.waitForSelector('#play');
+  await checkOverflow('snake season');
 
   // Tablet and desktop widths must stay clean too.
   for (const [w, h, label] of [[768, 1024, 'tablet'], [1280, 900, 'desktop']]) {

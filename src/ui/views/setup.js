@@ -1,6 +1,7 @@
 import { html, render } from '../../util.js';
 import { createLeague, startSeason } from '../../engine/season.js';
 import { autoDraftAll, RNG } from '../../engine/draft.js';
+import { autoCompleteAll } from '../../engine/auction.js';
 
 export function view(root, params, ctx) {
   const existing = ctx.getState().league;
@@ -22,9 +23,14 @@ export function view(root, params, ctx) {
           </div>
         </div>
         <div>
-          <label>Draft</label>
-          <label class="check"><input type="radio" name="draft" value="manual" checked> I'll draft my team pick by pick</label>
-          <label class="check"><input type="radio" name="draft" value="auto"> Auto-draft everything and jump to the season</label>
+          <label>How you build your team</label>
+          <label class="check"><input type="radio" name="type" value="auction" checked> <span><b>Auction</b> — $200 cap, bid against the other GMs. Star names cost star money, so you cannot have everything.</span></label>
+          <label class="check"><input type="radio" name="type" value="snake"> <span><b>Snake draft</b> — take turns picking. Simpler, but every roster ends up about equally good.</span></label>
+        </div>
+        <div>
+          <label>Who builds it</label>
+          <label class="check"><input type="radio" name="draft" value="manual" checked> I'll do it myself</label>
+          <label class="check"><input type="radio" name="draft" value="auto"> Fill my roster automatically and jump to the season</label>
         </div>
         <div>
           <label>Game control</label>
@@ -41,9 +47,11 @@ export function view(root, params, ctx) {
   root.querySelector('#setup').addEventListener('submit', (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
+    const draftType = f.get('type') === 'snake' ? 'snake' : 'auction';
     const league = createLeague({
       name: f.get('league').trim() || 'All-Time League',
       numTeams: Number(f.get('teams')),
+      draftType,
       user: { name: f.get('name').trim() || 'My Team', abbr: f.get('abbr').trim() || 'ME', color: f.get('color') },
     });
     league.settings.coachMode = f.get('coach') === 'on';
@@ -51,11 +59,12 @@ export function view(root, params, ctx) {
     const auto = f.get('draft') === 'auto';
     if (auto) {
       const rng = new RNG(league.rngState);
-      autoDraftAll(league, league.draft, ctx.players, rng);
+      if (draftType === 'auction') autoCompleteAll(league.auction, league, ctx.players, rng, ctx.byId);
+      else autoDraftAll(league, league.draft, ctx.players, rng);
       league.rngState = rng.state;
       startSeason(league);
     }
     ctx.update((s) => { s.league = league; s.game = null; }, { silent: true });
-    ctx.navigate(auto ? '#/season' : '#/draft');
+    ctx.navigate(auto ? '#/season' : (draftType === 'auction' ? '#/auction' : '#/draft'));
   });
 }
