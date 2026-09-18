@@ -1,6 +1,8 @@
 import { html, raw, esc, textOn } from '../util.js';
 import { fmtWeeks } from '../engine/injuries.js';
 import { overall } from '../engine/ratings.js';
+import { getState, update } from '../store.js';
+import { setOverride } from '../data/tuning.js';
 import { POSITIONS, eraOf } from '../data/positions.js';
 
 export function ovrClass(o) {
@@ -96,13 +98,26 @@ export function modal(contentHtml, { onClose } = {}) {
 
 export function playerModal(p, extra = '') {
   const def = POSITIONS[p.pos];
-  const rows = def.attrs.map((a) => `<div class="slider-row"><div class="lbl"><span>${ATTR_NAMES[a] || a}</span><b>${p.r[a]}</b></div><div class="bar"><i style="width:${p.r[a]}%"></i></div></div>`).join('');
-  return modal(html`
+  const editing = !!getState().prefs?.ratingEditor;
+  const rows = def.attrs.map((a) => `<div class="slider-row"><div class="lbl"><span>${ATTR_NAMES[a] || a}${p.baseR && p.baseR[a] !== p.r[a] ? ` <small class="muted">(was ${p.baseR[a]})</small>` : ''}</span>${editing ? `<input type="number" class="rating-edit" data-attr="${a}" min="40" max="99" value="${p.r[a]}" style="width:4.5rem;padding:.2rem .4rem;text-align:right">` : `<b>${p.r[a]}</b>`}</div><div class="bar"><i style="width:${p.r[a]}%"></i></div></div>`).join('');
+  const m = modal(html`
     <div class="row between"><h2 style="margin:0">${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
-    <p class="muted">${def.name} · ${p.season} ${p.team} · ${eraOf(p.season)} · Overall ${ovrBadge(p)}</p>
+    <p class="muted">${def.name} · ${p.season} ${p.team} · ${eraOf(p.season)} · Overall <span id="ovrNow">${ovrBadge(p)}</span></p>
     ${raw(rows)}
+    ${editing ? html`<small class="muted">Rating editor is on (settings). Edits apply everywhere at once and export as a diff.</small>` : ''}
     ${raw(extra)}
   `);
+  if (editing) {
+    m.el.addEventListener('change', (e) => {
+      const input = e.target.closest('.rating-edit');
+      if (!input) return;
+      update((s) => { s.prefs.ratingOverrides = setOverride(s.prefs.ratingOverrides || {}, p, input.dataset.attr, input.value); }, { silent: true });
+      input.value = p.r[input.dataset.attr];
+      input.closest('.slider-row').querySelector('.bar i').style.width = `${p.r[input.dataset.attr]}%`;
+      m.el.querySelector('#ovrNow').innerHTML = ovrBadge(p).__raw;
+    });
+  }
+  return m;
 }
 
 export const ATTR_NAMES = {

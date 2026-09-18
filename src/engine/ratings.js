@@ -1,6 +1,14 @@
 import { POSITIONS, ROSTER_SLOTS, eraOf } from '../data/positions.js';
 const ovrCache = new Map();
 
+/** Drop a cached overall after a rating edit. */
+export function forgetOverall(id) {
+  ovrCache.delete(id);
+}
+export function clearOverallCache() {
+  ovrCache.clear();
+}
+
 /** Weighted overall rating for a player, 40..99. */
 export function overall(p) {
   if (ovrCache.has(p.id)) return ovrCache.get(p.id);

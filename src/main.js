@@ -2,6 +2,8 @@ import { load, getState, subscribe, update } from './store.js';
 import { route, startRouter, navigate, currentRoute } from './router.js';
 import { PLAYERS, PLAYERS_BY_ID } from './data/db.js';
 import { registerPlayers } from './engine/season.js';
+import { applyNameMode } from './data/names.js';
+import { applyOverrides } from './data/tuning.js';
 import { toast } from './ui/components.js';
 import * as home from './ui/views/home.js';
 import * as setup from './ui/views/setup.js';
@@ -79,6 +81,12 @@ route('/settings', () => mount(settings));
 
 registerPlayers(PLAYERS_BY_ID);
 load();
+// Preferences that reshape the pool: fictional names and rating edits.
+{
+  const prefs = getState().prefs || {};
+  applyOverrides(PLAYERS, PLAYERS_BY_ID, prefs.ratingOverrides || {});
+  applyNameMode(PLAYERS, prefs.nameMode || 'real');
+}
 subscribe(() => { if (activeView && !activeView.selfRendering) mount(activeView, activeParams); else renderNav(); });
 startRouter();
 

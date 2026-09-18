@@ -9,7 +9,7 @@ Draft real football players from every era at their prime season — Otto Graham
 - **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…) who game-plan each opponent, drift their strategy with the season and trade among themselves. $200 buys 27 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about two to three wins a season over paying sticker price. A plain snake draft is still an option.
 - **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime, and flags: false starts, holding, interference, roughing and the rest, at rates tied to the players on the field.
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself. A live win-probability curve, a drive chart and a game story (turning points, stars, injuries) come with every game you play.
-- **1,269 real players** from the 1940s to 2025, one prime season each, on a real talent curve: the top tenth are stars, the median is a solid starter, the bottom quarter should not be starting. A 32-team league drafts 832 of them, so somebody does.
+- **1,269 real players** from the 1940s to 2025, one prime season each, on a real talent curve: the top tenth are stars, the median is a solid starter, the bottom quarter should not be starting. A 32-team league drafts 864 of them, so somebody does. A rating editor with a diff export lets you argue with any number, and a fictional-name toggle swaps every real name for a stable made-up one.
 - **Two league modes.** A fantasy league of 8, 10 or 12 clubs with a 13 to 14 game slate and a short bracket, or a **pro league**: the full 32 teams in two conferences of four divisions, an 18-week, 17-game season built the way the real league builds one (byes between weeks 5 and 14, rivalry week last, standings-based opponents from season two), division standings with the full tiebreak order and clinch markers, seven playoff seeds per conference with a bye for the top seed, and a neutral-site final. Home teams get a modest edge (about 55/45 between equals).
 - **Injuries that change the season.** Every play carries a small chance that somebody gets hurt, weighted by who was involved and how fragile the position is. A hurt player leaves the game on the spot, the next man on the depth chart starts, and a position left short gets a street free agent worse than anyone on the wire. Weeks out carry across the schedule, a QB2 slot exists because of it, and a dial (Off / Low / Normal / High) keeps rates well under the real league's.
 - **In-season roster moves.** A waiver wire with weekly priority (rolling in fantasy leagues, reverse standings in the pro league), a two-claim weekly limit, AI clubs that work the wire too, and position-matched trades with AI general managers who judge every offer on lineup strength and refuse to be fleeced. A trade deadline and a full transaction log.
@@ -41,6 +41,8 @@ npm run strategy     # measure whether how you bid changes how much you win
 npm run moves        # AI waiver activity over a season and a fleece test of the trade evaluator
 npm run injuries     # injury rates by dial setting, weeks lost per club, and what a missing QB costs
 npm run dynasty      # keeper counts, cap committed and roster turnover over four-season runs
+npm run report       # top and bottom of every position, multi-season players, era balance
+node scripts/apply-overrides.mjs edits.json [--write]   # bake exported rating edits into the data file
 npm run icons        # re-rasterize icons/icon.svg to PNG (needs Playwright)
 npm run smoke        # headless browser pass: full game flow + layout overflow checks
 ```
@@ -59,6 +61,7 @@ src/main.js, router.js, store.js         boot, hash router, persisted state (loc
 src/slots.js                             save slots: several leagues in one browser
 src/engine/share.js                      league codes: a pasteable snapshot of a league
 src/data/positions.js                    position attributes, overall weights, roster template
+src/data/names.js, tuning.js             fictional names, rating overrides
 src/data/players.js                      the player database (1,269 prime-season snapshots)
 src/data/pro.js                          the 32 pro franchises, conferences and divisions
 src/data/teams.js                        AI franchise names and GM personalities

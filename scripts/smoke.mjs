@@ -195,6 +195,25 @@ try {
   await page.selectOption('#injuries', 'normal');
   await checkOverflow('settings');
   // The store saves on a short debounce.
+  // Fictional names swap every name in the pool and back.
+  await page.check('#fictional');
+  await page.goto(`http://localhost:${port}/#/players`);
+  await page.waitForSelector('#players-view');
+  await page.fill('#q', 'rice');
+  await sleep(150);
+  const hidden = await page.$$eval('.plist .prow', (r) => r.length);
+  if (hidden !== 0) errors.push(`fictional names still match "rice" (${hidden} rows)`);
+  await page.goto(`http://localhost:${port}/#/settings`);
+  await page.waitForSelector('#fictional');
+  await page.uncheck('#fictional');
+  await page.goto(`http://localhost:${port}/#/players`);
+  await page.waitForSelector('#players-view');
+  await page.fill('#q', 'rice');
+  await sleep(150);
+  const shown = await page.$$eval('.plist .prow', (r) => r.length);
+  if (shown === 0) errors.push('real names did not come back');
+  await page.goto(`http://localhost:${port}/#/settings`);
+  await page.waitForSelector('#injuries');
   const dialSaved = await page.waitForFunction(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league.settings.injuries === 'normal', null, { timeout: 3000 }).then(() => true).catch(() => false);
   if (!dialSaved) errors.push('injury dial change was not saved');
 

@@ -19,3 +19,16 @@ console.log('\nmulti-season players:', dups.map(([n, v]) => `${n} (${v.join('/')
 const eras = {};
 for (const p of PLAYERS) eras[`${Math.floor(p.season / 10) * 10}s`] = (eras[`${Math.floor(p.season / 10) * 10}s`] || 0) + 1;
 console.log('eras:', Object.entries(eras).sort().map(([k, v]) => `${k}:${v}`).join(' '));
+
+// Era balance: count, mean overall and share of the top 100, per era.
+const top = PLAYERS.slice().sort((a, b) => overall(b) - overall(a)).slice(0, 100);
+const topEra = {};
+for (const p of top) { const e = `${Math.floor(p.season / 10) * 10}s`; topEra[e] = (topEra[e] || 0) + 1; }
+const byEra = {};
+for (const p of PLAYERS) (byEra[`${Math.floor(p.season / 10) * 10}s`] ??= []).push(overall(p));
+console.log('\nera balance (count / mean overall / in the top 100 / per position):');
+for (const e of Object.keys(byEra).sort()) {
+  const a = byEra[e];
+  const perPos = POSITION_ORDER.map((pos) => `${pos} ${PLAYERS.filter((p) => p.pos === pos && `${Math.floor(p.season / 10) * 10}s` === e).length}`).join(' ');
+  console.log(`  ${e}: ${String(a.length).padStart(3)} / ${(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1)} / ${String(topEra[e] || 0).padStart(2)} / ${perPos}`);
+}

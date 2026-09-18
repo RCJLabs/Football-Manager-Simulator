@@ -7,6 +7,16 @@ import { ownerMap } from '../../engine/transactions.js';
 
 const ui = { pos: 'ALL', era: 'ALL', q: '', owned: 'all', limit: 120 };
 
+function eraTable(players) {
+  const eras = {};
+  const top = players.slice().sort((a, b) => overall(b) - overall(a)).slice(0, 100);
+  const topEra = {};
+  for (const p of top) { const e = `${Math.floor(p.season / 10) * 10}s`; topEra[e] = (topEra[e] || 0) + 1; }
+  for (const p of players) { const e = `${Math.floor(p.season / 10) * 10}s`; (eras[e] ??= []).push(overall(p)); }
+  const rows = Object.keys(eras).sort().map((e) => { const a = eras[e]; const mean = a.reduce((s, x) => s + x, 0) / a.length; return `<tr><td>${e}</td><td class="num">${a.length}</td><td class="num">${mean.toFixed(1)}</td><td class="num">${topEra[e] || 0}</td></tr>`; }).join('');
+  return `<div class="table-wrap" style="margin-top:.4rem"><table><thead><tr><th>Era</th><th class="num">Players</th><th class="num">Mean overall</th><th class="num">In the top 100</th></tr></thead><tbody>${rows}</tbody></table></div><small class="muted">Editorial estimates. The pool leans modern in count and older in rating; the top 100 is the fairer measure of who dominates a league.</small>`;
+}
+
 export function view(root, params, ctx) {
   const { league } = ctx.getState();
   const owned = league ? ownerMap(league) : new Map();
@@ -33,6 +43,7 @@ export function view(root, params, ctx) {
       <ul class="plist">${raw(shown.map((p) => { const o = owner(p); return playerItem(p, { meta: o ? ` · <span class="muted">${esc(o.abbr)}</span>` : '' }); }).join(''))}</ul>
       ${shown.length === 0 ? html`<p class="empty">Nothing matches those filters.</p>` : ''}
       ${rows.length > shown.length ? html`<button class="btn block" id="more">Show more (${rows.length - shown.length} left)</button>` : ''}
+      <details><summary class="muted" style="cursor:pointer;font-size:.85rem">Pool balance by era</summary>${raw(eraTable(ctx.players))}</details>
     </div>`);
     const el = root.querySelector('#players-view');
     el.querySelector('#q').addEventListener('input', (e) => {

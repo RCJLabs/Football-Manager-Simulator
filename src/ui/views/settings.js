@@ -4,6 +4,9 @@ import { modal } from '../components.js';
 import { INJURY_LEVEL_LABELS } from '../../engine/injuries.js';
 import { encodeLeagueCode } from '../../engine/share.js';
 import { drawRosterCard, shareCanvas } from '../share-card.js';
+import { applyNameMode } from '../../data/names.js';
+import { clearOverrides, overridesFile } from '../../data/tuning.js';
+import { poolFingerprint } from '../../engine/share.js';
 
 export function view(root, params, ctx) {
   const s = ctx.getState();
@@ -53,6 +56,17 @@ export function view(root, params, ctx) {
         <textarea id="codeOut" rows="3" readonly hidden style="margin-top:.5rem;font-family:var(--mono);font-size:.75rem"></textarea>
         <small class="muted" id="shareNote"></small>
       </div>
+      <div class="card">
+        <h2>Player pool</h2>
+        <label class="check"><input type="checkbox" id="fictional" ${s.prefs.nameMode === 'fictional' ? 'checked' : ''}> Fictional player names</label>
+        <small class="muted" style="display:block;margin:-.1rem 0 .6rem">Every real name is swapped for a made-up one, one to one and stable across sessions. Ratings, ids and saves are untouched; logs and records keep the names they were written with.</small>
+        <label class="check"><input type="checkbox" id="editor" ${s.prefs.ratingEditor ? 'checked' : ''}> Rating editor</label>
+        <small class="muted" style="display:block;margin:-.1rem 0 .6rem">Tap any player to edit his ratings. Edits apply everywhere at once and are kept in this browser; export them as a diff to argue for a change to the shipped pool.</small>
+        <div class="btn-group">
+          <button class="btn" id="exportEdits" ${Object.keys(s.prefs.ratingOverrides || {}).length ? '' : 'disabled'}>Export rating edits (${Object.keys(s.prefs.ratingOverrides || {}).length})</button>
+          <button class="btn danger sm" id="clearEdits" ${Object.keys(s.prefs.ratingOverrides || {}).length ? '' : 'disabled'}>Discard edits</button>
+        </div>
+      </div>
       <div class="card" style="grid-column:1/-1">
         <h2>About</h2>
         <p>Gridiron Eras is a single-player all-time football simulator. Player ratings are editorial estimates of each player's prime season, scaled so eras can be compared; they are not official statistics. Names are used for identification only — no likenesses, logos, or team marks.</p>
@@ -67,6 +81,21 @@ export function view(root, params, ctx) {
     root.querySelector('#penalties').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.penalties = e.target.checked; }, { silent: true }));
     root.querySelector('#keepers').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.keepers = Number(e.target.value); }, { silent: true }));
   }
+  root.querySelector('#fictional').addEventListener('change', (e) => {
+    const mode = e.target.checked ? 'fictional' : 'real';
+    ctx.update((st) => { st.prefs.nameMode = mode; }, { silent: true });
+    applyNameMode(ctx.players, mode);
+    ctx.toast(mode === 'fictional' ? 'Fictional names on' : 'Real names back');
+  });
+  root.querySelector('#editor').addEventListener('change', (e) => ctx.update((st) => { st.prefs.ratingEditor = e.target.checked; }, { silent: true }));
+  root.querySelector('#exportEdits').addEventListener('click', () => {
+    download('gridiron-eras-rating-edits.json', JSON.stringify(overridesFile(ctx.getState().prefs.ratingOverrides || {}, ctx.byId, poolFingerprint(ctx.players)), null, 2));
+  });
+  root.querySelector('#clearEdits').addEventListener('click', () => {
+    clearOverrides(ctx.players);
+    ctx.update((st) => { st.prefs.ratingOverrides = {}; });
+    ctx.toast('Rating edits discarded');
+  });
   root.querySelector('#copyCode').addEventListener('click', async () => {
     const note = root.querySelector('#shareNote'), out = root.querySelector('#codeOut');
     try {
