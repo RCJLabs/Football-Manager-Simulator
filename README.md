@@ -9,7 +9,8 @@ Draft real football players from every era at their prime season — Otto Graham
 - **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…). $200 buys 26 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about five wins a season over paying sticker price. A plain snake draft is still an option.
 - **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime.
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself.
-- **Season mode.** Double round-robin schedule, standings, season leaders, playoffs, champion. Play another season with the same rosters or start a new league.
+- **1,065 real players** from the 1940s to 2025, one prime season each, on a real talent curve: the top tenth are stars, the median is a solid starter, the bottom quarter should not be starting. In a 16-team league somebody has to start them.
+- **Season mode.** Leagues of 4 to 16 teams, round-robin schedule, standings, season leaders, playoffs, champion. Play another season with the same rosters or start a new league.
 - **Box scores** with passing/rushing/receiving/defense/kicking lines, scoring summary, full play-by-play, and PPR fantasy points.
 - **Offline-capable PWA** with local save, export/import. Phone-first layout: no horizontal scrolling at 360px, verified on every screen by the smoke test.
 
@@ -48,7 +49,7 @@ For a Play Store TWA, point Bubblewrap / PWABuilder at the deployed manifest. `i
 index.html, manifest.webmanifest, sw.js   app shell + PWA
 src/main.js, router.js, store.js         boot, hash router, persisted state (localStorage)
 src/data/positions.js                    position attributes, overall weights, roster template
-src/data/players.js                      the player database (one prime-season snapshot per entry)
+src/data/players.js                      the player database (1,065 prime-season snapshots)
 src/data/teams.js                        AI franchise names and GM personalities
 src/engine/game.js                       the simulation state machine (kickoff → play → PAT …)
 src/engine/playcall.js                   AI play-calling, 4th-down logic, timeouts, tempo
@@ -73,7 +74,9 @@ WR: [
   ...
 ```
 
-Columns are `[name, season, team, ...ratings]`, with ratings in the attribute order listed for that position at the top of the file (and in `src/data/positions.js`). Ratings are 40–99, scaled cross-era ("how dominant relative to his time, translated to a modern-athlete scale"). Ids are derived from name + season, so the same player can appear at several seasons (Brady 2007 and Brady 2017 both exist). Run `npm run validate` after editing; `node scripts/db-report.mjs` prints the top and bottom of each position.
+Columns are `[name, season, team, ...ratings]`, with ratings in the attribute order listed for that position at the top of the file (and in `src/data/positions.js`). Ratings are 40–99, scaled cross-era ("how dominant relative to his time, translated to a modern-athlete scale"). Ids are derived from name + season, so the same player can appear at several seasons (Brady 2007 and Brady 2017 both exist).
+
+To add players in bulk, write a JSON file of `{ "QB": [["Name", season, "TEAM", ...ratings], ...] }` and run `node scripts/add-players.mjs additions.json`. It merges, re-sorts each position by overall, and rejects duplicates or malformed rows. Run `npm run validate` after editing, and `node scripts/db-report.mjs` to see the top and bottom of each position.
 
 Ratings are editorial estimates, not official statistics. Names are used for identification only; there are no likenesses, logos, or team marks.
 

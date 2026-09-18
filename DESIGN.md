@@ -88,10 +88,10 @@ Roughly five wins separate the best approach from the worst, so how you bid is
 now the main thing that decides a season. The lesson is learnable from play: buy
 the positions the room undervalues, and do not pay a premium for a name.
 
-Known limitation: the top lot goes for about $35 of $200, where a real fantasy
-auction sees 25 to 35 percent of budget on one player. The player pool is flat
-(everyone is rated 75 to 97), which caps how expensive any single player can get.
-A deeper pool with a real tail would widen this.
+The priciest lot runs $29 to $40 of $200 depending on league size, against the 25
+to 35 percent of budget a real fantasy auction puts on one player. The gap
+narrowed when the pool deepened but has not closed, because a 26-deep roster
+means every team must keep money back to fill it.
 
 The snake draft is still available as a league option, and `draftType` on the
 league selects between them.
@@ -100,15 +100,37 @@ league selects between them.
 
 Value over replacement: for each position, the replacement level is the overall of the Nth-best available player where N is the league's remaining demand at that position. Pick = highest (overall − replacement) × positional impact multiplier (QB 2.6, CB 1.1, RB/WR 1.0, DL 0.9 … K 0.5, P 0.35, mirroring measured sim leverage) × GM personality weights (+ era bias for Old School / Analytics) + noise. Kickers and punters are held until the last three rounds unless forced. A slot-count guard guarantees every roster fills.
 
-## Rating distribution
+## Rating distribution and the talent tail
 
-Hand-written ratings for an all-star pool cluster near the top (the 58th-best offensive lineman was still a 90). `scripts/auction-sim.mjs` compares roster variety between the two draft types and
-`scripts/strategy-sim.mjs` measures whether bidding strategy changes results.
-`scripts/stretch-ratings.mjs` was run once to widen each position so the top is untouched and the weakest entry sits near 75 overall, protecting each player's best attribute. Medians now sit at 85–89 by position. Edit rows freely; rerun the stretch only if you add many entries at the bottom.
+A hand-written pool bunches at the top, because the players you remember are the good ones. At 412 entries the 208th-best player was an 87, so every pick in an 8-team league was a good player and the back of a roster cost nothing to fill. Adding names alone did not fix it: at 1,065 entries the 700th was still an 83.
+
+Two changes did. The pool grew to 1,065 players, roughly 650 added across every position and era, weighted toward the solid-starter and role-player tiers rather than more stars. Then `scripts/curve-ratings.mjs` mapped each position's rank order onto a realistic curve, shifting a player's attributes by the delta rather than scaling them, so each player keeps his own shape: a corner who cannot tackle still cannot tackle. The transform only ever shifts downward, which preserves the ordering at the top. An earlier version rounded a positive delta and floated second-ranked players past the best at their position, which briefly put Zack Martin above Anthony Muñoz.
+
+| Percentile | Overall |
+|---|---|
+| Best in pool | 97 |
+| 10th | 91 |
+| 25th | 87 |
+| Median | 80 |
+| 75th | 70 |
+| 90th | 63 |
+| Worst | 52 |
+
+The top tenth are stars, the median is a solid starter, and the bottom quarter should not be starting. The floor is 52 for quarterbacks and 58 for most positions, since a replacement-level quarterback really is that bad, and 62 to 64 for specialists who remain functional.
+
+The tail only bites when demand approaches supply, which is why league size now runs to 16. An 8-team league buys the top 208 of 1,065 and never reaches the bad players; a 16-team league buys 416 and someone has to start a 72.
+
+| League size | Players bought | Worst starter | Priciest lot |
+|---|---|---|---|
+| 8 teams | 208 | 79 | $29 |
+| 12 teams | 312 | 76 | $36 |
+| 16 teams | 416 | 72 | $40 |
+
+`scripts/add-players.mjs` merges new rows into the data file and re-sorts each position, rejecting duplicates, bad seasons and wrong rating counts. Run `curve-ratings.mjs` again only after a large batch of additions, and never twice on the same data, since the transform is not idempotent. `scripts/auction-sim.mjs` compares roster variety between the two draft types and `scripts/strategy-sim.mjs` measures whether bidding strategy changes results.
 
 ## League (`season.js`)
 
-Double round-robin via the circle method (4/6/8 teams → 6/10/14 games). Standings: win% → point differential → points for. Top 4 (top 2 for a 4-team league) make single-elimination playoffs. User games keep the full log; AI games keep team and player box-score stats only, so a full season fits comfortably in localStorage. Game seeds derive from league seed + week + matchup, so re-simulating a week reproduces it.
+Round-robin via the circle method. Leagues of 8 or fewer play everyone twice (4/6/8 teams → 6/10/14 games); larger ones play a single round so a season stays a sensible length (10/12/14/16 teams → 9/11/13/15 games). Standings: win% → point differential → points for. The playoff field is 8 from 12 teams up, 4 from 6, and 2 in a 4-team league, single elimination. User games keep the full log; AI games keep team and player box-score stats only, so a full season fits comfortably in localStorage. Game seeds derive from league seed + week + matchup, so re-simulating a week reproduces it.
 
 ## UI
 
