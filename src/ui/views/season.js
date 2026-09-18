@@ -5,6 +5,8 @@ import { fantasyPoints } from '../../engine/stats.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { DIVISIONS } from '../../data/pro.js';
 import { teamChip, toast, modal } from '../components.js';
+import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tradesOpen } from '../../engine/transactions.js';
+import { RNG } from '../../engine/rng.js';
 
 export function fmtPhase(league) {
   if (league.phase === 'draft') return league.draftType === 'auction' ? 'Auction in progress' : 'Draft in progress';
@@ -147,6 +149,13 @@ export function view(root, params, ctx) {
   }
 
   const leaders = seasonLeaders(league, ctx.byId);
+  const faCount = league.phase === 'season' ? freeAgents(league, ctx.players).length : 0;
+  const myClaims = league.phase === 'season' ? claimsThisWeek(league, u).length : 0;
+  const movesCard = league.phase === 'season' ? html`<div class="card tight">
+    <h3>Roster moves</h3>
+    <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${faCount} free agents · ${myClaims ? `${myClaims} claim${myClaims > 1 ? 's' : ''} pending, resolve when the week advances` : 'no claims pending'} · ${tradesOpen(league) ? `trades open through week ${tradeDeadlineWeek(league)}` : 'trade deadline passed'}</p>
+    <div class="btn-group"><a class="btn sm" href="#/moves">Free agents</a><a class="btn sm" href="#/moves/trade">Trades</a></div>
+  </div>` : '';
   const powerShown = pro ? power.slice(0, 12) : power;
 
   render(root, html`<div id="season-view">
@@ -165,6 +174,7 @@ export function view(root, params, ctx) {
         </details>
       </div>
       <div class="stack">
+        ${movesCard}
         <div class="card tight">
           <h3>Season leaders</h3>
           ${leaders.length ? raw(leaders.map((l) => `<div style="margin-bottom:.6rem"><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${l.title}</div>${l.rows.map((r) => `<div class="row between" style="font-size:.88rem;flex-wrap:nowrap;gap:.5rem"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span class="teamdot" style="background:${r.team.color}"></span>${r.p.name} <small class="muted">${r.p.pos} · ${r.team.abbr}</small></span><b class="mono">${r.val}</b></div>`).join('')}</div>`).join('')) : html`<p class="muted">No games played yet.</p>`}
@@ -204,7 +214,14 @@ export function view(root, params, ctx) {
     ctx.update((s) => { simulateWeekAi(s.league, ctx.byId, { includeUser: true }); s.game = null; });
   });
   el.querySelector('#advance')?.addEventListener('click', () => {
-    ctx.update((s) => { advanceWeek(s.league); });
+    ctx.update((s) => {
+      const rng = new RNG(s.league.rngState);
+      advanceWeekWithMoves(s.league, ctx.byId, ctx.players, rng, advanceWeek);
+      s.league.rngState = rng.state;
+    });
+    const lw = ctx.getState().league.lastWaivers;
+    const mineRes = lw ? lw.results.filter((r) => r.team === u) : [];
+    if (mineRes.length) toast(mineRes.every((r) => r.ok) ? `Waivers: ${mineRes.length} claim${mineRes.length > 1 ? 's' : ''} landed` : `Waivers: ${mineRes.filter((r) => r.ok).length} of ${mineRes.length} claims landed`);
   });
   el.querySelector('#abandon')?.addEventListener('click', () => {
     const m = modal(html`<h2>Abandon the game in progress?</h2><p class="muted">You'll be able to start it over from the season hub.</p><div class="row"><button class="btn danger" id="yes">Abandon</button><button class="btn" data-close>Cancel</button></div>`);

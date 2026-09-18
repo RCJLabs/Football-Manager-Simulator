@@ -119,6 +119,54 @@ try {
   await checkOverflow('season after week 1');
   await shot('09-week2');
 
+  // Roster moves: claim a free agent, propose a like-for-like trade, resolve the wire on advance.
+  await page.goto(`http://localhost:${port}/#/moves`);
+  await page.waitForSelector('#moves-view .plist .prow');
+  await checkOverflow('moves free agents');
+  await shot('09b-moves');
+  await page.click('button[data-pos="WR"]');
+  await page.waitForSelector('button[data-claim]');
+  await page.click('button[data-claim]');
+  await page.waitForSelector('.modal button[data-drop]');
+  await checkOverflow('claim modal');
+  await page.click('.modal button[data-drop] >> nth=-1');
+  await page.waitForSelector('.modal-back', { state: 'detached' });
+  const claimTab = await page.$eval('button[data-tab="claims"]', (b) => b.textContent);
+  if (!/\(1\//.test(claimTab)) errors.push(`claims tab reads "${claimTab}", expected one pending claim`);
+  await page.click('button[data-tab="claims"]');
+  await page.waitForSelector('button[data-cancel]');
+  await checkOverflow('moves claims');
+  await page.goto(`http://localhost:${port}/#/moves/trade`);
+  await page.waitForSelector('#partner');
+  await checkOverflow('moves trades');
+  await page.click('[data-give]');
+  await page.click('[data-get]');
+  await page.waitForSelector('#propose:not([disabled])');
+  await checkOverflow('moves trade selected');
+  await shot('09c-trade');
+  await page.click('#propose');
+  await page.waitForSelector('.modal');
+  await page.click('.modal [data-close]');
+  await page.waitForSelector('.modal-back', { state: 'detached' });
+  await page.goto(`http://localhost:${port}/#/season`);
+  await page.waitForSelector('#advance');
+  await sleep(400); // the store saves on a short debounce
+  const weekBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('gridiron-eras:state:v1')).league.week);
+  await page.click('#advance');
+  await page.waitForSelector('#play');
+  await page.waitForFunction((w) => JSON.parse(localStorage.getItem('gridiron-eras:state:v1')).league.week === w + 1, weekBefore, { timeout: 5000 });
+  const wire = await page.evaluate(() => { const lg = JSON.parse(localStorage.getItem('gridiron-eras:state:v1')).league; return { user: lg.teams.findIndex((t) => t.isUser), week: lg.lastWaivers && lg.lastWaivers.week, results: lg.lastWaivers ? lg.lastWaivers.results : [] }; });
+  if (wire.week !== weekBefore) errors.push(`the wire resolved for week ${wire.week}, expected ${weekBefore}`);
+  if (!wire.results.some((r) => r.team === wire.user)) errors.push(`the user claim never resolved on advance: ${JSON.stringify(wire)}`);
+  await page.goto(`http://localhost:${port}/#/moves/log`);
+  await page.waitForSelector('#moves-view');
+  await checkOverflow('moves log');
+  await shot('09d-log');
+  await page.goto(`http://localhost:${port}/#/season`);
+  await page.waitForSelector('#simWeek');
+  await page.click('#simWeek');
+  await page.waitForSelector('#advance');
+
   await page.goto(`http://localhost:${port}/#/team/0`);
   await page.waitForSelector('.slider-row');
   await checkOverflow('team page');
@@ -181,6 +229,11 @@ try {
   await page.waitForSelector('#teamPick');
   await checkOverflow('pro team page');
   await shot('13-pro-team');
+  await page.goto(`http://localhost:${port}/#/moves/trade`);
+  await page.waitForSelector('#partner');
+  await checkOverflow('pro moves trades');
+  const partners = await page.$$eval('#partner option', (o) => o.length);
+  if (partners !== 31) errors.push(`pro trade partner list has ${partners} clubs, expected 31`);
   // A finished AI game shows team totals without player lines.
   await page.goto(`http://localhost:${port}/#/box/w/1/0`);
   await page.waitForSelector('.stat-compare');
@@ -189,7 +242,7 @@ try {
   // Tablet and desktop widths must stay clean too.
   for (const [w, h, label] of [[768, 1024, 'tablet'], [1280, 900, 'desktop']]) {
     await page.setViewportSize({ width: w, height: h });
-    for (const route of ['#/season', '#/team/0', '#/players', '#/']) {
+    for (const route of ['#/season', '#/team/0', '#/players', '#/moves', '#/moves/trade', '#/']) {
       await page.goto(`http://localhost:${port}/${route}`);
       await sleep(150);
       await checkOverflow(`${label} ${route}`);

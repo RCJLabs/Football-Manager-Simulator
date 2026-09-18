@@ -151,6 +151,18 @@ User games keep the full log and every player line. Playoff games keep player li
 
 At season start every position group is ordered by overall. Slots fill in the order players were bought, so an auction could otherwise leave a 92 back at RB2 behind a 75. AI clubs are re-sorted each season; the user's club only the first time.
 
+## Transactions (`transactions.js`)
+
+Rosters are exactly 26 slots, so every in-season move is a swap and no separate bench-management screen is needed. Three kinds of move exist, all from the Moves screen during the regular season.
+
+**Waiver claims.** A claim names the free agent coming in and the player going out at the same position; each club may hold two claims a week. Claims resolve when the week advances, in waiver order: in a fantasy league the order starts as the reverse of the draft order and a successful claim sends that club to the back, in the pro league it is reverse standings every week. AI clubs file their claims at the same moment, so the human never gets first pick of the pool for free. An AI club claims only when the newcomer is at least two overall points better than the man he replaces and the swap adds at least six points of lineup strength; how often a club bothers to look at the wire at all is a per-personality activity rate (Analytics 90%, Old School 30%).
+
+**Trades.** Up to three players a side, and the position sets on both sides must match exactly, so the roster template is preserved without any roster-size rules. The trade deadline is 65% of the way through the schedule (week 10 of 14, week 12 of 17). An AI club judges an offer by one yardstick, *lineup strength*: every player's overall weighted by his position's true leverage from the auction, starters at full weight and bench players at a quarter. It accepts when its own strength rises by at least its greed margin (Analytics 8, Trenches 6, Old School and Defense 5, most others 4, Gambler 2) and tells you roughly how far short an offer fell.
+
+**The log.** Every claim and every deal is recorded with week and season, and the Log tab shows all of them, so any lopsided outcome can be traced.
+
+Measured on the 8-team auction league (`scripts/moves-sim.mjs`, 12 seasons): AI clubs land about six claims a season between them, worth about +19 lineup strength per club, because the pool left after an auction is the talent tail and few swaps clear the +2 overall bar. The wire will only get busy once ratings can change in season, which is what injuries (roadmap item 2) are for. On 4,000 random one-for-one offers the AI accepted 28%, and on every accepted deal the human had given up the higher-rated player; the AI gained +13 on average and the human lost 11. That is the intended shape: an AI club cannot be talked into a bad trade on its own yardstick. What it does not rule out, and what has not been measured, is a trade that is even on the overall-based yardstick but not in the simulation, for instance a receiver whose overall is carried by an attribute the play resolution weights lightly. The yardstick would need to move from overall to composite contributions to close that, which the auction pricing already knows how to do.
+
 ## UI
 
 Vanilla ES modules, hash router, one persisted state object (`store.js`). Views re-render from state; the live game view manages its own DOM and autoplay timer. Everything is relative-path so it deploys to a GitHub Pages subpath. Service worker: network-first for HTML, cache-first for assets (bump `CACHE` in `sw.js` on every release or installed clients keep the old CSS).
@@ -168,7 +180,7 @@ Each item names the evidence in the current build, what it touches, and the
 risk. They are ordered by how much they would change whether someone plays a
 third season, not by effort.
 
-1. **In-season roster moves: free agency, waivers, trades.** Evidence: rosters freeze the moment the draft ends. An 8-team fantasy league drafts 208 of 1,269 players and the other 1,061 sit idle; between games there is nothing to decide but strategy sliders. Touches `season.js` (a transaction log, a free-agent pool view, AI trade evaluation using the auction's `worth` table). Risk: AI trade logic is easy to exploit; gate AI acceptance on measured value with a margin, and log every deal so it can be audited.
+1. **In-season roster moves: free agency, waivers, trades.** *Shipped; see Transactions above.* Evidence at the time: rosters freeze the moment the draft ends. An 8-team fantasy league drafts 208 of 1,269 players and the other 1,061 sit idle; between games there is nothing to decide but strategy sliders. Touches `season.js` (a transaction log, a free-agent pool view, AI trade evaluation using the auction's `worth` table). Risk: AI trade logic is easy to exploit; gate AI acceptance on measured value with a margin, and log every deal so it can be audited.
 
 2. **Injuries and a bench that matters.** Evidence: `game.js` has no attrition model; a 17-game pro season ends with the same 22 starters it began with. RB2 takes 28% of carries and WR4 a few targets; every other bench slot never plays. Touches `game.js` (per-play injury chance scaled by position and pace, a `weeksOut` field), `positions.js` (QB2, DL5, LB4, CB3 slots or a flex bench), depth-chart UI. Risk: injury luck can swamp skill in a 13-game season; keep rates below the real league's and let the user set the dial.
 

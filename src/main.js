@@ -6,6 +6,7 @@ import * as home from './ui/views/home.js';
 import * as setup from './ui/views/setup.js';
 import * as draft from './ui/views/draft.js';
 import * as auction from './ui/views/auction.js';
+import * as moves from './ui/views/moves.js';
 import * as team from './ui/views/team.js';
 import * as season from './ui/views/season.js';
 import * as game from './ui/views/game.js';
@@ -46,6 +47,7 @@ function renderNav() {
     else items.push({ href: '#/season', label: 'Season', match: '/season' });
     const u = s.league.teams.findIndex((t) => t.isUser);
     items.push({ href: `#/team/${u}`, label: 'My Team', match: `/team/${u}` });
+    if (s.league.phase === 'season' || s.league.phase === 'playoffs') items.push({ href: '#/moves', label: 'Moves', match: '/moves' });
     if (s.game && !s.game.g.final) items.push({ href: '#/game', label: 'Live Game', match: '/game' });
   }
   items.push({ href: '#/players', label: 'Players', match: '/players' });
@@ -57,6 +59,8 @@ route('/', () => mount(home));
 route('/new', () => mount(setup));
 route('/draft', () => mount(draft));
 route('/auction', () => mount(auction));
+route('/moves/:tab', (p) => mount(moves, p));
+route('/moves', () => mount(moves));
 route('/team/:idx', (p) => mount(team, p));
 route('/season', () => mount(season));
 route('/game', () => mount(game));

@@ -3,13 +3,14 @@ import { POSITION_ORDER } from '../../data/positions.js';
 import { ERAS } from '../../data/db.js';
 import { overall } from '../../engine/ratings.js';
 import { playerItem, playerModal, teamChip, esc } from '../components.js';
+import { ownerMap } from '../../engine/transactions.js';
 
 const ui = { pos: 'ALL', era: 'ALL', q: '', owned: 'all', limit: 120 };
 
 export function view(root, params, ctx) {
   const { league } = ctx.getState();
-  const taken = league ? (league.auction || league.draft || {}).taken || {} : {};
-  const owner = (p) => (taken[p.id] != null ? league.teams[taken[p.id]] : null);
+  const owned = league ? ownerMap(league) : new Map();
+  const owner = (p) => (owned.has(p.id) ? league.teams[owned.get(p.id)] : null);
 
   function list() {
     const q = ui.q.trim().toLowerCase();
