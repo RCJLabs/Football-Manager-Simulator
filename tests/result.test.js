@@ -145,3 +145,21 @@ test('the same league plays out identically until a decision differs, which is w
   assert.ok(cmp.ok);
   assert.notEqual(cmp.better, 0);
 });
+
+test('a card still builds from a history entry saved before cards existed', () => {
+  const lg = playOut(league(76));
+  const h = lg.history.find((x) => x.season === 1);
+  // An older save recorded only the rank and the record.
+  delete h.user.playoff; delete h.user.club; delete h.user.best;
+  const r = seasonResult(lg, byId, PLAYERS, 1);
+  assert.equal(r.rank, h.user.rank);
+  assert.deepEqual(r.record, h.user.record);
+  assert.equal(r.playoff, 'unknown', 'the run is not invented');
+  assert.ok(r.club.name, 'the club falls back to the live roster');
+  assert.deepEqual(r.best, []);
+  assert.ok(r.champion && r.champion.name);
+  // It still encodes, decodes and compares against itself.
+  const cmp = compareResults(r, r);
+  assert.ok(cmp.ok);
+  assert.equal(cmp.better, 0);
+});
