@@ -99,13 +99,13 @@ export function view(root, params, ctx) {
 
     render(root, html`
       <div class="scoreboard">
-        <div class="sb-team ${off === 0 && !g.final ? 'poss' : ''}"><span class="name">${teamChip(home)}</span><span class="score">${g.score[0]}</span><span class="to">${'●'.repeat(g.timeouts[0])}${'○'.repeat(Math.max(0, 3 - g.timeouts[0]))}</span></div>
+        <div class="sb-team ${off === 0 && !g.final ? 'poss' : ''}"><span class="name">${teamChip(home, { responsive: true })}</span><span class="score">${g.score[0]}</span><span class="to">${'●'.repeat(g.timeouts[0])}${'○'.repeat(Math.max(0, 3 - g.timeouts[0]))}</span></div>
         <div class="sb-mid">
           <div class="q">${g.final ? 'FINAL' : `${fmtQuarter(g.quarter)} · ${fmtClock(g.clock)}`}</div>
           <div class="dd">${g.final ? (g.quarter >= 5 ? 'Overtime' : '') : g.phase === 'play' ? downText(g) : g.phase === 'pat' ? 'PAT' : 'Kickoff'}</div>
           <div class="spot">${g.phase === 'play' && !g.final ? `${g.teams[off].abbr} ball at ${spot(g, off, g.ballOn)}` : ''}</div>
         </div>
-        <div class="sb-team ${off === 1 && !g.final ? 'poss' : ''}"><span class="name">${teamChip(away)}</span><span class="score">${g.score[1]}</span><span class="to">${'●'.repeat(g.timeouts[1])}${'○'.repeat(Math.max(0, 3 - g.timeouts[1]))}</span></div>
+        <div class="sb-team ${off === 1 && !g.final ? 'poss' : ''}"><span class="name">${teamChip(away, { responsive: true })}</span><span class="score">${g.score[1]}</span><span class="to">${'●'.repeat(g.timeouts[1])}${'○'.repeat(Math.max(0, 3 - g.timeouts[1]))}</span></div>
       </div>
       <div class="fieldbar" aria-hidden="true">
         <div class="ez left" style="background:${home.color}">${home.abbr}</div><div class="ez right" style="background:${away.color}">${away.abbr}</div>

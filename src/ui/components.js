@@ -2,10 +2,13 @@ import { html, raw, esc, textOn } from '../util.js';
 import { overall } from '../engine/ratings.js';
 import { POSITIONS, eraOf } from '../data/positions.js';
 
+export function ovrClass(o) {
+  return o >= 95 ? 'o95' : o >= 90 ? 'o90' : o >= 85 ? 'o85' : o >= 80 ? 'o80' : 'o0';
+}
+
 export function ovrBadge(p) {
   const o = overall(p);
-  const cls = o >= 95 ? 'o95' : o >= 90 ? 'o90' : o >= 85 ? 'o85' : o >= 80 ? 'o80' : 'o0';
-  return html`<span class="ovr ${cls}">${o}</span>`;
+  return html`<span class="ovr ${ovrClass(o)}">${o}</span>`;
 }
 
 export function posBadge(pos) {
@@ -16,8 +19,16 @@ export function eraBadge(season) {
   return html`<span class="badge era">${eraOf(season)}</span>`;
 }
 
-export function teamChip(team, { abbr = false } = {}) {
-  return html`<span class="team-chip"><span class="teamdot" style="background:${team.color}"></span>${abbr ? team.abbr : team.name}</span>`;
+/**
+ * Team name with its colour dot. `abbr` always shows the short code;
+ * `responsive` shows the short code on a phone and the full name from 560px up,
+ * which keeps matchups and the scoreboard readable instead of ellipsised.
+ */
+export function teamChip(team, { abbr = false, responsive = false } = {}) {
+  const label = responsive
+    ? `<span class="t-short">${esc(team.abbr)}</span><span class="t-long">${esc(team.name)}</span>`
+    : esc(abbr ? team.abbr : team.name);
+  return raw(`<span class="team-chip"><span class="teamdot" style="background:${esc(team.color)}"></span><span class="tn">${label}</span></span>`);
 }
 
 export function attrList(p, { highlight = true } = {}) {
@@ -29,14 +40,29 @@ export function attrList(p, { highlight = true } = {}) {
   }).join(''));
 }
 
-export function playerRow(p, extraCells = '', { onclickAttr = '' } = {}) {
-  return html`<tr ${raw(onclickAttr)}>
-    <td>${ovrBadge(p)}</td>
-    <td>${posBadge(p.pos)}</td>
-    <td><b>${p.name}</b><br><small>${p.season} ${p.team} ${eraBadge(p.season)}</small></td>
-    <td class="attrs">${attrList(p)}</td>
-    ${raw(extraCells)}
-  </tr>`;
+/**
+ * One player as a responsive row. Reflows to a single column on a phone and
+ * spreads into columns on a wide screen, so no player list ever needs the
+ * page to scroll sideways.
+ *   action  raw HTML for the trailing control (a button, depth arrows…)
+ *   meta    extra raw HTML appended to the small grey line
+ */
+export function playerItem(p, { action = '', meta = '', cls = '', attrs = true, era = true } = {}) {
+  const o = overall(p);
+  return `<li class="prow ${cls}" data-id="${esc(p.id)}">
+    <span class="ovr ${ovrClass(o)}">${o}</span>
+    <div class="who">
+      <div class="nm"><span class="tap" data-show="${esc(p.id)}">${esc(p.name)}</span>${posBadge(p.pos).__raw}</div>
+      <div class="meta">${p.season} ${esc(p.team)}${era ? eraBadge(p.season).__raw : ''}${meta}</div>
+    </div>
+    <div class="act">${action}</div>
+    ${attrs ? `<div class="attrs">${attrList(p).__raw}</div>` : ''}
+  </li>`;
+}
+
+export function playerList(players, opts = {}) {
+  const items = players.map((p) => (typeof opts.each === 'function' ? playerItem(p, opts.each(p)) : playerItem(p, opts))).join('');
+  return raw(`<ul class="plist">${items}</ul>`);
 }
 
 let toastTimer;

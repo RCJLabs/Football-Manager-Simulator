@@ -11,7 +11,7 @@ Draft real football players from every era at their prime season — Otto Graham
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself.
 - **Season mode.** Double round-robin schedule, standings, season leaders, playoffs, champion. Play another season with the same rosters or start a new league.
 - **Box scores** with passing/rushing/receiving/defense/kicking lines, scoring summary, full play-by-play, and PPR fantasy points.
-- **Offline-capable PWA** with local save, export/import.
+- **Offline-capable PWA** with local save, export/import. Phone-first layout: no horizontal scrolling at 360px, verified on every screen by the smoke test.
 
 ## Running locally
 
@@ -31,6 +31,7 @@ npm test             # engine tests (node:test, no dependencies)
 npm run validate     # schema-check src/data/players.js
 npm run calibrate    # simulate 300 games between synthetic teams and print league averages
 npm run icons        # re-rasterize icons/icon.svg to PNG (needs Playwright)
+npm run smoke        # headless browser pass: full game flow + layout overflow checks
 ```
 
 ## Deploy to GitHub Pages

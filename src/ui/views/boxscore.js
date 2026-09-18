@@ -1,6 +1,6 @@
 import { html, render, raw, pct } from '../../util.js';
 import { fantasyPoints, fmtClock, fmtQuarter } from '../../engine/stats.js';
-import { teamChip } from '../components.js';
+import { teamChip, esc } from '../components.js';
 
 export function view(root, params, ctx) {
   const state = ctx.getState();
@@ -30,7 +30,7 @@ export function view(root, params, ctx) {
     const tbl = (title, cols, filter, sortBy) => {
       const rs = rows.filter(filter).sort((x, y) => sortBy(y.s) - sortBy(x.s));
       if (!rs.length) return '';
-      return `<h3 style="margin-top:.75rem">${title}</h3><div class="table-wrap"><table><thead><tr><th>Player</th>${cols.map((c) => `<th class="num">${c[0]}</th>`).join('')}</tr></thead><tbody>${rs.map((r) => `<tr><td><b>${r.p.name}</b> <small class="muted">${r.p.pos}</small></td>${cols.map((c) => `<td class="num">${c[1](r.s)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      return `<h3 style="margin-top:.75rem">${title}</h3><div class="table-wrap"><table><thead><tr><th>Player</th>${cols.map((c) => `<th class="num">${c[0]}</th>`).join('')}</tr></thead><tbody>${rs.map((r) => `<tr><td><b>${esc(r.p.name)}</b> <small class="muted">${r.p.pos}</small></td>${cols.map((c) => `<td class="num">${c[1](r.s)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
     };
     return `
       ${tbl('Passing', [['C/ATT', (s) => `${s.pass.cmp}/${s.pass.att}`], ['YDS', (s) => s.pass.yds], ['TD', (s) => s.pass.td], ['INT', (s) => s.pass.int], ['SCK', (s) => s.pass.sck], ['LNG', (s) => s.pass.lng]], (r) => r.s.pass.att > 0 || r.s.pass.sck > 0, (s) => s.pass.yds)}
@@ -45,9 +45,9 @@ export function view(root, params, ctx) {
   render(root, html`
     <div class="row between" style="margin-bottom:.75rem"><a class="btn sm" href="${box.back}">← Back</a>${box.title ? html`<span class="muted">${box.title}</span>` : ''}</div>
     <div class="scoreboard">
-      <div class="sb-team"><span class="name">${teamChip(h)}</span><span class="score">${box.score[0]}</span></div>
+      <div class="sb-team"><span class="name">${teamChip(h, { responsive: true })}</span><span class="score">${box.score[0]}</span></div>
       <div class="sb-mid"><div class="q">${box.final ? 'FINAL' : 'IN PROGRESS'}</div><div class="dd">${box.overtime ? 'OT' : ''}</div></div>
-      <div class="sb-team"><span class="name">${teamChip(a)}</span><span class="score">${box.score[1]}</span></div>
+      <div class="sb-team"><span class="name">${teamChip(a, { responsive: true })}</span><span class="score">${box.score[1]}</span></div>
     </div>
     <div class="card tight" style="margin-top:.75rem">
       <div class="stat-compare">
@@ -68,8 +68,8 @@ export function view(root, params, ctx) {
     </div>
     ${scoring.length ? html`<div class="card tight" style="margin-top:.75rem"><h3>Scoring summary</h3><ul class="plain ticker">${raw(scoring.map((e) => `<li><small class="muted">${fmtQuarter(e.q)} ${fmtClock(e.clock)}</small> ${e.text} <b class="mono">${e.score ? `${e.score[0]}–${e.score[1]}` : ''}</b></li>`).join(''))}</ul></div>` : ''}
     <div class="grid grid-2" style="margin-top:.75rem">
-      <div class="card tight"><h2>${teamChip(h)}</h2>${raw(tables(0))}</div>
-      <div class="card tight"><h2>${teamChip(a)}</h2>${raw(tables(1))}</div>
+      <div class="card tight"><h2 style="font-size:1rem">${teamChip(h)}</h2>${raw(tables(0))}</div>
+      <div class="card tight"><h2 style="font-size:1rem">${teamChip(a)}</h2>${raw(tables(1))}</div>
     </div>
     ${box.log ? html`<details class="card tight" style="margin-top:.75rem"><summary style="cursor:pointer"><b>Full play-by-play</b></summary><ul class="pbp" style="max-height:none;margin-top:.5rem">${raw(box.log.map((e) => `<li class="${e.type === 'drive' ? 'drive' : e.scoring ? 'scoring' : e.type === 'int' || e.type === 'fumble' ? 'turnover' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`).join(''))}</ul></details>` : ''}
   `);

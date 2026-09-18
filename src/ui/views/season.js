@@ -48,11 +48,11 @@ export function view(root, params, ctx) {
     const myPower = power.find((p) => p.idx === u).power;
     const gm = GM_PERSONALITIES.find((g) => g.id === opp.gm);
     matchupCard = html`<div class="card">
-      <h3>${league.phase === 'playoffs' ? wk.name : `Week ${league.week}`} · ${myGame.home === u ? 'Home' : 'Away'} vs ${opp.name}</h3>
+      <h3>${league.phase === 'playoffs' ? wk.name : `Week ${league.week}`} · ${myGame.home === u ? 'Home' : 'Away'} vs ${opp.abbr}</h3>
       <div class="matchup mine" style="margin:.5rem 0">
-        <div class="side">${teamChip(league.teams[myGame.home])}<small class="muted">${rec(league.teams[myGame.home])}</small></div>
+        <div class="side">${teamChip(league.teams[myGame.home], { responsive: true })}<small class="muted">${rec(league.teams[myGame.home])}</small></div>
         <div class="vs">${myGame.result ? html`${myGame.result.score[0]}–${myGame.result.score[1]}${myGame.result.overtime ? ' (OT)' : ''}` : 'vs'}</div>
-        <div class="side right"><small class="muted">${rec(league.teams[myGame.away])}</small>${teamChip(league.teams[myGame.away])}</div>
+        <div class="side right"><small class="muted">${rec(league.teams[myGame.away])}</small>${teamChip(league.teams[myGame.away], { responsive: true })}</div>
       </div>
       <p class="muted" style="font-size:.9rem">Power: you ${myPower} · them ${oppPower}${gm ? ` · ${gm.name} GM (${gm.blurb.toLowerCase().replace(/\.$/, '')})` : ''}</p>
       <div class="btn-group">
@@ -81,7 +81,7 @@ export function view(root, params, ctx) {
     const mine = g.home === u || g.away === u;
     const r = g.result;
     const hw = r && r.score[0] > r.score[1], aw = r && r.score[1] > r.score[0];
-    const inner = `<div class="side ${hw ? 'w' : ''}">${teamChip(h).__raw}<small class="muted">${rec(h)}</small></div><div class="vs">${r ? `${r.score[0]}–${r.score[1]}${r.overtime ? '<small> OT</small>' : ''}` : 'vs'}</div><div class="side right ${aw ? 'w' : ''}"><small class="muted">${rec(a)}</small>${teamChip(a).__raw}</div>`;
+    const inner = `<div class="side ${hw ? 'w' : ''}">${teamChip(h, { responsive: true }).__raw}<small class="muted">${rec(h)}</small></div><div class="vs">${r ? `${r.score[0]}–${r.score[1]}${r.overtime ? '<small> OT</small>' : ''}` : 'vs'}</div><div class="side right ${aw ? 'w' : ''}"><small class="muted">${rec(a)}</small>${teamChip(a, { responsive: true }).__raw}</div>`;
     return r ? `<a class="matchup ${mine ? 'mine' : ''}" href="#/box/${kind}/${weekNo}/${i}">${inner}</a>` : `<div class="matchup ${mine ? 'mine' : ''}">${inner}</div>`;
   }).join('');
 
@@ -101,8 +101,8 @@ export function view(root, params, ctx) {
         <div class="card tight">
           <h3>Standings</h3>
           <div class="table-wrap"><table class="standings">
-            <thead><tr><th>#</th><th>Team</th><th class="num">W</th><th class="num">L</th><th class="num">T</th><th class="num">PCT</th><th class="num">PF</th><th class="num">PA</th><th class="num">Diff</th></tr></thead>
-            <tbody>${raw(rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${i + 1}</td><td>${teamChip(r.team).__raw}</td><td class="num">${r.w}</td><td class="num">${r.l}</td><td class="num">${r.t}</td><td class="num">${r.gp ? r.pct.toFixed(3).replace(/^0/, '') : '—'}</td><td class="num">${r.pf}</td><td class="num">${r.pa}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join(''))}</tbody>
+            <thead><tr><th>#</th><th>Team</th><th class="num">W</th><th class="num">L</th><th class="num hide-sm">T</th><th class="num hide-sm">PCT</th><th class="num hide-sm">PF</th><th class="num hide-sm">PA</th><th class="num">Diff</th></tr></thead>
+            <tbody>${raw(rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${i + 1}</td><td>${teamChip(r.team).__raw}</td><td class="num">${r.w}</td><td class="num">${r.l}</td><td class="num hide-sm">${r.t}</td><td class="num hide-sm">${r.gp ? r.pct.toFixed(3).replace(/^0/, '') : '—'}</td><td class="num hide-sm">${r.pf}</td><td class="num hide-sm">${r.pa}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join(''))}</tbody>
           </table></div>
         </div>
         <details class="card tight"><summary style="cursor:pointer"><b>Full schedule &amp; results</b></summary>
@@ -112,11 +112,11 @@ export function view(root, params, ctx) {
       <div class="stack">
         <div class="card tight">
           <h3>Season leaders</h3>
-          ${leaders.length ? raw(leaders.map((l) => `<div style="margin-bottom:.6rem"><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${l.title}</div>${l.rows.map((r) => `<div class="row between" style="font-size:.9rem"><span><span class="teamdot" style="background:${r.team.color}"></span>${r.p.name} <small class="muted">${r.p.pos}</small></span><b class="mono">${r.val}</b></div>`).join('')}</div>`).join('')) : html`<p class="muted">No games played yet.</p>`}
+          ${leaders.length ? raw(leaders.map((l) => `<div style="margin-bottom:.6rem"><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${l.title}</div>${l.rows.map((r) => `<div class="row between" style="font-size:.88rem;flex-wrap:nowrap;gap:.5rem"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span class="teamdot" style="background:${r.team.color}"></span>${r.p.name} <small class="muted">${r.p.pos}</small></span><b class="mono">${r.val}</b></div>`).join('')}</div>`).join('')) : html`<p class="muted">No games played yet.</p>`}
         </div>
         <div class="card tight">
           <h3>Power rankings</h3>
-          <div class="table-wrap"><table><tbody>${raw(power.map((p, i) => { const gm = GM_PERSONALITIES.find((g) => g.id === p.team.gm); return `<tr class="clickable ${p.team.isUser ? 'me' : ''}" data-team="${p.idx}"><td>${i + 1}</td><td>${teamChip(p.team).__raw}</td><td>${gm ? `<span class="badge gm">${gm.name}</span>` : '<span class="badge">You</span>'}</td><td class="num"><b>${p.power}</b></td></tr>`; }).join(''))}</tbody></table></div>
+          <div class="table-wrap"><table><tbody>${raw(power.map((p, i) => { const gm = GM_PERSONALITIES.find((g) => g.id === p.team.gm); return `<tr class="clickable ${p.team.isUser ? 'me' : ''}" data-team="${p.idx}"><td>${i + 1}</td><td>${teamChip(p.team).__raw}</td><td class="hide-sm">${gm ? `<span class="badge gm">${gm.name}</span>` : '<span class="badge">You</span>'}</td><td class="num"><b>${p.power}</b></td></tr>`; }).join(''))}</tbody></table></div>
         </div>
         ${league.history && league.history.length ? html`<div class="card tight"><h3>Past champions</h3>${raw(league.history.map((h) => `<div class="row between"><span>Season ${h.season}</span>${teamChip(league.teams[h.champion]).__raw}</div>`).join(''))}</div>` : ''}
       </div>
