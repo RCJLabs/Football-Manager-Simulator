@@ -1,11 +1,11 @@
 # Deploys the app (no build step) to GitHub Pages after the engine tests pass.
-# Pages source must be "GitHub Actions" (Settings → Pages); the configure step
-# tries to enable that automatically on first run.
+# Pages source is "GitHub Actions" (Settings → Pages). The github-pages
+# environment only permits deployments from main, so push or merge to main
+# to release; other branches just run the tests.
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, master, claude/football-simulator-game-lo6wmr]
   workflow_dispatch:
 
 permissions:
@@ -30,6 +30,7 @@ jobs:
 
   deploy:
     needs: test
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
