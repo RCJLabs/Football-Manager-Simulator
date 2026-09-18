@@ -1,0 +1,16 @@
+{
+  "name": "gridiron-eras",
+  "version": "0.1.0",
+  "description": "All-time fantasy football simulator: draft real players from every era and play a season against AI teams.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve -l 8080 .",
+    "test": "node --test tests/*.test.js",
+    "validate": "node scripts/validate-players.mjs",
+    "calibrate": "node scripts/calibrate.mjs",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}

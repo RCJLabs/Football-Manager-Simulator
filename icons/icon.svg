@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c3023"/>
+      <stop offset="1" stop-color="#0f1a12"/>
+    </linearGradient>
+    <linearGradient id="ball" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a0522d"/>
+      <stop offset="1" stop-color="#6b3410"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <g stroke="#2f7d3f" stroke-width="6" opacity="0.55">
+    <line x1="64" y1="392" x2="448" y2="392"/>
+    <line x1="64" y1="440" x2="448" y2="440"/>
+    <line x1="112" y1="392" x2="112" y2="440"/>
+    <line x1="208" y1="392" x2="208" y2="440"/>
+    <line x1="304" y1="392" x2="304" y2="440"/>
+    <line x1="400" y1="392" x2="400" y2="440"/>
+  </g>
+  <g transform="rotate(-30 256 236)">
+    <ellipse cx="256" cy="236" rx="168" ry="104" fill="url(#ball)" stroke="#3b1d08" stroke-width="10"/>
+    <path d="M110 236 Q256 150 402 236" fill="none" stroke="#3b1d08" stroke-width="8" opacity="0.6"/>
+    <line x1="176" y1="236" x2="336" y2="236" stroke="#f5f1e6" stroke-width="14" stroke-linecap="round"/>
+    <g stroke="#f5f1e6" stroke-width="12" stroke-linecap="round">
+      <line x1="200" y1="216" x2="200" y2="256"/>
+      <line x1="237" y1="216" x2="237" y2="256"/>
+      <line x1="275" y1="216" x2="275" y2="256"/>
+      <line x1="312" y1="216" x2="312" y2="256"/>
+    </g>
+  </g>
+  <text x="256" y="486" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-weight="800" font-size="46" fill="#e9c46a" letter-spacing="4">ERAS</text>
+</svg>
