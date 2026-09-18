@@ -68,6 +68,7 @@ export function view(root, params, ctx) {
         ${raw(cmp('4th down', (t) => `${t.fourthConv}/${t.fourthAtt}`))}
         ${raw(cmp('Red zone TD', (t) => `${t.redZoneTd}/${t.redZoneAtt}`))}
         ${raw(cmp('Turnovers', (t) => t.turnovers))}
+        ${raw(cmp('Penalties', (t) => `${t.penalties || 0}-${t.penYds || 0}`))}
         ${raw(cmp('Sacks allowed', (t) => t.sacksAllowed))}
         ${raw(cmp('Plays', (t) => t.plays))}
         ${raw(cmp('Possession', (t) => fmtClock(t.top)))}
@@ -79,6 +80,6 @@ export function view(root, params, ctx) {
       <div class="card tight"><h2 style="font-size:1rem">${teamChip(h)}</h2>${raw(tables(0))}</div>
       <div class="card tight"><h2 style="font-size:1rem">${teamChip(a)}</h2>${raw(tables(1))}</div>
     </div>
-    ${box.log ? html`<details class="card tight" style="margin-top:.75rem"><summary style="cursor:pointer"><b>Full play-by-play</b></summary><ul class="pbp" style="max-height:none;margin-top:.5rem">${raw(box.log.map((e) => `<li class="${e.type === 'drive' ? 'drive' : e.scoring ? 'scoring' : e.type === 'int' || e.type === 'fumble' ? 'turnover' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`).join(''))}</ul></details>` : ''}
+    ${box.log ? html`<details class="card tight" style="margin-top:.75rem"><summary style="cursor:pointer"><b>Full play-by-play</b></summary><ul class="pbp" style="max-height:none;margin-top:.5rem">${raw(box.log.map((e) => `<li class="${e.type === 'drive' ? 'drive' : e.flag ? 'penalty' : e.scoring ? 'scoring' : e.type === 'int' || e.type === 'fumble' ? 'turnover' : e.type === 'injury' ? 'injury' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`).join(''))}</ul></details>` : ''}
   `);
 }

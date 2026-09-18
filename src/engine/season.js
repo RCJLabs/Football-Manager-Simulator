@@ -154,6 +154,7 @@ export function gameOptions(league, entry) {
     playoff: league.phase === 'playoffs',
     homeAdvantage: !entry.neutral,
     injuryLevel: injuryLevel(league),
+    penalties: league.settings?.penalties !== false,
   };
 }
 

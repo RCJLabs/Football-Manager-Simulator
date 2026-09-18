@@ -200,6 +200,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .pbp li.scoring { background: rgba(87, 204, 153, 0.12); border-left: 3px solid var(--good); }
 .pbp li.turnover { background: rgba(239, 100, 97, 0.12); border-left: 3px solid var(--bad); }
 .pbp li.injury { background: rgba(239, 100, 97, 0.08); border-left: 3px dashed var(--bad); font-style: italic; }
+.pbp li.penalty { background: rgba(232, 197, 71, 0.1); border-left: 3px solid #e8c547; }
 .pbp li.drive { background: var(--bg-3); color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .pbp li.quarter, .pbp li.final { background: #0b1410; font-weight: 700; text-align: center; }
 .pbp li.latest { animation: flash 0.6s ease; }

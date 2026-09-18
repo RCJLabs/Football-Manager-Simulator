@@ -13,6 +13,7 @@ export function view(root, params, ctx) {
         ${league ? html`
           <label class="check"><input type="checkbox" id="coach" ${league.settings.coachMode ? 'checked' : ''}> Coach mode — call offensive plays in my games</label>
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="coachDef" ${league.settings.coachDefense ? 'checked' : ''}> Call defensive plays too</label>
+          <label class="check" style="margin-top:.4rem"><input type="checkbox" id="penalties" ${league.settings.penalties !== false ? 'checked' : ''}> Penalties — flags for false starts, holding, interference and the rest</label>
           <div class="row" style="margin-top:.8rem;gap:.5rem;align-items:center">
             <label style="margin:0">Injuries</label>
             <select id="injuries" style="max-width:10rem">${Object.entries(INJURY_LEVEL_LABELS).map(([k, label]) => html`<option value="${k}" ${(league.settings.injuries || 'normal') === k ? 'selected' : ''}>${label}</option>`)}</select>
@@ -51,6 +52,7 @@ export function view(root, params, ctx) {
     root.querySelector('#coach').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.coachMode = e.target.checked; }));
     root.querySelector('#coachDef').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.coachDefense = e.target.checked; }));
     root.querySelector('#injuries').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.injuries = e.target.value; }, { silent: true }));
+    root.querySelector('#penalties').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.penalties = e.target.checked; }, { silent: true }));
     root.querySelector('#keepers').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.keepers = Number(e.target.value); }, { silent: true }));
   }
   const speed = root.querySelector('#speed');

@@ -40,15 +40,26 @@ Situational pass/run mix from strategy sliders plus down, distance, field positi
 
 ### Calibration
 
-`npm run calibrate` runs synthetic equal teams (ratings ~85). Targets are roughly modern NFL per-team-per-game: 23–26 points, 340–360 yards, 63–65% completions, ~7.7 yards/attempt, ~4.2 yards/carry, ~1.1 turnovers, ~2.1 sacks, ~84% FG. All-star rosters drafted from the real pool score a little higher (~27 per team).
+`npm run calibrate` runs synthetic equal teams (ratings ~85). Targets are roughly modern NFL per-team-per-game: 23–26 points, 340–360 yards, 63–65% completions, ~7.7 yards/attempt, ~4.2 yards/carry, ~1.1 turnovers, ~2.1 sacks, ~84% FG. With penalties on (300 games): 24.4 points, 348 yards, 64.2% completions, 7.6 yards/attempt, 4.0 yards/carry, 1.1 turnovers, 2.2 sacks, 86% FG, 65 plays and 10.5 drives per team. All-star rosters drafted from the real pool score a little higher (~27 per team).
 
 Leverage, measured by boosting one position group 8 points on an otherwise equal synthetic team: QB → 69% wins, WR → 66%, RB/OL/DL → 62%, LB/CB → 61%, S → 58%, K → no effect on win rate. Boosting every group by 2 points wins ~78% because the effects stack. In a snake draft with the value-over-replacement AI, total talent equalizes (team power spread ≈ 1 point), so AI-vs-AI seasons are close to coin flips and the user's edge comes from out-drafting the AI and from strategy. Constants to reach for when tuning: `baseComp`, `baseInt`, `yacMean`, `stuffP`, the run `base` normals, `pressureP`, and the `edge()` k values (bigger k = flatter response to rating gaps).
+
+### Penalties (`penalties.js`)
+
+Every play can draw a flag, and the rates are tied to the people on the field rather than rolled flat. A line with low awareness false-starts and holds; a defense that is being beaten holds and interferes; a blitzing front jumps early; the away side false-starts a little more. There are two shapes of flag, which is what keeps the stat lines honest:
+
+- **Instead of a play.** False start, delay of game, offside and neutral-zone infractions are dead-ball fouls: five yards, replay the down, no play run. Offensive holding is rolled before the snap is resolved and wipes the play (ten yards, replay the down), which is statistically the same as a nullified play and avoids un-crediting a run that never counted. Pass interference (a spot foul, the 1 at most, never a score) and defensive holding or illegal contact (five yards) replace an incompletion with an automatic first down; the pass attempt and the target are taken back.
+- **Added on to a play.** Roughing the passer, unnecessary roughness and a facemask are enforced from the end of the play with an automatic first down; the play stands. Holding on a kick or punt return takes ten yards off the return, never behind the catch.
+
+Half the distance to the goal applies everywhere. Flags stop the clock, and a nullified play does not count as a play. Kick-return holds aside, a flag names the player: the offensive lineman with the lowest awareness is likeliest to be the one holding, the beaten defender the one interfering.
+
+Measured on synthetic equal teams (300 games): 9.6 flags and 79 penalty yards a game across both clubs, against the real league's roughly 12 and 100. The mix: false start 2.1, holding 2.0, pass interference 1.0, offside and neutral zone 1.1, defensive holding and illegal contact 0.9, kick-return holding 0.9, roughness and facemask 0.8, delay of game 0.5, roughing the passer 0.3. The rates live in `RATES` in `penalties.js`. Penalties are on by default and can be turned off per league in settings; the engine takes `penalties: false` for calibration work. Not modeled: intentional grounding, illegal formation, taunting, penalties on scoring plays (enforced on the kickoff in real football; here a touchdown simply stands), and the free-play offside where the offense gets to keep a big gain, which is folded into a dead-ball whistle.
 
 ## The auction (`auction.js`)
 
 The snake draft had a structural problem: it hands every team a full roster from the
-same pool in alternating order, so total talent equalizes. Measured over ten
-simulated seasons, the best-built roster in a league beat the worst by half a win.
+same pool in alternating order, so total talent equalizes. Measured over twelve
+simulated seasons (`npm run auction`), the best-built roster in a league beats the worst by about a win (7.8 to 6.9 of 14); under the auction the same gap is a win and a half (7.4 to 5.9).
 The central activity of the game had almost no consequence.
 
 The auction fixes it with a $200 cap and 27 slots. Teams take turns nominating a
@@ -74,23 +85,26 @@ Analytics GM chases value while the Air Raid GM chases names, and the market is
 beatable without being free money.
 
 Measured over twenty-four 8-team leagues with the human team following fixed
-strategies, on the current 1,065-player pool:
+strategies, on the current 1,269-player pool with the 27-slot roster, injuries
+at the default setting and penalties on:
 
 | Strategy | Wins of 14 | Point differential | Average finish of 8 | Titles of 24 |
 |---|---|---|---|---|
-| Value shopper (bid by true worth) | 8.3 | +41 | 3.0 | 6 |
-| Stars and scrubs | 7.9 | +25 | 3.4 | 6 |
-| Pay the asking price | 5.7 | −42 | 6.1 | 1 |
-| Chase the famous names | 5.6 | −30 | 6.0 | 0 |
-| Trenches first | 4.8 | −70 | 7.0 | 1 |
-| Spread the budget evenly | 4.0 | −89 | 7.5 | 0 |
+| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.6 | +12 | 3.8 | 4 |
+| Value shopper (bid 1.15× true worth) | 7.3 | +15 | 4.2 | 4 |
+| Skill players first (1.5× asking at QB/RB/WR/TE) | 6.8 | −11 | 4.8 | 1 |
+| Trenches first (1.7× worth on the lines) | 6.0 | −31 | 5.4 | 1 |
+| Market follower (pay the asking price) | 5.2 | −61 | 6.3 | 1 |
+| Spread the budget evenly | 4.7 | −78 | 6.8 | 0 |
 
-Roughly four wins separate the best approach from the worst, so how you bid is
-the main thing that decides a season. The lesson is learnable from play: buy the
-positions the room undervalues, and do not pay a premium for a name. Note that
-stars and scrubs closed most of the gap once the pool gained a real tail, because
-concentrating money now buys genuinely better starters, while spreading the
-budget evenly buys a roster of mediocrities.
+About three wins separate the best approach from the worst, so how you bid is
+still the main thing that decides a season, though the gap has narrowed from
+four since injuries and penalties began adding noise a roster cannot control.
+The lesson is learnable from play: buy the positions the room undervalues, and
+do not pay a premium for a name. Stars and scrubs closed the gap on value
+shopping once the pool gained a real tail and the QB2 slot gave a star-heavy
+roster cover, because concentrating money buys genuinely better starters, while
+spreading the budget evenly buys a roster of mediocrities.
 
 Re-run `npm run strategy` after any change to pricing, leverage or the player
 pool; these numbers move.
@@ -222,7 +236,7 @@ third season, not by effort.
 
 3. **A dynasty loop: contracts, keepers, an offseason.** *Shipped; see Dynasty loop above.* Evidence at the time: `newSeasonSameRosters` replays the same roster forever, and `history` records champions but nothing else changes year to year. Auction prices are the natural contract: each purchase is a 1 to 3 year deal at that price, expiring players return to the pool, draft order runs worst to first, and the cap carries over. Touches `auction.js`, `season.js`, a new offseason phase and view. Risk: the pool is one snapshot per player, so there is no aging; contracts and re-drafts have to carry the sense of change instead.
 
-4. **Penalties.** Evidence: the play log has never shown a flag, and `DESIGN.md` lists it as a known gap; the real league averages about a dozen per game and they decide drives. Touches `game.js` (false start, holding, pass interference, offsides, with rates tied to awareness and pressure) and the clock rules. Risk: cheap to add but changes every calibration number in this document; re-run `npm run calibrate`, `npm run auction` and `npm run strategy` afterwards.
+4. **Penalties.** *Shipped; see Penalties under the simulation model.* Evidence at the time: the play log has never shown a flag, and `DESIGN.md` lists it as a known gap; the real league averages about a dozen per game and they decide drives. Touches `game.js` (false start, holding, pass interference, offsides, with rates tied to awareness and pressure) and the clock rules. Risk: cheap to add but changes every calibration number in this document; re-run `npm run calibrate`, `npm run auction` and `npm run strategy` afterwards.
 
 5. **Pro-mode fidelity.** Evidence: the 17-game slate is structurally right but uses a rotation where the real league uses last season's standings for two of the games; there are no bye weeks; tiebreakers stop at conference record (no common games, strength of victory or schedule); the standings page has no clinch or elimination markers. Touches `buildProSchedule` (18-week calendar with byes, standings-aware pairings from season two), `makeComparator`, `proStandings`. Risk: byes break the "every week has 16 games" invariant that the tests lean on; write the new invariant first.
 

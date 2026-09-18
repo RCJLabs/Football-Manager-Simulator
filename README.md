@@ -6,8 +6,8 @@ Draft real football players from every era at their prime season — Otto Graham
 
 ## What's in the box
 
-- **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…). $200 buys 27 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about five wins a season over paying sticker price. A plain snake draft is still an option.
-- **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime.
+- **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…). $200 buys 27 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about two to three wins a season over paying sticker price. A plain snake draft is still an option.
+- **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime, and flags: false starts, holding, interference, roughing and the rest, at rates tied to the players on the field.
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself.
 - **1,269 real players** from the 1940s to 2025, one prime season each, on a real talent curve: the top tenth are stars, the median is a solid starter, the bottom quarter should not be starting. A 32-team league drafts 832 of them, so somebody does.
 - **Two league modes.** A fantasy league of 8, 10 or 12 clubs with a 13 to 14 game slate and a short bracket, or a **pro league**: the full 32 teams in two conferences of four divisions, a 17-game season built the way the real league builds one, division standings with tiebreakers, seven playoff seeds per conference with a bye for the top seed, and a neutral-site final. Home teams get a modest edge (about 55/45 between equals).
@@ -67,6 +67,7 @@ src/engine/auction.js                    salary-cap auction: pricing, AI bidding
 src/engine/season.js                     league, schedule, standings, playoffs, stat rollups
 src/engine/transactions.js               free agents, waiver claims, trades, AI roster moves
 src/engine/injuries.js                   injury rolls, replacement-level fill-ins, the weeks-out ledger
+src/engine/penalties.js                  flags: rates, enforcement, half the distance
 src/engine/offseason.js                  contracts, keepers, the offseason market
 src/ui/views/*.js                        screens (home, setup, draft, auction, team, season, moves, offseason, game, box score, players, settings)
 scripts/                                 validator, calibration, icon generator, synthetic pools for tests

@@ -5,6 +5,7 @@
 import { RNG, clamp, edge } from './rng.js';
 import { composites } from './ratings.js';
 import { injuryChance, rollSeverity, POS_RISK, injuryText, fillLineup } from './injuries.js';
+import { rollPreSnap, rollHolding, rollDefensiveFoul, rollReturnFoul, walkOff, penaltyLabel } from './penalties.js';
 import {
   chooseOffense, chooseDefense, goForTwo, onsideKick, tempoSeconds, wantsTimeout,
   fgDistance, fgProbability, halfSecondsLeft, scoreDiff, OFFENSE_CALLS,
@@ -20,7 +21,8 @@ const HOME_KEYS = ['passBlock', 'runBlock', 'passRush', 'blitzRush', 'runStop', 
 /**
  * teams: [home, away] each { id, name, abbr, color, lineup, strategy, isUser }
  * options: { seed, playoff, homeAdvantage (default true; false at a neutral site),
- *            injuryLevel (0 = none, 1 = the default dial; see injuries.js) }
+ *            injuryLevel (0 = none, 1 = the default dial; see injuries.js),
+ *            penalties (default true) }
  */
 export function createGame(home, away, options = {}) {
   const seed = options.seed ?? Math.floor(Math.random() * 4294967296);
@@ -40,6 +42,7 @@ export function createGame(home, away, options = {}) {
     playoff: !!options.playoff,
     neutral: !homeAdvantage,
     injuryLevel: options.injuryLevel ?? 0,
+    penalties: options.penalties !== false,
     teams,
     score: [0, 0],
     quarter: 1,
@@ -402,6 +405,19 @@ function doKickoff(g, rng) {
     ballOn = clamp(ballOn, 3, 100);
     if (st) { st.ret.kr++; st.ret.krYds += ballOn - Math.max(0, catchAt); }
     tick(g, receiving, rng.int(5, 8));
+    const retHold = g.penalties && ballOn < 100 ? rollReturnFoul(rng) : 0;
+    if (retHold) {
+      const back = Math.min(retHold, Math.max(0, ballOn - Math.max(1, catchAt)));
+      ballOn = Math.max(1, ballOn - back);
+      g.stats[receiving].team.penalties++;
+      g.stats[receiving].team.penYds += back;
+      g.ballOn = ballOn;
+      g.freeKick = false;
+      g.phase = 'play';
+      logEvent(g, { type: 'kickoff', flag: true, text: `${g.teams[kicking].abbr} kickoff. ${returner ? shortName(returner) : 'Return'} brings it out, but FLAG: holding on ${g.teams[receiving].abbr} on the return, ${back} yards. ${g.teams[receiving].abbr} ball at ${spot(g, receiving, ballOn)}.` });
+      startDrive(g);
+      return;
+    }
     if (ballOn >= 100) {
       if (st) st.ret.td++;
       g.score[receiving] += 6;
@@ -495,8 +511,18 @@ function doPlay(g, rng, calls) {
   const offCall = calls.off && OFFENSE_CALLS[calls.off] ? calls.off : chooseOffense(g, rng);
   const defCall = calls.def || chooseDefense(g, rng);
   const situation = { down: g.down, toGo: g.toGo, ballOn: g.ballOn, q: g.quarter, clock: g.clock };
-  g.playCount++;
   g.lastCall = { off: offCall, def: defCall };
+
+  if (g.penalties) {
+    const scrimmage = !['fg', 'punt', 'kneel', 'spike'].includes(offCall);
+    const pre = rollPreSnap(g, rng, off, defT, offCall, defCall);
+    if (pre) { enforcePenalty(g, pre, situation, 0); return; }
+    if (scrimmage) {
+      const hold = rollHolding(g, rng, off, defT, offCall);
+      if (hold) { enforcePenalty(g, hold, situation, hold.elapsed); return; }
+    }
+  }
+  g.playCount++;
 
   let o;
   switch (offCall) {
@@ -508,8 +534,56 @@ function doPlay(g, rng, calls) {
     default: o = resolvePass(g, rng, offCall, defCall);
   }
   o.call = offCall; o.defCall = defCall;
+  if (g.penalties) {
+    const foul = rollDefensiveFoul(g, rng, o, off, defT, offCall);
+    if (foul?.replace) {
+      // The pass never counted: take the attempt and the target back.
+      const n = foul.replace.nullify;
+      if (n?.qb) statFor(g.stats[off], n.qb.id).pass.att--;
+      if (n?.target) statFor(g.stats[off], n.target.id).rec.tgt--;
+      g.stats[off].team.passAtt--;
+      g.playCount--;
+      enforcePenalty(g, foul.replace.penalty, situation, foul.replace.elapsed);
+      return;
+    }
+    if (foul?.addOn) o.addOn = foul.addOn;
+  }
   applyOutcome(g, rng, o, situation);
   maybeInjure(g, rng, o, off, defT);
+}
+
+/**
+ * Walk off an "instead of" penalty: the down is replayed (or an automatic
+ * first down given), the clock stops, the offending club is charged.
+ */
+function enforcePenalty(g, pen, sit, elapsed = 0) {
+  const off = g.possession;
+  const yards = walkOff(g, pen, off);
+  const ts = g.stats[pen.side].team;
+  ts.penalties++;
+  ts.penYds += yards;
+  if (elapsed) {
+    const used = Math.min(g.clock, elapsed);
+    g.clock -= used;
+    g.stats[off].team.top += used;
+    if (g.drive) g.drive.time += used;
+  }
+  if (pen.side === off) {
+    g.ballOn -= yards;
+    g.toGo = Math.min(g.toGo + yards, 100 - g.ballOn);
+  } else {
+    g.ballOn += yards;
+    if (pen.firstDown || g.toGo - yards <= 0) {
+      g.down = 1;
+      g.toGo = Math.min(10, 100 - g.ballOn);
+      g.stats[off].team.firstDowns++;
+    } else {
+      g.toGo -= yards;
+    }
+  }
+  const prefix = `${fmtQuarter(sit.q)} ${fmtClock(sit.clock)} · ${['1st', '2nd', '3rd', '4th'][sit.down - 1]} & ${sit.ballOn + sit.toGo >= 100 ? 'Goal' : sit.toGo} at ${spot(g, off, sit.ballOn)}`;
+  logEvent(g, { type: 'penalty', flag: true, yards: pen.side === off ? -yards : yards, situation: prefix, text: `${penaltyLabel(g, pen, yards)} ${downText(g)} at ${spot(g, off, g.ballOn)}.` });
+  g.clockRunning = false;
 }
 
 function qbName(g) {
@@ -904,14 +978,25 @@ function resolvePunt(g, rng) {
     if (returner) { const rs = statFor(g.stats[defT], returner.id); rs.ret.pr++; rs.ret.prYds += Math.min(ret, 100 - netTo); }
   }
   let finalTo = netTo + ret;
+  let retFlag = '';
+  if (ret > 0 && g.penalties && finalTo < 100) {
+    const hold = rollReturnFoul(rng);
+    if (hold) {
+      const back = Math.min(hold, ret);
+      finalTo -= back;
+      g.stats[defT].team.penalties++;
+      g.stats[defT].team.penYds += back;
+      retFlag = ` FLAG: holding on ${g.teams[defT].abbr} on the return, ${back} yards.`;
+    }
+  }
   if (ps) { ps.p.yds += dist; ps.p.lng = Math.max(ps.p.lng, dist); if (netTo <= 20) ps.p.in20++; }
   if (finalTo >= 100) {
     if (returner) statFor(g.stats[defT], returner.id).ret.td++;
     return { type: 'punt', yards: 0, elapsed: 10, clockStops: true, puntReturnTd: true, returner, text: `${name} punts ${dist} yards. ${returner ? shortName(returner) : 'Returner'} takes it back for a TOUCHDOWN!` };
   }
   finalTo = clamp(finalTo, 1, 99);
-  const text = `${name} punts ${dist} yards${fairCatch ? ', fair catch' : ret ? `, returned ${ret} yards` : ''}${netTo <= 20 && !ret ? ' — inside the 20' : ''}.`;
-  return { type: 'punt', yards: 0, elapsed: fairCatch ? 5 : rng.int(6, 10), clockStops: true, puntTo: finalTo, returner: ret ? returner : null, text };
+  const text = `${name} punts ${dist} yards${fairCatch ? ', fair catch' : ret ? `, returned ${ret} yards` : ''}${netTo <= 20 && !ret ? ' — inside the 20' : ''}.${retFlag}`;
+  return { type: 'punt', yards: 0, elapsed: fairCatch ? 5 : rng.int(6, 10), clockStops: true, puntTo: finalTo, returner: ret ? returner : null, flag: !!retFlag, text };
 }
 
 // ---------------------------------------------------------------------------
@@ -935,7 +1020,7 @@ function applyOutcome(g, rng, o, sit) {
   if (g.drive) g.drive.time += elapsed;
 
   const prefix = `${fmtQuarter(sit.q)} ${fmtClock(sit.clock)} · ${['1st', '2nd', '3rd', '4th'][sit.down - 1]} & ${sit.ballOn + sit.toGo >= 100 ? 'Goal' : sit.toGo} at ${spot(g, off, sit.ballOn)}`;
-  const base = { type: o.type, call: o.call, defCall: o.defCall, yards: o.yards, situation: prefix, text: o.text };
+  const base = { type: o.type, call: o.call, defCall: o.defCall, yards: o.yards, situation: prefix, text: o.text, flag: !!o.flag };
 
   // Special outcomes first.
   if (o.type === 'fg') {
@@ -1058,6 +1143,22 @@ function applyOutcome(g, rng, o, sit) {
     return;
   }
   g.ballOn = newBallOn;
+  if (o.addOn) {
+    const pen = o.addOn;
+    const yards = walkOff(g, pen, off);
+    g.stats[pen.side].team.penalties++;
+    g.stats[pen.side].team.penYds += yards;
+    g.ballOn += yards;
+    g.down = 1;
+    g.toGo = Math.min(10, 100 - g.ballOn);
+    ts.firstDowns++;
+    if (wasThird) ts.thirdConv++;
+    if (wasFourth) ts.fourthConv++;
+    if (sit.ballOn < 80 && g.ballOn >= 80) ts.redZoneAtt++;
+    logEvent(g, { ...base, flag: true, text: `${o.text} ${penaltyLabel(g, pen, yards)} ${downText(g)} at ${spot(g, off, g.ballOn)}.` });
+    g.clockRunning = false;
+    return;
+  }
   if (o.yards >= sit.toGo) {
     g.down = 1;
     g.toGo = Math.min(10, 100 - g.ballOn);
