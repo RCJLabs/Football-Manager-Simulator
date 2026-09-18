@@ -40,11 +40,17 @@ Situational pass/run mix from strategy sliders plus down, distance, field positi
 
 ### Calibration
 
-`npm run calibrate` runs synthetic equal teams (ratings ~85). Targets are roughly modern NFL per-team-per-game: 22–25 points, 340–360 yards, 63–65% completions, ~7.5 yards/attempt, ~4.1 yards/carry, ~1.1 turnovers, ~2.4 sacks, ~84% FG. A 6-point mean rating gap wins ~85%; a 2-point gap ~65%. Constants to reach for when tuning: `baseComp`, `baseInt`, `yacMean`, `stuffP`, the run `base` normals, `pressureP`, and the `edge()` k values (bigger k = flatter response to rating gaps).
+`npm run calibrate` runs synthetic equal teams (ratings ~85). Targets are roughly modern NFL per-team-per-game: 23–26 points, 340–360 yards, 63–65% completions, ~7.7 yards/attempt, ~4.2 yards/carry, ~1.1 turnovers, ~2.1 sacks, ~84% FG. All-star rosters drafted from the real pool score a little higher (~27 per team).
+
+Leverage, measured by boosting one position group 8 points on an otherwise equal synthetic team: QB → 69% wins, WR → 66%, RB/OL/DL → 62%, LB/CB → 61%, S → 58%, K → no effect on win rate. Boosting every group by 2 points wins ~78% because the effects stack. In a snake draft with the value-over-replacement AI, total talent equalizes (team power spread ≈ 1 point), so AI-vs-AI seasons are close to coin flips and the user's edge comes from out-drafting the AI and from strategy. Constants to reach for when tuning: `baseComp`, `baseInt`, `yacMean`, `stuffP`, the run `base` normals, `pressureP`, and the `edge()` k values (bigger k = flatter response to rating gaps).
 
 ## Draft AI (`draft.js`)
 
-Value over replacement: for each position, the replacement level is the overall of the Nth-best available player where N is the league's remaining demand at that position. Pick = highest (overall − replacement) × positional multiplier × GM personality weights (+ era bias for Old School / Analytics) + noise. Kickers and punters are held until the last rounds unless forced. A slot-count guard guarantees every roster fills.
+Value over replacement: for each position, the replacement level is the overall of the Nth-best available player where N is the league's remaining demand at that position. Pick = highest (overall − replacement) × positional impact multiplier (QB 2.6, CB 1.1, RB/WR 1.0, DL 0.9 … K 0.5, P 0.35, mirroring measured sim leverage) × GM personality weights (+ era bias for Old School / Analytics) + noise. Kickers and punters are held until the last three rounds unless forced. A slot-count guard guarantees every roster fills.
+
+## Rating distribution
+
+Hand-written ratings for an all-star pool cluster near the top (the 58th-best offensive lineman was still a 90). `scripts/stretch-ratings.mjs` was run once to widen each position so the top is untouched and the weakest entry sits near 75 overall, protecting each player's best attribute. Medians now sit at 85–89 by position. Edit rows freely; rerun the stretch only if you add many entries at the bottom.
 
 ## League (`season.js`)
 
@@ -59,6 +65,6 @@ Vanilla ES modules, hash router, one persisted state object (`store.js`). Views 
 - No penalties, injuries, fatigue, or weather.
 - No QB2 / defensive depth; K and P never get hurt.
 - Passing distribution is coarse (five depths). Formation/personnel is implied, not modeled.
-- Player pool is ~340 entries; comprehensive coverage of "every generation" needs thousands. A CSV importer or community pool file would be the natural next step.
+- Player pool is ~410 entries; comprehensive coverage of "every generation" needs thousands. A CSV importer or community pool file would be the natural next step.
 - Multiplayer (hot-seat drafts, exporting a roster to challenge a friend's) is a later phase; the engine is deterministic and serializable to make that possible.
 - Real-name licensing: fantasy-stat use of names is well established in the US, but a ratings-driven game is closer to video-game territory. Fine for a hobby project; get advice before monetizing. There is no fictional-name toggle yet.

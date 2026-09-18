@@ -181,7 +181,7 @@ export function fourthDownDecision(g, rng) {
     }
   }
   // Tied late in regulation or OT: take the points if you can.
-  if ((g.quarter >= 4 && left <= 240 || isOT) && diff === 0 && longRange && toGo > 1) return 'fg';
+  if ((g.quarter >= 4 && left <= 240 || isOT) && diff === 0 && toGo > 1 && (makeP >= 0.45 || (longRange && left <= 60))) return 'fg';
   // End of half: take the FG.
   if (g.quarter === 2 && left <= 30 && longRange) return 'fg';
 

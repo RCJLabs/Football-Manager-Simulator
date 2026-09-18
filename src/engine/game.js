@@ -463,7 +463,7 @@ function resolveRun(g, rng, call, defCall) {
   g.stats[off].team.rushAtt++;
 
   const spd = carrier.r.spd ?? 70, elu = carrier.r.elu ?? 60, pow = carrier.r.pow ?? 65, vis = carrier.r.awr ?? 70, car = carrier.r.car ?? 80;
-  const blockEdge = edge(comp.runBlock + (vis - 80) * 0.4, def.runStop, 20);
+  const blockEdge = edge(comp.runBlock + (vis - 80) * 0.4, def.runStop, 11);
   let yards;
   if (sneak) {
     yards = rng.chance(0.78 + (comp.runBlock - def.runStop) / 200) ? rng.int(1, 3) : rng.int(-1, 0);
@@ -473,12 +473,12 @@ function resolveRun(g, rng, call, defCall) {
       yards = clamp(Math.round(rng.normal(-1, 1.4)), -5, 1);
     } else {
       const base = outside ? rng.normal(3.9, 3.4) : rng.normal(4.1, 2.7);
-      yards = base + (blockEdge - 0.5) * 3.5 + (m.run || 0);
+      yards = base + (blockEdge - 0.5) * 5 + (m.run || 0);
       // Break a tackle.
-      const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) / 260, 0.05, 0.45);
+      const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) / 170, 0.05, 0.45);
       if (rng.chance(btP)) yards += rng.exp(outside ? 5.5 : 4) + 1;
       // Breakaway.
-      const baP = clamp(0.014 + Math.max(0, spd - def.defSpeed) / 450 + (m.breakaway || 0) + (outside ? 0.01 : 0), 0.004, 0.1);
+      const baP = clamp(0.014 + Math.max(0, spd - def.defSpeed) / 300 + (m.breakaway || 0) + (outside ? 0.01 : 0), 0.004, 0.1);
       if (rng.chance(baP)) yards += rng.int(12, 45) * (spd >= 92 ? 1.3 : 1);
       yards = Math.round(yards);
     }
@@ -569,10 +569,10 @@ function resolvePass(g, rng, call, defCall) {
   // Pressure.
   const rush = blitz ? def.blitzRush + 4 : def.passRush;
   const baseP = { screen: 0.13, pass_short: 0.22, pass_med: 0.27, pass_deep: 0.33, pa_pass: 0.29 }[call];
-  const pressureP = clamp(baseP * (0.45 + edge(rush, comp.passBlock + (comp.olAwr - 80) * 0.2, 20) * 1.1) + (m.pressure || 0), 0.05, 0.7);
+  const pressureP = clamp(baseP * (0.3 + edge(rush, comp.passBlock + (comp.olAwr - 80) * 0.2, 11) * 1.4) + (m.pressure || 0), 0.05, 0.7);
   const pressured = rng.chance(pressureP);
   if (pressured) {
-    const sackP = clamp(0.27 - (qb.r.mob - 70) * 0.003 - (qb.r.awr - 80) * 0.002 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0), 0.08, 0.5);
+    const sackP = clamp(0.27 - (qb.r.mob - 70) * 0.004 - (qb.r.awr - 80) * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0), 0.08, 0.5);
     if (rng.chance(sackP)) {
       const sacker = pickRusher(g, defT, blitz, rng);
       let yards = -rng.int(3, 10);
@@ -621,10 +621,10 @@ function resolvePass(g, rng, call, defCall) {
   let cov = prim ? 0.55 * prim.r.cov + 0.45 * covComp : covComp;
   cov += m.cov || 0;
   const tSkill = target.pos === 'RB' ? target.r.rec : 0.45 * target.r.rte + 0.55 * target.r.cth;
-  const skill = qb.r.tha * 0.55 + tSkill * 0.45 - (pressured ? 9 : 0);
-  const baseComp = { screen: 0.78, pass_short: 0.74, pass_med: 0.61, pass_deep: 0.42, pa_pass: 0.62 }[call];
-  let compP = baseComp + (skill - cov) * 0.004 + (m.comp || 0);
-  if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.002 + (qb.r.thp - 85) * 0.0015;
+  const skill = qb.r.tha * 0.6 + tSkill * 0.4 - (pressured ? 9 : 0);
+  const baseComp = { screen: 0.76, pass_short: 0.72, pass_med: 0.59, pass_deep: 0.41, pa_pass: 0.60 }[call];
+  let compP = baseComp + (skill - cov) * 0.008 + (m.comp || 0);
+  if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003 + (qb.r.thp - 85) * 0.003;
   if (pressured) compP -= 0.08;
   compP = clamp(compP, 0.12, 0.93);
 
@@ -635,7 +635,7 @@ function resolvePass(g, rng, call, defCall) {
 
   // Interception.
   const baseInt = { screen: 0.004, pass_short: 0.011, pass_med: 0.021, pass_deep: 0.04, pa_pass: 0.02 }[call];
-  let intP = baseInt * (1 + (def.ballSkills - 80) / 50) * (1 + (86 - qb.r.awr) / 40) * (pressured ? 1.5 : 1) * (1 + (cov - skill) / 60) + (m.int || 0);
+  let intP = baseInt * (1 + (def.ballSkills - 80) / 35) * (1 + (88 - qb.r.awr) / 25) * (pressured ? 1.5 : 1) * (1 + (cov - skill) / 40) + (m.int || 0);
   if (g.quarter >= 4 && scoreDiff(g, off) < -8 && g.clock < 240) intP *= 1.25; // desperation
   intP = clamp(intP, 0.002, 0.2);
 
@@ -669,8 +669,8 @@ function resolvePass(g, rng, call, defCall) {
   // Completion.
   const yacMean = { screen: 6.5, pass_short: 3.2, pass_med: 2.6, pass_deep: 4, pa_pass: 3.4 }[call] + (m.yac || 0);
   const rac = target.r.rac ?? (target.r.elu ? (target.r.elu * 0.6 + target.r.pow * 0.4) : 70);
-  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.05));
-  const baP = clamp(0.012 + Math.max(0, (target.r.spd ?? 80) - def.defSpeed) / 450 + (call === 'screen' ? 0.015 : 0), 0.004, 0.1);
+  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09));
+  const baP = clamp(0.012 + Math.max(0, (target.r.spd ?? 80) - def.defSpeed) / 300 + (call === 'screen' ? 0.015 : 0), 0.004, 0.1);
   if (rng.chance(baP)) yac += rng.int(15, 45);
   let yards = Math.round(air + yac);
   yards = Math.max(yards, -g.ballOn + 1);

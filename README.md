@@ -61,13 +61,15 @@ See `DESIGN.md` for how the simulation works and how to tune it.
 
 ## Editing the player pool
 
-`src/data/players.js` is a plain array. Each entry:
+`src/data/players.js` holds one row per player, grouped by position:
 
 ```js
-{ id: 'jerry-rice-1995', name: 'Jerry Rice', pos: 'WR', season: 1995, team: 'SF', r: { spd: 90, cth: 99, rte: 99, rac: 95 } }
+WR: [
+  ['Jerry Rice', 1995, 'SF', 90, 99, 99, 95],   // spd, cth, rte, rac
+  ...
 ```
 
-Attributes per position are listed in `src/data/positions.js`. Ratings are 40–99, scaled cross-era ("how dominant relative to his time, translated to a modern-athlete scale"). The same player can appear more than once at different seasons; ids must stay unique. Run `npm run validate` after editing.
+Columns are `[name, season, team, ...ratings]`, with ratings in the attribute order listed for that position at the top of the file (and in `src/data/positions.js`). Ratings are 40–99, scaled cross-era ("how dominant relative to his time, translated to a modern-athlete scale"). Ids are derived from name + season, so the same player can appear at several seasons (Brady 2007 and Brady 2017 both exist). Run `npm run validate` after editing; `node scripts/db-report.mjs` prints the top and bottom of each position.
 
 Ratings are editorial estimates, not official statistics. Names are used for identification only; there are no likenesses, logos, or team marks.
 

@@ -6,7 +6,8 @@ import { RNG } from './rng.js';
 
 export const TOTAL_ROUNDS = ROSTER_SLOTS.length;
 
-const POS_BASE = { QB: 1.06, RB: 0.98, WR: 1.0, TE: 0.95, OL: 0.93, DL: 0.98, LB: 0.95, CB: 0.99, S: 0.95, K: 0.8, P: 0.75 };
+// Positional impact on the simulation, used to scale value over replacement.
+const POS_BASE = { QB: 2.6, RB: 1.15, WR: 1.0, TE: 0.8, OL: 0.75, DL: 0.9, LB: 0.8, CB: 1.1, S: 0.9, K: 0.5, P: 0.35 };
 
 export function openSlots(team) {
   return ROSTER_SLOTS.filter((s) => !team.slots[s.id]);
@@ -87,8 +88,8 @@ export function rankForTeam(league, draft, pool, teamIdx, rng) {
     let value = (ovr - (repl[p.pos] ?? 60)) * POS_BASE[p.pos] * (gm.pos[p.pos] ?? 1);
     if (gm.era) value *= gm.era(p.season);
     value += (ovr - 80) * 0.15; // slight preference for raw talent
-    // Kickers/punters: wait until late unless forced.
-    if ((p.pos === 'K' || p.pos === 'P') && roundsLeft > openCount + 1) value -= 12;
+    // Kickers/punters: wait until the last rounds unless forced.
+    if ((p.pos === 'K' || p.pos === 'P') && draft.round <= TOTAL_ROUNDS - 3) value -= 15;
     // Forced needs: if a position's open slots equal rounds left, must fill.
     if (open[p.pos] >= roundsLeft) value += 100;
     // Don't hoard: second RB / fourth WR lower priority early.

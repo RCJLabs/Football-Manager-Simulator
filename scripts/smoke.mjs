@@ -1,6 +1,6 @@
 // Headless browser smoke test: boots the app, creates a league with auto-draft,
 // plays part of a game in coach mode, sims a week, and checks for console errors.
-// Usage: NODE_PATH=<global node_modules> node scripts/smoke.mjs  (needs Playwright)
+// Usage: NODE_PATH=<global node_modules> node scripts/smoke.mjs  (needs playwright and http-server resolvable)
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -42,6 +42,12 @@ try {
     const next = await page.$('#next');
     const pat = await page.$('[data-pat="xp"]');
     if (off) await off.click(); else if (pat) await pat.click(); else if (next) await next.click(); else break;
+    await sleep(20);
+  }
+  // Resolve a pending PAT choice so the "sim to end" control is present.
+  for (let i = 0; i < 3 && !(await page.$('#simEnd')); i++) {
+    const pat = await page.$('[data-pat="xp"]');
+    if (pat) await pat.click();
     await sleep(20);
   }
   await shot('04-game');

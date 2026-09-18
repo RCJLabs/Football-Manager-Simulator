@@ -12,8 +12,8 @@ export function syntheticTeam(id, mean, sd, seed, opts = {}) {
     const def = POSITIONS[slot.pos];
     const n = (counters[slot.pos] = (counters[slot.pos] || 0) + 1);
     const r = {};
-    // Depth: bench players a bit worse.
-    const m = mean - (slot.starter ? 0 : 6);
+    // Depth: bench players a bit worse. opts.posMeans can override a position's mean.
+    const m = ((opts.posMeans && opts.posMeans[slot.pos]) ?? mean) - (slot.starter ? 0 : 6);
     for (const a of def.attrs) r[a] = Math.round(Math.min(99, Math.max(40, rng.normal(m, sd))));
     const p = { id: `${id}-${slot.id}`, name: `${id} ${slot.pos}${n}`, pos: slot.pos, season: 2000, team: id.toUpperCase().slice(0, 3), r };
     byId.set(p.id, p);
