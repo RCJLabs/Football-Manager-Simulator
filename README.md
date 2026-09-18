@@ -14,7 +14,8 @@ Draft real football players from every era at their prime season — Otto Graham
 - **Injuries that change the season.** Every play carries a small chance that somebody gets hurt, weighted by who was involved and how fragile the position is. A hurt player leaves the game on the spot, the next man on the depth chart starts, and a position left short gets a street free agent worse than anyone on the wire. Weeks out carry across the schedule, a QB2 slot exists because of it, and a dial (Off / Low / Normal / High) keeps rates well under the real league's.
 - **In-season roster moves.** A waiver wire with weekly priority (rolling in fantasy leagues, reverse standings in the pro league), a two-claim weekly limit, AI clubs that work the wire too, and position-matched trades with AI general managers who judge every offer on lineup strength and refuse to be fleeced. A trade deadline and a full transaction log.
 - **A dynasty loop.** Every player carries a contract from his auction price. In the offseason each club keeps a handful at a raised price (three years running at most), everyone else goes back to the pool, and the market reopens with whatever cap is left, worst club first. AI clubs keep their bargains, not their names. Or run it back with the same rosters if you prefer.
-- **Season hub.** Standings, playoff picture, season leaders, box scores, and a history card that keeps every season's champion and your finish.
+- **Season hub.** Standings with clinch markers, playoff picture, season leaders, box scores, and a history card that keeps every season's champion and your finish.
+- **Awards, records, a hall of fame.** An MVP race scored against each player's own position, players of the year on both sides of the ball, an all-league team, a record book of season, single-game and team marks, and careers that build a résumé toward induction.
 - **Box scores** with passing/rushing/receiving/defense/kicking lines, scoring summary, full play-by-play, and PPR fantasy points.
 - **Offline-capable PWA** with local save, export/import. Phone-first layout: no horizontal scrolling at 360px, verified on every screen by the smoke test.
 
@@ -71,8 +72,9 @@ src/engine/penalties.js                  flags: rates, enforcement, half the dis
 src/engine/offseason.js                  contracts, keepers, the offseason market
 src/engine/clinch.js                     conservative clinch and elimination markers
 src/engine/winprob.js                    win probability fitted to the simulation
+src/engine/awards.js                     season honours, the record book, careers and the hall of fame
 src/ui/charts.js                         inline-SVG win probability and drive charts, the game story
-src/ui/views/*.js                        screens (home, setup, draft, auction, team, season, moves, offseason, game, box score, players, settings)
+src/ui/views/*.js                        screens (home, setup, draft, auction, team, season, moves, offseason, awards, game, box score, players, settings)
 scripts/                                 validator, calibration, icon generator, synthetic pools for tests
 tests/                                   node:test suites
 ```

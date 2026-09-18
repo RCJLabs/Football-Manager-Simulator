@@ -180,6 +180,15 @@ try {
   await checkOverflow('player pool');
   await shot('11-players');
 
+  // The awards race after a few weeks.
+  await page.goto(`http://localhost:${port}/#/awards`);
+  await page.waitForSelector('#awards-view');
+  await checkOverflow('awards race');
+  await shot('11b-awards');
+  await page.click('button[data-tab="records"]');
+  await page.waitForSelector('#awards-view');
+  await checkOverflow('awards records');
+
   await page.goto(`http://localhost:${port}/#/settings`);
   await page.waitForSelector('#speed');
   await page.waitForSelector('#injuries');
@@ -205,6 +214,17 @@ try {
   if (!(await page.$('.champ'))) errors.push('the season never produced a champion');
   await checkOverflow('season complete');
   await shot('09e-champion');
+  const mvpLine = await page.$eval('.champ', (e) => e.textContent);
+  if (!/MVP:/.test(mvpLine)) errors.push('the champion card names no MVP');
+  await page.goto(`http://localhost:${port}/#/awards/honours`);
+  await page.waitForSelector('#awards-view');
+  await checkOverflow('awards honours');
+  await shot('09e2-honours');
+  await page.goto(`http://localhost:${port}/#/awards/hall`);
+  await page.waitForSelector('#awards-view');
+  await checkOverflow('hall of fame');
+  await page.goto(`http://localhost:${port}/#/season`);
+  await page.waitForSelector('.champ');
   await page.click('a[href="#/offseason"]');
   await page.waitForSelector('#offseason-view');
   await checkOverflow('offseason');

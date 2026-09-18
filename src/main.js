@@ -1,6 +1,7 @@
 import { load, getState, subscribe, update } from './store.js';
 import { route, startRouter, navigate, currentRoute } from './router.js';
 import { PLAYERS, PLAYERS_BY_ID } from './data/db.js';
+import { registerPlayers } from './engine/season.js';
 import { toast } from './ui/components.js';
 import * as home from './ui/views/home.js';
 import * as setup from './ui/views/setup.js';
@@ -8,6 +9,7 @@ import * as draft from './ui/views/draft.js';
 import * as auction from './ui/views/auction.js';
 import * as moves from './ui/views/moves.js';
 import * as offseason from './ui/views/offseason.js';
+import * as awards from './ui/views/awards.js';
 import * as team from './ui/views/team.js';
 import * as season from './ui/views/season.js';
 import * as game from './ui/views/game.js';
@@ -50,6 +52,7 @@ function renderNav() {
     const u = s.league.teams.findIndex((t) => t.isUser);
     items.push({ href: `#/team/${u}`, label: 'My Team', match: `/team/${u}` });
     if (s.league.phase === 'season' || s.league.phase === 'playoffs') items.push({ href: '#/moves', label: 'Moves', match: '/moves' });
+    if (s.league.phase !== 'draft') items.push({ href: '#/awards', label: 'Awards', match: '/awards' });
     if (s.game && !s.game.g.final) items.push({ href: '#/game', label: 'Live Game', match: '/game' });
   }
   items.push({ href: '#/players', label: 'Players', match: '/players' });
@@ -64,6 +67,8 @@ route('/auction', () => mount(auction));
 route('/moves/:tab', (p) => mount(moves, p));
 route('/moves', () => mount(moves));
 route('/offseason', () => mount(offseason));
+route('/awards/:tab', (p) => mount(awards, p));
+route('/awards', () => mount(awards));
 route('/team/:idx', (p) => mount(team, p));
 route('/season', () => mount(season));
 route('/game', () => mount(game));
@@ -72,6 +77,7 @@ route('/box/:kind', (p) => mount(boxscore, p));
 route('/players', () => mount(players));
 route('/settings', () => mount(settings));
 
+registerPlayers(PLAYERS_BY_ID);
 load();
 subscribe(() => { if (activeView && !activeView.selfRendering) mount(activeView, activeParams); else renderNav(); });
 startRouter();

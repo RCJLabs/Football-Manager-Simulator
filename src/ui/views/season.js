@@ -53,6 +53,7 @@ export function view(root, params, ctx) {
       <div style="font-size:3rem">🏆</div>
       <h1>${champ.name} are the champions</h1>
       <p class="muted">Season ${league.season} · ${rec(champ)} in the regular season${champ.isUser ? ' · That\'s you!' : ''}</p>
+      ${(() => { const aw = (league.history || []).find((h) => h.season === league.season)?.awards; return aw && aw.mvp ? html`<p class="muted" style="margin-top:-.4rem">MVP: <b>${ctx.byId.get(aw.mvp.id)?.name}</b> (${league.teams[aw.mvp.team].abbr}) · <a href="#/awards/honours">all honours</a></p>` : ''; })()}
       <div class="btn-group" style="justify-content:center;margin-top:.75rem">
         <a class="btn primary lg" href="#/offseason">Start the offseason: keepers, then the ${league.draftType === 'auction' ? 'auction' : 'draft'}</a>
         <button class="btn" id="again">Run it back with these rosters</button>

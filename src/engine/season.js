@@ -17,6 +17,7 @@ import { buildLineup, teamPower, overall } from './ratings.js';
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { createGame, simulateGame } from './game.js';
 import { INJURY_LEVELS, DEFAULT_INJURY_LEVEL, recordGameInjuries, tickInjuries } from './injuries.js';
+import { closeSeasonBooks } from './awards.js';
 
 export const LEAGUE_VERSION = 3;
 export const FANTASY_SIZES = [8, 10, 12];
@@ -725,7 +726,13 @@ function crown(league, idx) {
     user: { rank: table.findIndex((r) => r.idx === u) + 1, record: { ...league.teams[u].record } },
     divRanks: isPro(league) ? Object.fromEntries(proStandings(league).flatMap((conf) => conf.divisions.flatMap((dv) => dv.rows.map((r, i) => [r.idx, i + 1])))) : null,
   });
+  if (playerIndex) closeSeasonBooks(league, playerIndex);
 }
+
+// The season engine is player-agnostic; the app registers the player index once
+// so the final can hand out awards and update the record book.
+let playerIndex = null;
+export function registerPlayers(byId) { playerIndex = byId; }
 
 export function powerRankings(league, byId) {
   return league.teams.map((t, i) => ({ idx: i, team: t, power: teamPower(buildLineup(t.slots, byId, league.injuries)) })).sort((a, b) => b.power - a.power);
