@@ -13,7 +13,16 @@ export function view(root, params, ctx) {
         <div class="form-row">
           <div><label>League name</label><input type="text" name="league" value="All-Time League" maxlength="40"></div>
           <div><label>Teams</label>
-            <select name="teams"><option value="4">4 teams (6 games)</option><option value="6">6 teams (10 games)</option><option value="8" selected>8 teams (14 games)</option></select></div>
+            <select name="teams">
+              <option value="4">4 teams · 6 games</option>
+              <option value="6">6 teams · 10 games</option>
+              <option value="8" selected>8 teams · 14 games</option>
+              <option value="10">10 teams · 9 games</option>
+              <option value="12">12 teams · 11 games, 8 make the playoffs</option>
+              <option value="14">14 teams · 13 games, 8 make the playoffs</option>
+              <option value="16">16 teams · 15 games, 8 make the playoffs</option>
+            </select>
+            <small class="muted">More teams means thinner rosters. In a 12-team league the bottom of the player pool starts every week.</small></div>
         </div>
         <div class="form-row">
           <div><label>Your team name</label><input type="text" name="name" value="Time Travelers" maxlength="28" required></div>

@@ -99,3 +99,50 @@ test('a full season runs to a champion with consistent standings', () => {
   assert.equal(me.seasonStats.team.points, me.record.pf);
   assert.equal(league.history.length, 1);
 });
+
+test('the pool is deep enough for the largest league, with a real talent tail', async () => {
+  const { PLAYERS } = await import('../src/data/players.js');
+  const { overall } = await import('../src/engine/ratings.js');
+  const { SLOT_COUNTS } = await import('../src/data/positions.js');
+  const byPos = {};
+  for (const p of PLAYERS) (byPos[p.pos] ??= []).push(p);
+  for (const [pos, per] of Object.entries(SLOT_COUNTS)) {
+    assert.ok((byPos[pos] || []).length >= per * 16, `${pos}: ${(byPos[pos] || []).length} available, a 16-team league needs ${per * 16}`);
+  }
+  // The curve must actually fall away, or every draft pick is a good player and
+  // the back of the roster costs nothing to fill.
+  const sorted = PLAYERS.map(overall).sort((a, b) => b - a);
+  const at = (f) => sorted[Math.floor(sorted.length * f)];
+  assert.ok(at(0) >= 95, `best player ${at(0)}`);
+  assert.ok(at(0.5) <= 84, `median player ${at(0.5)} should be a solid starter, not a star`);
+  assert.ok(at(0.9) <= 72, `90th percentile ${at(0.9)} should be replacement level`);
+  assert.ok(sorted[sorted.length - 1] <= 62, `worst player ${sorted[sorted.length - 1]}`);
+  for (const [pos, arr] of Object.entries(byPos)) {
+    const o = arr.map(overall).sort((a, b) => b - a);
+    assert.ok(o[0] - o[o.length - 1] >= 25, `${pos} spans only ${o[0] - o[o.length - 1]} points`);
+  }
+});
+
+test('every league size produces a balanced schedule and a champion', async () => {
+  const { playoffFieldSize } = await import('../src/engine/season.js');
+  const { autoCompleteAll } = await import('../src/engine/auction.js');
+  const { PLAYERS, PLAYERS_BY_ID } = await import('../src/data/db.js');
+  for (const n of [4, 6, 8, 10, 12, 16]) {
+    const league = createLeague({ name: 'T', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: n, seed: 400 + n, draftType: 'auction' });
+    assert.equal(league.teams.length, n, 'enough AI clubs exist for this size');
+    autoCompleteAll(league.auction, league, PLAYERS, new Rng(n), PLAYERS_BY_ID);
+    startSeason(league);
+    const weeks = league.schedule.length;
+    assert.ok(weeks >= 6 && weeks <= 16, `${n} teams plays ${weeks} weeks`);
+    for (const wk of league.schedule) assert.equal(wk.games.length, n / 2);
+    let guard = 0;
+    while (league.phase !== 'complete' && guard++ < 60) {
+      simulateWeekAi(league, PLAYERS_BY_ID, { includeUser: true });
+      advanceWeek(league);
+    }
+    assert.equal(league.phase, 'complete', `${n}-team league finished`);
+    assert.ok(league.champion != null);
+    assert.equal(league.playoffs.seeds.length, playoffFieldSize(n));
+    for (const t of league.teams) assert.equal(t.record.w + t.record.l + t.record.t, weeks);
+  }
+});

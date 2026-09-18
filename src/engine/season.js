@@ -53,7 +53,11 @@ export function userTeamIndex(league) {
   return league.teams.findIndex((t) => t.isUser);
 }
 
-/** Double round-robin via the circle method. Returns [{ week, games: [{ home, away }] }]. */
+/**
+ * Round-robin via the circle method. Small leagues play everyone twice; larger
+ * ones play a single round so a season stays a sensible length rather than
+ * running 30 weeks.
+ */
 export function buildSchedule(numTeams, rng) {
   const ids = [...Array(numTeams).keys()];
   const rounds = [];
@@ -70,8 +74,9 @@ export function buildSchedule(numTeams, rng) {
     arr.splice(1, 0, arr.pop());
   }
   const first = rng ? rng.shuffle(rounds) : rounds;
-  const second = first.map((games) => games.map((g) => ({ home: g.away, away: g.home })));
-  return [...first, ...second].map((games, i) => ({ week: i + 1, games: games.map((g) => ({ ...g, result: null })) }));
+  const twice = 2 * (n - 1) <= 16;
+  const all = twice ? [...first, ...first.map((games) => games.map((g) => ({ home: g.away, away: g.home })))] : first;
+  return all.map((games, i) => ({ week: i + 1, games: games.map((g) => ({ ...g, result: null })) }));
 }
 
 /** Called when the draft completes. */
@@ -195,7 +200,7 @@ export function advanceWeek(league) {
     const seeded = winners.slice().sort((a, b) => po.seeds.indexOf(a) - po.seeds.indexOf(b));
     const games = [];
     for (let i = 0; i < seeded.length / 2; i++) games.push({ home: seeded[i], away: seeded[seeded.length - 1 - i], result: null });
-    po.rounds.push({ week: po.round + 1, name: games.length === 1 ? 'Championship' : 'Semifinals', games });
+    po.rounds.push({ week: po.round + 1, name: roundName(games.length * 2), games });
     po.round++;
     return true;
   }
@@ -211,14 +216,28 @@ export function standings(league) {
   return rows;
 }
 
+/** How many teams make the postseason at a given league size. */
+export function playoffFieldSize(numTeams) {
+  if (numTeams >= 12) return 8;
+  if (numTeams >= 6) return 4;
+  return 2;
+}
+
 export function startPlayoffs(league) {
   const rows = standings(league);
-  const n = league.teams.length >= 6 ? 4 : 2;
+  const n = playoffFieldSize(league.teams.length);
   const seeds = rows.slice(0, n).map((r) => r.idx);
   const games = [];
   for (let i = 0; i < n / 2; i++) games.push({ home: seeds[i], away: seeds[n - 1 - i], result: null });
-  league.playoffs = { seeds, round: 1, rounds: [{ week: 1, name: n === 4 ? 'Semifinals' : 'Championship', games }] };
+  league.playoffs = { seeds, round: 1, rounds: [{ week: 1, name: roundName(n), games }] };
   league.phase = 'playoffs';
+}
+
+function roundName(fieldSize) {
+  if (fieldSize <= 2) return 'Championship';
+  if (fieldSize === 4) return 'Semifinals';
+  if (fieldSize === 8) return 'Quarterfinals';
+  return `Round of ${fieldSize}`;
 }
 
 export function powerRankings(league, byId) {

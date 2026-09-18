@@ -10,7 +10,7 @@ const N = Number(process.argv[3] || 8);
 const agg = { pts: 0, games: 0, blowouts: 0, ties: 0, ot: 0, maxPts: 0, hi: [], powerSpread: [], winsByPowerRank: {} };
 const posTaken = {};
 for (let i = 0; i < L; i++) {
-  const league = createLeague({ name: 'sim', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: N, seed: 500 + i });
+  const league = createLeague({ name: 'sim', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: N, seed: 500 + i, draftType: 'snake' });
   const rng = new RNG(league.rngState);
   autoDraftAll(league, league.draft, PLAYERS, rng);
   league.rngState = rng.state;

@@ -2,6 +2,8 @@
 // Usage: node scripts/validate-players.mjs
 import { POSITIONS, SLOT_COUNTS } from '../src/data/positions.js';
 
+// Enough depth to fill the largest league the setup screen offers.
+const MAX_TEAMS = 16;
 const MIN_PER_POS = { QB: 28, RB: 34, WR: 44, TE: 18, OL: 48, DL: 44, LB: 34, CB: 28, S: 24, K: 10, P: 8 };
 
 export function validatePlayers(PLAYERS) {
@@ -38,9 +40,9 @@ for (const [i, p] of PLAYERS.entries()) {
 for (const [pos, min] of Object.entries(MIN_PER_POS)) {
   if ((counts[pos] || 0) < min) errors.push(`position ${pos}: only ${counts[pos] || 0}, need at least ${min}`);
 }
-const teams8 = Object.fromEntries(Object.entries(SLOT_COUNTS).map(([k, v]) => [k, v * 8]));
-for (const [pos, need] of Object.entries(teams8)) {
-  if ((counts[pos] || 0) < need) errors.push(`position ${pos}: ${counts[pos] || 0} < ${need} needed for an 8-team league`);
+for (const [pos, per] of Object.entries(SLOT_COUNTS)) {
+  const need = per * MAX_TEAMS;
+  if ((counts[pos] || 0) < need) errors.push(`position ${pos}: ${counts[pos] || 0} < ${need} needed for a ${MAX_TEAMS}-team league`);
 }
 
 return { errors, counts, eras };
