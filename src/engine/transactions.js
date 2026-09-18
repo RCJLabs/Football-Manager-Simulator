@@ -21,6 +21,10 @@ import { aiAdjustStrategies } from './gm.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
 export const MAX_TRADE_SIDE = 3;
+/** Most live offers the human is shown at once. */
+export const MAX_LIVE_OFFERS = 3;
+/** How far below even, on the lineup-strength yardstick, a club will still ask. Past this a GM knows the phone gets hung up. */
+export const OFFER_FAIR_MARGIN = 2;
 
 /** How keen each GM personality is to work the wire. */
 const ACTIVITY = { modern: 0.9, gambler: 0.75, balanced: 0.6, defense: 0.55, trenches: 0.55, airraid: 0.5, ground: 0.45, oldschool: 0.3 };
@@ -368,6 +372,112 @@ export function proposeTrade(league, userIdx, aiIdx, userGives, aiGives, byId) {
   return { ok: true, accepted: true, reason: ev.reason, delta: ev.delta, tx };
 }
 
+// ---------------------------------------------------------------------------
+// Offers: the other direction, AI clubs asking the human
+// ---------------------------------------------------------------------------
+
+export function initOffers(league) {
+  league.offers ??= [];
+  league.refusedOffers ??= [];
+}
+
+/** Offers still on the table: made this week, in this season, not yet answered. */
+export function liveOffers(league) {
+  initOffers(league);
+  return league.offers.filter((o) => o.season === league.season && o.week === league.week);
+}
+
+const offerSignature = (from, gives, wants) => `${from}:${gives.slice().sort().join(',')}>${wants.slice().sort().join(',')}`;
+
+/**
+ * AI clubs ring the human with surplus-for-need deals: a club with a good
+ * bench player at one position and a weak starter at another asks for the
+ * human's man at the position it needs. It only calls when the deal clears
+ * its own greed and is not insulting on the same yardstick, because a GM
+ * knows an insulting offer is a wasted call. The human decides; nothing is
+ * executed here. An offer the human turns down is not made again this season.
+ */
+export function makeAiOffers(league, byId, rng, { max = 2 } = {}) {
+  initOffers(league);
+  if (!tradesOpen(league)) return [];
+  const u = league.teams.findIndex((t) => t.isUser);
+  if (u < 0) return [];
+  const U = league.teams[u];
+  const baseU = lineupStrength(U.slots, byId, league);
+  const refused = new Set(league.refusedOffers);
+  const live = liveOffers(league);
+  const positions = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S'];
+  const group = (team, pos) => ROSTER_SLOTS.filter((s) => s.pos === pos).map((s) => ({ slot: s, id: team.slots[s.id], p: byId.get(team.slots[s.id]) })).filter((x) => x.p);
+  const bestBench = (team, pos) => group(team, pos).filter((x) => !x.slot.starter).sort((a, b) => overall(b.p) - overall(a.p))[0] || null;
+  const worstStarter = (team, pos) => group(team, pos).filter((x) => x.slot.starter).sort((a, b) => overall(a.p) - overall(b.p))[0] || null;
+  const made = [];
+  const order = league.teams.map((_, i) => i).filter((i) => i !== u);
+  if (rng) for (let i = order.length - 1; i > 0; i--) { const j = rng.int(0, i); [order[i], order[j]] = [order[j], order[i]]; }
+  for (const a of order) {
+    if (live.length + made.length >= MAX_LIVE_OFFERS || made.length >= max) break;
+    const A = league.teams[a];
+    const activity = ACTIVITY[A.gm] ?? 0.5;
+    if (rng && !rng.chance(activity * 0.8)) continue;
+    const baseA = lineupStrength(A.slots, byId, league);
+    let best = null;
+    for (const P of positions) for (const Q of positions) {
+      if (P === Q) continue;
+      const aP = bestBench(A, P) || worstStarter(A, P), aQ = worstStarter(A, Q);
+      const uP = worstStarter(U, P), uQ = bestBench(U, Q) || worstStarter(U, Q);
+      if (!aP || !aQ || !uP || !uQ) continue;
+      const gives = [aP.id, aQ.id], wants = [uP.id, uQ.id];
+      if (!validateTrade(league, a, u, gives, wants, byId).ok) continue;
+      if (refused.has(offerSignature(a, gives, wants))) continue;
+      const gainA = lineupStrength(slotsAfter(A, gives, wants, byId), byId, league) - baseA;
+      const gainU = lineupStrength(slotsAfter(U, wants, gives, byId), byId, league) - baseU;
+      if (gainA < aiGreed(A) || gainU < -OFFER_FAIR_MARGIN) continue;
+      if (!best || gainA > best.aiGain) best = { gives, wants, aiGain: Math.round(gainA * 10) / 10, userDelta: Math.round(gainU * 10) / 10, need: Q, surplus: P };
+    }
+    if (!best) continue;
+    made.push({
+      id: `${league.season}-${league.week}-${a}-${league.offers.length + made.length}`,
+      season: league.season, week: league.week, from: a,
+      gives: best.gives, wants: best.wants, aiGain: best.aiGain, userDelta: best.userDelta,
+      note: `${A.abbr} are thin at ${best.need} and deep at ${best.surplus}.`,
+    });
+  }
+  league.offers.push(...made);
+  return made;
+}
+
+/** Take a deal. Throws with a readable reason if it no longer stands. */
+export function acceptOffer(league, offerId, byId) {
+  initOffers(league);
+  const o = league.offers.find((x) => x.id === offerId);
+  if (!o) throw new Error('That offer is no longer on the table');
+  if (o.answered) throw new Error('You already answered that offer');
+  const u = league.teams.findIndex((t) => t.isUser);
+  const v = validateTrade(league, u, o.from, o.wants, o.gives, byId);
+  if (!v.ok) throw new Error(v.reason);
+  const tx = executeTrade(league, u, o.from, o.wants, o.gives, byId);
+  o.answered = 'accepted';
+  // Anything else that named a traded player is off.
+  const moved = new Set([...o.gives, ...o.wants]);
+  for (const x of league.offers) if (x !== o && !x.answered && [...x.gives, ...x.wants].some((id) => moved.has(id))) x.answered = 'stale';
+  return tx;
+}
+
+export function declineOffer(league, offerId) {
+  initOffers(league);
+  const o = league.offers.find((x) => x.id === offerId);
+  if (!o || o.answered) return false;
+  o.answered = 'declined';
+  league.refusedOffers.push(offerSignature(o.from, o.gives, o.wants));
+  return true;
+}
+
+/** Keep the stored list small: answered offers and anything older than last week go. */
+export function pruneOffers(league) {
+  initOffers(league);
+  league.offers = league.offers.filter((o) => !o.answered && o.season === league.season && o.week >= league.week - 1);
+  if (league.refusedOffers.length > 200) league.refusedOffers = league.refusedOffers.slice(-200);
+}
+
 /** Everyone still owns exactly one player per slot and nobody is owned twice. */
 export function rostersValid(league, byId) {
   const seen = new Set();
@@ -399,7 +509,13 @@ export function advanceWeekWithMoves(league, byId, pool, rng, advance) {
     aiFileClaims(league, pool, byId, rng);
     processWaivers(league, byId);
   }
-  return advance(league);
+  const moved = advance(league);
+  // The new week's post: offers are waiting when the human opens the hub.
+  if (moved && league.phase === 'season') {
+    pruneOffers(league);
+    makeAiOffers(league, byId, rng);
+  }
+  return moved;
 }
 
 function weekIsComplete(league) {

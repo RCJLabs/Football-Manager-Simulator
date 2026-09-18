@@ -11,7 +11,7 @@ import { fantasyPoints } from '../../engine/stats.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { DIVISIONS } from '../../data/pro.js';
 import { teamChip, toast, modal } from '../components.js';
-import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tradesOpen } from '../../engine/transactions.js';
+import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tradesOpen, liveOffers } from '../../engine/transactions.js';
 import { RNG } from '../../engine/rng.js';
 
 export function fmtPhase(league) {
@@ -170,10 +170,12 @@ export function view(root, params, ctx) {
   const leaders = seasonLeaders(league, ctx.byId);
   const faCount = league.phase === 'season' ? freeAgents(league, ctx.players).length : 0;
   const myClaims = league.phase === 'season' ? claimsThisWeek(league, u).length : 0;
+  const offerCount = league.phase === 'season' ? liveOffers(league).filter((o) => !o.answered).length : 0;
   const movesCard = league.phase === 'season' ? html`<div class="card tight">
     <h3>Roster moves</h3>
+    ${offerCount ? html`<p class="notice" style="margin:0 0 .5rem">${offerCount === 1 ? 'A club is on the phone with an offer' : `${offerCount} clubs are on the phone with offers`}. <a href="#/moves/offers">Hear them out</a>.</p>` : ''}
     <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${faCount} free agents · ${myClaims ? `${myClaims} claim${myClaims > 1 ? 's' : ''} pending, resolve when the week advances` : 'no claims pending'} · ${tradesOpen(league) ? `trades open through week ${tradeDeadlineWeek(league)}` : 'trade deadline passed'}</p>
-    <div class="btn-group"><a class="btn sm" href="#/moves">Free agents</a><a class="btn sm" href="#/moves/trade">Trades</a></div>
+    <div class="btn-group"><a class="btn sm" href="#/moves">Free agents</a><a class="btn sm ${offerCount ? 'primary' : ''}" href="#/moves/offers">Offers${offerCount ? ` (${offerCount})` : ''}</a><a class="btn sm" href="#/moves/trade">Trades</a></div>
   </div>` : '';
   const powerShown = pro ? power.slice(0, 12) : power;
   const myHurt = hurtList(u);
@@ -246,9 +248,14 @@ export function view(root, params, ctx) {
       advanceWeekWithMoves(s.league, ctx.byId, ctx.players, rng, advanceWeek);
       s.league.rngState = rng.state;
     });
-    const lw = ctx.getState().league.lastWaivers;
+    const after = ctx.getState().league;
+    const lw = after.lastWaivers;
     const mineRes = lw ? lw.results.filter((r) => r.team === u) : [];
     if (mineRes.length) toast(mineRes.every((r) => r.ok) ? `Waivers: ${mineRes.length} claim${mineRes.length > 1 ? 's' : ''} landed` : `Waivers: ${mineRes.filter((r) => r.ok).length} of ${mineRes.length} claims landed`);
+    else {
+      const calls = liveOffers(after).filter((o) => !o.answered).length;
+      if (calls) toast(calls === 1 ? 'A club has a trade offer for you' : `${calls} clubs have trade offers for you`);
+    }
   });
   el.querySelector('#abandon')?.addEventListener('click', () => {
     const m = modal(html`<h2>Abandon the game in progress?</h2><p class="muted">You'll be able to start it over from the season hub.</p><div class="row"><button class="btn danger" id="yes">Abandon</button><button class="btn" data-close>Cancel</button></div>`);

@@ -159,6 +159,10 @@ try {
   const wire = await page.evaluate(() => { const lg = (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league; return { user: lg.teams.findIndex((t) => t.isUser), week: lg.lastWaivers && lg.lastWaivers.week, results: lg.lastWaivers ? lg.lastWaivers.results : [] }; });
   if (wire.week !== weekBefore) errors.push(`the wire resolved for week ${wire.week}, expected ${weekBefore}`);
   if (!wire.results.some((r) => r.team === wire.user)) errors.push(`the user claim never resolved on advance: ${JSON.stringify(wire)}`);
+  await page.goto(`http://localhost:${port}/#/moves/offers`);
+  await page.waitForSelector('#moves-view');
+  await checkOverflow('moves offers');
+  await shot('09d1-offers');
   await page.goto(`http://localhost:${port}/#/moves/log`);
   await page.waitForSelector('#moves-view');
   await checkOverflow('moves log');
@@ -224,12 +228,29 @@ try {
   console.log('persisted week:', saved);
 
   // Play the season out, then run the offseason: keepers, the auction, season two.
+  let tookOffer = false;
   for (let i = 0; i < 40 && !(await page.$('.champ')); i++) {
     const sim = await page.$('#simWeek');
     if (sim) { await sim.click(); await page.waitForSelector('#advance'); }
     const adv = await page.$('#advance');
     if (adv) { await adv.click(); await sleep(60); } else break;
+    // Take the first trade offer a club makes, to prove the whole path works.
+    if (!tookOffer && (await page.$('a[href="#/moves/offers"].primary'))) {
+      await page.click('a[href="#/moves/offers"].primary');
+      await page.waitForSelector('[data-accept]');
+      await checkOverflow('trade offer');
+      await shot('09d2-offer');
+      const before = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; return (lg.transactions || []).filter((t) => t.type === 'trade').length; })());
+      await page.click('[data-accept]');
+      await sleep(400);
+      const after = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; return (lg.transactions || []).filter((t) => t.type === 'trade').length; })());
+      if (after <= before) errors.push('accepting a trade offer did not log a trade');
+      tookOffer = true;
+      await page.goto(`http://localhost:${port}/#/season`);
+      await page.waitForSelector('#season-view');
+    }
   }
+  if (!tookOffer) console.log('note: no AI trade offer appeared this run');
   if (!(await page.$('.champ'))) errors.push('the season never produced a champion');
   await checkOverflow('season complete');
   await shot('09e-champion');

@@ -16,7 +16,8 @@
     "moves": "node scripts/moves-sim.mjs",
     "injuries": "node scripts/injury-sim.mjs",
     "dynasty": "node scripts/dynasty-sim.mjs",
-    "report": "node scripts/db-report.mjs"
+    "report": "node scripts/db-report.mjs",
+    "offers": "node scripts/offer-sim.mjs"
   },
   "engines": { "node": ">=20" },
   "license": "MIT"

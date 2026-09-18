@@ -5,7 +5,7 @@ import { overall } from '../../engine/ratings.js';
 import { userTeamIndex, isPro, standings } from '../../engine/season.js';
 import {
   freeAgents, fileClaim, cancelClaim, claimsThisWeek, waiverLimit, tradeDeadlineWeek, tradesOpen, movesOpen,
-  validateTrade, proposeTrade, lineupStrength, initWaivers, slotOf,
+  validateTrade, proposeTrade, lineupStrength, initWaivers, slotOf, liveOffers, acceptOffer, declineOffer,
 } from '../../engine/transactions.js';
 import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge, outBadge } from '../components.js';
 import { emptySlotAt } from '../../engine/transactions.js';
@@ -18,7 +18,7 @@ export function view(root, params, ctx) {
   if (league.phase === 'draft') { ctx.navigate(league.draftType === 'auction' ? '#/auction' : '#/draft'); return; }
   initWaivers(league);
   // A deep link like #/moves/trade picks the tab once; later redraws keep whatever the user chose.
-  if (params && params.tab) { if (['fa', 'claims', 'trade', 'log'].includes(params.tab)) ui.tab = params.tab; delete params.tab; }
+  if (params && params.tab) { if (['fa', 'claims', 'offers', 'trade', 'log'].includes(params.tab)) ui.tab = params.tab; delete params.tab; }
   const u = userTeamIndex(league);
   const me = league.teams[u];
   const open = movesOpen(league);
@@ -33,7 +33,8 @@ export function view(root, params, ctx) {
   const last = league.lastWaivers && league.lastWaivers.week === league.week - 1 ? league.lastWaivers.results.filter((r) => r.team === u) : [];
   if (ui.partner == null || ui.partner === u || !league.teams[ui.partner]) ui.partner = league.teams.findIndex((t) => !t.isUser);
 
-  const tabs = [['fa', `Free agents (${fa.length})`], ['claims', `My claims (${mine.length}/${limit})`], ['trade', 'Trades'], ['log', 'Log']];
+  const offers = liveOffers(league).filter((o) => !o.answered);
+  const tabs = [['fa', `Free agents (${fa.length})`], ['claims', `My claims (${mine.length}/${limit})`], ['offers', `Offers${offers.length ? ` (${offers.length})` : ''}`], ['trade', 'Trades'], ['log', 'Log']];
 
   let body;
   if (ui.tab === 'fa') {
@@ -58,6 +59,24 @@ export function view(root, params, ctx) {
     body = html`
       ${last.length ? html`<div class="notice" style="margin-bottom:.6rem"><b>Last week's wire:</b> ${raw(last.map((r) => `${r.ok ? '✔' : '✘'} ${esc(ctx.byId.get(r.add)?.name)}${r.ok ? ' joined, ' + esc(ctx.byId.get(r.drop)?.name) + ' released' : ' — ' + esc(r.reason)}`).join('<br>'))}</div>` : ''}
       ${mine.length ? raw(`<ul class="plist">${mine.map((c) => { const a = ctx.byId.get(c.add), d = c.drop ? ctx.byId.get(c.drop) : null; return playerItem(a, { attrs: false, meta: d ? ` · drops <b>${esc(d.name)}</b> (${overall(d)})` : ` · into the open <b>${a.pos}</b> slot`, action: `<button class="btn sm danger" data-cancel="${esc(c.add)}">Cancel</button>` }); }).join('')}</ul>`) : html`<p class="empty">No claims filed this week. Up to ${limit} resolve when the week advances.</p>`}`;
+  } else if (ui.tab === 'offers') {
+    const card = (o) => {
+      const them = league.teams[o.from];
+      const side = (ids, label) => `<div><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${label}</div><ul class="plist">${ids.map((id) => playerItem(ctx.byId.get(id), { attrs: false, meta: inj(ctx.byId.get(id)) })).join('')}</ul></div>`;
+      const verdict = o.userDelta > 4 ? ['Helps your lineup', 'var(--good)'] : o.userDelta >= -1 ? ['About even', 'var(--muted)'] : ['Costs your lineup', 'var(--bad)'];
+      return `<div class="card tight" style="margin-bottom:.6rem">
+        <div class="row between"><b>${teamChip(them).__raw} are calling</b><small class="muted">week ${o.week}</small></div>
+        <p class="muted" style="margin:.2rem 0 .4rem;font-size:.85rem">${esc(o.note)}</p>
+        <div class="grid grid-2">${side(o.gives, 'You get')}${side(o.wants, 'You give')}</div>
+        <div class="row between" style="margin-top:.5rem">
+          <small style="color:${verdict[1]}">${verdict[0]} <span class="muted">(${o.userDelta > 0 ? '+' : ''}${o.userDelta} lineup strength by the same yardstick the AI uses)</span></small>
+          <span class="btn-group"><button class="btn primary sm" data-accept="${esc(o.id)}">Accept</button><button class="btn sm" data-decline="${esc(o.id)}">Decline</button></span>
+        </div>
+      </div>`;
+    };
+    body = html`
+      <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${tradesOpen(league) ? 'Clubs ring you when they are thin somewhere and deep where you are thin. An offer stands for the week; declining it takes that deal off the table for the season.' : `The trade deadline passed after week ${deadline}.`}</p>
+      ${offers.length ? raw(offers.map(card).join('')) : html`<p class="empty">Nobody is calling this week.</p>`}`;
   } else if (ui.tab === 'trade') {
     const partner = league.teams[ui.partner];
     const list = (team, sel, key) => `<ul class="plist">${ROSTER_SLOTS.map((s) => {
@@ -139,6 +158,24 @@ export function view(root, params, ctx) {
     if (g) { const id = g.dataset.give; if (ui.give.has(id)) ui.give.delete(id); else if (ui.give.size < 3) ui.give.add(id); else toast('Three players a side at most'); redraw(); return; }
     const t = e.target.closest('[data-get]');
     if (t) { const id = t.dataset.get; if (ui.get.has(id)) ui.get.delete(id); else if (ui.get.size < 3) ui.get.add(id); else toast('Three players a side at most'); redraw(); return; }
+    const accept = e.target.closest('[data-accept]');
+    if (accept) {
+      try {
+        let tx;
+        ctx.update((s) => { tx = acceptOffer(s.league, accept.dataset.accept, ctx.byId); }, { silent: true });
+        toast('Deal done');
+        void tx;
+      } catch (err) { toast(err.message); }
+      redraw();
+      return;
+    }
+    const decline = e.target.closest('[data-decline]');
+    if (decline) {
+      ctx.update((s) => { declineOffer(s.league, decline.dataset.decline); }, { silent: true });
+      toast('Turned down');
+      redraw();
+      return;
+    }
     const cancel = e.target.closest('[data-cancel]');
     if (cancel) { ctx.update((s) => { cancelClaim(s.league, u, cancel.dataset.cancel); }, { silent: true }); toast('Claim withdrawn'); redraw(); return; }
     const claim = e.target.closest('[data-claim]');
