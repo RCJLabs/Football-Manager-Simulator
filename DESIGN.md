@@ -73,20 +73,27 @@ Each AI GM sees a blend of the two according to a `SAVVY` rating, so the
 Analytics GM chases value while the Air Raid GM chases names, and the market is
 beatable without being free money.
 
-Measured over twenty leagues with the human team following fixed strategies:
+Measured over twenty-four 8-team leagues with the human team following fixed
+strategies, on the current 1,065-player pool:
 
-| Strategy | Wins of 14 | Point differential | Average finish of 8 |
-|---|---|---|---|
-| Value shopper (bid by true worth) | 8.6 | +48 | 2.5 |
-| Stars and scrubs | 6.6 | −5 | 4.7 |
-| Trenches first | 5.8 | −25 | 5.6 |
-| Pay the asking price | 4.7 | −59 | 6.8 |
-| Spread the budget evenly | 4.5 | −70 | 6.8 |
-| Chase the famous names | 3.9 | −77 | 7.5 |
+| Strategy | Wins of 14 | Point differential | Average finish of 8 | Titles of 24 |
+|---|---|---|---|---|
+| Value shopper (bid by true worth) | 8.3 | +41 | 3.0 | 6 |
+| Stars and scrubs | 7.9 | +25 | 3.4 | 6 |
+| Pay the asking price | 5.7 | −42 | 6.1 | 1 |
+| Chase the famous names | 5.6 | −30 | 6.0 | 0 |
+| Trenches first | 4.8 | −70 | 7.0 | 1 |
+| Spread the budget evenly | 4.0 | −89 | 7.5 | 0 |
 
-Roughly five wins separate the best approach from the worst, so how you bid is
-now the main thing that decides a season. The lesson is learnable from play: buy
-the positions the room undervalues, and do not pay a premium for a name.
+Roughly four wins separate the best approach from the worst, so how you bid is
+the main thing that decides a season. The lesson is learnable from play: buy the
+positions the room undervalues, and do not pay a premium for a name. Note that
+stars and scrubs closed most of the gap once the pool gained a real tail, because
+concentrating money now buys genuinely better starters, while spreading the
+budget evenly buys a roster of mediocrities.
+
+Re-run `npm run strategy` after any change to pricing, leverage or the player
+pool; these numbers move.
 
 The priciest lot runs $29 to $40 of $200 depending on league size, against the 25
 to 35 percent of budget a real fantasy auction puts on one player. The gap
