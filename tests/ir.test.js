@@ -10,7 +10,8 @@ import {
   IR_SLOTS, IR_MIN_WEEKS, SEASON_ENDING, irList, irReady, irBlocker, canPlaceOnIr, placeOnIr, activateFromIr,
   releaseFromIr, returnFromIr, clearIr, aiManageIr,
 } from '../src/engine/injuries.js';
-import { ownerMap, freeAgents, fileClaim, processWaivers, rostersValid, advanceWeekWithMoves } from '../src/engine/transactions.js';
+import { ownerMap, freeAgents, fileClaim, processWaivers, rostersValid, advanceWeekWithMoves, liveOffers } from '../src/engine/transactions.js';
+import { autoDraftAll } from '../src/engine/draft.js';
 import { overall } from '../src/engine/ratings.js';
 
 registerPlayers(byId);
@@ -21,6 +22,8 @@ function league(seed, opts = {}) {
   startSeason(lg, byId);
   return lg;
 }
+const autoDraftAllPro = (lg) => autoDraftAll(lg, lg.draft, PLAYERS, new RNG(5));
+const liveOffersOf = (lg) => liveOffers(lg).filter((o) => !o.answered).length;
 const hurt = (lg, id, weeks, team) => { lg.injuries[id] = { weeks, kind: 'knee sprain', since: null, season: lg.season, team }; };
 
 test('only a long injury goes on injured reserve, and only so many at once', () => {
@@ -163,4 +166,32 @@ test('an older save gains an empty injured reserve', () => {
   assert.ok(rostersValid(lg, byId).ok);
   assert.deepEqual(clearIr(lg, byId), []);
   assert.deepEqual(aiManageIr(lg, byId), []);
+});
+
+test('a full 32-team pro season runs offers and injured reserve without corrupting a roster', () => {
+  const lg = createLeague({ name: 'Pro', mode: 'pro', franchise: 7, seed: 5, draftType: 'snake', injuries: 'normal' });
+  autoDraftAllPro(lg);
+  startSeason(lg, byId);
+  const rng = new RNG(99);
+  let parked = 0, activated = 0, offered = 0;
+  while (lg.phase === 'season') {
+    offered += liveOffersOf(lg);
+    simulateWeekAi(lg, byId, { includeUser: true });
+    const before = (lg.transactions || []).length;
+    advanceWeekWithMoves(lg, byId, PLAYERS, rng, advanceWeek);
+    for (const t of (lg.transactions || []).slice(before)) { if (t.type === 'ir') parked++; if (t.type === 'activate') activated++; }
+    const v = rostersValid(lg, byId);
+    assert.ok(v.ok, v.reason);
+    const owned = ownerMap(lg);
+    assert.equal(new Set(owned.keys()).size, owned.size, 'nobody owned twice');
+    for (const t of lg.teams) assert.ok(irList(t).length <= 2, `${t.abbr} has ${irList(t).length} on IR`);
+  }
+  assert.ok(parked > 10, `${parked} placements across 32 clubs`);
+  assert.ok(activated > 0, `${activated} activations`);
+  assert.ok(offered > 0, `${offered} offers to the human`);
+  while (lg.phase !== 'complete') { simulateWeekAi(lg, byId, { includeUser: true }); advanceWeek(lg); }
+  const off = enterOffseason(lg, PLAYERS, byId);
+  assert.ok(lg.teams.every((t) => irList(t).length === 0), 'injured reserve empties at the offseason');
+  assert.ok(rostersValid(lg, byId).ok);
+  assert.ok(Array.isArray(off.releasedFromIr));
 });
