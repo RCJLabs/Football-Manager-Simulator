@@ -2,6 +2,7 @@ import { html, render, raw } from '../../util.js';
 import { currentWeek, userTeamIndex, userGameThisWeek, simulateWeekAi, weekComplete, advanceWeek, standings, proStandings, powerRankings, teamForGame, gameOptions, weekNumber, recordResult, newSeasonSameRosters, isPro } from '../../engine/season.js';
 import { ROSTER_SLOTS } from '../../data/positions.js';
 import { fmtWeeks } from '../../engine/injuries.js';
+import { clinchMarkers, markerLetter, MARKER_LEGEND } from '../../engine/clinch.js';
 import { createGame, simulateGame } from '../../engine/game.js';
 import { fantasyPoints } from '../../engine/stats.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
@@ -85,10 +86,10 @@ export function view(root, params, ctx) {
       </div>
     </div>`;
   } else if (wk) {
-    const bye = playoffs && wk.byes && wk.byes.some((b) => b.team === u);
+    const bye = playoffs ? wk.byes && wk.byes.some((b) => b.team === u) : (wk.byes || []).includes(u);
     matchupCard = html`<div class="card">
-      <h3>${roundName || `Week ${league.week}`}</h3>
-      <p class="muted">${bye ? 'You have a bye this round. Rest up.' : playoffs ? 'You have been eliminated from the playoffs. Sim the remaining rounds to crown a champion.' : 'You are idle this week.'}</p>
+      <h3>${roundName || `Week ${league.week}`}${bye && !playoffs ? ' · Bye week' : ''}</h3>
+      <p class="muted">${bye ? (playoffs ? 'You have a bye this round. Rest up.' : 'Your bye week. Injuries heal a week, the wire stays open, and the rest of the league plays on.') : playoffs ? 'You have been eliminated from the playoffs. Sim the remaining rounds to crown a champion.' : 'You are idle this week.'}</p>
       <div class="btn-group">
         ${!complete ? html`<button class="btn primary" id="simWeek">Sim ${playoffs ? 'round' : 'week'}</button>` : ''}
         ${complete ? html`<button class="btn primary lg" id="advance">${playoffs ? 'Next round' : 'Advance'}</button>` : ''}
@@ -108,6 +109,10 @@ export function view(root, params, ctx) {
 
   // ----- standings -----
   let standingsCard;
+  const marks = clinchMarkers(league);
+  const mark = (idx) => { const m = markerLetter(marks[idx]); return m ? `<span class="clinch ${m}" title="${MARKER_LEGEND[m]}">${m}</span>` : ''; };
+  const usedMarks = [...new Set(Object.values(marks).map(markerLetter).filter(Boolean))].sort();
+  const legend = usedMarks.length ? `<small class="muted" style="display:block;margin-top:.4rem">${usedMarks.map((m) => `<b>${m}</b> ${MARKER_LEGEND[m]}`).join(' · ')}</small>` : '';
   if (pro) {
     const table = proStandings(league);
     standingsCard = table.map((conf, ci) => {
@@ -116,13 +121,13 @@ export function view(root, params, ctx) {
           <div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;margin:.5rem 0 .2rem">${conf.name} ${d.name}</div>
           <div class="table-wrap"><table class="standings">
             <thead><tr><th>Team</th><th class="num">W-L</th><th class="num hide-sm">Div</th><th class="num hide-sm">Conf</th><th class="num">Diff</th></tr></thead>
-            <tbody>${d.rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${teamChip(r.team, { responsive: true }).__raw}${i === 0 && r.gp ? ' <span class="badge" title="leads the division">1st</span>' : ''}</td><td class="num">${recOf(r)}</td><td class="num hide-sm">${recOf(r.divRec)}</td><td class="num hide-sm">${recOf(r.confRec)}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join('')}</tbody>
+            <tbody>${d.rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${mark(r.idx)}${teamChip(r.team, { responsive: true }).__raw}${i === 0 && r.gp && !marks[r.idx]?.division ? ' <span class="badge" title="leads the division">1st</span>' : ''}</td><td class="num">${recOf(r)}</td><td class="num hide-sm">${recOf(r.divRec)}</td><td class="num hide-sm">${recOf(r.confRec)}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join('')}</tbody>
           </table></div>
         </div>`).join('');
       const seeds = conf.seeds.map((idx, i) => `<span class="need ${idx === u ? 'open' : ''}">${i + 1}. ${league.teams[idx].abbr}${i < 4 ? '' : ' <small>wc</small>'}</span>`).join('');
       const hunt = conf.inHunt.map((idx) => league.teams[idx].abbr).join(', ');
       return `<div class="card tight"><h3>${conf.name} Conference</h3>${divs}
-        <div style="margin-top:.6rem"><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Playoff picture</div><div class="needs" style="margin-top:.3rem">${seeds}</div>${hunt ? `<small class="muted">In the hunt: ${hunt}</small>` : ''}</div>
+        <div style="margin-top:.6rem"><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Playoff picture</div><div class="needs" style="margin-top:.3rem">${seeds}</div>${hunt ? `<small class="muted">In the hunt: ${hunt}</small>` : ''}${ci === 1 ? legend : ''}</div>
       </div>`;
     }).join('');
     standingsCard = raw(standingsCard);
@@ -132,8 +137,9 @@ export function view(root, params, ctx) {
       <h3>Standings</h3>
       <div class="table-wrap"><table class="standings">
         <thead><tr><th>#</th><th>Team</th><th class="num">W</th><th class="num">L</th><th class="num hide-sm">T</th><th class="num hide-sm">PCT</th><th class="num hide-sm">PF</th><th class="num hide-sm">PA</th><th class="num">Diff</th></tr></thead>
-        <tbody>${raw(rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${i + 1}</td><td>${teamChip(r.team).__raw}</td><td class="num">${r.w}</td><td class="num">${r.l}</td><td class="num hide-sm">${r.t}</td><td class="num hide-sm">${r.gp ? r.pct.toFixed(3).replace(/^0/, '') : '—'}</td><td class="num hide-sm">${r.pf}</td><td class="num hide-sm">${r.pa}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join(''))}</tbody>
+        <tbody>${raw(rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${i + 1}</td><td>${mark(r.idx)}${teamChip(r.team).__raw}</td><td class="num">${r.w}</td><td class="num">${r.l}</td><td class="num hide-sm">${r.t}</td><td class="num hide-sm">${r.gp ? r.pct.toFixed(3).replace(/^0/, '') : '—'}</td><td class="num hide-sm">${r.pf}</td><td class="num hide-sm">${r.pa}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join(''))}</tbody>
       </table></div>
+      ${raw(legend)}
     </div>`;
   }
 
@@ -182,10 +188,10 @@ export function view(root, params, ctx) {
     <div class="grid grid-2" style="margin-top:1rem">
       <div class="stack">
         ${bracketCard}
-        ${wk && league.phase === 'season' ? html`<div class="card tight"><h3>Week ${league.week} games${pro ? html` <small class="muted" style="text-transform:none;letter-spacing:0">· ${wk.games.length} games</small>` : ''}</h3><div class="stack">${raw(gamesList(wk.games, 'w', league.week))}</div></div>` : ''}
+        ${wk && league.phase === 'season' ? html`<div class="card tight"><h3>Week ${league.week} games${pro ? html` <small class="muted" style="text-transform:none;letter-spacing:0">· ${wk.games.length} games</small>` : ''}</h3><div class="stack">${raw(gamesList(wk.games, 'w', league.week))}</div>${(wk.byes || []).length ? html`<small class="muted" style="display:block;margin-top:.5rem">Bye: ${wk.byes.map((i) => league.teams[i].abbr).join(', ')}</small>` : ''}</div>` : ''}
         ${standingsCard}
         <details class="card tight"><summary><b>Full schedule &amp; results</b></summary>
-          <div class="stack" style="margin-top:.5rem">${raw(league.schedule.map((w) => `<div><div class="muted" style="font-size:.8rem;margin:.4rem 0 .2rem">Week ${w.week}${w.week === league.week && league.phase === 'season' ? ' (current)' : ''}</div><div class="stack">${gamesList(w.games, 'w', w.week)}</div></div>`).join(''))}</div>
+          <div class="stack" style="margin-top:.5rem">${raw(league.schedule.map((w) => `<div><div class="muted" style="font-size:.8rem;margin:.4rem 0 .2rem">Week ${w.week}${w.week === league.week && league.phase === 'season' ? ' (current)' : ''}${(w.byes || []).length ? ` · bye: ${w.byes.map((i) => league.teams[i].abbr).join(', ')}` : ''}</div><div class="stack">${gamesList(w.games, 'w', w.week)}</div></div>`).join(''))}</div>
         </details>
       </div>
       <div class="stack">

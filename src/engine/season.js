@@ -223,16 +223,25 @@ function crossRounds(a, b, count = 4) {
  *   6  division games (home and away against three rivals)
  *   4  against one other division in the conference (rotates by season)
  *   4  against one division in the other conference (rotates by season)
- *   2  against a second same-conference division
- *   1  against a second other-conference division
- * Every block is a set of perfect matchings over all 32 teams, so each week has
- * exactly 16 games and nobody sits. Blocks are shuffled into 17 weeks.
+ *   2  against the two remaining same-conference divisions, one game each:
+ *      from season two, against the club that finished in the same place
+ *      in its division last season; in season one, by rotation
+ *   1  against a second other-conference division, same-place from season two
+ * Every block is a set of perfect matchings over all 32 teams. The calendar
+ * is 18 weeks: the six division rounds land somewhere in weeks 5 to 14 and
+ * each division sits out one of them, its two games that week moving to a
+ * week 18 made entirely of division games. So every club plays 17, rests
+ * once between weeks 5 and 14, and the last week is all rivalries.
+ *
+ * `prevRanks` maps team index -> finishing place in its division last season
+ * (1..4); without it the two rank-based blocks fall back to a rotation.
  */
-export function buildProSchedule(teams, rng, season = 1) {
+export function buildProSchedule(teams, rng, season = 1, prevRanks = null) {
   const div = (c, d) => teams.map((t, i) => (t.conf === c && t.div === d ? i : -1)).filter((i) => i >= 0);
   const D = [0, 1].map((c) => [0, 1, 2, 3].map((d) => div(c, d)));
-  const rounds = [];
-  const push = (list) => list.forEach((games) => rounds.push(games));
+  const ranked = prevRanks && teams.every((_, i) => prevRanks[i] >= 1 && prevRanks[i] <= 4)
+    ? (c, d) => D[c][d].slice().sort((a, b) => prevRanks[a] - prevRanks[b])
+    : null;
 
   // Division blocks: a double round-robin inside every division, all at once.
   const divRounds = [];
@@ -241,45 +250,105 @@ export function buildProSchedule(teams, rng, season = 1) {
     const both = [...rr, ...rr.map((g) => g.map((x) => ({ home: x.away, away: x.home })))];
     both.forEach((games, r) => { (divRounds[r] ??= []).push(...games); });
   }
-  push(divRounds);
 
   // Rotations: which divisions meet this season.
   const s = (season - 1) % 3;
   const intraPairs = [[[0, 1], [2, 3]], [[0, 2], [1, 3]], [[0, 3], [1, 2]]];
   const intra = intraPairs[s];
-  const intra2 = intraPairs[(s + 1) % 3];
   const interShift = (season - 1) % 4;
+  const other = [];
 
   // Four games against one same-conference division.
   const intraRounds = [];
   for (let c = 0; c < 2; c++) for (const [a, b] of intra) {
     crossRounds(D[c][a], D[c][b]).forEach((games, r) => { (intraRounds[r] ??= []).push(...games); });
   }
-  push(intraRounds);
+  other.push(...intraRounds);
 
   // Four games against one other-conference division.
   const interRounds = [];
   for (let d = 0; d < 4; d++) {
     crossRounds(D[0][d], D[1][(d + interShift) % 4]).forEach((games, r) => { (interRounds[r] ??= []).push(...games); });
   }
-  push(interRounds);
+  other.push(...interRounds);
 
-  // Two games against a second same-conference division.
-  const intra2Rounds = [];
-  for (let c = 0; c < 2; c++) for (const [a, b] of intra2) {
-    crossRounds(D[c][a], D[c][b], 2).forEach((games, r) => { (intra2Rounds[r] ??= []).push(...games); });
+  // Two more same-conference games: one against each division not played in full.
+  if (ranked) {
+    // Same-place pairings. With the full block pairing (A,B) and (C,D), the
+    // weeks are A-C with B-D, then A-D with B-C, so each is a perfect matching.
+    const parity = season % 2;
+    for (const [w, pairs] of [[0, [[0, 1], [1, 0]]], [1, [[0, 0], [1, 1]]]].map(([w, m]) => [w, m])) {
+      const games = [];
+      for (let c = 0; c < 2; c++) {
+        const [[a, b], [cc, dd]] = intra;
+        const combos = w === 0 ? [[a, cc], [b, dd]] : [[a, dd], [b, cc]];
+        for (const [x, y] of combos) {
+          const X = ranked(c, x), Y = ranked(c, y);
+          for (let r = 0; r < 4; r++) {
+            const xHosts = (r % 2 === parity) !== (w === 1);
+            games.push(xHosts ? { home: X[r], away: Y[r] } : { home: Y[r], away: X[r] });
+          }
+        }
+      }
+      other.push(games);
+      void pairs;
+    }
+  } else {
+    const intra2 = intraPairs[(s + 1) % 3];
+    const intra2Rounds = [];
+    for (let c = 0; c < 2; c++) for (const [a, b] of intra2) {
+      crossRounds(D[c][a], D[c][b], 2).forEach((games, r) => { (intra2Rounds[r] ??= []).push(...games); });
+    }
+    other.push(...intra2Rounds);
   }
-  push(intra2Rounds);
 
   // The seventeenth game: one more cross-conference opponent.
   const extra = [];
   for (let d = 0; d < 4; d++) {
-    crossRounds(D[0][d], D[1][(d + interShift + 2) % 4], 1).forEach((games) => extra.push(...games));
+    const e = (d + interShift + 2) % 4;
+    if (ranked) {
+      const A = ranked(0, d), N = ranked(1, e);
+      for (let r = 0; r < 4; r++) extra.push(season % 2 === 0 ? { home: A[r], away: N[r] } : { home: N[r], away: A[r] });
+    } else {
+      crossRounds(D[0][d], D[1][e], 1).forEach((games) => extra.push(...games));
+    }
   }
-  rounds.push(extra);
+  other.push(extra);
 
-  const ordered = rng ? rng.shuffle(rounds) : rounds;
-  return ordered.map((games, i) => ({ week: i + 1, games: games.map((g) => ({ ...g, result: null })) }));
+  // Calendar: division rounds carry the byes and sit in weeks 5-14.
+  const shuffled = rng ? rng.shuffle(other) : other;
+  const byeWeeks = (rng ? rng.shuffle([5, 6, 7, 8, 9, 10, 11, 12, 13, 14]) : [5, 6, 7, 8, 9, 10]).slice(0, 6).sort((a, b) => a - b);
+  const divisions = [];
+  for (let c = 0; c < 2; c++) for (let d = 0; d < 4; d++) divisions.push([c, d]);
+  const divOrder = rng ? rng.shuffle(divisions) : divisions;
+  // Eight divisions over six bye weeks: two of the weeks rest two divisions.
+  const byeSets = byeWeeks.map(() => []);
+  divOrder.forEach((dv, i) => byeSets[i % 6].push(dv));
+  const lastWeek = [];
+  const weeks = [];
+  let o = 0, d = 0;
+  for (let w = 1; w <= 17; w++) {
+    const bi = byeWeeks.indexOf(w);
+    if (bi >= 0) {
+      const resting = byeSets[bi];
+      const isResting = (i) => resting.some(([c, dd]) => teams[i].conf === c && teams[i].div === dd);
+      const games = [], byes = [];
+      for (const g of divRounds[d++]) {
+        if (isResting(g.home)) { lastWeek.push(g); byes.push(g.home, g.away); } else games.push(g);
+      }
+      weeks.push({ week: w, games, byes: byes.sort((a, b) => a - b) });
+    } else {
+      weeks.push({ week: w, games: shuffled[o++], byes: [] });
+    }
+  }
+  weeks.push({ week: 18, games: lastWeek, byes: [] });
+  return weeks.map((wk) => ({ ...wk, games: wk.games.map((g) => ({ ...g, result: null })) }));
+}
+
+/** Last season's finishing place inside each division, for the standings-based games. */
+export function previousDivisionRanks(league) {
+  const last = (league.history || []).slice().reverse().find((h) => h.season === league.season - 1 && h.divRanks);
+  return last ? last.divRanks : null;
 }
 
 /**
@@ -306,7 +375,7 @@ export function sortDepthCharts(league, byId) {
 export function startSeason(league, byId) {
   if (byId) sortDepthCharts(league, byId);
   const rng = new RNG(league.rngState);
-  league.schedule = isPro(league) ? buildProSchedule(league.teams, rng, league.season) : buildSchedule(league.teams.length, rng);
+  league.schedule = isPro(league) ? buildProSchedule(league.teams, rng, league.season, previousDivisionRanks(league)) : buildSchedule(league.teams.length, rng);
   league.week = 1;
   league.phase = 'season';
   league.offseason = null;
@@ -433,10 +502,29 @@ function recordVs(league, a, keep) {
   return r;
 }
 
+/** Opponents a club has played this season (regular season), with multiplicity. */
+function opponentsOf(league, a) {
+  const out = [];
+  for (const g of league.results) {
+    if (g.phase !== 'season' || g.season !== league.season) continue;
+    if (g.home === a) out.push(g.away); else if (g.away === a) out.push(g.home);
+  }
+  return out;
+}
+
+/** Combined record of a set of opponents: strength of schedule, or of victory when filtered to wins. */
+function combined(league, opps) {
+  const r = { w: 0, l: 0, t: 0 };
+  for (const o of opps) { r.w += league.teams[o].record.w; r.l += league.teams[o].record.l; r.t += league.teams[o].record.t; }
+  return pctOf(r);
+}
+
 /**
- * Tiebreak order: win%, head-to-head, division record (same division only),
- * conference record, point differential, points for. The last two keep a
- * fantasy league deterministic as well.
+ * Tiebreak order. Fantasy: win%, head-to-head, point differential, points
+ * for. Pro, the real league's order for two clubs: win%, head-to-head,
+ * division record (same division only), conference record, common games
+ * (at least four), strength of victory, strength of schedule, then point
+ * differential and points for so a table is always deterministic.
  */
 function makeComparator(league) {
   const teams = league.teams;
@@ -455,6 +543,27 @@ function makeComparator(league) {
       }
       const d3 = pctOf(recordVs(league, b, (o) => teams[o].conf === teams[b].conf)) - pctOf(recordVs(league, a, (o) => teams[o].conf === teams[a].conf));
       if (Math.abs(d3) > 1e-9) return d3;
+      // Common games: opponents both have faced, when there are at least four.
+      const oa = opponentsOf(league, a), ob = opponentsOf(league, b);
+      const common = new Set(oa.filter((o) => ob.includes(o) && o !== a && o !== b));
+      if (common.size >= 4) {
+        const d4 = pctOf(recordVs(league, b, (o) => common.has(o))) - pctOf(recordVs(league, a, (o) => common.has(o)));
+        if (Math.abs(d4) > 1e-9) return d4;
+      }
+      // Strength of victory, then strength of schedule.
+      const beaten = (x) => {
+        const out = [];
+        for (const g of league.results) {
+          if (g.phase !== 'season' || g.season !== league.season) continue;
+          if (g.home === x && g.score[0] > g.score[1]) out.push(g.away);
+          else if (g.away === x && g.score[1] > g.score[0]) out.push(g.home);
+        }
+        return out;
+      };
+      const d5 = combined(league, beaten(b)) - combined(league, beaten(a));
+      if (Math.abs(d5) > 1e-9) return d5;
+      const d6 = combined(league, ob) - combined(league, oa);
+      if (Math.abs(d6) > 1e-9) return d6;
     }
     const diff = (rb.pf - rb.pa) - (ra.pf - ra.pa);
     if (diff) return diff;
@@ -614,6 +723,7 @@ function crown(league, idx) {
     // Where everyone finished, so the hub can tell a dynasty's story.
     finish: table.map((r) => r.idx),
     user: { rank: table.findIndex((r) => r.idx === u) + 1, record: { ...league.teams[u].record } },
+    divRanks: isPro(league) ? Object.fromEntries(proStandings(league).flatMap((conf) => conf.divisions.flatMap((dv) => dv.rows.map((r, i) => [r.idx, i + 1])))) : null,
   });
 }
 

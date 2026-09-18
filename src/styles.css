@@ -107,6 +107,9 @@ tr.dim td { color: var(--muted); }
 .badge.slot { background: #24382b; color: #b9d2c3; font-family: var(--mono); }
 .badge.out { background: #4a2626; color: #ffb3b0; }
 .badge.rep { background: #3a3a3a; color: #cfcfcf; }
+.clinch { display: inline-block; min-width: 1.1rem; margin-right: .3rem; font-family: var(--mono); font-size: .75rem; font-weight: 700; text-align: center; border-radius: 4px; padding: 0 .2rem; background: var(--bg-3); color: var(--muted); }
+.clinch.x, .clinch.y, .clinch.z { background: #2c4a37; color: #cfe6d6; }
+.clinch.e { background: #4a2626; color: #ffb3b0; }
 .ovr { display: inline-flex; align-items: center; justify-content: center; min-width: 2.3rem; height: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: 6px; background: #333; color: #fff; flex: none; }
 .ovr.o95 { background: #d4a017; color: #1a1a1a; } .ovr.o90 { background: #3a9d5a; } .ovr.o85 { background: #2f7d9a; } .ovr.o80 { background: #5b6b7a; } .ovr.o0 { background: #444; }
 .attr { font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }

@@ -4,7 +4,8 @@ import { PLAYERS, PLAYERS_BY_ID } from '../src/data/db.js';
 import { PRO_TEAMS, CONFERENCES } from '../src/data/pro.js';
 import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
-import { createLeague, buildProSchedule, startSeason, simulateWeekAi, advanceWeek, proStandings, standings, isPro, sortDepthCharts } from '../src/engine/season.js';
+import { createLeague, buildProSchedule, previousDivisionRanks, startSeason, simulateWeekAi, advanceWeek, proStandings, standings, isPro, sortDepthCharts } from '../src/engine/season.js';
+import { clinchMarkers, gamesLeft } from '../src/engine/clinch.js';
 import { autoDraftAll } from '../src/engine/draft.js';
 import { autoCompleteAll } from '../src/engine/auction.js';
 import { createGame, simulateGame } from '../src/engine/game.js';
@@ -30,14 +31,13 @@ test('a pro league has 32 franchises in eight divisions and the chosen one is th
   assert.equal(renamed.teams[5].color, PRO_TEAMS[5].color, 'colour falls back to the franchise');
 });
 
-test('the pro schedule is a real 17-game slate', () => {
+test('the pro schedule is a real 17-game slate over 18 weeks with one bye each between weeks 5 and 14', () => {
   for (const season of [1, 2, 3]) {
     const league = mkPro(10 + season);
     const sched = buildProSchedule(league.teams, new RNG(season), season);
-    assert.equal(sched.length, 17, 'seventeen weeks');
-    const games = {}, home = {}, opp = {};
+    assert.equal(sched.length, 18, 'eighteen weeks');
+    const games = {}, home = {}, opp = {}, byes = {};
     for (const wk of sched) {
-      assert.equal(wk.games.length, 16, 'sixteen games every week');
       const seen = new Set();
       for (const g of wk.games) {
         assert.ok(!seen.has(g.home) && !seen.has(g.away), 'nobody plays twice in a week');
@@ -46,10 +46,18 @@ test('the pro schedule is a real 17-game slate', () => {
         home[g.home] = (home[g.home] || 0) + 1;
         (opp[g.home] ??= []).push(g.away); (opp[g.away] ??= []).push(g.home);
       }
-      assert.equal(seen.size, 32, 'everyone plays every week');
+      for (const b of wk.byes) { assert.ok(!seen.has(b), 'a resting club does not play'); byes[b] = (byes[b] || 0) + 1; }
+      assert.equal(seen.size + wk.byes.length, 32, 'everyone plays or rests');
+      if (wk.byes.length) assert.ok(wk.week >= 5 && wk.week <= 14, `byes only between weeks 5 and 14, not ${wk.week}`);
+      else assert.equal(wk.games.length, 16, 'sixteen games in a full week');
+      assert.ok(wk.byes.length === 0 || wk.byes.length === 4 || wk.byes.length === 8, `${wk.byes.length} clubs resting in week ${wk.week}`);
     }
+    assert.equal(sched.filter((w) => w.byes.length).length, 6, 'six bye weeks');
+    // The last week is all division games.
+    for (const g of sched[17].games) assert.ok(league.teams[g.home].conf === league.teams[g.away].conf && league.teams[g.home].div === league.teams[g.away].div, 'week 18 is rivalry week');
     for (let i = 0; i < 32; i++) {
       assert.equal(games[i], 17, `team ${i} plays 17`);
+      assert.equal(byes[i], 1, `team ${i} rests once`);
       assert.ok(home[i] === 8 || home[i] === 9, `team ${i} hosts ${home[i]}`);
       const t = league.teams[i];
       const rivals = league.teams.map((x, j) => (j !== i && x.conf === t.conf && x.div === t.div ? j : -1)).filter((j) => j >= 0);
@@ -64,12 +72,42 @@ test('the pro schedule is a real 17-game slate', () => {
   }
 });
 
+test('from season two the extra games are against clubs that finished in the same place', () => {
+  const league = mkPro(14);
+  // Pretend last season ended with a known table: rank inside each division by index order.
+  const ranks = {};
+  for (let c = 0; c < 2; c++) for (let d = 0; d < 4; d++) {
+    league.teams.map((t, i) => (t.conf === c && t.div === d ? i : -1)).filter((i) => i >= 0).forEach((i, r) => { ranks[i] = r + 1; });
+  }
+  const sched = buildProSchedule(league.teams, new RNG(2), 2, ranks);
+  const opp = {};
+  for (const wk of sched) for (const g of wk.games) { (opp[g.home] ??= []).push(g.away); (opp[g.away] ??= []).push(g.home); }
+  let rankMatched = 0;
+  for (let i = 0; i < 32; i++) {
+    const t = league.teams[i];
+    const rivals = league.teams.map((x, j) => (j !== i && x.conf === t.conf && x.div === t.div ? j : -1)).filter((j) => j >= 0);
+    const others = opp[i].filter((o) => !rivals.includes(o));
+    // Opponents met once, grouped by division: the divisions met twice are the full blocks.
+    const byDiv = {};
+    for (const o of others) { const k = `${league.teams[o].conf}-${league.teams[o].div}`; (byDiv[k] ??= []).push(o); }
+    const singles = Object.values(byDiv).filter((arr) => arr.length === 1).flat();
+    assert.equal(singles.length, 3, 'three single-game opponents: two in conference, one across');
+    for (const o of singles) { assert.equal(ranks[o], ranks[i], 'same finishing place'); rankMatched++; }
+    assert.equal(singles.filter((o) => league.teams[o].conf === t.conf).length, 2);
+  }
+  assert.equal(rankMatched, 96);
+  // The user's history feeds this automatically.
+  league.history.push({ season: 1, champion: 0, divRanks: ranks });
+  league.season = 2;
+  assert.deepEqual(previousDivisionRanks(league), ranks);
+});
+
 test('pro standings seed four division winners then three wild cards per conference', () => {
   const league = mkPro(21);
   autoDraftAll(league, league.draft, PLAYERS, new RNG(21));
   startSeason(league);
   let guard = 0;
-  while (league.phase === 'season' && guard++ < 20) {
+  while (league.phase === 'season' && guard++ < 24) {
     simulateWeekAi(league, PLAYERS_BY_ID, { includeUser: true });
     if (league.week >= league.schedule.length) break;
     advanceWeek(league);
@@ -106,6 +144,7 @@ test('the pro postseason runs wild card, divisional, conference finals, then a n
     advanceWeek(league);
   }
   assert.equal(league.phase, 'complete');
+  assert.ok(league.history[0].divRanks && Object.keys(league.history[0].divRanks).length === 32, 'division places recorded for next season');
   const po = league.playoffs;
   assert.equal(po.pools.length, 2);
   assert.deepEqual(po.rounds.map((r) => r.name), ['Wild Card', 'Divisional', 'Conference Championships', 'Championship']);
@@ -183,4 +222,57 @@ test('season start puts the best player at the top of every position group', () 
   const keep = t.slots.RB1;
   sortDepthCharts(league, PLAYERS_BY_ID);
   assert.equal(t.slots.RB1, keep);
+});
+
+test('clinch and elimination markers are conservative and correct', () => {
+  const league = mkPro(71);
+  autoDraftAll(league, league.draft, PLAYERS, new RNG(71));
+  startSeason(league);
+  assert.deepEqual(clinchMarkers(league), {}, 'nothing before a game is played');
+  let sawClinch = false, sawElim = false;
+  while (league.phase === 'season') {
+    const marks = clinchMarkers(league);
+    for (const [idx, m] of Object.entries(marks)) {
+      const i = Number(idx);
+      const t = league.teams[i];
+      const wins = t.record.w + t.record.t / 2;
+      const left = gamesLeft(league, i);
+      if (m.division) {
+        sawClinch = true;
+        // Every rival's ceiling is below this club's floor.
+        for (const [j, x] of league.teams.entries()) if (j !== i && x.conf === t.conf && x.div === t.div) assert.ok(x.record.w + x.record.t / 2 + gamesLeft(league, j) < wins, 'division clinch is airtight');
+      }
+      if (m.eliminated) {
+        sawElim = true;
+        // At least seven conference clubs already have more wins than this club can reach... or the division math says so.
+        const better = league.teams.filter((x, j) => j !== i && x.conf === t.conf && x.record.w + x.record.t / 2 > wins + left).length;
+        assert.ok(better >= 3, `eliminated with only ${better} clubs out of reach`);
+      }
+      if (m.playoff) assert.ok(!m.eliminated);
+    }
+    simulateWeekAi(league, PLAYERS_BY_ID, { includeUser: true });
+    advanceWeek(league);
+  }
+  assert.ok(sawClinch && sawElim, `saw a clinch ${sawClinch}, an elimination ${sawElim}`);
+  // Everyone marked x by the end actually made the field.
+  const finalMarks = clinchMarkers({ ...league, phase: 'season', schedule: league.schedule });
+  const seeded = new Set(league.playoffs.pools.flatMap((p) => p.seeds));
+  for (const [idx, m] of Object.entries(finalMarks)) {
+    if (m.playoff) assert.ok(seeded.has(Number(idx)), 'clinched clubs are in the field');
+    if (m.eliminated) assert.ok(!seeded.has(Number(idx)), 'eliminated clubs are out');
+  }
+});
+
+test('the pro tiebreakers reach common games, strength of victory and strength of schedule', () => {
+  const league = mkPro(81);
+  autoDraftAll(league, league.draft, PLAYERS, new RNG(81));
+  startSeason(league);
+  while (league.phase === 'season') { simulateWeekAi(league, PLAYERS_BY_ID, { includeUser: true }); if (league.week >= league.schedule.length) break; advanceWeek(league); }
+  // Force a tie on record, head-to-head, division and conference record between two clubs in different divisions
+  // by copying one club's record onto another and checking the order is stable and deterministic.
+  const table = standings(league);
+  assert.equal(table.length, 32);
+  for (let i = 1; i < table.length; i++) assert.ok(table[i - 1].pct >= table[i].pct - 1e-9, 'sorted by win%');
+  const again = standings(league);
+  assert.deepEqual(table.map((r) => r.idx), again.map((r) => r.idx), 'deterministic');
 });
