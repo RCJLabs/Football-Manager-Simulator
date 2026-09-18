@@ -4,6 +4,7 @@ import { OFFENSE_CALLS, DEFENSE_CALLS, fgDistance, fgProbability } from '../../e
 import { fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { currentWeek, simulateWeekAi, recordResult, weekNumber, userTeamIndex } from '../../engine/season.js';
 import { teamChip } from '../components.js';
+import { wpChart, wpLabel, driveChart, gameStory } from '../charts.js';
 
 export const selfRendering = true;
 
@@ -92,6 +93,8 @@ export function view(root, params, ctx) {
     }
 
     const last = g.lastCall && g.phase !== 'kickoff' && !g.final ? `Last: ${OFFENSE_CALLS[g.lastCall.off]?.label || g.lastCall.off} vs ${DEFENSE_CALLS[g.lastCall.def]?.label || g.lastCall.def}` : '';
+    const wpNow = g.lastEvent && typeof g.lastEvent.wp === 'number' ? g.lastEvent.wp : null;
+    const story = g.final ? gameStory({ teams: g.teams, score: g.score, final: true, overtime: g.quarter >= 5, log: g.log, players: [g.stats[0].players, g.stats[1].players], injuries: g.teams.map((t) => t.injuries || []) }, ctx.byId) : [];
     const logItems = g.log.slice().reverse().map((e, i) => {
       const cls = e.type === 'drive' ? 'drive' : e.type === 'injury' ? 'injury' : e.flag && !e.scoring ? 'penalty' : e.type === 'quarter' || e.type === 'final' || e.type === 'info' ? 'quarter' : e.scoring ? 'scoring' : (e.type === 'int' || e.type === 'fumble' || /Turnover on downs/.test(e.text)) ? 'turnover' : '';
       return `<li class="${cls} ${i === 0 ? 'latest' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`;
@@ -104,6 +107,7 @@ export function view(root, params, ctx) {
           <div class="q">${g.final ? 'FINAL' : `${fmtQuarter(g.quarter)} · ${fmtClock(g.clock)}`}</div>
           <div class="dd">${g.final ? (g.quarter >= 5 ? 'Overtime' : '') : g.phase === 'play' ? downText(g) : g.phase === 'pat' ? 'PAT' : 'Kickoff'}</div>
           <div class="spot">${g.phase === 'play' && !g.final ? `${g.teams[off].abbr} ball at ${spot(g, off, g.ballOn)}` : ''}</div>
+          ${wpNow != null && !g.final ? html`<div class="wpnow" title="win probability">${wpLabel(wpNow, g.teams)}</div>` : ''}
         </div>
         <div class="sb-team ${off === 1 && !g.final ? 'poss' : ''}"><span class="name">${teamChip(away, { responsive: true })}</span><span class="score">${g.score[1]}</span><span class="to">${'●'.repeat(g.timeouts[1])}${'○'.repeat(Math.max(0, 3 - g.timeouts[1]))}</span></div>
       </div>
@@ -113,10 +117,16 @@ export function view(root, params, ctx) {
         ${fdX != null && fdX > 0 && fdX < 100 ? html`<div class="marker" style="left:${6 + fdX * 0.88}%"></div>` : ''}
         ${g.phase === 'play' ? html`<div class="ball" style="left:${6 + ballX * 0.88}%"></div>` : ''}
       </div>
+      ${story.length ? html`<div class="card tight" style="margin-bottom:.75rem"><h3>Game story</h3>${raw(story.map((s) => `<p style="margin:.3rem 0;font-size:.92rem">${s}</p>`).join(''))}</div>` : ''}
       <div class="card tight" style="margin-bottom:.75rem">
         ${controls}
         ${last ? html`<small class="muted">${last}</small>` : ''}
       </div>
+      ${g.log.length > 2 ? html`<div class="card tight" style="margin-bottom:.75rem">
+        <div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span><span class="teamdot" style="background:${home.color}"></span>${home.abbr} above the line · <span class="teamdot" style="background:${away.color}"></span>${away.abbr} below</span></div>
+        ${raw(wpChart(g.log, g.teams))}
+        ${g.drives.length ? html`<details style="margin-top:.4rem"><summary class="muted" style="cursor:pointer;font-size:.8rem">Drive chart · ${g.drives.length} drives</summary>${raw(driveChart(g.drives, g.teams))}</details>` : ''}
+      </div>` : ''}
       <ul class="pbp card tight" style="padding:0">${raw(logItems)}</ul>
       <p class="muted" style="font-size:.8rem;margin-top:.5rem">${home.name} (home) vs ${away.name}. ${league.phase === 'playoffs' ? 'Playoff rules: overtime continues until someone wins.' : 'Regular season: one 10-minute overtime, ties allowed.'} <a href="#/season">Back to season hub</a> (the game is saved).</p>
     `);

@@ -2,6 +2,7 @@ import { html, render, raw, pct } from '../../util.js';
 import { fantasyPoints, fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { teamChip, esc } from '../components.js';
 import { replacementFromId, fmtWeeks } from '../../engine/injuries.js';
+import { wpChart, driveChart, gameStory } from '../charts.js';
 
 export function view(root, params, ctx) {
   const state = ctx.getState();
@@ -11,19 +12,22 @@ export function view(root, params, ctx) {
   if (params.kind === 'live') {
     if (!state.game) { ctx.navigate('#/season'); return; }
     const g = state.game.g;
-    box = { teams: g.teams, score: g.score, teamStats: [g.stats[0].team, g.stats[1].team], players: [g.stats[0].players, g.stats[1].players], log: g.log, overtime: g.quarter >= 5, final: g.final, back: '#/game', injuries: g.teams.map((t) => t.injuries || []) };
+    box = { teams: g.teams, score: g.score, teamStats: [g.stats[0].team, g.stats[1].team], players: [g.stats[0].players, g.stats[1].players], log: g.log, drives: g.drives, overtime: g.quarter >= 5, final: g.final, back: '#/game', injuries: g.teams.map((t) => t.injuries || []) };
   } else {
     const list = params.kind === 'p' ? league.playoffs?.rounds[Number(params.a) - 1]?.games : league.schedule[Number(params.a) - 1]?.games;
     const entry = list && list[Number(params.b)];
     if (!entry || !entry.result) { render(root, html`<div class="card"><p class="empty">No box score for that game.</p><a class="btn" href="#/season">Back</a></div>`); return; }
     const r = entry.result;
-    box = { teams: [league.teams[entry.home], league.teams[entry.away]], score: r.score, teamStats: r.teamStats, players: r.players, log: r.log, overtime: r.overtime, final: true, back: '#/season', injuries: r.injuries || [[], []],
+    box = { teams: [league.teams[entry.home], league.teams[entry.away]], score: r.score, teamStats: r.teamStats, players: r.players, log: r.log, drives: r.drives, overtime: r.overtime, final: true, back: '#/season', injuries: r.injuries || [[], []],
       title: params.kind === 'p' ? league.playoffs.rounds[Number(params.a) - 1].name : `Week ${params.a}` };
   }
   const [h, a] = box.teams;
   const ts = box.teamStats;
   const cmp = (label, f, fmt = (v) => v) => `<div class="l">${fmt(f(ts[0]))}</div><div class="m">${label}</div><div>${fmt(f(ts[1]))}</div>`;
   const scoring = (box.log || []).filter((e) => e.scoring);
+  const story = box.final && box.log ? gameStory(box, ctx.byId) : [];
+  const wp = box.log ? wpChart(box.log, box.teams) : '';
+  const drives = box.drives ? driveChart(box.drives, box.teams) : '';
   const injuryRows = (box.injuries || []).flatMap((list, side) => list.map((x) => {
     const p = ctx.byId.get(x.id);
     const when = x.weeks === 0 ? 'left the game' : `out ${fmtWeeks(x.weeks)}`;
@@ -74,6 +78,11 @@ export function view(root, params, ctx) {
         ${raw(cmp('Possession', (t) => fmtClock(t.top)))}
       </div>
     </div>
+    ${story.length ? html`<div class="card tight" style="margin-top:.75rem"><h3>Game story</h3>${raw(story.map((s) => `<p style="margin:.3rem 0;font-size:.92rem">${s}</p>`).join(''))}</div>` : ''}
+    ${wp || drives ? html`<div class="card tight" style="margin-top:.75rem">
+      ${wp ? html`<div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span><span class="teamdot" style="background:${h.color}"></span>${h.abbr} above the line · <span class="teamdot" style="background:${a.color}"></span>${a.abbr} below</span></div>${raw(wp)}` : ''}
+      ${drives ? html`<div class="muted" style="font-size:.78rem;margin-top:.5rem">Drives</div>${raw(drives)}` : ''}
+    </div>` : ''}
     ${injuryRows ? html`<div class="card tight" style="margin-top:.75rem"><h3>Injuries</h3><ul class="plain ticker">${raw(injuryRows)}</ul></div>` : ''}
     ${scoring.length ? html`<div class="card tight" style="margin-top:.75rem"><h3>Scoring summary</h3><ul class="plain ticker">${raw(scoring.map((e) => `<li><small class="muted">${fmtQuarter(e.q)} ${fmtClock(e.clock)}</small> ${e.text} <b class="mono">${e.score ? `${e.score[0]}–${e.score[1]}` : ''}</b></li>`).join(''))}</ul></div>` : ''}
     <div class="grid grid-2" style="margin-top:.75rem">

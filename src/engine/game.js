@@ -6,6 +6,7 @@ import { RNG, clamp, edge } from './rng.js';
 import { composites } from './ratings.js';
 import { injuryChance, rollSeverity, POS_RISK, injuryText, fillLineup } from './injuries.js';
 import { rollPreSnap, rollHolding, rollDefensiveFoul, rollReturnFoul, walkOff, penaltyLabel } from './penalties.js';
+import { winProbability, priorMargin } from './winprob.js';
 import {
   chooseOffense, chooseDefense, goForTwo, onsideKick, tempoSeconds, wantsTimeout,
   fgDistance, fgProbability, halfSecondsLeft, scoreDiff, OFFENSE_CALLS,
@@ -68,7 +69,10 @@ export function createGame(home, away, options = {}) {
   g.rngState = rng.state;
   rebuildComp(g, 0);
   rebuildComp(g, 1);
+  // What the stronger roster and the home crowd are worth over a full game; the win-probability model spends it as the clock runs.
+  g.prior = priorMargin(home, away, !homeAdvantage);
   logEvent(g, { type: 'info', text: `${teams[receiving].name} will receive the opening kickoff.` });
+  g.lastEvent.wp = winProbability(g);
   return g;
 }
 
@@ -233,17 +237,29 @@ export function decisionNeeded(g, userTeamIdx, coachDefense) {
 export function step(g, calls = {}) {
   if (g.final) return g;
   const rng = getRng(g);
+  const from = g.log.length;
   // Handle expired clock before running anything but a PAT.
   if (g.clock <= 0 && g.phase !== 'pat') {
     endOfQuarter(g, rng);
     saveRng(g, rng);
-    if (g.final) return g;
+    if (g.final) { stampWp(g, from); return g; }
   }
   if (g.phase === 'kickoff') doKickoff(g, rng);
   else if (g.phase === 'pat') doPat(g, rng, calls.pat);
   else if (g.phase === 'play') doPlay(g, rng, calls);
   saveRng(g, rng);
+  stampWp(g, from);
   return g;
+}
+
+/**
+ * The state is settled at the end of a step (possession changes included), so
+ * every event the step logged carries the home side's chance of winning after
+ * it: the play, and the drive or timeout note that may follow it.
+ */
+function stampWp(g, from) {
+  const wp = winProbability(g);
+  for (let i = from; i < g.log.length; i++) g.log[i].wp = wp;
 }
 
 /** Run plays until the possession changes or a score / end of period. */
