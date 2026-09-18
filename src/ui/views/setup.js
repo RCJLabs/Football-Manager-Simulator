@@ -3,11 +3,14 @@ import { createLeague, startSeason, FANTASY_SIZES } from '../../engine/season.js
 import { ROSTER_SLOTS } from '../../data/positions.js';
 import { INJURY_LEVEL_LABELS, DEFAULT_INJURY_LEVEL } from '../../engine/injuries.js';
 import { defaultKeepers } from '../../engine/season.js';
+import { openNewSlot } from '../../store.js';
+import { decodeLeagueCode, leagueFromSnapshot } from '../../engine/share.js';
 import { autoDraftAll, RNG } from '../../engine/draft.js';
 import { autoCompleteAll } from '../../engine/auction.js';
 import { PRO_TEAMS, CONFERENCES, DIVISIONS } from '../../data/pro.js';
 
 export function view(root, params, ctx) {
+  const hasLeague = !!ctx.getState().league;
   const existing = ctx.getState().league;
   const franchiseOptions = CONFERENCES.map((c, ci) => DIVISIONS.map((d, di) => {
     const opts = PRO_TEAMS.map((t, i) => (t.conf === ci && t.div === di ? `<option value="${i}">${t.name}</option>` : '')).join('');
@@ -74,9 +77,26 @@ export function view(root, params, ctx) {
           <button class="btn primary lg" type="submit">Create league</button>
           <a class="btn ghost" href="#/">Cancel</a>
         </div>
+        ${hasLeague ? html`<small class="muted" style="display:block;margin-top:.5rem">Your current league stays saved in its own slot; this one gets a new slot.</small>` : ''}
       </form>
     </div>
+    <details class="card" style="margin-top:.75rem"><summary style="cursor:pointer"><b>Have a league code?</b> <span class="muted">Open a friend's league with the same rosters.</span></summary>
+      <textarea id="code" rows="3" placeholder="Paste the code here" style="margin-top:.5rem"></textarea>
+      <div class="row" style="margin-top:.5rem"><button class="btn" id="openCode" type="button">Open from code</button></div>
+      <small class="muted" id="codeNote"></small>
+    </details>
   `);
+  root.querySelector('#openCode').addEventListener('click', async () => {
+    const note = root.querySelector('#codeNote');
+    try {
+      const snap = await decodeLeagueCode(root.querySelector('#code').value);
+      const league = leagueFromSnapshot(snap, ctx.players, ctx.byId);
+      if (hasLeague) openNewSlot(league.name);
+      ctx.update((s) => { s.league = league; s.game = null; }, { silent: true });
+      ctx.toast('League opened from code');
+      ctx.navigate('#/season');
+    } catch (err) { note.textContent = err.message; }
+  });
 
   const form = root.querySelector('#setup');
   const modeInputs = form.querySelectorAll('input[name="mode"]');
@@ -127,6 +147,7 @@ export function view(root, params, ctx) {
       league.rngState = rng.state;
       startSeason(league, ctx.byId);
     }
+    if (hasLeague) openNewSlot(league.name);
     ctx.update((s) => { s.league = league; s.game = null; }, { silent: true });
     ctx.navigate(auto ? '#/season' : (draftType === 'auction' ? '#/auction' : '#/draft'));
   });

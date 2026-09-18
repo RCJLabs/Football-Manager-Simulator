@@ -2,6 +2,8 @@ import { html, render, download } from '../../util.js';
 import { exportJSON, importJSON, resetAll } from '../../store.js';
 import { modal } from '../components.js';
 import { INJURY_LEVEL_LABELS } from '../../engine/injuries.js';
+import { encodeLeagueCode } from '../../engine/share.js';
+import { drawRosterCard, shareCanvas } from '../share-card.js';
 
 export function view(root, params, ctx) {
   const s = ctx.getState();
@@ -41,6 +43,16 @@ export function view(root, params, ctx) {
         <hr>
         <button class="btn danger" id="reset" ${league ? '' : 'disabled'}>Delete league</button>
       </div>
+      <div class="card">
+        <h2>Share</h2>
+        <p class="muted">A league code carries every club's roster, contracts and settings at the start of the season, small enough to paste in a chat; a friend opens it from the new-league screen and plays the same league. A roster card is a picture of your starters.</p>
+        <div class="btn-group">
+          <button class="btn" id="copyCode" ${league && league.phase !== 'draft' ? '' : 'disabled'}>Copy league code</button>
+          <button class="btn" id="shareCard" ${league && league.phase !== 'draft' ? '' : 'disabled'}>Share roster card</button>
+        </div>
+        <textarea id="codeOut" rows="3" readonly hidden style="margin-top:.5rem;font-family:var(--mono);font-size:.75rem"></textarea>
+        <small class="muted" id="shareNote"></small>
+      </div>
       <div class="card" style="grid-column:1/-1">
         <h2>About</h2>
         <p>Gridiron Eras is a single-player all-time football simulator. Player ratings are editorial estimates of each player's prime season, scaled so eras can be compared; they are not official statistics. Names are used for identification only — no likenesses, logos, or team marks.</p>
@@ -55,6 +67,24 @@ export function view(root, params, ctx) {
     root.querySelector('#penalties').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.penalties = e.target.checked; }, { silent: true }));
     root.querySelector('#keepers').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.keepers = Number(e.target.value); }, { silent: true }));
   }
+  root.querySelector('#copyCode').addEventListener('click', async () => {
+    const note = root.querySelector('#shareNote'), out = root.querySelector('#codeOut');
+    try {
+      const code = await encodeLeagueCode(league, ctx.players);
+      out.value = code; out.hidden = false;
+      try { await navigator.clipboard.writeText(code); note.textContent = `Copied (${code.length} characters). Results and history are not carried; the code opens at the start of season ${league.season}.`; }
+      catch { note.textContent = 'Copy the code from the box above.'; out.select(); }
+    } catch (err) { note.textContent = err.message; }
+  });
+  root.querySelector('#shareCard').addEventListener('click', async () => {
+    const note = root.querySelector('#shareNote');
+    try {
+      const u = league.teams.findIndex((t) => t.isUser);
+      const canvas = drawRosterCard(league, league.teams[u], ctx.byId);
+      const how = await shareCanvas(canvas, `${(league.teams[u].name || 'roster').replace(/\W+/g, '-').toLowerCase()}.png`);
+      note.textContent = how === 'shared' ? 'Shared.' : 'Saved as a PNG.';
+    } catch (err) { if (err && err.name !== 'AbortError') note.textContent = err.message; }
+  });
   const speed = root.querySelector('#speed');
   speed.addEventListener('input', () => { root.querySelector('#speedLbl').textContent = `${(speed.value / 1000).toFixed(1)}s per play`; });
   speed.addEventListener('change', () => ctx.update((st) => { st.prefs.autoplayMs = Number(speed.value); }, { silent: true }));

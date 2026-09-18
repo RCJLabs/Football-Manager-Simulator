@@ -247,6 +247,14 @@ Three things an AI club does that a preset never did.
 
 Depth charts were already revisited after every waiver claim and trade. Not built: AI clubs proposing trades to the human (the position-matching rule leaves few deals that are good for both sides and worth the interruption) and any memory of a specific opponent beyond the ratings.
 
+## Save slots and sharing (`slots.js`, `share.js`)
+
+Several leagues live in one browser. A registry lists the slots and which one is open; each slot's league and in-progress game sit under their own key, and preferences are shared. A save from before slots existed becomes slot one on first load. Creating a league while one is open puts the new one in a new slot, an import goes into a new slot, and deleting the open league opens the most recent other one. The home screen lists the slots with a size, because browser storage is a few megabytes and a 32-club season with box scores is a real fraction of that; the list warns past about 3.5 MB.
+
+A **league code** is a pasteable snapshot: every club's roster as pool indices, contracts, settings, the seed and the season number, deflated where the browser has `CompressionStream` and base64url-encoded, a few kilobytes for a 32-club league. It carries no results, logs or history; a friend who opens it gets the same league at the start of the same season with records at zero. The code holds a fingerprint of the player pool (count plus a hash of the ids) and refuses to open against a different one, since indices would point at the wrong men. A **roster card** draws the starters, overalls and record to a canvas and goes through the Web Share API on a phone or downloads as a PNG.
+
+Not built: the roadmap's replayable share code. Games are seeded, but coach-mode calls, slider changes, claims, trades and keeper choices are not recorded, so a league is not reproducible from its seed; the snapshot is the honest version of the idea.
+
 ## UI
 
 Vanilla ES modules, hash router, one persisted state object (`store.js`). Views re-render from state; the live game view manages its own DOM and autoplay timer. Everything is relative-path so it deploys to a GitHub Pages subpath. Service worker: network-first for HTML, cache-first for assets (bump `CACHE` in `sw.js` on every release or installed clients keep the old CSS).
@@ -280,7 +288,7 @@ third season, not by effort.
 
 8. **Smarter AI general managers.** *Shipped; see AI general managers above.* Evidence at the time: personalities are static presets; AI clubs never change a strategy slider, never revisit a depth chart after the season-start sort, and never respond to what beat them last week. Touches `playcall.js` (per-opponent adjustments: blitz more against a weak line, run against a weak front) and a weekly AI housekeeping pass. Risk: a smarter field narrows the strategy spread measured in the auction section; re-measure and keep the spread near four wins.
 
-9. **Save slots and shareable leagues.** Evidence: `store.js` holds one league under one localStorage key; a second league overwrites the first, and export/import is the only backup. Because every game is seeded, a league is reproducible from its seed and pick history, so a short share code could rebuild a league on another device and a roster card could be rendered to an image for sharing. Touches `store.js`, settings view, a canvas renderer. Risk: the players file must stay byte-identical for codes to replay; version the code with the data file's hash.
+9. **Save slots and shareable leagues.** *Shipped; see Save slots and sharing above.* Evidence at the time: `store.js` holds one league under one localStorage key; a second league overwrites the first, and export/import is the only backup. Because every game is seeded, a league is reproducible from its seed and pick history, so a short share code could rebuild a league on another device and a roster card could be rendered to an image for sharing. Touches `store.js`, settings view, a canvas renderer. Risk: the players file must stay byte-identical for codes to replay; version the code with the data file's hash.
 
 10. **Rating tooling and a fictional-name toggle.** Evidence: 310 of 1,269 players are from the 2010s against 32 from the 1950s; every rating is editorial; the README carries a licensing caveat for real names on a store listing. An in-app rating editor with a diff export, an era-balance report, and a switch that replaces names with generated ones would let the pool be argued with in public and keep a Play Store build clear of the name question. Touches `players.js` loading, settings, `scripts/db-report.mjs`. Risk: the fictional names must map one-to-one and stay stable across versions or saves break.
 

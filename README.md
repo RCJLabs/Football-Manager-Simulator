@@ -17,7 +17,7 @@ Draft real football players from every era at their prime season — Otto Graham
 - **Season hub.** Standings with clinch markers, playoff picture, season leaders, box scores, and a history card that keeps every season's champion and your finish.
 - **Awards, records, a hall of fame.** An MVP race scored against each player's own position, players of the year on both sides of the ball, an all-league team, a record book of season, single-game and team marks, and careers that build a résumé toward induction.
 - **Box scores** with passing/rushing/receiving/defense/kicking lines, scoring summary, full play-by-play, and PPR fantasy points.
-- **Offline-capable PWA** with local save, export/import. Phone-first layout: no horizontal scrolling at 360px, verified on every screen by the smoke test.
+- **Offline-capable PWA** with save slots for several leagues, export/import, a pasteable league code that opens the same rosters on another device, and a roster card you can share as an image. Phone-first layout: no horizontal scrolling at 360px, verified on every screen by the smoke test.
 
 ## Running locally
 
@@ -56,6 +56,8 @@ For a Play Store TWA, point Bubblewrap / PWABuilder at the deployed manifest. `i
 ```
 index.html, manifest.webmanifest, sw.js   app shell + PWA
 src/main.js, router.js, store.js         boot, hash router, persisted state (localStorage)
+src/slots.js                             save slots: several leagues in one browser
+src/engine/share.js                      league codes: a pasteable snapshot of a league
 src/data/positions.js                    position attributes, overall weights, roster template
 src/data/players.js                      the player database (1,269 prime-season snapshots)
 src/data/pro.js                          the 32 pro franchises, conferences and divisions
