@@ -2,8 +2,8 @@ import { html, render, raw } from '../../util.js';
 import { ROSTER_SLOTS, POSITION_ORDER } from '../../data/positions.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { buildLineup, teamPower, overall } from '../../engine/ratings.js';
-import { playerItem, playerModal, teamChip, esc, outBadge } from '../components.js';
-import { fillLineup, fmtWeeks } from '../../engine/injuries.js';
+import { playerItem, playerModal, teamChip, esc, outBadge, toast, modal } from '../components.js';
+import { fillLineup, fmtWeeks, irList, irReady, canPlaceOnIr, placeOnIr, activateFromIr, releaseFromIr, irCapacity, IR_MIN_WEEKS } from '../../engine/injuries.js';
 import { fantasyPoints } from '../../engine/stats.js';
 
 const STRATEGY_FIELDS = [
@@ -26,6 +26,9 @@ export function view(root, params, ctx) {
   const power = teamPower(lineup);
   const hurt = ROSTER_SLOTS.map((s) => team.slots[s.id]).filter((id) => id && injuries[id]).map((id) => ({ p: ctx.byId.get(id), inj: injuries[id] }));
   const fillIns = Object.values(lineup).flat().filter((p) => p.replacement);
+  const onIr = irList(team).map((id) => ctx.byId.get(id)).filter(Boolean);
+  const ready = new Set(irReady(league, team));
+  const irOpen = irCapacity(league) - onIr.length;
   const gm = GM_PERSONALITIES.find((g) => g.id === team.gm);
   const canEdit = team.isUser;
   const stats = team.seasonStats.players;
@@ -44,13 +47,14 @@ export function view(root, params, ctx) {
     // A bench player starts when the man ahead of him is hurt.
     const healthyAhead = ROSTER_SLOTS.filter((x) => x.pos === slot.pos).slice(0, i).filter((x) => team.slots[x.id] && !injuries[team.slots[x.id]]).length;
     const stepsUp = !inj && !slot.starter && healthyAhead < ROSTER_SLOTS.filter((x) => x.pos === slot.pos && x.starter).length;
+    const irable = canEdit && league.phase === 'season' && canPlaceOnIr(league, idx, p.id);
     const arrows = canEdit && total > 1
       ? `${i > 0 ? `<button class="btn sm ghost" data-move="${slot.id}" data-dir="-1" aria-label="Move up">▲</button>` : ''}${i < total - 1 ? `<button class="btn sm ghost" data-move="${slot.id}" data-dir="1" aria-label="Move down">▼</button>` : ''}`
       : '';
     return playerItem(p, {
       cls: inj ? 'dim' : slot.starter || stepsUp ? '' : 'dim',
       meta: `<span class="badge slot">${slot.id}</span>${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge" style="background:#2c4a37;color:#cfe6d6">starts</span>' : '<span class="badge">bench</span>'}${deal}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
-      action: arrows,
+      action: `${irable ? `<button class="btn sm" data-ir="${esc(p.id)}" title="${esc(`Free his slot; he stays yours and keeps healing. ${irOpen} place${irOpen === 1 ? '' : 's'} left.`)}">To IR</button>` : ''}${arrows}`,
       era: false,
     });
   })).join('');
@@ -70,6 +74,19 @@ export function view(root, params, ctx) {
         <ul class="plist">${raw(depthRows)}</ul>
       </div>
       <div class="stack">
+        ${onIr.length || (canEdit && league.phase === 'season' && hurt.some(({ inj }) => inj.weeks >= IR_MIN_WEEKS)) ? html`<div class="card tight">
+          <h3>Injured reserve <small class="muted" style="text-transform:none;letter-spacing:0">· ${onIr.length} of ${irCapacity(league)}</small></h3>
+          ${onIr.length ? raw(`<ul class="plist">${onIr.map((p) => {
+            const inj = injuries[p.id];
+            const fit = ready.has(p.id);
+            return playerItem(p, {
+              attrs: false,
+              cls: fit ? '' : 'dim',
+              meta: fit ? ' · <span class="badge" style="background:#2c4a37;color:#cfe6d6">fit</span>' : ` · ${esc(inj ? inj.kind : 'injured')}, <b>${fmtWeeks(inj ? inj.weeks : 0)}</b>`,
+              action: canEdit ? `${fit ? `<button class="btn sm primary" data-activate="${esc(p.id)}">Activate</button>` : ''}<button class="btn sm danger" data-release="${esc(p.id)}">Release</button>` : '',
+            });
+          }).join('')}</ul>`) : html`<p class="muted" style="margin:0;font-size:.85rem">Empty. A player out ${IR_MIN_WEEKS} weeks or more can be parked here, which frees his roster slot to sign cover. He keeps healing and keeps his contract, but he cannot play or be traded until you activate him, which costs a roster spot in turn.</p>`}
+        </div>` : ''}
         ${hurt.length || fillIns.length ? html`<div class="card tight">
           <h3>Injury report</h3>
           ${hurt.length ? raw(`<ul class="plain ticker" style="max-height:none">${hurt.map(({ p, inj }) => `<li><b>${esc(p.name)}</b> <small class="muted">${p.pos}</small> — ${esc(inj.kind)}, <b>${fmtWeeks(inj.weeks)}</b></li>`).join('')}</ul>`) : ''}
@@ -96,6 +113,31 @@ export function view(root, params, ctx) {
   el.addEventListener('click', (e) => {
     const show = e.target.closest('[data-show]');
     if (show) { playerModal(ctx.byId.get(show.dataset.show)); return; }
+    const ir = e.target.closest('[data-ir]');
+    if (ir && canEdit) {
+      const p = ctx.byId.get(ir.dataset.ir);
+      const m = modal(html`<h2>Put ${p.name} on injured reserve?</h2>
+        <p class="muted">His slot opens so you can sign cover from the wire. He stays yours and keeps healing, but he cannot play or be traded until you activate him, and activating him will cost a roster spot.</p>
+        <div class="row"><button class="btn primary" id="yes">To injured reserve</button><button class="btn" data-close>Cancel</button></div>`);
+      m.el.querySelector('#yes').addEventListener('click', () => {
+        m.close();
+        try {
+          ctx.update((s) => { placeOnIr(s.league, idx, p.id); });
+          toast(`${p.name} to injured reserve`);
+        } catch (err) { toast(err.message); }
+      });
+      return;
+    }
+    const act = e.target.closest('[data-activate]');
+    if (act && canEdit) { openActivate(ctx.byId.get(act.dataset.activate)); return; }
+    const rel = e.target.closest('[data-release]');
+    if (rel && canEdit) {
+      const p = ctx.byId.get(rel.dataset.release);
+      const m = modal(html`<h2>Release ${p.name}?</h2><p class="muted">He goes back into the pool and anyone can claim him.</p>
+        <div class="row"><button class="btn danger" id="yes">Release</button><button class="btn" data-close>Cancel</button></div>`);
+      m.el.querySelector('#yes').addEventListener('click', () => { m.close(); ctx.update((s) => { releaseFromIr(s.league, idx, p.id); }); toast(`${p.name} released`); });
+      return;
+    }
     const mv = e.target.closest('[data-move]');
     if (mv && canEdit) {
       const slotId = mv.dataset.move, dir = Number(mv.dataset.dir);
@@ -111,6 +153,25 @@ export function view(root, params, ctx) {
       });
     }
   });
+  function openActivate(p) {
+    const open = ROSTER_SLOTS.find((s) => s.pos === p.pos && !team.slots[s.id]);
+    const options = ROSTER_SLOTS.filter((s) => s.pos === p.pos && team.slots[s.id]).map((s) => ({ s, q: ctx.byId.get(team.slots[s.id]) })).filter((x) => x.q);
+    const m = modal(html`
+      <div class="row between"><h2 style="margin:0">Activate ${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
+      <p class="muted">${open ? `The ${open.id} slot is open, so nobody has to go.` : 'Your roster is full at his position. Who makes way?'}</p>
+      ${open ? html`<button class="btn primary block" data-take="" style="margin-bottom:.5rem">Into the open ${open.id} slot</button>` : ''}
+      <ul class="plist">${raw(options.map(({ s, q }) => playerItem(q, { attrs: false, meta: ` · <span class="badge slot">${s.id}</span>`, action: `<button class="btn sm danger" data-take="${esc(q.id)}">Release</button>` })).join(''))}</ul>`);
+    m.el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-take]');
+      if (!b) return;
+      try {
+        ctx.update((s) => { activateFromIr(s.league, idx, p.id, b.dataset.take || null, ctx.byId); });
+        toast(`${p.name} activated`);
+        m.close();
+      } catch (err) { toast(err.message); }
+    });
+  }
+
   for (const input of el.querySelectorAll('[data-strat]')) {
     const f = STRATEGY_FIELDS.find((x) => x.key === input.dataset.strat);
     input.addEventListener('input', () => { el.querySelector(`#lbl-${f.key}`).textContent = pctLabel(f, Number(input.value)); });

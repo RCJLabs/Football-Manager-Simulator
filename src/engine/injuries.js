@@ -7,6 +7,7 @@
 // default costs a club about one starter a week and the dial goes both ways.
 
 import { POSITIONS, ROSTER_SLOTS } from '../data/positions.js';
+import { overall } from '../engine/ratings.js';
 
 export const INJURY_LEVELS = { off: 0, low: 0.5, normal: 1, high: 2 };
 export const INJURY_LEVEL_LABELS = { off: 'Off', low: 'Low', normal: 'Normal', high: 'High' };
@@ -143,4 +144,159 @@ export function availability(league, id) {
   if (!inj) return 1;
   if (inj.weeks >= SEASON_ENDING) return 0;
   return Math.max(0, Math.min(1, 1 - inj.weeks / weeksLeft(league)));
+}
+
+// ---------------------------------------------------------------------------
+// Injured reserve
+// ---------------------------------------------------------------------------
+//
+// A long injury used to be a dead roster slot: the man could not play and
+// could not be replaced without cutting him. Injured reserve makes it a
+// decision. A player out four weeks or more can be moved to IR, which frees
+// his slot for a signing; he keeps healing there and keeps his contract, but
+// he cannot play or be traded until he is activated, and activating him costs
+// a roster spot in turn. Two IR places a club, so the decision stays a real
+// one rather than a parking lot.
+
+export const IR_SLOTS = 2;
+export const IR_MIN_WEEKS = 4;
+
+export function irList(team) {
+  return (team && team.ir) || [];
+}
+
+const slotHolding = (team, id) => ROSTER_SLOTS.find((s) => team.slots[s.id] === id)?.id || null;
+
+/** Why this player cannot go on IR, or null if he can. */
+export function irBlocker(league, teamIdx, id) {
+  const team = league.teams[teamIdx];
+  if (!team) return 'No such club';
+  if (irList(team).length >= irCapacity(league)) return `Only ${irCapacity(league)} places on injured reserve`;
+  if (!slotHolding(team, id)) return 'He is not on your roster';
+  const inj = (league.injuries || {})[id];
+  if (!inj) return 'Only an injured player can go on injured reserve';
+  if (inj.weeks < IR_MIN_WEEKS) return `Injured reserve needs an absence of ${IR_MIN_WEEKS} weeks or more; he is out ${fmtWeeks(inj.weeks)}`;
+  return null;
+}
+
+export function irCapacity(league) {
+  return league.settings?.irSlots ?? IR_SLOTS;
+}
+
+export function canPlaceOnIr(league, teamIdx, id) {
+  return irBlocker(league, teamIdx, id) === null;
+}
+
+/** Move a player to injured reserve, emptying his slot. Throws with a readable reason. */
+export function placeOnIr(league, teamIdx, id) {
+  const blocker = irBlocker(league, teamIdx, id);
+  if (blocker) throw new Error(blocker);
+  const team = league.teams[teamIdx];
+  team.ir ??= [];
+  team.slots[slotHolding(team, id)] = null;
+  team.ir.push(id);
+  (league.transactions ??= []).push({ week: league.week, season: league.season, type: 'ir', team: teamIdx, add: id });
+  return id;
+}
+
+/** Players on IR who have healed and are waiting for a roster spot. */
+export function irReady(league, team) {
+  return irList(team).filter((id) => !(league.injuries || {})[id]);
+}
+
+/**
+ * Bring a player back. `dropId` is the man released to make room, or null to
+ * use an open slot at his position.
+ */
+export function activateFromIr(league, teamIdx, id, dropId, byId) {
+  const team = league.teams[teamIdx];
+  if (!irList(team).includes(id)) throw new Error('He is not on injured reserve');
+  if ((league.injuries || {})[id]) throw new Error('He is not fit yet');
+  const p = byId.get(id);
+  if (!p) throw new Error('Unknown player');
+  let slotId;
+  if (dropId) {
+    slotId = slotHolding(team, dropId);
+    if (!slotId) throw new Error('That player is not on your roster');
+    const drop = byId.get(dropId);
+    if (drop && drop.pos !== p.pos) throw new Error(`Release a ${p.pos} to activate a ${p.pos}`);
+  } else {
+    slotId = ROSTER_SLOTS.find((s) => s.pos === p.pos && !team.slots[s.id])?.id;
+    if (!slotId) throw new Error(`No open ${p.pos} slot; name a player to release`);
+  }
+  team.slots[slotId] = id;
+  team.ir = irList(team).filter((x) => x !== id);
+  (league.transactions ??= []).push({ week: league.week, season: league.season, type: 'activate', team: teamIdx, add: id, drop: dropId || null });
+  return slotId;
+}
+
+/** Let a player on IR go; he returns to the pool. */
+export function releaseFromIr(league, teamIdx, id) {
+  const team = league.teams[teamIdx];
+  if (!irList(team).includes(id)) return false;
+  team.ir = irList(team).filter((x) => x !== id);
+  (league.transactions ??= []).push({ week: league.week, season: league.season, type: 'release', team: teamIdx, drop: id });
+  return true;
+}
+
+/** At the playoffs, anyone fit again slides back into an open slot at his position. */
+export function returnFromIr(league, byId) {
+  const back = [];
+  for (const [ti, team] of league.teams.entries()) {
+    for (const id of irReady(league, team)) {
+      const p = byId.get(id);
+      const slotId = p && ROSTER_SLOTS.find((s) => s.pos === p.pos && !team.slots[s.id])?.id;
+      if (!slotId) continue;
+      team.slots[slotId] = id;
+      team.ir = irList(team).filter((x) => x !== id);
+      back.push({ team: ti, id });
+    }
+  }
+  return back;
+}
+
+/** Offseason: injured reserve empties. Anyone without a slot to return to is released. */
+export function clearIr(league, byId) {
+  const released = [];
+  for (const [ti, team] of league.teams.entries()) {
+    for (const id of irList(team)) {
+      const p = byId && byId.get(id);
+      const slotId = p && ROSTER_SLOTS.find((s) => s.pos === p.pos && !team.slots[s.id])?.id;
+      if (slotId) team.slots[slotId] = id;
+      else released.push({ team: ti, id });
+    }
+    team.ir = [];
+  }
+  return released;
+}
+
+/**
+ * The AI's use of injured reserve: park anyone out long enough when there is
+ * room, and activate a fit player when he beats the worst man at his position
+ * (or when a slot at it is open). The wire fills whatever this leaves empty.
+ */
+export function aiManageIr(league, byId) {
+  const moves = [];
+  league.teams.forEach((team, ti) => {
+    if (team.isUser) return;
+    for (const id of irReady(league, team)) {
+      const p = byId.get(id);
+      if (!p) continue;
+      const open = ROSTER_SLOTS.find((s) => s.pos === p.pos && !team.slots[s.id]);
+      if (open) { activateFromIr(league, ti, id, null, byId); moves.push({ team: ti, id, type: 'activate' }); continue; }
+      const worst = ROSTER_SLOTS.filter((s) => s.pos === p.pos && team.slots[s.id])
+        .map((s) => ({ s, q: byId.get(team.slots[s.id]) })).filter((x) => x.q)
+        .sort((a, b) => overall(a.q) - overall(b.q))[0];
+      if (worst && overall(p) > overall(worst.q)) { activateFromIr(league, ti, id, worst.q.id, byId); moves.push({ team: ti, id, type: 'activate' }); }
+    }
+    const hurt = ROSTER_SLOTS.map((s) => team.slots[s.id]).filter(Boolean)
+      .map((id) => ({ id, inj: (league.injuries || {})[id] })).filter((x) => x.inj && x.inj.weeks >= IR_MIN_WEEKS)
+      .sort((a, b) => b.inj.weeks - a.inj.weeks);
+    for (const h of hurt) {
+      if (!canPlaceOnIr(league, ti, h.id)) continue;
+      placeOnIr(league, ti, h.id);
+      moves.push({ team: ti, id: h.id, type: 'ir' });
+    }
+  });
+  return moves;
 }

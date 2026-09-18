@@ -177,6 +177,56 @@ try {
   await checkOverflow('team page');
   await shot('10-team');
 
+  // Injured reserve: park a long injury, then bring him back. Let the app's
+  // debounced save flush first, or reloading writes its state over ours.
+  await sleep(600);
+  const irTarget = await page.evaluate(() => {
+    const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+    const key = 'gridiron-eras:slot:' + reg.active;
+    const st = JSON.parse(localStorage.getItem(key));
+    const u = st.league.teams.findIndex((t) => t.isUser);
+    const slot = Object.keys(st.league.teams[u].slots).find((k) => st.league.teams[u].slots[k]);
+    const id = st.league.teams[u].slots[slot];
+    st.league.injuries[id] = { weeks: 6, kind: 'knee sprain', since: null, season: st.league.season, team: u };
+    localStorage.setItem(key, JSON.stringify(st));
+    return { u, slot, id, phase: st.league.phase };
+  });
+  if (irTarget.phase !== 'season') errors.push(`injured reserve step ran in phase ${irTarget.phase}`);
+  await page.goto(`http://localhost:${port}/#/team/${irTarget.u}`);
+  await page.reload();
+  await page.waitForSelector('[data-ir]');
+  await checkOverflow('team page with an IR candidate');
+  await page.click(`[data-ir="${irTarget.id}"]`);
+  await page.waitForSelector('.modal #yes');
+  await page.click('.modal #yes');
+  await page.waitForSelector('[data-release]');
+  await checkOverflow('injured reserve');
+  await shot('10b-ir');
+  const irSaved = (want) => page.waitForFunction((n) => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; return (lg.teams.find((t) => t.isUser).ir || []).length === n; }, want, { timeout: 5000 }).then(() => true).catch(() => false);
+  if (!(await irSaved(1))) errors.push('injured reserve did not persist');
+  const parked = await page.evaluate((slot) => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; const t = lg.teams.find((x) => x.isUser); return { ir: (t.ir || []).length, slot: t.slots[slot] }; })(), irTarget.slot);
+  if (parked.slot) errors.push(`the slot did not open: ${JSON.stringify(parked)}`);
+
+  // Heal him and activate back into the slot he left.
+  await sleep(600);
+  await page.evaluate(() => {
+    const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+    const key = 'gridiron-eras:slot:' + reg.active;
+    const st = JSON.parse(localStorage.getItem(key));
+    const u = st.league.teams.findIndex((t) => t.isUser);
+    for (const id of st.league.teams[u].ir) delete st.league.injuries[id];
+    localStorage.setItem(key, JSON.stringify(st));
+  });
+  await page.reload();
+  await page.waitForSelector('[data-activate]');
+  await page.click('[data-activate]');
+  await page.waitForSelector('.modal [data-take]');
+  await checkOverflow('activate from IR');
+  await page.click('.modal [data-take]');
+  if (!(await irSaved(0))) errors.push('activation did not persist');
+  const back = await page.evaluate((slot) => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; const t = lg.teams.find((x) => x.isUser); return !!t.slots[slot]; })(), irTarget.slot);
+  if (!back) errors.push('the activated player did not take his slot back');
+
   await page.goto(`http://localhost:${port}/#/players`);
   await page.waitForSelector('.plist .prow');
   await page.fill('#q', 'rice');

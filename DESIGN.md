@@ -197,7 +197,21 @@ Every play rolls once for an injury somewhere on the field. The victim is drawn 
 
 A hurt player leaves on the spot. He comes off the game's depth chart, the unit composites are rebuilt around whoever is left (with the home edge re-applied), and any position group left short is padded with a replacement-level fill-in: a street free agent rated just under the worst player in the pool (QB 48, most positions 52 to 54, kickers 58), so nobody on the wire is ever worse than the fill-in. That keeps the incentive pointing at the waiver wire.
 
-Between games the league keeps a ledger keyed by player: weeks out, diagnosis, when it happened. `buildLineup` skips anyone on it, so the next man at the position starts (the depth chart marks him "starts"), the week advance ticks it down, and a new season clears it. The ledger travels with the player: a hurt free agent stays hurt if you claim him. There is no injured-reserve slot, so a hurt starter keeps his roster spot; a club rides out a short injury with the fill-in or the bench, or cuts the man for healthy cover. Both are real decisions and the moves screen supports either.
+Between games the league keeps a ledger keyed by player: weeks out, diagnosis, when it happened. `buildLineup` skips anyone on it, so the next man at the position starts (the depth chart marks him "starts"), the week advance ticks it down, and a new season clears it. The ledger travels with the player: a hurt free agent stays hurt if you claim him.
+
+**Injured reserve.** A long injury used to be a dead roster slot: the man could not play and could not be replaced without cutting him. A player out four weeks or more can now be moved to injured reserve, two places a club. His slot opens, so the wire can cover him; he keeps healing and keeps his contract, and he is still owned, so nobody can claim him. He cannot play or be traded until he is activated, and activating him costs a roster spot at his position in turn, which is the whole decision: park him and sign cover, and you may not have room when he is fit. Anyone fit again slides into an open slot when the playoffs start; the offseason empties injured reserve, and a player whose slot was filled behind him is let go into the pool. AI clubs park anyone out long enough, sign over the gap, and activate a fit player when he beats the worst man at his position.
+
+This is the one place the roster invariant gives: a club owns its filled slots plus up to two on injured reserve, and a starting slot may be empty only because somebody is on it. `rostersValid` checks exactly that.
+
+Measured over twelve 8-team seasons per setting (`scripts/ir-sim.mjs`):
+
+| injuries | placements a season | activations | club-weeks with somebody on IR | let go at the offseason |
+|---|---|---|---|---|
+| low | 4.8 | 1.4 | 21% | 3.0 |
+| normal | 8.3 | 2.8 | 31% | 5.3 |
+| high | 14.0 | 5.8 | 49% | 7.3 |
+
+At the default setting that is about one placement per club per season and a third of club-weeks with somebody parked, which is the rate the four-week minimum was chosen to produce. The players let go are not lost to the league; they return to the pool and are bought again in the offseason auction.
 
 The dial is a league setting: Off, Low, Normal (default), High, as a multiplier of 0, 0.5, 1 and 2 on the base per-play chance. Measured with `scripts/injury-sim.mjs`:
 
@@ -303,5 +317,15 @@ third season, not by effort.
 9. **Save slots and shareable leagues.** *Shipped; see Save slots and sharing above.* Evidence at the time: `store.js` holds one league under one localStorage key; a second league overwrites the first, and export/import is the only backup. Because every game is seeded, a league is reproducible from its seed and pick history, so a short share code could rebuild a league on another device and a roster card could be rendered to an image for sharing. Touches `store.js`, settings view, a canvas renderer. Risk: the players file must stay byte-identical for codes to replay; version the code with the data file's hash.
 
 10. **Rating tooling and a fictional-name toggle.** *Shipped; see Rating tooling and names above.* Evidence at the time: 310 of 1,269 players are from the 2010s against 32 from the 1950s; every rating is editorial; the README carries a licensing caveat for real names on a store listing. An in-app rating editor with a diff export, an era-balance report, and a switch that replaces names with generated ones would let the pool be argued with in public and keep a Play Store build clear of the name question. Touches `players.js` loading, settings, `scripts/db-report.mjs`. Risk: the fictional names must map one-to-one and stay stable across versions or saves break.
+
+## After the ten
+
+The roadmap above is finished. What followed, and what is left:
+
+11. **AI clubs offer you trades.** *Shipped; see Transactions above.* The market only ran one way: the human could ask, but no club ever called.
+
+12. **Injured reserve.** *Shipped; see Injuries and depth above.* A long injury was a dead roster slot, so the only answer to a season-ending knee was to cut the player.
+
+13. **A replayable share code.** *Not built.* The code is a snapshot of a league at the start of a season. Making it a true replay needs coach-mode calls, slider changes, claims, trades and keeper choices recorded in order, which is a log format and a migration story of its own. Everything else is already seeded.
 
 Smaller items that did not make the list: an 18-week pro calendar (folded into 5), two-minute-drill timeouts for the coach-mode user, a compare-players view, keyboard and screen-reader passes on the auction room, and an in-app explainer for what actually wins games (the leverage table is documented above, not surfaced in the product).

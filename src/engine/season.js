@@ -16,7 +16,7 @@ import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats } from '
 import { buildLineup, teamPower, overall } from './ratings.js';
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { createGame, simulateGame } from './game.js';
-import { INJURY_LEVELS, DEFAULT_INJURY_LEVEL, recordGameInjuries, tickInjuries } from './injuries.js';
+import { INJURY_LEVELS, DEFAULT_INJURY_LEVEL, recordGameInjuries, tickInjuries, returnFromIr, clearIr, irList } from './injuries.js';
 import { closeSeasonBooks } from './awards.js';
 
 export const LEAGUE_VERSION = 3;
@@ -27,6 +27,7 @@ function blankTeam(t) {
   return {
     ...t,
     slots: {},
+    ir: [],
     strategy: { ...DEFAULT_STRATEGY },
     record: { w: 0, l: 0, t: 0, pf: 0, pa: 0 },
     seasonStats: { team: emptyTeamStats(), players: {} },
@@ -98,7 +99,7 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
  */
 export function migrateLeague(league) {
   if (!league || (league.version || 1) >= LEAGUE_VERSION) return league;
-  for (const t of league.teams) for (const s of ROSTER_SLOTS) if (!(s.id in t.slots)) t.slots[s.id] = null;
+  for (const t of league.teams) { for (const s of ROSTER_SLOTS) if (!(s.id in t.slots)) t.slots[s.id] = null; t.ir ??= []; }
   league.injuries ??= {};
   league.contracts ??= {};
   league.offseason ??= null;
@@ -126,8 +127,8 @@ export function syncContracts(league) {
   const draftRound = new Map((league.draft?.picks || []).map((p) => [p.playerId, p.round]));
   const owned = new Set();
   for (const t of league.teams) {
-    for (const s of ROSTER_SLOTS) {
-      const id = t.slots[s.id];
+    // Injured reserve keeps a player's contract; he is still on the books.
+    for (const id of [...ROSTER_SLOTS.map((s) => t.slots[s.id]), ...irList(t)]) {
       if (!id) continue;
       owned.add(id);
       if (league.contracts[id]) continue;
@@ -645,6 +646,8 @@ function roundLabel(league, aliveCount, isFinal) {
 }
 
 export function startPlayoffs(league) {
+  // Anyone fit again slides back into an open slot for the postseason.
+  if (playerIndex) returnFromIr(league, playerIndex);
   let pools;
   if (isPro(league)) {
     pools = proStandings(league).map((conf) => ({ name: conf.name, seeds: conf.seeds.slice(), alive: conf.seeds.slice() }));
@@ -749,6 +752,7 @@ export function newSeasonSameRosters(league, byId) {
   league.champion = null;
   league.results = [];
   league.injuries = {};
+  clearIr(league, byId);
   startSeason(league, byId);
   return league;
 }

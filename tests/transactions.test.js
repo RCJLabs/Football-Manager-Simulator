@@ -178,7 +178,10 @@ test('a full season with the wire running never corrupts a roster', () => {
     moves += (league.transactions || []).length - beforeTx;
     const v = rostersValid(league, byId);
     assert.ok(v.ok, v.reason);
-    assert.equal(ownerMap(league).size, 10 * ROSTER_SLOTS.length);
+    // A club owns its filled slots plus anyone parked on injured reserve.
+    const held = league.teams.reduce((n, t) => n + ROSTER_SLOTS.filter((sl) => t.slots[sl.id]).length + (t.ir || []).length, 0);
+    assert.equal(ownerMap(league).size, held);
+    assert.ok(held >= 10 * ROSTER_SLOTS.length - 10 * 2 && held <= 10 * ROSTER_SLOTS.length + 10 * 2, `${held} players owned`);
   }
   assert.equal(league.phase, 'complete');
   assert.ok(moves > 0, 'the wire moved players');

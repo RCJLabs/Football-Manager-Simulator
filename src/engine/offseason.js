@@ -18,6 +18,7 @@ import { emptyTeamStats } from './stats.js';
 import { createAuction, priceGuide, DEFAULT_BUDGET, MIN_BID } from './auction.js';
 import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex } from './season.js';
+import { clearIr } from './injuries.js';
 
 export const MAX_KEEPS = 3;
 export const KEEPER_RAISE_MIN = 3;
@@ -70,12 +71,14 @@ export function validateKeepers(league, teamIdx, ids) {
  */
 export function enterOffseason(league, pool, byId) {
   if (league.phase !== 'complete') throw new Error('The season is not over');
+  // Injured reserve empties: anyone whose slot was filled behind him is let go.
+  const released = clearIr(league, byId);
   syncContracts(league);
   const rng = new RNG(league.rngState);
   const keepers = {};
   league.teams.forEach((t, i) => { if (!t.isUser) keepers[i] = aiKeepers(league, i, pool, byId, rng); });
   league.rngState = rng.state;
-  league.offseason = { season: league.season, step: 'keepers', keepers, user: null };
+  league.offseason = { season: league.season, step: 'keepers', keepers, user: null, releasedFromIr: released };
   league.phase = 'offseason';
   return league.offseason;
 }

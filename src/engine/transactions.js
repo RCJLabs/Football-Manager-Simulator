@@ -16,7 +16,7 @@ import { GM_PERSONALITIES } from '../data/teams.js';
 import { overall } from './ratings.js';
 import { TRUE_LEVERAGE } from './auction.js';
 import { standings, isPro, sortDepthCharts, playoffFieldSize } from './season.js';
-import { availability, weeksLeft, SEASON_ENDING } from './injuries.js';
+import { availability, weeksLeft, SEASON_ENDING, irList, aiManageIr, irCapacity } from './injuries.js';
 import { aiAdjustStrategies } from './gm.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
@@ -33,9 +33,13 @@ const STARTERS = {};
 for (const s of ROSTER_SLOTS) if (s.starter) STARTERS[s.pos] = (STARTERS[s.pos] || 0) + 1;
 const BENCH_WEIGHT = 0.25;
 
+/** Who owns whom. A player on injured reserve is still owned and cannot be claimed. */
 export function ownerMap(league) {
   const m = new Map();
-  league.teams.forEach((t, i) => { for (const s of ROSTER_SLOTS) if (t.slots[s.id]) m.set(t.slots[s.id], i); });
+  league.teams.forEach((t, i) => {
+    for (const s of ROSTER_SLOTS) if (t.slots[s.id]) m.set(t.slots[s.id], i);
+    for (const id of irList(t)) m.set(id, i);
+  });
   return m;
 }
 
@@ -479,16 +483,30 @@ export function pruneOffers(league) {
 }
 
 /** Everyone still owns exactly one player per slot and nobody is owned twice. */
+/**
+ * Every rostered player sits in a slot of his own position, nobody is owned
+ * twice, and a starting slot is only left open because somebody is on
+ * injured reserve.
+ */
 export function rostersValid(league, byId) {
   const seen = new Set();
   for (const t of league.teams) {
+    const ir = irList(t);
+    let emptyStarters = 0;
     for (const s of ROSTER_SLOTS) {
       const id = t.slots[s.id];
-      if (!id) { if (s.starter) return { ok: false, reason: `${t.abbr} ${s.id} empty` }; continue; }
+      if (!id) { if (s.starter) emptyStarters++; continue; }
       const p = byId.get(id);
       if (!p) return { ok: false, reason: `${t.abbr} ${s.id} unknown ${id}` };
       if (p.pos !== s.pos) return { ok: false, reason: `${t.abbr} ${s.id} holds a ${p.pos}` };
       if (seen.has(id)) return { ok: false, reason: `${p.name} on two rosters` };
+      seen.add(id);
+    }
+    if (emptyStarters > ir.length) return { ok: false, reason: `${t.abbr} has ${emptyStarters} empty starting slots and ${ir.length} on injured reserve` };
+    if (ir.length > irCapacity(league)) return { ok: false, reason: `${t.abbr} has ${ir.length} on injured reserve` };
+    for (const id of ir) {
+      if (!byId.get(id)) return { ok: false, reason: `${t.abbr} injured reserve holds unknown ${id}` };
+      if (seen.has(id)) return { ok: false, reason: `${byId.get(id).name} on two rosters` };
       seen.add(id);
     }
   }
@@ -505,6 +523,7 @@ export function advanceWeekWithMoves(league, byId, pool, rng, advance) {
     // The AI's week: read the table and drift the sliders, deal among themselves, then work the wire.
     const field = new Set(standings(league).slice(0, playoffFieldSize(league.teams.length)).map((r) => r.idx));
     aiAdjustStrategies(league, { inField: (i) => field.has(i) });
+    aiManageIr(league, byId);
     aiTrades(league, byId, rng);
     aiFileClaims(league, pool, byId, rng);
     processWaivers(league, byId);

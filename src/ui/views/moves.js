@@ -109,6 +109,9 @@ export function view(root, params, ctx) {
     body = log.length ? raw(`<ul class="plain ticker" style="max-height:none">${log.map((t) => {
       const team = league.teams[t.team];
       if (t.type === 'waiver') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} claimed <b>${esc(ctx.byId.get(t.add)?.name)}</b>, released ${esc(ctx.byId.get(t.drop)?.name)}</li>`;
+      if (t.type === 'ir') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} placed <b>${esc(ctx.byId.get(t.add)?.name)}</b> on injured reserve</li>`;
+      if (t.type === 'activate') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} activated <b>${esc(ctx.byId.get(t.add)?.name)}</b>${t.drop ? `, released ${esc(ctx.byId.get(t.drop)?.name)}` : ''}</li>`;
+      if (t.type === 'release') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} released <b>${esc(ctx.byId.get(t.drop)?.name)}</b> from injured reserve</li>`;
       const other = league.teams[t.other];
       return `<li class="${team.isUser || other.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} sent <b>${t.gives.map((id) => esc(ctx.byId.get(id)?.name)).join(', ')}</b> to ${teamChip(other, { abbr: true }).__raw} for <b>${t.gets.map((id) => esc(ctx.byId.get(id)?.name)).join(', ')}</b></li>`;
     }).join('')}</ul>`) : html`<p class="empty">No transactions yet.</p>`;
