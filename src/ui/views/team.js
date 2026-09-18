@@ -48,7 +48,9 @@ export function view(root, params, ctx) {
     <div class="card">
       <h1 style="margin:0">${teamChip(team)}</h1>
       <p class="muted" style="margin:.25rem 0 .5rem;font-size:.9rem">${team.record.w}-${team.record.l}${team.record.t ? `-${team.record.t}` : ''} · PF ${team.record.pf} · PA ${team.record.pa} · Power <b>${power}</b>${gm ? html` · <span class="badge gm">${gm.name}</span>` : ''}</p>
-      <div class="tabs">${league.teams.map((t, i) => html`<a class="tab ${i === idx ? 'active' : ''}" href="#/team/${i}">${t.abbr}</a>`)}</div>
+      ${league.teams.length > 12
+        ? html`<select id="teamPick" style="max-width:20rem">${league.teams.map((t, i) => html`<option value="${i}" ${i === idx ? 'selected' : ''}>${t.abbr} · ${t.name}${t.isUser ? ' (you)' : ''}</option>`)}</select>`
+        : html`<div class="tabs">${league.teams.map((t, i) => html`<a class="tab ${i === idx ? 'active' : ''}" href="#/team/${i}">${t.abbr}</a>`)}</div>`}
     </div>
     <div class="grid grid-3" style="margin-top:.75rem">
       <div class="card tight">
@@ -74,6 +76,7 @@ export function view(root, params, ctx) {
   </div>`);
 
   const el = root.querySelector('#team-view');
+  el.querySelector('#teamPick')?.addEventListener('change', (e) => ctx.navigate(`#/team/${e.target.value}`));
   el.addEventListener('click', (e) => {
     const show = e.target.closest('[data-show]');
     if (show) { playerModal(ctx.byId.get(show.dataset.show)); return; }

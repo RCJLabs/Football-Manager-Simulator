@@ -137,7 +137,19 @@ The tail only bites when demand approaches supply, which is why league size now 
 
 ## League (`season.js`)
 
-Round-robin via the circle method. Leagues of 8 or fewer play everyone twice (4/6/8 teams → 6/10/14 games); larger ones play a single round so a season stays a sensible length (10/12/14/16 teams → 9/11/13/15 games). Standings: win% → point differential → points for. The playoff field is 8 from 12 teams up, 4 from 6, and 2 in a 4-team league, single elimination. User games keep the full log; AI games keep team and player box-score stats only, so a full season fits comfortably in localStorage. Game seeds derive from league seed + week + matchup, so re-simulating a week reproduces it.
+Two modes share everything below the schedule.
+
+**Fantasy** (8, 10 or 12 clubs): a round-robin via the circle method. Eight clubs play everyone twice (14 games); ten and twelve play a single round plus enough of a second cycle to reach 13, so a season is always 13 or 14 weeks. Standings: win% → head-to-head → point differential → points for. The field is 4 for 8 and 10 clubs, and 6 for 12 with byes for the top two seeds.
+
+**Pro** (32 teams): two conferences of four divisions, original franchise identities on real geography (no league or club marks). The 17-game slate is built from the same blocks the real league uses: six division games home and away, four against one same-conference division, four against one other-conference division, two more against a second same-conference division, and one more across the conference. Every block is a set of perfect matchings over all 32 teams, so each of the 17 weeks has exactly 16 games and nobody sits. Which divisions meet rotates by season number. The real league uses standings from the previous season to pick the two extra same-conference opponents; here they come from a rotation instead, and there are no bye weeks. Hosting inside a cross-division block follows a 4×4 pattern with two home games in every row and column, so every team hosts 8 or 9 games.
+
+Pro standings are grouped by division with division and conference records. Tiebreakers run win% → head-to-head → division record (same division only) → conference record → point differential → points for. Seven seeds per conference: the four division winners by record, then three wild cards. The bracket engine works on pools of seeds, gives byes when a field is not a power of two, reseeds every round (the top seed always meets the lowest survivor), and when two pools each have one team left it schedules a final at a neutral site with no home edge. Rounds are named Wild Card, Divisional, Conference Championships, Championship.
+
+Home teams get a flat edge of 1.1 composite points to blocking, rush, coverage and tackling, which measures out to a 55/45 split between identical rosters. The setup screen defaults the pro league to the snake draft, since 832 auction lots is a long evening, but the auction works there too.
+
+User games keep the full log and every player line. Playoff games keep player lines. AI regular-season games keep team totals only, since a 32-team season is 272 games and keeping every box score would outgrow localStorage; season totals accumulate for everyone regardless. Game seeds derive from league seed, season, week and matchup, so re-simulating a week reproduces it.
+
+At season start every position group is ordered by overall. Slots fill in the order players were bought, so an auction could otherwise leave a 92 back at RB2 behind a 75. AI clubs are re-sorted each season; the user's club only the first time.
 
 ## UI
 
@@ -150,11 +162,30 @@ Layout is phone-first and the page must never scroll sideways. Two rules keep it
 
 `teamChip(team, { responsive: true })` renders the abbreviation on a phone and the full club name from 560px, so scoreboards and matchup rows stay legible instead of ellipsised. The smoke test asserts no horizontal overflow on every screen at 360, 768 and 1280px and names the offending element when it finds one.
 
-## Known gaps / roadmap
+## Roadmap: ten audited recommendations
 
-- No penalties, injuries, fatigue, or weather.
-- No QB2 / defensive depth; K and P never get hurt.
-- Passing distribution is coarse (five depths). Formation/personnel is implied, not modeled.
-- Player pool is ~410 entries; comprehensive coverage of "every generation" needs thousands. A CSV importer or community pool file would be the natural next step.
-- Multiplayer (hot-seat drafts, exporting a roster to challenge a friend's) is a later phase; the engine is deterministic and serializable to make that possible.
-- Real-name licensing: fantasy-stat use of names is well established in the US, but a ratings-driven game is closer to video-game territory. Fine for a hobby project; get advice before monetizing. There is no fictional-name toggle yet.
+Each item names the evidence in the current build, what it touches, and the
+risk. They are ordered by how much they would change whether someone plays a
+third season, not by effort.
+
+1. **In-season roster moves: free agency, waivers, trades.** Evidence: rosters freeze the moment the draft ends. An 8-team fantasy league drafts 208 of 1,269 players and the other 1,061 sit idle; between games there is nothing to decide but strategy sliders. Touches `season.js` (a transaction log, a free-agent pool view, AI trade evaluation using the auction's `worth` table). Risk: AI trade logic is easy to exploit; gate AI acceptance on measured value with a margin, and log every deal so it can be audited.
+
+2. **Injuries and a bench that matters.** Evidence: `game.js` has no attrition model; a 17-game pro season ends with the same 22 starters it began with. RB2 takes 28% of carries and WR4 a few targets; every other bench slot never plays. Touches `game.js` (per-play injury chance scaled by position and pace, a `weeksOut` field), `positions.js` (QB2, DL5, LB4, CB3 slots or a flex bench), depth-chart UI. Risk: injury luck can swamp skill in a 13-game season; keep rates below the real league's and let the user set the dial.
+
+3. **A dynasty loop: contracts, keepers, an offseason.** Evidence: `newSeasonSameRosters` replays the same 26 forever, and `history` records champions but nothing else changes year to year. Auction prices are the natural contract: each purchase is a 1 to 3 year deal at that price, expiring players return to the pool, draft order runs worst to first, and the cap carries over. Touches `auction.js`, `season.js`, a new offseason phase and view. Risk: the pool is one snapshot per player, so there is no aging; contracts and re-drafts have to carry the sense of change instead.
+
+4. **Penalties.** Evidence: the play log has never shown a flag, and `DESIGN.md` lists it as a known gap; the real league averages about a dozen per game and they decide drives. Touches `game.js` (false start, holding, pass interference, offsides, with rates tied to awareness and pressure) and the clock rules. Risk: cheap to add but changes every calibration number in this document; re-run `npm run calibrate`, `npm run auction` and `npm run strategy` afterwards.
+
+5. **Pro-mode fidelity.** Evidence: the 17-game slate is structurally right but uses a rotation where the real league uses last season's standings for two of the games; there are no bye weeks; tiebreakers stop at conference record (no common games, strength of victory or schedule); the standings page has no clinch or elimination markers. Touches `buildProSchedule` (18-week calendar with byes, standings-aware pairings from season two), `makeComparator`, `proStandings`. Risk: byes break the "every week has 16 games" invariant that the tests lean on; write the new invariant first.
+
+6. **Live game presentation.** Evidence: the game view is a text log with a scoreboard and a field bar; there is no win-probability line, no drive chart, no quarter summary, and no highlight reel at the end. The engine already exposes drives and every play's yardage and result. Touches `game.js` view only, plus a small win-probability model fitted from simulated games. Risk: none to the engine; the `dataviz` skill should drive any chart.
+
+7. **Awards, records and a hall of fame.** Evidence: `seasonStats` and `history` already hold everything needed, and the completion screen shows only the champion. MVP, offensive and defensive player of the year, all-league teams, single-season and career records per franchise. Touches `season.js` (a `records` structure) and the completion view. Risk: low; the leverage table decides MVP weighting, so a quarterback wins most years unless the formula corrects for position.
+
+8. **Smarter AI general managers.** Evidence: personalities are static presets; AI clubs never change a strategy slider, never revisit a depth chart after the season-start sort, and never respond to what beat them last week. Touches `playcall.js` (per-opponent adjustments: blitz more against a weak line, run against a weak front) and a weekly AI housekeeping pass. Risk: a smarter field narrows the strategy spread measured in the auction section; re-measure and keep the spread near four wins.
+
+9. **Save slots and shareable leagues.** Evidence: `store.js` holds one league under one localStorage key; a second league overwrites the first, and export/import is the only backup. Because every game is seeded, a league is reproducible from its seed and pick history, so a short share code could rebuild a league on another device and a roster card could be rendered to an image for sharing. Touches `store.js`, settings view, a canvas renderer. Risk: the players file must stay byte-identical for codes to replay; version the code with the data file's hash.
+
+10. **Rating tooling and a fictional-name toggle.** Evidence: 310 of 1,269 players are from the 2010s against 32 from the 1950s; every rating is editorial; the README carries a licensing caveat for real names on a store listing. An in-app rating editor with a diff export, an era-balance report, and a switch that replaces names with generated ones would let the pool be argued with in public and keep a Play Store build clear of the name question. Touches `players.js` loading, settings, `scripts/db-report.mjs`. Risk: the fictional names must map one-to-one and stay stable across versions or saves break.
+
+Smaller items that did not make the list: an 18-week pro calendar (folded into 5), two-minute-drill timeouts for the coach-mode user, a compare-players view, keyboard and screen-reader passes on the auction room, and an in-app explainer for what actually wins games (the leverage table is documented above, not surfaced in the product).

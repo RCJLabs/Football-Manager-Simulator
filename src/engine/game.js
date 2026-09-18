@@ -11,10 +11,14 @@ import {
 import { emptyTeamStats, statFor, shortName, fmtClock, fmtQuarter } from './stats.js';
 
 const Q_LEN = 900;
+// Composite points added to the home side's blocking, rush, coverage and
+// tackling. Calibrated so equal teams split home games about 56/44.
+const HOME_EDGE = 1.1;
+const HOME_KEYS = ['passBlock', 'runBlock', 'passRush', 'blitzRush', 'runStop', 'covShort', 'covMed', 'covDeep', 'tackling'];
 
 /**
  * teams: [home, away] each { id, name, abbr, color, lineup, strategy, isUser }
- * options: { seed, playoff }
+ * options: { seed, playoff, homeAdvantage (default true; false at a neutral site) }
  */
 export function createGame(home, away, options = {}) {
   const seed = options.seed ?? Math.floor(Math.random() * 4294967296);
@@ -25,11 +29,14 @@ export function createGame(home, away, options = {}) {
     lineup: t.lineup,
     comp: composites(t.lineup),
   }));
+  const homeAdvantage = options.homeAdvantage !== false;
+  if (homeAdvantage) for (const k of HOME_KEYS) teams[0].comp[k] += HOME_EDGE;
   const receiving = rng.int(0, 1);
   const g = {
     seed,
     rngState: rng.state,
     playoff: !!options.playoff,
+    neutral: !homeAdvantage,
     teams,
     score: [0, 0],
     quarter: 1,

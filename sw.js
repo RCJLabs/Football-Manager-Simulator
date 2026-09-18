@@ -1,10 +1,10 @@
 // Service worker: precache the app shell, network-first for HTML so deploys
 // show up, cache-first for everything else. Bump CACHE on each release.
-const CACHE = 'gridiron-eras-v4';
+const CACHE = 'gridiron-eras-v5';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './src/styles.css', './src/main.js',
   './src/router.js', './src/store.js', './src/util.js',
-  './src/data/positions.js', './src/data/players.js', './src/data/teams.js', './src/data/db.js',
+  './src/data/positions.js', './src/data/players.js', './src/data/teams.js', './src/data/pro.js', './src/data/db.js',
   './src/engine/rng.js', './src/engine/ratings.js', './src/engine/playcall.js', './src/engine/game.js',
   './src/engine/stats.js', './src/engine/draft.js', './src/engine/season.js', './src/engine/auction.js',
   './src/ui/components.js', './src/ui/views/home.js', './src/ui/views/setup.js', './src/ui/views/draft.js',

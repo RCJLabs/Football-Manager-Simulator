@@ -9,8 +9,9 @@ Draft real football players from every era at their prime season — Otto Graham
 - **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…). $200 buys 26 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about five wins a season over paying sticker price. A plain snake draft is still an option.
 - **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime.
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself.
-- **1,065 real players** from the 1940s to 2025, one prime season each, on a real talent curve: the top tenth are stars, the median is a solid starter, the bottom quarter should not be starting. In a 16-team league somebody has to start them.
-- **Season mode.** Leagues of 4 to 16 teams, round-robin schedule, standings, season leaders, playoffs, champion. Play another season with the same rosters or start a new league.
+- **1,269 real players** from the 1940s to 2025, one prime season each, on a real talent curve: the top tenth are stars, the median is a solid starter, the bottom quarter should not be starting. A 32-team league drafts 832 of them, so somebody does.
+- **Two league modes.** A fantasy league of 8, 10 or 12 clubs with a 13 to 14 game slate and a short bracket, or a **pro league**: the full 32 teams in two conferences of four divisions, a 17-game season built the way the real league builds one, division standings with tiebreakers, seven playoff seeds per conference with a bye for the top seed, and a neutral-site final. Home teams get a modest edge (about 55/45 between equals).
+- **Season hub.** Standings, playoff picture, season leaders, box scores, then another season with the same rosters or a new league.
 - **Box scores** with passing/rushing/receiving/defense/kicking lines, scoring summary, full play-by-play, and PPR fantasy points.
 - **Offline-capable PWA** with local save, export/import. Phone-first layout: no horizontal scrolling at 360px, verified on every screen by the smoke test.
 
@@ -49,7 +50,8 @@ For a Play Store TWA, point Bubblewrap / PWABuilder at the deployed manifest. `i
 index.html, manifest.webmanifest, sw.js   app shell + PWA
 src/main.js, router.js, store.js         boot, hash router, persisted state (localStorage)
 src/data/positions.js                    position attributes, overall weights, roster template
-src/data/players.js                      the player database (1,065 prime-season snapshots)
+src/data/players.js                      the player database (1,269 prime-season snapshots)
+src/data/pro.js                          the 32 pro franchises, conferences and divisions
 src/data/teams.js                        AI franchise names and GM personalities
 src/engine/game.js                       the simulation state machine (kickoff → play → PAT …)
 src/engine/playcall.js                   AI play-calling, 4th-down logic, timeouts, tempo

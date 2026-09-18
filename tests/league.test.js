@@ -127,13 +127,13 @@ test('every league size produces a balanced schedule and a champion', async () =
   const { playoffFieldSize } = await import('../src/engine/season.js');
   const { autoCompleteAll } = await import('../src/engine/auction.js');
   const { PLAYERS, PLAYERS_BY_ID } = await import('../src/data/db.js');
-  for (const n of [4, 6, 8, 10, 12, 16]) {
+  for (const n of [8, 10, 12]) {
     const league = createLeague({ name: 'T', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: n, seed: 400 + n, draftType: 'auction' });
     assert.equal(league.teams.length, n, 'enough AI clubs exist for this size');
     autoCompleteAll(league.auction, league, PLAYERS, new Rng(n), PLAYERS_BY_ID);
     startSeason(league);
     const weeks = league.schedule.length;
-    assert.ok(weeks >= 6 && weeks <= 16, `${n} teams plays ${weeks} weeks`);
+    assert.equal(weeks, { 8: 14, 10: 13, 12: 13 }[n], `${n} teams plays ${weeks} weeks`);
     for (const wk of league.schedule) assert.equal(wk.games.length, n / 2);
     let guard = 0;
     while (league.phase !== 'complete' && guard++ < 60) {
@@ -142,7 +142,7 @@ test('every league size produces a balanced schedule and a champion', async () =
     }
     assert.equal(league.phase, 'complete', `${n}-team league finished`);
     assert.ok(league.champion != null);
-    assert.equal(league.playoffs.seeds.length, playoffFieldSize(n));
+    assert.equal(league.playoffs.pools[0].seeds.length, playoffFieldSize(n));
     for (const t of league.teams) assert.equal(t.record.w + t.record.l + t.record.t, weeks);
   }
 });

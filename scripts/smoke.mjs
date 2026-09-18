@@ -157,6 +157,35 @@ try {
   await page.waitForSelector('#play');
   await checkOverflow('snake season');
 
+  // Pro league: 32 teams, divisions, a 17-game slate.
+  await page.evaluate(() => localStorage.clear());
+  await page.goto(`http://localhost:${port}/#/new`);
+  await page.waitForSelector('#setup');
+  await page.check('input[name="mode"][value="pro"]');
+  await page.selectOption('select[name="franchise"]', '12');
+  await page.check('input[name="draft"][value="auto"]');
+  await page.click('button[type="submit"]');
+  await page.waitForSelector('.division', { timeout: 60000 });
+  await checkOverflow('pro season hub');
+  await shot('12-pro-season');
+  const divisions = await page.$$eval('.division', (d) => d.length);
+  if (divisions !== 8) errors.push(`pro hub shows ${divisions} divisions, expected 8`);
+  const weekGames = await page.$$eval('#season-view .card .matchup', (m) => m.length);
+  if (weekGames < 16) errors.push(`pro week lists ${weekGames} matchups, expected at least 16`);
+  await page.click('#simWeek');
+  await page.waitForSelector('#advance');
+  await page.click('#advance');
+  await page.waitForSelector('#play');
+  await checkOverflow('pro week 2');
+  await page.goto(`http://localhost:${port}/#/team/12`);
+  await page.waitForSelector('#teamPick');
+  await checkOverflow('pro team page');
+  await shot('13-pro-team');
+  // A finished AI game shows team totals without player lines.
+  await page.goto(`http://localhost:${port}/#/box/w/1/0`);
+  await page.waitForSelector('.stat-compare');
+  await checkOverflow('pro box score');
+
   // Tablet and desktop widths must stay clean too.
   for (const [w, h, label] of [[768, 1024, 'tablet'], [1280, 900, 'desktop']]) {
     await page.setViewportSize({ width: w, height: h });

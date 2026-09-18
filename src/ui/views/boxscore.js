@@ -25,6 +25,7 @@ export function view(root, params, ctx) {
   const scoring = (box.log || []).filter((e) => e.scoring);
 
   const tables = (side) => {
+    if (!box.players) return '<p class="muted" style="font-size:.85rem">Player lines are kept for your games and the playoffs; this one has team totals only. Season totals for everyone are on their team page.</p>';
     const P = box.players[side];
     const rows = Object.entries(P).map(([id, s]) => ({ p: ctx.byId.get(id), s })).filter((r) => r.p);
     const tbl = (title, cols, filter, sortBy) => {

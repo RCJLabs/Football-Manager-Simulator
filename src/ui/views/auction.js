@@ -259,7 +259,7 @@ function complete(root, ctx, league, u) {
     </div>
   </div>`);
   root.querySelector('#start').addEventListener('click', () => {
-    ctx.update((s) => { startSeason(s.league); }, { silent: true });
+    ctx.update((s) => { startSeason(s.league, ctx.byId); }, { silent: true });
     ctx.navigate('#/season');
   });
   root.querySelector('#auction-done').addEventListener('click', (e) => {
