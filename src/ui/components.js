@@ -89,11 +89,11 @@ export function attrList(p, { highlight = true } = {}) {
  *   action  raw HTML for the trailing control (a button, depth arrows…)
  *   meta    extra raw HTML appended to the small grey line
  */
-export function playerItem(p, { action = '', meta = '', cls = '', attrs = true, era = true } = {}) {
+export function playerItem(p, { action = '', meta = '', cls = '', attrs = true, era = true, pos = true } = {}) {
   return `<li class="prow ${cls}" data-id="${esc(p.id)}">
     ${ovrBadge(p).__raw}
     <div class="who">
-      <div class="nm"><span class="tap" data-show="${esc(p.id)}">${esc(p.name)}</span>${posBadge(p.pos).__raw}</div>
+      <div class="nm"><span class="tap" data-show="${esc(p.id)}">${esc(p.name)}</span>${pos ? posBadge(p.pos).__raw : ''}</div>
       <div class="meta">${p.generated ? `class of ${p.season}` : `${p.season} ${esc(p.team)}`}${p.generated ? rookieBadge(p).__raw : era ? eraBadge(p.season).__raw : ''}${ageBadge(p).__raw}${meta}</div>
     </div>
     <div class="act">${action}</div>

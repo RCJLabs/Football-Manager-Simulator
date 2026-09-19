@@ -154,7 +154,7 @@ export function view(root, params, ctx) {
     const m = modal(html`<h2>${r.accepted ? 'Deal' : 'No deal'}</h2>
       <p>${r.reason}</p>
       ${r.accepted ? html`<p class="muted">${give.map((id) => ctx.byId.get(id).name).join(', ')} to ${partner.name}; ${get.map((id) => ctx.byId.get(id).name).join(', ')} join you. Check your depth chart.</p>` : ''}
-      <div class="row"><button class="btn primary" data-close>OK</button>${r.accepted ? html`<a class="btn" href="#/team/${u}">Depth chart</a>` : ''}</div>`);
+      <div class="row"><button class="btn primary" data-close>OK</button>${r.accepted ? html`<a class="btn" href="#/team/${u}/depth">Depth chart</a>` : ''}</div>`);
     void m;
     if (r.accepted) { ui.give.clear(); ui.get.clear(); ui.tab = 'log'; }
     redraw();

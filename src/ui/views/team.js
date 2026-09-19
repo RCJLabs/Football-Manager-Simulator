@@ -1,5 +1,5 @@
 import { html, render, raw } from '../../util.js';
-import { ROSTER_SLOTS, POSITION_ORDER } from '../../data/positions.js';
+import { ROSTER_SLOTS, POSITION_ORDER, POSITIONS } from '../../data/positions.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { buildLineup, teamPower, overall } from '../../engine/ratings.js';
 import { playerItem, playerModal, teamChip, esc, outBadge, toast, modal } from '../components.js';
@@ -15,7 +15,21 @@ const STRATEGY_FIELDS = [
   { key: 'deepShell', label: 'Deep coverage', lo: 'Aggressive', hi: 'Prevent', min: 0, max: 0.6 },
 ];
 
+/**
+ * Which section is open. The team page was doing four unrelated jobs in one
+ * scroll — the depth chart, chemistry, the injury desk and the strategy dials —
+ * which measured 3,341px on a phone with the chart itself only 1,831px of it.
+ * Kept module-level and mirrored in the route the way moves.js does it, so it
+ * survives a re-render and the back button works.
+ */
+const TABS = [['depth', 'Depth'], ['squad', 'Squad'], ['injuries', 'Injuries'], ['strategy', 'Strategy']];
+const ui = { tab: 'depth' };
+
 export function view(root, params, ctx) {
+  if (params && params.tab) {
+    if (TABS.some(([k]) => k === params.tab)) ui.tab = params.tab;
+    delete params.tab;
+  }
   const { league } = ctx.getState();
   if (!league) { ctx.navigate('#/'); return; }
   const idx = Number(params.idx);
@@ -39,7 +53,13 @@ export function view(root, params, ctx) {
     return { pos, slots: slots.map((s, i) => ({ slot: s, i, total: slots.length, p: team.slots[s.id] ? ctx.byId.get(team.slots[s.id]) : null })) };
   });
 
-  const depthRows = groups.flatMap((g) => g.slots.map(({ slot, i, total, p }) => {
+  // The attribute line is a third of a row's height, and the chart is 27 rows
+  // long. Someone reading their own squad wants the numbers; someone hunting for
+  // a kicker wants the list short. `showAttrs` has been in the preferences since
+  // the beginning without anything reading it — this is what it was for.
+  const showAttrs = ctx.getState().prefs?.showAttrs !== false;
+
+  const rowFor = ({ slot, i, total, p }) => {
     if (!p) return `<li class="prow dim"><span class="badge slot">${slot.id}</span><div class="who"><div class="meta">empty${canEdit && league.phase === 'season' ? ' · <a href="#/moves">claim a free agent</a>' : ''}</div></div><div class="act"></div></li>`;
     const fp = stats[p.id] ? fantasyPoints(stats[p.id]) : 0;
     const inj = injuries[p.id];
@@ -57,8 +77,37 @@ export function view(root, params, ctx) {
       meta: `<span class="badge slot">${slot.id}</span>${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge" style="background:#2c4a37;color:#cfe6d6">starts</span>' : '<span class="badge">bench</span>'}${deal}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
       action: `${irable ? `<button class="btn sm" data-ir="${esc(p.id)}" title="${esc(`Free his slot; he stays yours and keeps healing. ${irOpen} place${irOpen === 1 ? '' : 's'} left.`)}">To IR</button>` : ''}${arrows}`,
       era: false,
+      attrs: showAttrs,
+      // The group header says the position and the slot badge says which one he
+      // is; a third copy next to the name only wraps it onto another line.
+      pos: false,
     });
-  })).join('');
+  };
+
+  /**
+   * One line per position group, so a 27-row scroll has landmarks in it. The
+   * summary is what you would go looking for anyway: how deep the group is, the
+   * best man in it, and whether anything is wrong — an empty slot or an injury
+   * that the rows themselves only reveal once you have scrolled to them.
+   */
+  function groupHead(g) {
+    const filled = g.slots.filter((x) => x.p);
+    const best = filled.reduce((m, x) => Math.max(m, overall(x.p)), 0);
+    const empty = g.slots.length - filled.length;
+    const out = filled.filter((x) => injuries[x.p.id]).length;
+    const flags = [
+      empty ? `<span class="badge warn">${empty} empty</span>` : '',
+      out ? `<span class="badge warn">${out} out</span>` : '',
+    ].join('');
+    return `<h4 class="poshead" id="pos-${g.pos}">
+      <span>${POSITIONS[g.pos]?.name || g.pos}</span>
+      <small>${g.slots.length} deep${best ? ` · best ${best}` : ''}</small>${flags}
+    </h4>`;
+  }
+
+  const depthChart = groups.map((g) => `${groupHead(g)}<ul class="plist">${g.slots.map(rowFor).join('')}</ul>`).join('');
+  const jumpBar = `<div class="jump" role="navigation" aria-label="Jump to a position">${
+    groups.map((g) => `<button type="button" class="chip" data-jump="${g.pos}">${g.pos}</button>`).join('')}</div>`;
 
   // Chemistry: the score is absolute so it does not jump around when another
   // club signs somebody, but what it is worth is measured against the league,
@@ -78,58 +127,83 @@ export function view(root, params, ctx) {
     <small class="muted">Worth at most ${MAX_BONUS.toFixed(1)} points either way, on blocking, coverage and a quarterback's timing — never on speed. A tight era band gels at once; a wide one stops mattering once the squad has played together.</small>
   </div>` : '';
 
+  const irCard = onIr.length || (canEdit && league.phase === 'season' && hurt.some(({ inj }) => inj.weeks >= IR_MIN_WEEKS)) ? html`<div class="card tight">
+    <h3>Injured reserve <small class="muted" style="text-transform:none;letter-spacing:0">· ${onIr.length} of ${irCapacity(league)}</small></h3>
+    ${onIr.length ? raw(`<ul class="plist">${onIr.map((p) => {
+      const inj = injuries[p.id];
+      const fit = ready.has(p.id);
+      return playerItem(p, {
+        attrs: false,
+        cls: fit ? '' : 'dim',
+        meta: fit ? ' · <span class="badge" style="background:#2c4a37;color:#cfe6d6">fit</span>' : ` · ${esc(inj ? inj.kind : 'injured')}, <b>${fmtWeeks(inj ? inj.weeks : 0)}</b>`,
+        action: canEdit ? `${fit ? `<button class="btn sm primary" data-activate="${esc(p.id)}">Activate</button>` : ''}<button class="btn sm danger" data-release="${esc(p.id)}">Release</button>` : '',
+      });
+    }).join('')}</ul>`) : html`<p class="muted" style="margin:0;font-size:.85rem">Empty. A player out ${IR_MIN_WEEKS} weeks or more can be parked here, which frees his roster slot to sign cover. He keeps healing and keeps his contract, but he cannot play or be traded until you activate him, which costs a roster spot in turn.</p>`}
+  </div>` : '';
+
+  const reportCard = hurt.length || fillIns.length ? html`<div class="card tight">
+    <h3>Injury report</h3>
+    ${hurt.length ? raw(`<ul class="plain ticker" style="max-height:none">${hurt.map(({ p, inj }) => `<li><b>${esc(p.name)}</b> <small class="muted">${p.pos}</small> — ${esc(inj.kind)}, <b>${fmtWeeks(inj.weeks)}</b></li>`).join('')}</ul>`) : ''}
+    ${fillIns.length ? html`<p class="muted" style="font-size:.85rem;margin:.4rem 0 0">${fillIns.length === 1 ? 'A replacement-level fill-in starts at' : 'Replacement-level fill-ins start at'} ${fillIns.map((p) => p.pos).join(', ')}. ${canEdit ? html`<a href="#/moves">Find cover on the wire.</a>` : ''}</p>` : ''}
+  </div>` : '';
+
+  // A tab that has nothing to say is worth saying so on, rather than showing an
+  // empty page and leaving the player wondering whether it failed to load.
+  const nothing = (what) => html`<div class="card tight"><p class="muted" style="margin:0">${what}</p></div>`;
+  const hurtCount = hurt.length + onIr.length;
+
+  const sections = {
+    depth: html`<div class="card tight">
+      <div class="row between" style="align-items:baseline">
+        <h3 style="margin:0">Depth chart</h3>
+        <button type="button" class="btn sm ghost" id="density" aria-pressed="${showAttrs ? 'false' : 'true'}">${showAttrs ? 'Compact' : 'Show ratings'}</button>
+      </div>
+      ${raw(jumpBar)}
+      ${canEdit ? html`<p class="muted" style="font-size:.78rem;margin:.1rem 0 .4rem">▲▼ reorders players within a position.</p>` : ''}
+      ${raw(depthChart)}
+    </div>`,
+    squad: html`<div class="grid grid-2">
+      ${chemCard || nothing('Chemistry is switched off for this league.')}
+      <div class="card tight"><h3>Unit ratings</h3>${raw(unitTable(lineup))}</div>
+    </div>`,
+    injuries: irCard || reportCard ? html`<div class="stack">${reportCard}${irCard}</div>` : nothing('Nobody is hurt and the injured reserve is empty.'),
+    strategy: html`<div class="card tight">
+      <h3>Strategy ${canEdit ? '' : html`<small class="muted">(AI)</small>`}</h3>
+      ${STRATEGY_FIELDS.map((f) => html`<div class="slider-row">
+        <div class="lbl"><span>${f.label}</span><b id="lbl-${f.key}">${pctLabel(f, team.strategy[f.key])}</b></div>
+        <input type="range" data-strat="${f.key}" min="${f.min}" max="${f.max}" step="0.01" value="${team.strategy[f.key]}" ${canEdit ? '' : 'disabled'}>
+        <div class="lbl"><span>${f.lo}</span><span>${f.hi}</span></div>
+      </div>`)}
+    </div>`,
+  };
+
   render(root, html`<div id="team-view">
     <div class="card">
       <h1 style="margin:0">${teamChip(team)}</h1>
       <p class="muted" style="margin:.25rem 0 .5rem;font-size:.9rem">${team.record.w}-${team.record.l}${team.record.t ? `-${team.record.t}` : ''} · PF ${team.record.pf} · PA ${team.record.pa} · Power <b>${power}</b>${gm ? html` · <span class="badge gm">${gm.name}</span>` : ''}</p>
       ${league.teams.length > 12
         ? html`<select id="teamPick" style="max-width:20rem">${league.teams.map((t, i) => html`<option value="${i}" ${i === idx ? 'selected' : ''}>${t.abbr} · ${t.name}${t.isUser ? ' (you)' : ''}</option>`)}</select>`
-        : html`<div class="tabs">${league.teams.map((t, i) => html`<a class="tab ${i === idx ? 'active' : ''}" href="#/team/${i}">${t.abbr}</a>`)}</div>`}
+        : html`<div class="tabs">${league.teams.map((t, i) => html`<a class="tab ${i === idx ? 'active' : ''}" href="#/team/${i}/${ui.tab}">${t.abbr}</a>`)}</div>`}
     </div>
-    <div class="grid grid-3" style="margin-top:.75rem">
-      <div class="card tight">
-        <h3>Depth chart</h3>
-        ${canEdit ? html`<p class="muted" style="font-size:.78rem;margin:-.25rem 0 .4rem">▲▼ reorders players within a position.</p>` : ''}
-        <ul class="plist">${raw(depthRows)}</ul>
-      </div>
-      <div class="stack">
-        ${chemCard}
-        ${onIr.length || (canEdit && league.phase === 'season' && hurt.some(({ inj }) => inj.weeks >= IR_MIN_WEEKS)) ? html`<div class="card tight">
-          <h3>Injured reserve <small class="muted" style="text-transform:none;letter-spacing:0">· ${onIr.length} of ${irCapacity(league)}</small></h3>
-          ${onIr.length ? raw(`<ul class="plist">${onIr.map((p) => {
-            const inj = injuries[p.id];
-            const fit = ready.has(p.id);
-            return playerItem(p, {
-              attrs: false,
-              cls: fit ? '' : 'dim',
-              meta: fit ? ' · <span class="badge" style="background:#2c4a37;color:#cfe6d6">fit</span>' : ` · ${esc(inj ? inj.kind : 'injured')}, <b>${fmtWeeks(inj ? inj.weeks : 0)}</b>`,
-              action: canEdit ? `${fit ? `<button class="btn sm primary" data-activate="${esc(p.id)}">Activate</button>` : ''}<button class="btn sm danger" data-release="${esc(p.id)}">Release</button>` : '',
-            });
-          }).join('')}</ul>`) : html`<p class="muted" style="margin:0;font-size:.85rem">Empty. A player out ${IR_MIN_WEEKS} weeks or more can be parked here, which frees his roster slot to sign cover. He keeps healing and keeps his contract, but he cannot play or be traded until you activate him, which costs a roster spot in turn.</p>`}
-        </div>` : ''}
-        ${hurt.length || fillIns.length ? html`<div class="card tight">
-          <h3>Injury report</h3>
-          ${hurt.length ? raw(`<ul class="plain ticker" style="max-height:none">${hurt.map(({ p, inj }) => `<li><b>${esc(p.name)}</b> <small class="muted">${p.pos}</small> — ${esc(inj.kind)}, <b>${fmtWeeks(inj.weeks)}</b></li>`).join('')}</ul>`) : ''}
-          ${fillIns.length ? html`<p class="muted" style="font-size:.85rem;margin:.4rem 0 0">${fillIns.length === 1 ? 'A replacement-level fill-in starts at' : 'Replacement-level fill-ins start at'} ${fillIns.map((p) => p.pos).join(', ')}. ${canEdit ? html`<a href="#/moves">Find cover on the wire.</a>` : ''}</p>` : ''}
-        </div>` : ''}
-        <div class="card tight">
-          <h3>Strategy ${canEdit ? '' : html`<small class="muted">(AI)</small>`}</h3>
-          ${STRATEGY_FIELDS.map((f) => html`<div class="slider-row">
-            <div class="lbl"><span>${f.label}</span><b id="lbl-${f.key}">${pctLabel(f, team.strategy[f.key])}</b></div>
-            <input type="range" data-strat="${f.key}" min="${f.min}" max="${f.max}" step="0.01" value="${team.strategy[f.key]}" ${canEdit ? '' : 'disabled'}>
-            <div class="lbl"><span>${f.lo}</span><span>${f.hi}</span></div>
-          </div>`)}
-        </div>
-        <div class="card tight">
-          <h3>Unit ratings</h3>
-          ${raw(unitTable(lineup))}
-        </div>
-      </div>
-    </div>
+    <div class="tabs sections" style="margin-top:.75rem">${TABS.map(([k, label]) => html`<a class="tab ${ui.tab === k ? 'active' : ''}" href="#/team/${idx}/${k}">${label}${k === 'injuries' && hurtCount ? raw(`<i class="dot" title="${hurtCount} hurt or on injured reserve"></i>`) : ''}</a>`)}</div>
+    <div style="margin-top:.6rem">${sections[ui.tab] || sections.depth}</div>
   </div>`);
 
   const el = root.querySelector('#team-view');
-  el.querySelector('#teamPick')?.addEventListener('change', (e) => ctx.navigate(`#/team/${e.target.value}`));
+  el.querySelector('#teamPick')?.addEventListener('change', (e) => ctx.navigate(`#/team/${e.target.value}/${ui.tab}`));
+
+  // The jump bar cannot be links: this is a hash router, so `href="#pos-OL"`
+  // would be read as a route and take you off the page.
+  el.querySelector('.jump')?.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-jump]');
+    if (!chip) return;
+    el.querySelector(`#pos-${chip.dataset.jump}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+
+  el.querySelector('#density')?.addEventListener('click', () => {
+    ctx.update((s) => { s.prefs.showAttrs = !showAttrs; });
+  });
+
   el.addEventListener('click', (e) => {
     const show = e.target.closest('[data-show]');
     if (show) { playerModal(ctx.byId.get(show.dataset.show)); return; }
@@ -144,6 +218,7 @@ export function view(root, params, ctx) {
         try {
           ctx.update((s) => { placeOnIr(s.league, idx, p.id); });
           toast(`${p.name} to injured reserve`);
+          ctx.navigate(`#/team/${idx}/injuries`);
         } catch (err) { toast(err.message); }
       });
       return;

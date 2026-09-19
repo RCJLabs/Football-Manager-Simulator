@@ -58,7 +58,23 @@ let cleanup = null;
 let activeView = null;
 let activeParams = null;
 
+/** Two mounts are the same screen when the view and its route params match. */
+function sameScreen(view, params) {
+  if (view !== activeView) return false;
+  const a = params || {}, b = activeParams || {};
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) if (String(a[k]) !== String(b[k])) return false;
+  return true;
+}
+
 function mount(view, params) {
+  // Every state change re-renders the open view through the same path a route
+  // change takes, so scrolling to the top unconditionally meant that moving one
+  // player down the depth chart threw you back to the top of a page four and a
+  // half screens long. A new screen starts at the top; the same screen redrawn
+  // stays where the player left it.
+  const stayPut = sameScreen(view, params);
+  const y = stayPut ? window.scrollY : 0;
   if (cleanup) { try { cleanup(); } catch (e) { console.error(e); } cleanup = null; }
   activeView = view; activeParams = params;
   try {
@@ -69,7 +85,10 @@ function mount(view, params) {
   }
   renderNav();
   renderSaveWarning();
-  window.scrollTo(0, 0);
+  // The redrawn page can be shorter than the old scroll position, so let the
+  // browser lay it out first and clamp to what is actually there.
+  if (stayPut && y) requestAnimationFrame(() => window.scrollTo(0, Math.min(y, document.documentElement.scrollHeight - window.innerHeight)));
+  else window.scrollTo(0, 0);
 }
 
 /**
@@ -124,6 +143,7 @@ route('/moves', () => mount(moves));
 route('/offseason', () => mount(offseason));
 route('/awards/:tab', (p) => mount(awards, p));
 route('/awards', () => mount(awards));
+route('/team/:idx/:tab', (p) => mount(team, p));
 route('/team/:idx', (p) => mount(team, p));
 route('/season', () => mount(season));
 route('/game', () => mount(game));

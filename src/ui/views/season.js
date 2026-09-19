@@ -229,9 +229,9 @@ export function view(root, params, ctx) {
   const injuryCard = league.phase === 'season' || league.phase === 'playoffs' ? html`<div class="card tight">
     <h3>Injuries</h3>
     ${myHurt.length ? raw(`<ul class="plain ticker" style="max-height:none">${myHurt.map(({ p, inj }) => `<li><b>${p.name}</b> <small class="muted">${p.pos}</small> — ${inj.kind}, <b>${fmtWeeks(inj.weeks)}</b></li>`).join('')}</ul>`) : html`<p class="muted" style="margin:0;font-size:.85rem">Your club is healthy.</p>`}
-    ${myHurt.some((x) => x.inj.weeks >= IR_MIN_WEEKS) && league.phase === 'season' ? html`<p class="muted" style="margin:.3rem 0 0;font-size:.85rem">Someone is out long enough for <a href="#/team/${u}">injured reserve</a>, which frees his slot to sign cover.</p>` : ''}
+    ${myHurt.some((x) => x.inj.weeks >= IR_MIN_WEEKS) && league.phase === 'season' ? html`<p class="muted" style="margin:.3rem 0 0;font-size:.85rem">Someone is out long enough for <a href="#/team/${u}/injuries">injured reserve</a>, which frees his slot to sign cover.</p>` : ''}
     ${irList(me).length ? html`<p class="muted" style="margin:.3rem 0 0;font-size:.85rem">${irList(me).length} on injured reserve.</p>` : ''}
-    <small class="muted" style="display:block;margin-top:.4rem">${leagueHurt} player${leagueHurt === 1 ? '' : 's'} out league-wide · injuries set to ${league.settings.injuries || 'normal'}${myHurt.length ? html` · <a href="#/team/${u}">depth chart</a>` : ''}</small>
+    <small class="muted" style="display:block;margin-top:.4rem">${leagueHurt} player${leagueHurt === 1 ? '' : 's'} out league-wide · injuries set to ${league.settings.injuries || 'normal'}${myHurt.length ? html` · <a href="#/team/${u}/depth">depth chart</a>` : ''}</small>
   </div>` : '';
 
   render(root, html`<div id="season-view">

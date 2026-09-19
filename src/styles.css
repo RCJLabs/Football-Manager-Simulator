@@ -203,6 +203,13 @@ details.fold[open] > summary { margin-bottom: .25rem; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab { padding: 0.35rem 0.7rem; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap; flex: none; min-height: 34px; }
 .tab.active { background: var(--accent); color: #1a1a1a; border-color: transparent; }
+/* Four section tabs come to 339px at the default padding, which is 3px more than
+   a 360px phone has. They are a fixed set, so they get to fit rather than scroll. */
+.tabs.sections .tab { padding-left: 0.55rem; padding-right: 0.55rem; }
+
+/* "Something needs you here", in less width than a number would cost. */
+.tab .dot { display: inline-block; width: 6px; height: 6px; margin-left: 0.3rem; border-radius: 50%; background: #e8974a; vertical-align: middle; }
+.tab.active .dot { background: #7a3d00; }
 
 .needs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .need { font-size: 0.78rem; padding: 0.2rem 0.5rem; border-radius: 999px; background: var(--bg-3); color: var(--muted); cursor: pointer; }
@@ -268,6 +275,20 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 
 .stat-compare { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.25rem 0.5rem; font-variant-numeric: tabular-nums; font-size: 0.88rem; }
 .stat-compare .l { text-align: right; } .stat-compare .m { color: var(--muted); text-align: center; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* Depth-chart furniture: a jump bar and a header per position group. Twenty-seven
+   rows is four and a half screens on a phone, so the list needs landmarks and a
+   way past them. The bar sticks under the topbar; `scroll-margin-top` keeps a
+   jumped-to header from landing underneath it. */
+.jump { display: flex; gap: 0.3rem; overflow-x: auto; padding: 0.35rem 0; margin: 0 0 0.2rem; scrollbar-width: none; position: sticky; top: 0; background: var(--card, #12211a); z-index: 3; }
+.jump::-webkit-scrollbar { display: none; }
+.jump .chip { flex: 0 0 auto; font-family: var(--mono); font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.jump .chip:hover, .jump .chip:focus-visible { color: var(--fg, #e8f0ea); border-color: #3c6b4d; }
+
+.poshead { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; margin: 0.7rem 0 0.1rem; padding-top: 0.3rem; border-top: 1px solid var(--line); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; scroll-margin-top: 3.2rem; }
+.poshead:first-of-type { border-top: 0; margin-top: 0.2rem; }
+.poshead small { font-family: var(--mono); font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); }
+.badge.warn { background: #5c3a1a; color: #ffdfae; }
 
 /* Saving has stopped working. Loud on purpose, and it stays until it is fixed. */
 .savewarn { background: #5c1a1a; color: #ffe9e9; border-bottom: 2px solid #ff6b6b; padding: 0.6rem 1rem; font-size: 0.9rem; line-height: 1.45; }

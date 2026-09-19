@@ -522,6 +522,18 @@ Layout is phone-first and the page must never scroll sideways. Two rules keep it
 
 `teamChip(team, { responsive: true })` renders the abbreviation on a phone and the full club name from 560px, so scoreboards and matchup rows stay legible instead of ellipsised. The smoke test asserts no horizontal overflow on every screen at 360, 768 and 1280px and names the offending element when it finds one.
 
+3. A screen re-rendered by a state change keeps its scroll position. `mount()` in `main.js` compares the view and its route params against the last mount and only jumps to the top when the screen actually changed. Every state change re-renders the open view through the same path a route change takes, so before this, moving one player down the depth chart threw you back to the top of a page four and a half screens long.
+
+### The team page
+
+Measured at 360px, the old single-scroll team page was 3,341px — and the depth chart, which it is named for, was only 1,831px of that. The rest was chemistry, the injury desk, five strategy sliders and the unit ratings stacked underneath. So it is four sections behind tabs (`#/team/:idx/:tab`, the tab kept module-level and mirrored in the route the way `moves.js` does it): Depth, Squad, Injuries, Strategy. The depth tab is 2,906px with ratings shown and 2,329px compact; the other three are about one screen each. Tabs apply at every width, because a desktop had the same long scroll with a sidebar next to it.
+
+Within the depth chart, twenty-seven rows get position group headers — name, how deep the group is, the best man in it, and a marker for an empty slot or an injury, which the rows themselves only reveal once you have scrolled to them — plus a sticky jump bar of position chips. The chips are buttons calling `scrollIntoView`, not links: this is a hash router and `href="#pos-OL"` would be read as a route. A group near the bottom cannot reach the top of the viewport because there is nothing below it to scroll up into, so the smoke test only asserts it comes into view.
+
+Two smaller things fell out of the measurement. `showAttrs` had been in the preferences since the beginning with nothing reading it; it is now the depth chart's density toggle, worth 577px. And `playerItem()` grew a `pos` option, because on a screen already grouped by position — with the slot badge saying which one he is — a third copy of the position next to the name only wrapped it onto a second line.
+
+The four section tabs come to 339px at the default `.tab` padding, which is 3px more than a 360px phone has, so `.tabs.sections` trims it; and the injury tab carries a dot rather than a count, since " (3)" put the strip back over the edge. Placing a man on injured reserve navigates to the Injuries tab, because otherwise he vanishes from the depth chart and reappears on a screen you are not looking at.
+
 ### Reading order is DOM order
 
 A two-column `.grid-2` collapses to one column under 820px, so on a phone the **whole** first column renders before the **whole** second. That is easy to forget and it quietly broke the season hub: a 32-club league lists sixteen matchups, and with the slate, the table and the full schedule filling the first column, every decision on the screen — trade offers with a deadline, injured players, the owner's patience, the simulate-ahead buttons — sat below them. The app had started apologising for its own layout with a toast reading "2 clubs have trade offers for you", because the card saying so was off-screen.

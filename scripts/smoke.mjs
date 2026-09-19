@@ -194,10 +194,57 @@ try {
   await page.click('#simWeek');
   await page.waitForSelector('#advance');
 
+  // The team page is four tabs now: the depth chart alone was 27 rows deep and
+  // everything else was stacked under it in one scroll.
   await page.goto(`http://localhost:${port}/#/team/0`);
-  await page.waitForSelector('.slider-row');
+  await page.waitForSelector('.poshead');
   await checkOverflow('team page');
   await shot('10-team');
+  const groups = await page.$$eval('.poshead', (h) => h.length);
+  if (groups !== 11) errors.push(`the depth chart shows ${groups} position groups, expected 11`);
+  const tabStrip = await page.evaluate(() => {
+    const strips = [...document.querySelectorAll('#team-view .tabs')];
+    const s = strips[strips.length - 1];
+    const box = s.getBoundingClientRect();
+    return { n: s.querySelectorAll('.tab').length, scrollW: s.scrollWidth, clientW: s.clientWidth,
+      cut: [...s.querySelectorAll('.tab')].filter((a) => a.getBoundingClientRect().right > box.right + 1).map((a) => a.textContent.trim()) };
+  });
+  if (tabStrip.n !== 4) errors.push(`the team page shows ${tabStrip.n} section tabs, expected 4`);
+  if (tabStrip.cut.length) errors.push(`section tabs do not fit at 360px: ${tabStrip.scrollW}px of tabs in a ${tabStrip.clientW}px strip, ${tabStrip.cut.join(', ')} off the end`);
+
+  // The jump bar is the whole point of the grouping: a position in one tap. A
+  // group near the bottom cannot reach the top of the viewport because there is
+  // nothing below it to scroll up into, so it only has to come into view.
+  await page.evaluate(() => document.querySelector('[data-jump="DL"]').click());
+  await sleep(800);
+  const dlTop = await page.evaluate(() => Math.round(document.querySelector('#pos-DL').getBoundingClientRect().top));
+  if (dlTop < 0 || dlTop > 140) errors.push(`jumping to the defensive line left its header ${dlTop}px from the top of the viewport`);
+  await page.evaluate(() => document.querySelector('[data-jump="K"]').click());
+  await sleep(800);
+  const kTop = await page.evaluate(() => Math.round(document.querySelector('#pos-K').getBoundingClientRect().top));
+  if (kTop < 0 || kTop > 800) errors.push(`jumping to the kicker did not bring him on screen (${kTop}px)`);
+
+  // Reordering used to throw you back to the top of a page four screens long.
+  await page.evaluate(() => document.querySelector('[data-jump="OL"]').click());
+  await sleep(700);
+  const yBefore = await page.evaluate(() => Math.round(window.scrollY));
+  const mover = await page.$('[data-move="OL3"][data-dir="1"]');
+  if (!mover) errors.push('no reorder control on OL3');
+  else {
+    await mover.click();
+    await sleep(400);
+    const yAfter = await page.evaluate(() => Math.round(window.scrollY));
+    if (Math.abs(yAfter - yBefore) > 40) errors.push(`reordering scrolled the page from ${yBefore}px to ${yAfter}px`);
+  }
+
+  for (const tab of ['squad', 'injuries', 'strategy']) {
+    await page.goto(`http://localhost:${port}/#/team/0/${tab}`);
+    await sleep(250);
+    await checkOverflow(`team page · ${tab}`);
+  }
+  await page.waitForSelector('.slider-row');
+  await page.goto(`http://localhost:${port}/#/team/0/depth`);
+  await page.waitForSelector('#density');
 
   // Injured reserve: park a long injury, then bring him back. Let the app's
   // debounced save flush first, or reloading writes its state over ours.
@@ -214,7 +261,7 @@ try {
     return { u, slot, id, phase: st.league.phase };
   });
   if (irTarget.phase !== 'season') errors.push(`injured reserve step ran in phase ${irTarget.phase}`);
-  await page.goto(`http://localhost:${port}/#/team/${irTarget.u}`);
+  await page.goto(`http://localhost:${port}/#/team/${irTarget.u}/depth`);
   await page.reload();
   await page.waitForSelector('[data-ir]');
   await checkOverflow('team page with an IR candidate');
@@ -413,8 +460,11 @@ try {
   await shot('11e-scouting');
 
   // Chemistry is on the team screen with its inputs, not hidden in the engine.
+  // It lives on the Squad tab now.
   await page.click('#nav a[href^="#/team/"]');
   await page.waitForSelector('#team-view');
+  await page.click('#team-view .tab[href$="/squad"]');
+  await page.waitForFunction(() => /Era spread|Chemistry is switched off/.test(document.querySelector('#team-view').textContent), { timeout: 5000 });
   const teamText = await page.$eval('#team-view', (e) => e.textContent);
   if (!/Chemistry/.test(teamText)) errors.push('no chemistry card on the team screen');
   if (!/Era spread/.test(teamText)) errors.push('the chemistry card does not show what it is made of');
