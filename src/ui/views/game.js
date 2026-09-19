@@ -45,6 +45,12 @@ export function view(root, params, ctx) {
     const [home, away] = g.teams;
     const ballX = g.phase === 'play' ? (off === 0 ? g.ballOn : 100 - g.ballOn) : 50;
     const fdX = g.phase === 'play' ? (off === 0 ? g.ballOn + g.toGo : 100 - g.ballOn - g.toGo) : null;
+    // Where this drive began, so the strip shows how far they have come rather
+    // than only where the ball is sitting.
+    const startX = g.drive && g.phase === 'play'
+      ? (off === 0 ? g.drive.startBallOn : 100 - g.drive.startBallOn) : null;
+    const driveFrom = startX != null ? Math.min(startX, ballX) : null;
+    const driveTo = startX != null ? Math.max(startX, ballX) : null;
     const dist = fgDistance(g.ballOn);
     const kicker = g.teams[off].comp.k;
     const fgP = Math.round(fgProbability(kicker, dist) * 100);
@@ -113,10 +119,15 @@ export function view(root, params, ctx) {
       </div>
       <div class="fieldbar" aria-hidden="true">
         <div class="ez left" style="background:${home.color}">${home.abbr}</div><div class="ez right" style="background:${away.color}">${away.abbr}</div>
-        ${raw([10, 20, 30, 40, 50, 60, 70, 80, 90].map((x) => `<div class="tick" style="left:${6 + x * 0.88}%"></div>`).join(''))}
+        ${raw([10, 20, 30, 40, 50, 60, 70, 80, 90].map((x) => `<div class="tick ${x === 50 ? 'half' : ''}" style="left:${6 + x * 0.88}%"></div>`).join(''))}
+        ${raw([20, 40, 50, 60, 80].map((x) => `<div class="yard" style="left:${6 + x * 0.88}%">${x > 50 ? 100 - x : x}</div>`).join(''))}
+        ${driveFrom != null && driveTo - driveFrom > 0.5
+          ? html`<div class="gained" style="left:${6 + driveFrom * 0.88}%;width:${(driveTo - driveFrom) * 0.88}%;background:${g.teams[off].color}"></div>` : ''}
         ${fdX != null && fdX > 0 && fdX < 100 ? html`<div class="marker" style="left:${6 + fdX * 0.88}%"></div>` : ''}
         ${g.phase === 'play' ? html`<div class="ball" style="left:${6 + ballX * 0.88}%"></div>` : ''}
+        ${g.phase === 'play' ? html`<div class="going ${off === 0 ? 'right' : 'left'}" style="left:${6 + ballX * 0.88}%">${off === 0 ? '▸' : '◂'}</div>` : ''}
       </div>
+      ${g.phase === 'play' && g.drive ? html`<div class="drivenote muted">${g.teams[off].abbr} drive: ${g.drive.plays} play${g.drive.plays === 1 ? '' : 's'}, ${g.drive.yards >= 0 ? '' : '−'}${Math.abs(g.drive.yards)} yard${Math.abs(g.drive.yards) === 1 ? '' : 's'}${startX != null ? ` from ${spot(g, off, g.drive.startBallOn)}` : ''}</div>` : ''}
       ${story.length ? html`<div class="card tight" style="margin-bottom:.75rem"><h3>Game story</h3>${raw(story.map((s) => `<p style="margin:.3rem 0;font-size:.92rem">${s}</p>`).join(''))}</div>` : ''}
       <div class="card tight" style="margin-bottom:.75rem">
         ${controls}

@@ -199,16 +199,36 @@ function startDrive(g) {
     yards: 0,
     time: 0,
     result: null,
+    // A trip is a drive that reached the twenty, counted once. It used to be
+    // counted at five separate sites — on crossing the line, and again on the
+    // touchdown or field goal that followed — so a game showed 6.4 trips out of
+    // 10.8 drives and a red zone conversion of 35% against a real 55 to 65.
+    inRedZone: false,
   };
   g.stats[g.possession].team.drives++;
   if (g.ot) g.ot.possessed[g.possession] = true;
   logEvent(g, { type: 'drive', text: `${g.teams[g.possession].name} ball at ${spot(g, g.possession, g.ballOn)}.` });
 }
 
-function endDrive(g, result) {
+/**
+ * Note a drive reaching the twenty, once. Also catches a drive that *starts*
+ * inside it — a short field after a turnover never crosses the line, which is
+ * the case the scattered counters were clumsily trying to cover.
+ */
+function markRedZone(g) {
+  const d = g.drive;
+  if (!d || d.inRedZone || g.ballOn < 80) return;
+  d.inRedZone = true;
+  g.stats[d.team].team.redZoneAtt++;
+}
+
+function endDrive(g, result, endBallOn = g.ballOn) {
   if (!g.drive) return;
   g.drive.result = result;
-  g.drive.endBallOn = g.ballOn;
+  // Where the drive actually finished, which is not always where the ball is
+  // sitting when we get here: a fumble is spotted downfield before possession
+  // changes, and a safety leaves the ball in the end zone.
+  g.drive.endBallOn = clamp(Math.round(endBallOn), 0, 100);
   g.drives.push(g.drive);
   g.drive = null;
 }
@@ -591,11 +611,17 @@ function enforcePenalty(g, pen, sit, elapsed = 0) {
     g.stats[off].team.top += used;
     if (g.drive) g.drive.time += used;
   }
+  // A drive's yardage is the ground it covered, penalties included — the
+  // convention every drive chart uses, and the only one that agrees with the
+  // band drawn on the field. Team total yards stays scrimmage-only, which is
+  // the separate NFL convention, so the two are charged in different places.
   if (pen.side === off) {
     g.ballOn -= yards;
+    if (g.drive) g.drive.yards -= yards;
     g.toGo = Math.min(g.toGo + yards, 100 - g.ballOn);
   } else {
     g.ballOn += yards;
+    if (g.drive) g.drive.yards += yards;
     if (pen.firstDown || g.toGo - yards <= 0) {
       g.down = 1;
       g.toGo = Math.min(10, 100 - g.ballOn);
@@ -656,7 +682,6 @@ function applyOutcome(g, rng, o, sit) {
     if (o.fgGood) {
       g.score[off] += 3;
       ts.points += 0;
-      if (sit.ballOn >= 80) ts.redZoneAtt++;
       endDrive(g, 'FG');
       logEvent(g, { ...base, scoring: true, text: `${o.text} ${scoreLine(g)}` });
       g.phase = 'kickoff'; g.kickingTeam = off; g.clockRunning = false;
@@ -664,7 +689,6 @@ function applyOutcome(g, rng, o, sit) {
       return;
     }
     // Miss: defense takes over at spot of kick (7 yards behind LOS) or 20 if inside.
-    if (sit.ballOn >= 80) ts.redZoneAtt++;
     endDrive(g, 'missed FG');
     logEvent(g, { ...base });
     changePossession(g, Math.max(20, 100 - (sit.ballOn - 7)));
@@ -687,7 +711,9 @@ function applyOutcome(g, rng, o, sit) {
     return;
   }
   if (o.type === 'kneel') {
-    g.ballOn = Math.max(1, g.ballOn - 1);
+    const kneelTo = Math.max(1, g.ballOn - 1);
+    if (g.drive) g.drive.yards += kneelTo - g.ballOn;
+    g.ballOn = kneelTo;
     g.down++; g.toGo += 1;
     logEvent(g, { ...base });
     if (g.down > 4) { endDrive(g, 'turnover on downs'); changePossession(g, 100 - g.ballOn); g.clockRunning = false; }
@@ -718,9 +744,11 @@ function applyOutcome(g, rng, o, sit) {
         return;
       }
       logEvent(g, { ...base });
-      changePossession(g, clamp(defSpot, 1, 99));
-      // Touchback if intercepted in the end zone and not returned out.
-      if (o.intSpot >= 100 && o.returnYds < 5) g.ballOn = 20;
+      // Touchback if intercepted in the end zone and not returned out. Decided
+      // here rather than after the handover, because changePossession opens the
+      // new drive and announces the spot.
+      const touchback = o.intSpot >= 100 && o.returnYds < 5;
+      changePossession(g, touchback ? 20 : clamp(defSpot, 1, 99));
       g.clockRunning = false;
       return;
     }
@@ -728,7 +756,7 @@ function applyOutcome(g, rng, o, sit) {
     const spotOff = clamp(sit.ballOn + o.yards, 1, 99);
     ts.totalYds += o.yards;
     if (g.drive) g.drive.yards += o.yards;
-    endDrive(g, 'fumble');
+    endDrive(g, 'fumble', spotOff);
     const defSpot = clamp(100 - spotOff + (o.returnYds || 0), 1, 99);
     if (100 - spotOff + (o.returnYds || 0) >= 100) {
       g.possession = defT;
@@ -751,7 +779,7 @@ function applyOutcome(g, rng, o, sit) {
     ts.totalYds += o.yards;
     if (g.drive) g.drive.yards += o.yards;
     g.score[defT] += 2;
-    endDrive(g, 'safety');
+    endDrive(g, 'safety', 0);
     logEvent(g, { ...base, scoring: true, text: `${o.text} Safety. ${scoreLine(g)}` });
     g.phase = 'kickoff'; g.kickingTeam = off; g.freeKick = true; g.clockRunning = false;
     checkOvertimeEnd(g, { defensiveScore: true });
@@ -762,7 +790,8 @@ function applyOutcome(g, rng, o, sit) {
   if (o.td || newBallOn >= 100) {
     g.ballOn = 100;
     g.score[off] += 6;
-    if (sit.ballOn >= 80) { ts.redZoneAtt++; ts.redZoneTd++; }
+    // The trip is already counted; this is only whether it paid off.
+    if (g.drive?.inRedZone) ts.redZoneTd++;
     if (wasThird) ts.thirdConv++;
     if (wasFourth) ts.fourthConv++;
     ts.firstDowns++;
@@ -778,12 +807,13 @@ function applyOutcome(g, rng, o, sit) {
     g.stats[pen.side].team.penalties++;
     g.stats[pen.side].team.penYds += yards;
     g.ballOn += yards;
+    if (g.drive) g.drive.yards += yards;
     g.down = 1;
     g.toGo = Math.min(10, 100 - g.ballOn);
     ts.firstDowns++;
     if (wasThird) ts.thirdConv++;
     if (wasFourth) ts.fourthConv++;
-    if (sit.ballOn < 80 && g.ballOn >= 80) ts.redZoneAtt++;
+    markRedZone(g);
     logEvent(g, { ...base, flag: true, text: `${o.text} ${penaltyLabel(g, pen, yards)} ${downText(g)} at ${spot(g, off, g.ballOn)}.` });
     g.clockRunning = false;
     return;
@@ -805,7 +835,7 @@ function applyOutcome(g, rng, o, sit) {
       return;
     }
   }
-  if (sit.ballOn < 80 && g.ballOn >= 80) ts.redZoneAtt++;
+  markRedZone(g);
   logEvent(g, { ...base });
   g.clockRunning = !o.clockStops && g.clock > 0;
   // Out of bounds outside two minutes: clock restarts on ready-for-play.

@@ -30,10 +30,15 @@ test('win probability starts near even, follows the score, and settles at the fi
   const late = winProbability({ ...lead, quarter: 4, clock: 120 });
   assert.ok(early > 0.6 && late > early, `early ${early} late ${late}`);
   assert.ok(winProbability({ ...lead, score: [0, 10], quarter: 4, clock: 120 }) < 0.15);
-  // Possession and field position count.
+  // Possession and field position count. Asserted as the swing between the two
+  // sides having the ball rather than as a pair of absolute thresholds: this
+  // matchup has a prior of its own, and the old thresholds only held because
+  // the expected-points curve overstated the red zone by a point and a half.
   const ours = winProbability({ ...g, phase: 'play', possession: 0, ballOn: 85, down: 1, toGo: 10 });
   const theirs = winProbability({ ...g, phase: 'play', possession: 1, ballOn: 85, down: 1, toGo: 10 });
-  assert.ok(ours > 0.55 && theirs < 0.45, `red zone ours ${ours} theirs ${theirs}`);
+  assert.ok(ours > 0.55, `first and ten at their fifteen should favour us: ${ours}`);
+  assert.ok(theirs < 0.5, `and the reverse should not: ${theirs}`);
+  assert.ok(ours - theirs > 0.2, `who has it in the red zone has to matter: ${(ours - theirs).toFixed(3)}`);
   simulateGame(g);
   const last = g.log[g.log.length - 1].wp;
   assert.equal(last, g.score[0] > g.score[1] ? 1 : g.score[0] < g.score[1] ? 0 : 0.5);

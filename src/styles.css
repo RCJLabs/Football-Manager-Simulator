@@ -278,7 +278,14 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .sb-mid .spot { color: var(--muted); font-size: 0.75rem; }
 @media (min-width: 560px) { .sb-team .name { font-size: 0.95rem; } .sb-team .score { font-size: 2.4rem; } .sb-mid .q { font-size: 1.1rem; } }
 
-.fieldbar { position: relative; height: 30px; margin: 0.5rem 0; background: repeating-linear-gradient(90deg, var(--field) 0 10%, var(--field-dark) 10% 20%); border-radius: 6px; overflow: hidden; border: 1px solid #1f4a2a; }
+.fieldbar { position: relative; height: 46px; margin: 0.5rem 0 0.15rem; background: repeating-linear-gradient(90deg, var(--field) 0 10%, var(--field-dark) 10% 20%); border-radius: 6px; overflow: hidden; border: 1px solid #1f4a2a; }
+/* Ground this drive has covered, in the attacking side's colour. */
+.fieldbar .gained { position: absolute; top: 0; bottom: 0; opacity: 0.3; transition: left 0.3s ease, width 0.3s ease; }
+.fieldbar .yard { position: absolute; top: 3px; transform: translateX(-50%); font-family: var(--mono); font-size: 0.6rem; color: rgba(255,255,255,0.4); pointer-events: none; }
+.fieldbar .tick.half { background: rgba(255,255,255,0.35); width: 2px; }
+/* Which way they are going, so a strip with two end zones is not ambiguous. */
+.fieldbar .going { position: absolute; bottom: 2px; transform: translateX(-50%); font-size: 0.7rem; color: rgba(255,255,255,0.75); transition: left 0.3s ease; }
+.drivenote { font-size: 0.75rem; margin: 0 0 0.5rem; font-family: var(--mono); }
 .fieldbar .ez { position: absolute; top: 0; bottom: 0; width: 6%; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: 800; letter-spacing: 0.03em; overflow: hidden; }
 .fieldbar .ez.left { left: 0; } .fieldbar .ez.right { right: 0; }
 .fieldbar .ball { position: absolute; top: 50%; width: 13px; height: 13px; margin-left: -6.5px; margin-top: -6.5px; border-radius: 50%; background: #8b4513; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.4); transition: left 0.3s ease; }

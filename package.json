@@ -19,6 +19,8 @@
     "careers": "node scripts/career-sim.mjs",
     "leverage": "node scripts/leverage-sim.mjs",
     "fingerprint": "node scripts/game-fingerprint.mjs",
+    "realism": "node scripts/realism.mjs",
+    "ep": "node scripts/expected-points.mjs",
     "report": "node scripts/db-report.mjs",
     "offers": "node scripts/offer-sim.mjs",
     "ir": "node scripts/ir-sim.mjs"

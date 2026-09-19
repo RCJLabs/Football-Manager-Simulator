@@ -26,6 +26,78 @@ const MATRIX = {
   pa_pass:    { base: {}, run_stop: { comp: 0.1, cov: -9, pressure: -0.04 }, blitz: { pressure: 0.12, cov: -5 }, deep: { comp: -0.04, cov: 3 } },
 };
 
+/**
+ * What a carry is worth, and what a punt is.
+ *
+ * Both came out of the realism audit (`scripts/realism.mjs`), which counts a
+ * simulated game against what the real league does. The run game was short at
+ * both ends — 3.97 yards a carry against a real 4.3, and 90 rushing yards a
+ * game against 95 to 140 — and a punt averaged 40.7 gross where the real number
+ * is in the mid-forties.
+ *
+ * The run mattered more than the shortfall suggests. A game that under-pays
+ * carrying the ball is a game where every roster wants to throw, which is
+ * exactly what the strategy work found: a balanced squad's best pass rate sat
+ * at the top of the dial. Paying the run properly is what gives that dial two
+ * ends worth choosing between.
+ */
+export const RUN_IN = 4.45;     // mean gain on an inside run that is not stuffed
+export const RUN_OUT = 4.2;     // the same outside, where the spread is wider
+// Scaled by the blocking edge. Set against the share of carries that gain
+// nothing or lose ground, which is 16 to 22% in the real league — the rate
+// itself is lower than that share, because the branch that is *not* stuffed
+// still produces the occasional nothing.
+export const STUFF_RATE = 0.145;
+export const PUNT_GROSS = 45;
+
+/**
+ * How hard the field squeezes the offence: 0 in the open, 1 on the goal line.
+ *
+ * Inside the twenty there is no grass behind the defence. The safeties play
+ * flat, the deep routes run out of room, and the catch that would have been a
+ * twenty-yard gain is a two-yard gain. The model had none of that — a throw
+ * from the five was resolved exactly like one from midfield — so the red zone
+ * produced a touchdown on 67% of trips against a real 55 to 60, and field goal
+ * attempts fell to 1.3 a game against a real 1.5 to 2.5.
+ */
+export function squeeze(ballOn) {
+  return clamp((ballOn - 75) / 25, 0, 1);
+}
+
+/** How much each pass concept suffers for it. A screen barely notices; a deep shot has nowhere to go. */
+const SQUEEZE_COMP = { screen: 0.4, pass_short: 0.6, pass_med: 1, pass_deep: 1.4, pa_pass: 0.9 };   // an average punter's leg, before the return
+
+/**
+ * What the defence showed, when it is the reason the play went the way it did.
+ *
+ * Every snap is decided by the MATRIX above — a blitz buys pressure and sells
+ * coverage, a shell gives up the underneath throw — and none of that reached
+ * the page. The log said "short pass complete for 8 yards" whether the call had
+ * beaten a blitz or fallen into a two-high shell, so the one system that makes
+ * play calling a game was invisible while playing it.
+ *
+ * Only when it mattered. A tag on every snap is wallpaper; a tag on the screen
+ * that beat the blitz is the story of the play.
+ */
+export function defenceNote(defCall, kind, { pressured = false, sacked = false, stuffed = false, big = false } = {}) {
+  if (defCall === 'blitz') {
+    if (sacked) return ' on the blitz';
+    if (kind === 'pass' && big && !pressured) return ', beating the blitz';
+    if (kind === 'screen' && big) return ' — the screen beats the blitz';
+    if (kind === 'run' && big) return ' through the vacated gap';
+  }
+  if (defCall === 'run_stop') {
+    if (kind === 'run' && stuffed) return ' into a stacked box';
+    if (kind === 'pass' && big) return ' against a defence selling out on the run';
+  }
+  if (defCall === 'deep') {
+    if (kind === 'run' && big) return ' against a two-high look';
+    if (kind === 'pass' && big) return ' underneath the shell';
+    if (kind === 'deep' && !big) return ' into the shell';
+  }
+  return '';
+}
+
 export function mods(offCall, defCall) {
   return (MATRIX[offCall] && MATRIX[offCall][defCall]) || {};
 }
@@ -79,12 +151,12 @@ export function resolveRun(g, rng, call, defCall) {
   if (sneak) {
     yards = rng.chance(0.78 + (comp.runBlock - def.runStop) / 200) ? rng.int(1, 3) : rng.int(-1, 0);
   } else {
-    const stuffP = clamp(0.21 * (1.6 - blockEdge * 1.2) + (m.stuff || 0), 0.05, 0.45);
+    const stuffP = clamp(STUFF_RATE * (1.6 - blockEdge * 1.2) + (m.stuff || 0) + squeeze(g.ballOn) * 0.07, 0.05, 0.45);
     if (rng.chance(stuffP)) {
       yards = clamp(Math.round(rng.normal(-1, 1.4)), -5, 1);
     } else {
-      const base = outside ? rng.normal(3.9, 3.4) : rng.normal(4.1, 2.7);
-      yards = base + (blockEdge - 0.5) * 5 + (m.run || 0);
+      const base = outside ? rng.normal(RUN_OUT, 3.4) : rng.normal(RUN_IN, 2.7);
+      yards = (base + (blockEdge - 0.5) * 5 + (m.run || 0)) * (1 - squeeze(g.ballOn) * 0.24);
       // Break a tackle.
       const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) / 170, 0.05, 0.45);
       if (rng.chance(btP)) yards += rng.exp(outside ? 5.5 : 4) + 1;
@@ -103,6 +175,7 @@ export function resolveRun(g, rng, call, defCall) {
   let fumble = !td && rng.chance(fumP);
   const tackler = pickTackler(g, defT, 'run', rng);
   let text = `${shortName(carrier)} ${sneak ? 'sneaks' : outside ? 'runs outside' : 'runs inside'} for ${yardsText(yards)}`;
+  text += defenceNote(defCall, 'run', { stuffed: yards <= 0, big: yards >= 12 });
   const oob = outside ? rng.chance(0.25) : rng.chance(0.06);
   if (td) text += ` — TOUCHDOWN!`;
   else if (tackler) text += ` (${shortName(tackler)})`;
@@ -166,7 +239,7 @@ export function resolvePass(g, rng, call, defCall) {
           text: `${shortName(qb)} sacked by ${sacker ? shortName(sacker) : 'the defense'} for ${yardsText(yards)}. Fumble recovered by ${g.teams[off].abbr}.` };
       }
       return { type: 'sack', yards, elapsed: rng.int(5, 7), clockStops: false, sacker, safety: g.ballOn + yards <= 0,
-        text: `${shortName(qb)} sacked by ${sacker ? shortName(sacker) : 'the defense'} for ${yardsText(yards)}${g.ballOn + yards <= 0 ? ' — SAFETY!' : '.'}` };
+        text: `${shortName(qb)} sacked by ${sacker ? shortName(sacker) : 'the defense'} for ${yardsText(yards)}${defenceNote(defCall, 'pass', { sacked: true })}${g.ballOn + yards <= 0 ? ' — SAFETY!' : '.'}` };
     }
     // Scramble.
     const scrP = clamp((qb.r.mob - 55) / 120, 0.02, 0.4);
@@ -194,10 +267,11 @@ export function resolvePass(g, rng, call, defCall) {
   const tSkill = target.pos === 'RB' ? target.r.rec : 0.45 * target.r.rte + 0.55 * target.r.cth;
   // Chemistry reaches the passing game as timing with receivers he knows.
   const skill = qb.r.tha * 0.6 + tSkill * 0.4 + comp.chem - (pressured ? 9 : 0);
-  const baseComp = { screen: 0.76, pass_short: 0.72, pass_med: 0.59, pass_deep: 0.41, pa_pass: 0.60 }[call];
+  const baseComp = { screen: 0.78, pass_short: 0.745, pass_med: 0.615, pass_deep: 0.425, pa_pass: 0.625 }[call];
   let compP = baseComp + (skill - cov) * 0.008 + (m.comp || 0);
   if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003 + (qb.r.thp - 85) * 0.003;
   if (pressured) compP -= 0.08;
+  compP -= squeeze(g.ballOn) * 0.10 * (SQUEEZE_COMP[call] ?? 1);
   compP = clamp(compP, 0.12, 0.93);
 
   st.pass.att++;
@@ -234,14 +308,14 @@ export function resolvePass(g, rng, call, defCall) {
     if (pd && prim) { statFor(g.stats[defT], prim.id).def.pd++; }
     const txt = drop ? `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} — DROPPED.`
       : pd ? `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} broken up by ${shortName(prim)}.`
-      : `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} — incomplete${pressured ? ' under pressure' : ''}.`;
+      : `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} — incomplete${pressured ? ' under pressure' : defenceNote(defCall, call === 'pass_deep' ? 'deep' : 'pass', {})}.`;
     return { type: 'incomplete', yards: 0, elapsed: rng.int(4, 7), clockStops: true, text: txt, target, pressured, defender: prim };
   }
 
   // Completion.
-  const yacMean = { screen: 6.5, pass_short: 3.2, pass_med: 2.6, pass_deep: 4, pa_pass: 3.4 }[call] + (m.yac || 0);
+  const yacMean = { screen: 5.9, pass_short: 2.9, pass_med: 2.3, pass_deep: 3.4, pa_pass: 3.0 }[call] + (m.yac || 0);
   const rac = target.r.rac ?? (target.r.elu ? (target.r.elu * 0.6 + target.r.pow * 0.4) : 70);
-  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09));
+  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09)) * (1 - squeeze(g.ballOn) * 0.40);
   const baP = clamp(0.012 + Math.max(0, (target.r.spd ?? 80) - def.defSpeed) / 300 + (call === 'screen' ? 0.015 : 0), 0.004, 0.1);
   if (rng.chance(baP)) yac += rng.int(15, 45);
   let yards = Math.round(air + yac);
@@ -270,7 +344,7 @@ export function resolvePass(g, rng, call, defCall) {
       text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}. Fumble recovered by ${g.teams[off].abbr}.` };
   }
   return { type: 'pass', yards, td, oob, elapsed: rng.int(6, 9), clockStops: td || oob, target, tackler, pressured, defender: prim,
-    text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}${td ? ' — TOUCHDOWN!' : tackler ? ` (${shortName(tackler)}).` : '.'}` };
+    text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}${defenceNote(defCall, call === 'screen' ? 'screen' : 'pass', { pressured, big: yards >= 15 })}${td ? ' — TOUCHDOWN!' : tackler ? ` (${shortName(tackler)}).` : '.'}` };
 }
 
 export function resolveFieldGoal(g, rng) {
@@ -301,7 +375,7 @@ export function resolvePunt(g, rng) {
     const loss = rng.int(5, 15);
     return { type: 'punt', yards: -loss, elapsed: 5, clockStops: true, puntBlocked: true, text: `${name} punt is BLOCKED!` };
   }
-  let dist = rng.normal(39 + (ppw - 75) * 0.4, 6);
+  let dist = rng.normal(PUNT_GROSS + (ppw - 75) * 0.4, 6);
   // Pooch when close.
   if (rem < 55) dist = Math.min(dist, rem - rng.int(0, 6) - (100 - pac) / 8);
   dist = clamp(Math.round(dist), 20, 75);

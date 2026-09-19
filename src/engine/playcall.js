@@ -4,6 +4,8 @@
 //     blitzRate: 0..1, deepShell: 0..1 }
 
 import { effectiveStrategy } from './gm.js';
+import { expectedPoints } from './winprob.js';
+import { clamp } from './rng.js';
 
 export const OFFENSE_CALLS = {
   run_in:     { label: 'Inside Run',  kind: 'run' },
@@ -189,25 +191,74 @@ export function fourthDownDecision(g, rng) {
   // End of half: take the FG.
   if (g.quarter === 2 && left <= 30 && longRange) return 'fg';
 
-  // Standard chart with aggression.
-  if (inRange) {
-    if (toGo <= 1 && g.ballOn >= 55 && g.ballOn < 90 && rng.chance(0.35 + aggr * 0.5)) return 'go';
-    if (toGo <= 2 && g.ballOn >= 60 && g.ballOn < 92 && rng.chance(aggr * 0.5)) return 'go';
-    if (makeP < 0.7 && toGo <= 4 && rng.chance(0.3 + aggr * 0.5)) return 'go';
-    return 'fg';
-  }
-  if (longRange && toGo > 5 && rng.chance(0.5 + (makeP - 0.25) * 2 - aggr * 0.3)) return 'fg';
-  // Out of FG range.
-  if (g.ballOn >= 60) {
-    if (toGo <= 3) return 'go';
-    if (toGo <= 6 && rng.chance(0.3 + aggr * 0.6)) return 'go';
-    if (toGo <= 10 && rng.chance(aggr * 0.5)) return 'go';
-    return 'punt';
-  }
-  if (toGo <= 1 && g.ballOn >= 40 && rng.chance(0.2 + aggr * 0.7)) return 'go';
-  if (toGo <= 2 && g.ballOn >= 50 && rng.chance(aggr * 0.6)) return 'go';
-  if (g.quarter >= 4 && diff < 0 && gameLeft <= 720 && toGo <= 5 && rng.chance(0.4 + aggr * 0.4)) return 'go';
-  return 'punt';
+  // Everything else is an expected-points question, answered as one.
+  return byExpectedPoints(g, comp, dist, makeP, aggr);
+}
+
+/**
+ * How often fourth-and-N gets picked up, before the two rosters are weighed.
+ * The real league runs about 68% on one yard, 52% on three, 32% on ten.
+ */
+export function convertChance(toGo, comp, def) {
+  // Real fourth-down rates: about 68% on a yard, 57% on two, 52% on three,
+  // 44% on five, 32% on ten. A power curve sits on all five within a point.
+  const base = clamp(0.70 * Math.pow(Math.max(1, toGo), -0.30), 0.2, 0.78);
+  const push = ((comp.runBlock + comp.passBlock) / 2 - (def.runStop + def.passRush) / 2) / 130;
+  return clamp(base + push, 0.1, 0.92);
+}
+
+/**
+ * How much better going for it has to look before a coach takes it.
+ *
+ * Expected points alone produces a bot, and a bot goes for it far more than
+ * anybody actually does — straight arithmetic gave 2.9 attempts a game and
+ * half a field goal, which is not a football match. Real coaches are more
+ * conservative than the maths, consistently and by a known margin, and this is
+ * that margin. Aggression moves it: a gambler needs less convincing.
+ */
+export const RISK_AVERSION = 1.15;
+
+/**
+ * Fourth down as arithmetic rather than a chart of thresholds.
+ *
+ * What was here before was a dozen `rng.chance` lines keyed off field-position
+ * bands: it never asked how likely the conversion was, never priced what the
+ * other side gets on a failure, and ignored the kicker's leg except to ask
+ * whether he was "in range". It produced 1.03 attempts a game against a real
+ * 0.8 to 2.5, almost all of them on one yard.
+ *
+ * Each option is valued in points from the offence's side, using the same
+ * expected-points curve the win-probability model runs on, and the best one
+ * wins. Aggression is no longer a die roll: it is a thumb on the scale, worth
+ * up to about half a point either way, which is how a coach's temperament
+ * actually shows up — it changes where the break-even sits, not whether there
+ * is one. That also gives the dial two ends: the audit found it helped a
+ * strong offence and did nothing otherwise, because the thresholds rarely bound.
+ */
+export function byExpectedPoints(g, comp, dist, makeP, aggr) {
+  const off = g.possession;
+  const def = g.teams[1 - off].comp;
+  const ep = (spot) => expectedPoints(clamp(spot, 1, 99), 1, 10);
+  // What the other side is worth from a spot of ours, costed to us.
+  const theirs = (ourSpot) => -ep(100 - clamp(ourSpot, 1, 99));
+
+  const p = convertChance(g.toGo, comp, def);
+  const goValue = p * ep(Math.min(99, g.ballOn + g.toGo)) + (1 - p) * theirs(g.ballOn);
+
+  // A kickoff hands them the ball around their own 25.
+  const fgValue = dist <= 63
+    ? makeP * (3 - ep(25)) + (1 - makeP) * theirs(Math.max(20, g.ballOn - 7))
+    : -Infinity;
+
+  // Net of the return, and never past the goal line.
+  const puntNet = 40;
+  const puntValue = g.ballOn > 95 ? -Infinity : theirs(Math.min(99, Math.max(g.ballOn + 20, g.ballOn + puntNet)));
+
+  // What a coach needs before he takes it, less the nerve he happens to have.
+  const bar = RISK_AVERSION - (aggr - 0.4) * 1.4;
+  const kick = Math.max(fgValue, puntValue);
+  if (goValue - bar > kick) return 'go';
+  return fgValue >= puntValue ? 'fg' : 'punt';
 }
 
 /** Choose a defensive call given situation. */
