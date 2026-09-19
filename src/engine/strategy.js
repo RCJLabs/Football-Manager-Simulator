@@ -41,7 +41,7 @@
 // human drafted, and the dial starts at a flat 0.55 regardless. This closes
 // that asymmetry by telling you what you built, not by deciding for you.
 
-import { composites, buildLineup } from './ratings.js';
+import { composites, buildLineup, teamPower } from './ratings.js';
 import { fillLineup } from './injuries.js';
 
 /** The fitted line through the sweep above. */
@@ -51,6 +51,27 @@ export const RATE_MIN = 0.35;
 export const RATE_MAX = 0.7;
 /** Below this the squad is even enough that the dial stops being worth moving. */
 export const EVEN_ENOUGH = 3;
+
+/**
+ * Why only this dial gets a read, when tempo turned out to be a real lever too.
+ *
+ * Tempo works on a different axis — not what your squad is shaped like but how
+ * good it is next to the ones it plays, since more possessions means more
+ * chances for the better side to be the better side. Measured against a real
+ * talent gap, 900 games a cell: +3.81 ± 0.65 for a much better club (88 against
+ * 76), +2.54 ± 0.59 for a better one, nothing when even, and -1.68 ± 0.61 for
+ * an underdog. It went into the audit as flat, which was a broken test rather
+ * than a flat dial: it had been measured against a mirror of itself, where both
+ * sides are equal by construction and extra possessions can favour neither.
+ *
+ * It still gets no read, because the gaps it needs do not exist here. Measured
+ * across four seeds, the best and worst rosters in a league are 0.78 power
+ * apart in an eight-club snake league, 1.35 in an auction and 2.50 in a 32-club
+ * pro league — against a home-field edge of 1.1 and a chemistry swing of 1.8.
+ * A read built on a one-point edge measured +1.15 ± 0.83, which is not a
+ * recommendation, it is a coin flip with a sentence attached.
+ */
+
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const mean = (arr, f) => (arr && arr.length ? arr.reduce((s, p) => s + f(p), 0) / arr.length : 70);

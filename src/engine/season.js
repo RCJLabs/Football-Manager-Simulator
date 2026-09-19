@@ -23,6 +23,7 @@ import { jobsOn, initJobs } from './jobs.js';
 import { leagueIndex } from './rookies.js';
 import { careerIndex } from './careers.js';
 import { DEFAULT_DIFFICULTY } from './difficulty.js';
+import { strategyRead } from './strategy.js';
 
 export const LEAGUE_VERSION = 3;
 export const FANTASY_SIZES = [8, 10, 12];
@@ -377,6 +378,31 @@ export function previousDivisionRanks(league) {
  * behind a 75 bought earlier. AI clubs are re-sorted every season; the user's
  * club only the first time, since they can arrange their own depth chart.
  */
+/**
+ * Point the user's pass/run dial at the squad they actually drafted, once.
+ *
+ * `assignGms` hands every AI club its personality's strategy, so an Air Raid
+ * club throws at 0.66 and a Ground & Pound club runs at 0.44 — each matched to
+ * the roster that personality also drafted. The human's roster is whatever the
+ * human drafted and the dial sat at a flat 0.55 regardless, which is the one
+ * asymmetry in the strategy layer that measured as real: following the read
+ * rather than the flat default is worth +0.98 ± 0.22 points a game over 3,200
+ * games on real rosters.
+ *
+ * Done once, when the roster first exists, so it is a sensible opening position
+ * and not a hand on the tiller — after this the dial is the player's, and the
+ * team page tells them when their squad has changed enough to want a different
+ * one.
+ */
+export function fitUserStrategy(league, byId) {
+  const u = userTeamIndex(league);
+  const team = league.teams[u];
+  if (!team || team.strategyFitted) return;
+  const read = strategyRead(league, u, byId);
+  if (read) team.strategy.passRate = read.rate;
+  team.strategyFitted = true;
+}
+
 export function sortDepthCharts(league, byId) {
   for (const t of league.teams) {
     if (t.isUser && t.depthSorted) continue;
@@ -394,6 +420,7 @@ export function sortDepthCharts(league, byId) {
 /** Called when the draft or auction completes, and at the start of each later season. */
 export function startSeason(league, byId) {
   if (byId) sortDepthCharts(league, byId);
+  if (byId) fitUserStrategy(league, byId);
   const rng = new RNG(league.rngState);
   league.schedule = isPro(league) ? buildProSchedule(league.teams, rng, league.season, previousDivisionRanks(league)) : buildSchedule(league.teams.length, rng);
   league.week = 1;

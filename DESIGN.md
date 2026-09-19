@@ -487,6 +487,23 @@ Three things an AI club does that a preset never did.
 
 **A game plan.** At kickoff each AI side reads the matchup from the two clubs' composites and adjusts its sliders for this game only: quick throws and screens when the other rush beats its line, more runs at a soft front, more passing when its quarterback beats their coverage, deep shots at a slow secondary; on defence, pressure at a weak line (and a heavy blitz at a replacement-level fill-in), a stacked box against a strong run game, a shell over a great passer. The human's sliders are the human's own; the matchup card tells you what the other side plans, which is the invitation to answer it.
 
+### The league is too even for tactics to matter
+
+This is the finding the whole strategy investigation kept running into, and it explains every flat measurement in the section below. Across four seeds:
+
+| league | best roster to worst | sd |
+| --- | --- | --- |
+| 8-club snake | **0.78 power** | 0.23 |
+| 8-club auction | 1.35 | 0.42 |
+| 12-club auction | 1.45 | 0.41 |
+| 32-club pro snake | 2.50 | 0.64 |
+
+For scale: home advantage is 1.1 composite points and chemistry swings 1.8. **In an eight-club snake league the gap between the best and worst roster is smaller than home-field advantage.** That is not a bug in any one system, it is what an eight-club league drafting 208 of 1,269 all-time greats produces, with the snake order deliberately equalising on top.
+
+Everything tactical is measured against that number, and it is why so little of it registers. The AI game plan needs composite gaps over 5 and 8 points to fire, so it fires in 16 of 1,500 even matchups. The pass/run read is worth 6.4 points a game across rosters built to order and +0.98 on the ones the draft actually produces. Tempo is a genuinely strong lever — +3.81 ± 0.65 for a club six power points better than its opponent — and gets no read at all, because no club here is ever six points better than anyone.
+
+Whether to change it is a real design question and not a small one: parity is defensible for a fantasy game, and the alternatives (a thinner pool per league, scarcer talent at the top, deeper rosters so depth tells) all change how the game feels. It is recorded here because any future tactical feature will measure as noise until it is answered.
+
 ### What the strategy dials are actually worth
 
 Five dials were presented as five decisions. Driven end to end on identical rosters, 700 to 1,500 paired games per cell, only one of them is:
@@ -497,9 +514,13 @@ Five dials were presented as five decisions. Driven end to end on identical rost
 | 4th-down aggression | +1.40 ± 0.38 with a strong offence and a poor kicker, +0.14 ± 0.51 otherwise | helps sometimes, never hurts |
 | Blitz frequency | −0.58 ± 0.42 and −0.29 ± 0.51 on rosters built to want each end | flat |
 | Deep coverage | −0.44 ± 0.43 and −0.36 ± 0.50, same test | flat |
-| Tempo | +0.17 ± 0.36 and +0.08 ± 0.50, same test | flat |
+| Tempo | **+3.81 ± 0.65** for a club six power points better; −1.68 ± 0.61 for one that much worse | real, but needs gaps this league never produces |
 
-The three flat ones were tested twice, because the first reading was a false negative: a dial with a symmetric trade-off reads as noise on a balanced roster, which is exactly what the pass rate did before it was tested on shaped ones. They were then retested on rosters built to want each end — elite front seven and poor secondary for the blitz, and so on — and stayed flat. The trade-offs are in the play matrix (`plays.js` MATRIX: blitz buys pressure and sells coverage, per play call) but they net out at the current tuning. Retuning them is engine work that moves every simulated game, so it is a separate pass with a full re-measure; until then the UI says so rather than implying a decision that is not there.
+Tempo's first reading was a false negative twice over. A dial with a symmetric trade-off reads as noise on a balanced roster — which is what the pass rate did before it was tested on shaped ones — and tempo was worse than that: it had been measured against a mirror of itself, where both sides are equal by construction and extra possessions can favour neither. Given a real talent gap it is the strongest dial in the game. It still gets no read, for the reason in the section above.
+
+Blitz and the deep shell were then given their own pass, and the answer was no. The trade-offs are real and measurable in the play matrix — across the dial a blitz buys +0.42 ± 0.08 sacks and concedes +0.26 ± 0.07 yards an attempt — but they net out, and three rounds of retuning the constants (a bigger rush bonus, a sack bonus, coverage cost scaled by how exposed the secondary is, pressure scaled by who is rushing) never made the answer flip with the roster. Two things came out of the attempt. The first was that the test rosters confounded their own axis: moving the front and the secondary together meant a poor defence liked the blitz more than an elite one did, simply because a poor defence gains more from any gamble. The second, once the axis was isolated, was that a *good* secondary loses by blitzing and a poor one gains — economically coherent, since abandoning good coverage costs more than abandoning bad, but the opposite of the conventional read and not a shape worth shipping. Sweeping the whole dial at five settings produced flat noise at every one.
+
+The conclusion is that `chooseDefense` already adjusts for down, distance, score and clock, and the slider is a small global bias on top of logic that is doing the real work. The retune was reverted in full; the game fingerprint is unchanged at `a9480bd47f40cac9`. `scripts/defense-tune.mjs` is the harness, kept so the next person does not have to rediscover any of it. A note on method: the first three rounds of that tuning were run against game margin, which carries a standard deviation of 13 points and leaves ±0.55 at 500 games — wider than the effect being tuned. They were three rounds of chasing noise. Points and yards allowed, taken paired and per play, land inside ±0.1 and are what the harness reports.
 
 Also measured and not built: the per-opponent game plan the audit proposed. `makeGameplan` already exists and every AI club gets one; it nudges the dials by ±0.06 to ±0.15 and fires in **16 of 1,500** even matchups because its thresholds need a composite gap over 5 or 8 points. Where it does fire it is worth +0.39 ± 0.41 points. The `planForUser` option that would extend it to the human has never been passed by anything, which is deliberate (see the game plan note above) and costs the player nothing measurable.
 
@@ -519,7 +540,9 @@ giving `clamp(0.64 − edge × 0.023, 0.35, 0.70)`, which reproduces every cell.
 
 What makes the metric trustworthy is that it reads the league correctly without being told: sorted by average run edge, Ground & Pound clubs come out the most run-leaning (−0.1) and Air Raid the most pass-leaning (−6.1), in personality order, with the personality never consulted.
 
-Only the club you manage gets a read; telling you what a rival should be doing is coaching the opposition. Left open for the engine pass: `DEFAULT_STRATEGY` sits at 0.55 while nearly every real roster wants 0.61 to 0.70, so the shipped default is simply low for the rosters this game produces. `scripts/gameplan-sim.mjs` runs all of the above.
+Only the club you manage gets a read; telling you what a rival should be doing is coaching the opposition.
+
+**The opening position is now fitted too.** `assignGms` hands every AI club its personality's strategy when the league is created, matched to the roster that personality then drafts — Air Raid at 0.66, Ground & Pound at 0.44. The human's dial sat at `DEFAULT_STRATEGY`'s flat 0.55 whatever they built, and that club was the only one the default ever reached. `fitUserStrategy` in `season.js` points it at the squad once, when the roster first exists. Once only: after that the dial is the player's and the team page says when the squad has changed enough to want a different one. `scripts/gameplan-sim.mjs` runs all of the above.
 
 **Weekly drift.** After each week every AI club drifts its sliders from its own season: toward the pass when the passing game is the efficient unit, away from it when the passer is being sacked, toward the blitz when points are pouring in, toward aggression when the playoff line is slipping away late and toward caution when it is safe. Every slider stays within 0.12 of the personality's base, so a Ground & Pound club never turns into an Air Raid.
 

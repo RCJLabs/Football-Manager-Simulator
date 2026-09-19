@@ -4,6 +4,7 @@ import { PLAYERS, PLAYERS_BY_ID } from '../src/data/db.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, registerPlayers, userTeamIndex } from '../src/engine/season.js';
 import { autoDraftAll } from '../src/engine/draft.js';
+import { GM_PERSONALITIES } from '../src/data/teams.js';
 import { composites, buildLineup } from '../src/engine/ratings.js';
 import { syntheticTeam } from '../scripts/synthetic.mjs';
 import {
@@ -108,4 +109,49 @@ test('a club with no squad at all does not throw', () => {
 test('the fitted base is where a balanced squad is told to sit', () => {
   assert.ok(Math.abs(recommendedPassRate(0) - FIT_BASE) < 1e-9);
   assert.ok(FIT_BASE > 0.55, 'the sweep put an even squad above the old flat default, not at it');
+});
+
+test('the user starts on a dial that matches the squad they drafted', () => {
+  // Every AI club is handed its personality's strategy by assignGms, matched to
+  // the roster that personality also drafts. The human's dial sat at a flat
+  // 0.55 whatever they built, which is the one asymmetry here that measured as
+  // real: +0.98 ± 0.22 points a game.
+  const lg = createLeague({ name: 'F', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 77, draftType: 'snake' });
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(77));
+  startSeason(lg, PLAYERS_BY_ID);
+  const u = userTeamIndex(lg);
+  const read = strategyRead(lg, u, PLAYERS_BY_ID);
+  assert.equal(lg.teams[u].strategy.passRate, read.rate, 'the opening dial should be the read');
+  assert.equal(read.act, false, 'and so there is nothing to act on straight away');
+  assert.equal(lg.teams[u].strategyFitted, true);
+});
+
+test('it is an opening position, not a hand on the tiller', () => {
+  const lg = createLeague({ name: 'G', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 78, draftType: 'snake' });
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(78));
+  startSeason(lg, PLAYERS_BY_ID);
+  const u = userTeamIndex(lg);
+  // The player disagrees and turns it right down.
+  lg.teams[u].strategy.passRate = 0.35;
+  startSeason(lg, PLAYERS_BY_ID);
+  assert.equal(lg.teams[u].strategy.passRate, 0.35, 'a later season must not overwrite what the player chose');
+});
+
+test('the flat default only ever reached the human, which is why this existed', () => {
+  // GMs are handed out when the league is created, so every AI club carries its
+  // personality's pass rate from the first moment. DEFAULT_STRATEGY's 0.55 only
+  // ever applied to the one club whose roster nobody had chosen for it.
+  const lg = createLeague({ name: 'H', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 79, draftType: 'snake' });
+  const u = userTeamIndex(lg);
+  assert.equal(lg.teams[u].strategy.passRate, 0.55, 'the human starts on the flat default');
+  for (const [i, t] of lg.teams.entries()) {
+    if (i === u) continue;
+    assert.ok(t.gm, `${t.abbr} should have a GM from the start`);
+    const want = GM_PERSONALITIES.find((g) => g.id === t.gm).strategy.passRate;
+    assert.equal(t.strategy.passRate, want, `${t.abbr} should already be on its personality's rate`);
+  }
+  // After the draft the human is on a rate chosen for the roster they built.
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(79));
+  startSeason(lg, PLAYERS_BY_ID);
+  assert.notEqual(lg.teams[u].strategy.passRate, 0.55, 'and no longer on a rate that ignores it');
 });

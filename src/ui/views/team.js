@@ -13,14 +13,14 @@ import { strategyRead } from '../../engine/strategy.js';
 const STRATEGY_FIELDS = [
   { key: 'passRate', label: 'Pass / run balance', lo: 'Run heavy', hi: 'Pass heavy', min: 0.35, max: 0.7, group: 'decides' },
   { key: 'aggression', label: '4th-down aggression', lo: 'Conservative', hi: 'Go for it', min: 0, max: 1, group: 'helps' },
-  { key: 'tempo', label: 'Tempo', lo: 'Slow', hi: 'Fast', min: 0, max: 1, group: 'small' },
-  { key: 'blitzRate', label: 'Blitz frequency', lo: 'Rarely', hi: 'Often', min: 0.05, max: 0.6, group: 'small' },
-  { key: 'deepShell', label: 'Deep coverage', lo: 'Aggressive', hi: 'Prevent', min: 0, max: 0.6, group: 'small' },
+  { key: 'tempo', label: 'Tempo', lo: 'Slow', hi: 'Fast', min: 0, max: 1, group: 'flat' },
+  { key: 'blitzRate', label: 'Blitz frequency', lo: 'Rarely', hi: 'Often', min: 0.05, max: 0.6, group: 'flat' },
+  { key: 'deepShell', label: 'Deep coverage', lo: 'Aggressive', hi: 'Prevent', min: 0, max: 0.6, group: 'flat' },
 ];
 
 const GROUP_NOTES = {
   helps: 'Going for it more pays off with a strong offence and a poor kicker, and costs little otherwise.',
-  small: 'Measured end to end on rosters built to want each end, these three came back inside the noise — they change the shape of a game more than its result. They are being reworked; for now the pass/run balance is the dial that decides games.',
+  flat: 'These three change how a game looks more than who wins it, and measuring them says why. Pace really does favour the better side — but the clubs here finish within about a point of each other, less than home advantage, so there is no edge to press. Blitzing buys pressure and sells coverage, and a deep shell does the reverse; both come out about even at any setting. Set them to taste.',
 };
 
 /**
@@ -191,7 +191,7 @@ export function view(root, params, ctx) {
       </div>` : ''}
       <div class="card tight">
         <h3>Strategy ${canEdit ? '' : html`<small class="muted">(AI)</small>`}</h3>
-        ${['decides', 'helps', 'small'].map((group) => html`${STRATEGY_FIELDS.filter((f) => f.group === group).map((f) => html`<div class="slider-row">
+        ${['decides', 'helps', 'flat'].map((group) => html`${STRATEGY_FIELDS.filter((f) => f.group === group).map((f) => html`<div class="slider-row">
           <div class="lbl"><span>${f.label}</span><b id="lbl-${f.key}">${pctLabel(f, team.strategy[f.key])}</b></div>
           <input type="range" data-strat="${f.key}" min="${f.min}" max="${f.max}" step="0.01" value="${team.strategy[f.key]}" ${canEdit ? '' : 'disabled'}>
           <div class="lbl"><span>${f.lo}</span><span>${f.hi}</span></div>
