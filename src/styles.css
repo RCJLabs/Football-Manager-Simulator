@@ -42,18 +42,54 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem var(--gutter); padding-top: calc(0.5rem + env(safe-area-inset-top)); background: rgba(15, 26, 18, 0.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 800; color: var(--text); letter-spacing: 0.02em; white-space: nowrap; font-size: 0.95rem; flex: none; }
 .brand-ball { display: inline-block; transform: rotate(-20deg); }
-.brand-text { display: none; }
-@media (min-width: 520px) { .brand-text { display: inline; } }
+.brand-text { display: inline; }
 .nav { display: flex; gap: 0.2rem; overflow-x: auto; scrollbar-width: none; flex: 1; -webkit-overflow-scrolling: touch; }
 .nav::-webkit-scrollbar { display: none; }
 .nav a { color: var(--muted); padding: 0.3rem 0.55rem; border-radius: 999px; font-size: 0.85rem; white-space: nowrap; }
 .nav a.active, .nav a:hover { background: var(--bg-3); color: var(--text); text-decoration: none; }
 .nav a[hidden] { display: none; }
 
+/* ---------------------------------------------------------------------------
+   The bottom bar. A phone gets five destinations under its thumb, which is
+   where an installed app puts them; a wide screen keeps the row of pills along
+   the top, because a bar pinned to the bottom of a monitor is nobody's idea of
+   navigation. TAB_BREAK is the one place the two swap over.
+   --------------------------------------------------------------------------- */
+:root { --tabbar-h: 3.6rem; }
+.tabbar { display: none; }
+
+@media (max-width: 699px) {
+  /* Navigation has moved to the bottom, so the top bar is just the name. */
+  .topbar .nav, .topbar .nav-more { display: none; }
+  .topbar { padding-top: calc(0.4rem + env(safe-area-inset-top)); padding-bottom: 0.4rem; }
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; align-items: stretch;
+    background: rgba(15, 26, 18, 0.96); backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tabitem {
+    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 0.15rem;
+    padding: 0.4rem 0.15rem; min-height: var(--tabbar-h);
+    background: transparent; border: 0; cursor: pointer;
+    color: var(--muted); font-size: 0.64rem; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .tabitem span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tabitem svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .tabitem:hover { text-decoration: none; color: var(--text); }
+  .tabitem.active, .tabitem[aria-expanded="true"] { color: var(--accent); }
+  /* A lit bar above the active tab, the way a tab bar says where you are. */
+  .tabitem.active::before { content: ''; position: absolute; top: 0; width: 2.2rem; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent); }
+  .tabitem { position: relative; }
+
+}
+
 /* What does not fit goes here rather than off the end of a sideways scroll. */
 .nav-more { flex: none; color: var(--muted); background: transparent; border: 1px solid var(--line); padding: 0.3rem 0.55rem; border-radius: 999px; font-size: 0.85rem; white-space: nowrap; cursor: pointer; }
 .nav-more:hover, .nav-more[aria-expanded="true"] { background: var(--bg-3); color: var(--text); }
-.nav-menu { position: absolute; top: 100%; right: var(--gutter); z-index: 30; display: flex; flex-direction: column; gap: 0.15rem; min-width: 9rem; padding: 0.3rem; background: var(--card, #12211a); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+.nav-menu { position: fixed; z-index: 45; display: flex; flex-direction: column; gap: 0.15rem; min-width: 9rem; padding: 0.3rem; background: var(--card, #12211a); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
 .nav-menu[hidden] { display: none; }
 .nav-menu a { color: var(--text); padding: 0.45rem 0.6rem; border-radius: 6px; font-size: 0.9rem; white-space: nowrap; }
 .nav-menu a:hover, .nav-menu a.active { background: var(--bg-3); text-decoration: none; }
@@ -408,3 +444,19 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .empty { color: var(--muted); text-align: center; padding: 1.25rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 details > summary { cursor: pointer; }
+
+/* ---------------------------------------------------------------------------
+   Making room for the bottom bar. These sit at the end of the file on purpose:
+   a media query carries no extra specificity, so `.actionbar { bottom: 0 }`
+   declared later would simply win and drop the form's button underneath the
+   tab bar — which is exactly what it did.
+   --------------------------------------------------------------------------- */
+@media (max-width: 699px) {
+  .app { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 0.75rem); }
+  /* A form's action bar stacks on top of the tab bar rather than under it. */
+  .actionbar { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); padding-bottom: 0.6rem; }
+  .has-actionbar { padding-bottom: 5rem; }
+  .toast { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 0.75rem); }
+  /* The full-screen board covers the bar; it has its own way out. */
+  .board-full { z-index: 60; }
+}

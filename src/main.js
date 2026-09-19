@@ -29,6 +29,29 @@ const navEl = document.getElementById('nav');
 const saveWarnEl = document.getElementById('savewarn');
 const moreEl = document.getElementById('navMore');
 const menuEl = document.getElementById('navMenu');
+const tabEl = document.getElementById('tabbar');
+
+/**
+ * Glyphs for the bottom bar. Inline, stroked, on a 24 grid — the same way the
+ * win-probability and drive charts are drawn, so there is still nothing to
+ * fetch and they take the colour of the text around them.
+ */
+const ICONS = {
+  home: 'M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z',
+  season: 'M4 6h16v14H4zM8 3v4M16 3v4M4 10h16',
+  draft: 'M4 6h16M4 12h16M4 18h10M18 16l2 2 3-4',
+  team: 'M12 3l7 3v6c0 4.4-3 7.3-7 8.4C8 19.3 5 16.4 5 12V6z',
+  moves: 'M7 7h12l-3-3M17 17H5l3 3',
+  awards: 'M7 4h10v5a5 5 0 01-10 0zM9 20h6M12 14v6M7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3',
+  live: 'M8 5v14l11-7z',
+  players: 'M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3.3 2.7-5 6-5s6 1.7 6 5M17.5 11a2.5 2.5 0 100-5M17 15.5c2.8 0 5 1.6 5 4.5',
+  settings: 'M4 7h16M4 12h16M4 17h16M9 5v4M16 10v4M12 15v4',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+};
+const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name] || ICONS.more}"/></svg>`;
+
+/** How many destinations a phone gets before the rest fold into More. */
+const MAX_TABS = 5;
 // The pool the app plays with is the shipped file plus the open league's own
 // generated rookies. Rebuilt only when that array is replaced, which the
 // rookie and career code both replace their state rather than mutating it.
@@ -114,27 +137,85 @@ function renderSaveWarning() {
   saveWarnEl.hidden = false;
 }
 
-function renderNav() {
+/**
+ * Every destination, in the order the top bar lists them. `tab` is how it ranks
+ * for the phone's bottom bar, which only has room for five: a game in progress
+ * is the thing you are in the middle of and jumps the queue there without
+ * moving in the bar above.
+ */
+function navItems() {
   const s = getState();
-  const path = currentRoute()?.path || '/';
-  const items = [{ href: '#/', label: 'Home', match: '/' }];
+  const items = [{ href: '#/', label: 'Home', match: '/', icon: 'home', tab: 0, owns: ['/guide', '/new'] }];
   if (s.league) {
     if (s.league.phase === 'draft') {
       const auctionLeague = s.league.draftType === 'auction';
-      items.push({ href: auctionLeague ? '#/auction' : '#/draft', label: auctionLeague ? 'Auction' : 'Draft', match: auctionLeague ? '/auction' : '/draft' });
+      items.push({ href: auctionLeague ? '#/auction' : '#/draft', label: auctionLeague ? 'Auction' : 'Draft', match: auctionLeague ? '/auction' : '/draft', icon: 'draft', tab: 2 });
     }
-    else if (s.league.phase === 'offseason') items.push({ href: '#/offseason', label: 'Offseason', match: '/offseason' });
-    else items.push({ href: '#/season', label: 'Season', match: '/season' });
+    else if (s.league.phase === 'offseason') items.push({ href: '#/offseason', label: 'Offseason', match: '/offseason', icon: 'season', tab: 2, owns: ['/box', '/career'] });
+    else items.push({ href: '#/season', label: 'Season', match: '/season', icon: 'season', tab: 2, owns: ['/box', '/career'] });
     const u = s.league.teams.findIndex((t) => t.isUser);
-    items.push({ href: `#/team/${u}`, label: 'My Team', match: `/team/${u}` });
-    if (s.league.phase === 'season' || s.league.phase === 'playoffs') items.push({ href: '#/moves', label: 'Moves', match: '/moves' });
-    if (s.league.phase !== 'draft') items.push({ href: '#/awards', label: 'Awards', match: '/awards' });
-    if (s.game && !s.game.g.final) items.push({ href: '#/game', label: 'Live Game', match: '/game' });
+    items.push({ href: `#/team/${u}`, label: 'My Team', match: `/team/${u}`, icon: 'team', tab: 3 });
+    if (s.league.phase === 'season' || s.league.phase === 'playoffs') items.push({ href: '#/moves', label: 'Moves', match: '/moves', icon: 'moves', tab: 4 });
+    if (s.league.phase !== 'draft') items.push({ href: '#/awards', label: 'Awards', match: '/awards', icon: 'awards', tab: 6 });
+    if (s.game && !s.game.g.final) items.push({ href: '#/game', label: 'Live Game', match: '/game', icon: 'live', tab: 1 });
   }
-  items.push({ href: '#/players', label: 'Players', match: '/players' });
-  items.push({ href: '#/settings', label: 'Settings', match: '/settings' });
-  navEl.innerHTML = items.map((i) => `<a href="${i.href}" class="${path === i.match || (i.match !== '/' && path.startsWith(i.match)) ? 'active' : ''}">${i.label}</a>`).join('');
+  items.push({ href: '#/players', label: 'Players', match: '/players', icon: 'players', tab: 7 });
+  items.push({ href: '#/settings', label: 'Settings', match: '/settings', icon: 'settings', tab: 8 });
+  return items;
+}
+
+function renderNav() {
+  const path = currentRoute()?.path || '/';
+  const items = navItems();
+  // A box score, the guide, your coaching career: reached from a destination
+  // rather than being one. They light the tab they were opened from, so the bar
+  // always says where you are instead of going dark on every sub-screen.
+  const isActive = (i) => path === i.match
+    || (i.match !== '/' && path.startsWith(i.match))
+    || (i.owns || []).some((p) => path.startsWith(p));
+  navEl.innerHTML = items.map((i) => `<a href="${i.href}" class="${isActive(i) ? 'active' : ''}">${i.label}</a>`).join('');
+  renderTabs(items, isActive);
   fitNav();
+}
+
+/**
+ * The bottom bar: five destinations within reach of a thumb, which is where a
+ * phone wants them and where an app installed from a store puts them. The top
+ * strip stays for wide screens, where a row of pills along the top is right and
+ * a bar pinned to the bottom of a monitor is not.
+ *
+ * The same rule as the top bar applies — whatever does not fit is in More, and
+ * the screen you are on is never the thing hidden. Here that is stronger: if
+ * the active screen would have been folded away it takes the last slot, so the
+ * bar always has a lit tab and never looks like it has lost you.
+ */
+function renderTabs(items, isActive) {
+  if (!tabEl) return;
+  const ranked = items.slice().sort((a, b) => a.tab - b.tab);
+  let shown = ranked, spilled = [];
+  if (ranked.length > MAX_TABS) {
+    shown = ranked.slice(0, MAX_TABS - 1);
+    spilled = ranked.slice(MAX_TABS - 1);
+    const active = spilled.find(isActive);
+    if (active) {
+      spilled = spilled.filter((i) => i !== active);
+      spilled.unshift(shown.pop());
+      shown.push(active);
+    }
+  }
+  const tab = (i) => `<a href="${i.href}" class="tabitem ${isActive(i) ? 'active' : ''}">${icon(i.icon)}<span>${i.label}</span></a>`;
+  tabEl.innerHTML = shown.map(tab).join('')
+    + (spilled.length ? `<button type="button" class="tabitem" id="tabMore" aria-haspopup="true" aria-expanded="false">${icon('more')}<span>More</span></button>` : '');
+  // One menu serves both bars; the bottom one opens it against the bottom bar.
+  tabEl.querySelector('#tabMore')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const btn = tabEl.querySelector('#tabMore');
+    const open = menuEl.hidden;
+    if (!open) { closeNavMenu(); return; }
+    menuEl.innerHTML = spilled.map((i) => `<a href="${i.href}" role="menuitem" class="${isActive(i) ? 'active' : ''}">${i.label}</a>`).join('');
+    placeNavMenu(btn, true);
+    btn.setAttribute('aria-expanded', 'true');
+  });
 }
 
 /**
@@ -177,10 +258,27 @@ function fitNav() {
   if (!spilled.length) moreEl.hidden = true;
 }
 
+/**
+ * Put the menu where its button is: under a top-bar button, above a bottom-bar
+ * one, and always inside the screen. Done here rather than in CSS because the
+ * two bars sit at opposite ends and the safe area is only known at runtime.
+ */
+function placeNavMenu(anchor, above) {
+  const a = anchor.getBoundingClientRect();
+  menuEl.style.visibility = 'hidden';
+  menuEl.hidden = false;
+  const m = menuEl.getBoundingClientRect();
+  const left = Math.max(8, Math.min(window.innerWidth - m.width - 8, a.right - m.width));
+  menuEl.style.left = `${Math.round(left)}px`;
+  menuEl.style.top = above ? `${Math.round(Math.max(8, a.top - m.height - 6))}px` : `${Math.round(a.bottom + 6)}px`;
+  menuEl.style.visibility = '';
+}
+
 function closeNavMenu() {
   if (!menuEl) return;
   menuEl.hidden = true;
   moreEl?.setAttribute('aria-expanded', 'false');
+  tabEl?.querySelector('#tabMore')?.setAttribute('aria-expanded', 'false');
 }
 
 route('/', () => mount(home));
@@ -213,12 +311,16 @@ load();
 }
 moreEl?.addEventListener('click', (e) => {
   e.stopPropagation();
-  const open = menuEl.hidden;
-  menuEl.hidden = !open;
-  moreEl.setAttribute('aria-expanded', String(open));
+  if (!menuEl.hidden) { closeNavMenu(); return; }
+  placeNavMenu(moreEl, false);
+  moreEl.setAttribute('aria-expanded', 'true');
 });
 menuEl?.addEventListener('click', () => closeNavMenu());
-document.addEventListener('click', (e) => { if (!menuEl?.hidden && !menuEl.contains(e.target) && e.target !== moreEl) closeNavMenu(); });
+document.addEventListener('click', (e) => {
+  if (menuEl?.hidden) return;
+  if (menuEl.contains(e.target) || e.target === moreEl || e.target.closest?.('#tabMore')) return;
+  closeNavMenu();
+});
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNavMenu(); });
 // The bar has to be refitted when the width changes, or a phone turned sideways
 // keeps items in the menu that would now fit on it.

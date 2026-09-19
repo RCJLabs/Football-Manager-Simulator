@@ -21,10 +21,14 @@
     <a href="#/" class="brand"><span class="brand-ball">🏈</span><span class="brand-text"> Gridiron Eras</span></a>
     <nav id="nav" class="nav"></nav>
     <button id="navMore" class="nav-more" aria-haspopup="true" aria-expanded="false" aria-controls="navMenu" hidden>More ⌄</button>
-    <div id="navMenu" class="nav-menu" role="menu" hidden></div>
   </header>
+  <!-- Outside the header on purpose: `backdrop-filter` on .topbar makes it the
+       containing block for anything positioned fixed inside it, so a menu
+       anchored to the viewport would be anchored to the bar instead. -->
+  <div id="navMenu" class="nav-menu" role="menu" hidden></div>
   <div id="savewarn" class="savewarn" role="alert" hidden></div>
   <main id="app" class="app"><div class="loading">Loading…</div></main>
+  <nav id="tabbar" class="tabbar" aria-label="Main"></nav>
   <div id="toast" class="toast" hidden></div>
   <script type="module" src="./src/main.js"></script>
 </body>

@@ -28,10 +28,19 @@ const shot = async (name) => page.screenshot({ path: `${process.env.SHOT_DIR || 
 async function checkNav(where) {
   const nav = await page.evaluate(() => {
     const el = document.getElementById('nav'), more = document.getElementById('navMore'), menu = document.getElementById('navMenu');
+    const tabs = document.getElementById('tabbar');
     if (!el) return null;
+    const phone = tabs && getComputedStyle(tabs).display !== 'none';
     const links = [...el.querySelectorAll('a')];
+    const tabItems = tabs ? [...tabs.querySelectorAll('.tabitem')] : [];
     return {
+      phone,
+      bothShown: phone && getComputedStyle(el).display !== 'none',
       total: links.length,
+      tabCount: tabItems.length,
+      tabsLit: tabItems.filter((a) => a.classList.contains('active')).length,
+      hasMore: !!document.getElementById('tabMore'),
+      // Desktop only: the top strip and its overflow menu.
       onBar: links.filter((a) => !a.hidden).length,
       inMenu: menu ? menu.querySelectorAll('a').length : 0,
       moreShown: more ? !more.hidden : false,
@@ -40,6 +49,14 @@ async function checkNav(where) {
     };
   });
   if (!nav) return;
+  if (nav.phone) {
+    // A phone navigates from the bottom bar: five destinations, one of them lit.
+    if (nav.bothShown) errors.push(`nav on ${where}: both the top strip and the tab bar are showing`);
+    if (nav.tabCount < 2 || nav.tabCount > 5) errors.push(`nav on ${where}: ${nav.tabCount} tabs, expected 2 to 5`);
+    if (nav.tabsLit !== 1) errors.push(`nav on ${where}: ${nav.tabsLit} tabs lit, expected exactly 1`);
+    if (nav.total > nav.tabCount && !nav.hasMore) errors.push(`nav on ${where}: ${nav.total} destinations, ${nav.tabCount} tabs and no More`);
+    return;
+  }
   if (nav.overflowing) errors.push(`nav on ${where} still scrolls sideways`);
   if (nav.onBar + nav.inMenu !== nav.total) errors.push(`nav on ${where}: ${nav.total - nav.onBar - nav.inMenu} items reachable from neither bar nor menu`);
   if (nav.activeHidden) errors.push(`nav on ${where} hid the page you are on`);
@@ -793,7 +810,9 @@ try {
   // A browser that has stopped accepting saves has to say so, on whatever screen
   // the player is on, and the band must not push the page sideways on a phone.
   await page.goto(`http://localhost:${port}/#/season`);
-  await page.waitForSelector('#nav a');
+  // Either bar, whichever this width uses: the links are hidden by their
+  // container's display, so a `[hidden]` filter does not see it.
+  await page.waitForFunction(() => [...document.querySelectorAll('#tabbar .tabitem, #nav a')].some((e) => e.offsetParent !== null));
   if (!(await page.$eval('#savewarn', (el) => el.hidden))) errors.push('the save warning is showing when saving works');
   await page.evaluate(() => {
     const real = localStorage.setItem.bind(localStorage);
