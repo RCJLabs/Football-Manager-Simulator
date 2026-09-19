@@ -276,6 +276,58 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .stat-compare { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.25rem 0.5rem; font-variant-numeric: tabular-nums; font-size: 0.88rem; }
 .stat-compare .l { text-align: right; } .stat-compare .m { color: var(--muted); text-align: center; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
 
+/* ---------------------------------------------------------------------------
+   The draft board. Clubs across the top, what they have taken underneath.
+   A 32-club board is 27 rounds by 32 clubs, so it scrolls in both directions
+   inside its own box rather than pushing the page sideways; the round column
+   and the club headings stay put while it does.
+   --------------------------------------------------------------------------- */
+.board-scroll { overflow: auto; max-height: 58vh; border: 1px solid var(--line); border-radius: 8px; margin-top: 0.4rem; -webkit-overflow-scrolling: touch; }
+.board { border-collapse: separate; border-spacing: 0; font-size: 0.72rem; width: max-content; }
+.board th, .board td { padding: 0.25rem 0.35rem; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
+.board thead th { position: sticky; top: 0; z-index: 2; background: var(--card, #12211a); font-family: var(--mono); font-size: 0.68rem; white-space: nowrap; text-align: left; }
+.board .bl { position: sticky; left: 0; z-index: 1; background: var(--card, #12211a); font-family: var(--mono); color: var(--muted); font-weight: 400; text-align: right; min-width: 2.1rem; }
+.board thead .bl { z-index: 3; }
+.board thead th.me { color: var(--accent); }
+.board thead th.clock { background: #2c4a37; color: #eaf6ee; }
+.board .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.25rem; vertical-align: baseline; }
+
+.board .bc { min-width: 5.6rem; max-width: 5.6rem; vertical-align: top; cursor: pointer; }
+.board .bc.empty { cursor: default; background: repeating-linear-gradient(135deg, transparent, transparent 5px, rgba(255,255,255,0.018) 5px, rgba(255,255,255,0.018) 10px); }
+.board .bo { display: inline-block; min-width: 1.5rem; padding: 0 0.15rem; border-radius: 3px; font-family: var(--mono); font-size: 0.66rem; text-align: center; }
+.board .bn { display: block; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board .bm { display: block; color: var(--muted); font-size: 0.64rem; }
+.board .bp { float: right; font-family: var(--mono); color: var(--accent); }
+.board .bc.clock { background: #21362a; box-shadow: inset 0 0 0 1px #3c6b4d; }
+.board .onclock { color: #9fd3b0; font-family: var(--mono); font-size: 0.62rem; animation: onclock 1.4s ease-in-out infinite; }
+@keyframes onclock { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+/* The pick landing. Brief, once, and only on the cell that just changed. */
+.board .bc.fresh { animation: landed 0.55s ease-out; }
+@keyframes landed {
+  0% { transform: scale(0.82); background: #e9c46a; color: #1a1a1a; }
+  55% { background: #e9c46a; color: #1a1a1a; }
+  100% { transform: scale(1); background: transparent; }
+}
+
+/* The room's state, above the board. */
+.draft-head .whoson { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.35rem; flex-wrap: wrap; }
+.draft-head.mine { box-shadow: inset 0 0 0 2px var(--accent); }
+.draft-head .ticker-line { margin-top: 0.3rem; min-height: 1.3rem; font-size: 0.85rem; }
+.pick-line.fresh { animation: slidein 0.45s ease-out; display: inline-block; }
+@keyframes slidein { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.spinner { width: 11px; height: 11px; border: 2px solid #3c6b4d; border-top-color: var(--accent); border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.speed { display: flex; gap: 0.2rem; }
+.speed .tab { padding: 0.15rem 0.45rem; font-size: 0.7rem; min-height: 0; text-transform: lowercase; }
+
+/* Everything above is decoration on top of a board that is legible without it. */
+@media (prefers-reduced-motion: reduce) {
+  .board .bc.fresh, .pick-line.fresh, .board .onclock { animation: none; }
+  .spinner { animation: none; border-top-color: #3c6b4d; }
+  .board .bc.fresh { box-shadow: inset 0 0 0 2px var(--accent); }
+}
+
 /* Depth-chart furniture: a jump bar and a header per position group. Twenty-seven
    rows is four and a half screens on a phone, so the list needs landmarks and a
    way past them. The bar sticks under the topbar; `scroll-margin-top` keeps a

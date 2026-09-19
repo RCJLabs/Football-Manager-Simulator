@@ -10,8 +10,23 @@ import {
   currentNominator, nominatable, autoCompleteAll, autoUserMax, canRoster, MIN_BID, TOTAL_SLOTS,
 } from '../../engine/auction.js';
 import { playerItem, playerModal, teamChip, toast, ovrBadge, esc, posBadge } from '../components.js';
+import { draftBoard, auctionRows, scrollToPick, lastName } from '../draft-board.js';
+import { SPEEDS, DEFAULT_SPEED } from './draft.js';
 
 const ui = { pos: 'ALL', era: 'ALL', q: '', minAsk: 85, bid: null, limit: 60 };
+
+// The room used to run itself forward to the next thing it needed from you and
+// apply everything in between in one go — at the default ask of 85 that is most
+// of the auction, sold in silence. It is paced now, a lot at a time, onto the
+// same board the snake draft uses.
+//
+// This view is not self-rendering: it is re-mounted by the store on every
+// change, and the timer lives out here so it survives that. `stopAuction` is
+// exported so the view's own teardown can cancel a tick that would otherwise
+// fire into a screen the player has already left.
+let lotTimer = null;
+let freshLot = null;   // sold-index of the lot that just went, for the flash
+export function stopAuction() { clearTimeout(lotTimer); lotTimer = null; }
 
 export function view(root, params, ctx) {
   const { league } = ctx.getState();
@@ -23,14 +38,27 @@ export function view(root, params, ctx) {
   const u = league.teams.findIndex((t) => t.isUser);
   const me = league.teams[u];
 
-  // Run the room forward until it needs the human.
+  // Move the room on by one lot, then hand back so the screen can show it.
+  // `advanceToUser` with a single step either reaches something the human has to
+  // answer, or does one piece of business and reports back as "stalled".
+  stopAuction();
+  const speedName = ctx.getState().prefs?.draftSpeed || DEFAULT_SPEED;
+  const speedMs = (SPEEDS.find(([n]) => n === speedName) || SPEEDS[1])[1];
   let reason = a.complete ? 'complete' : null;
   if (!reason) {
+    const before = a.sold.length;
     ctx.update((s) => {
       const rng = new RNG(s.league.rngState);
-      reason = advanceToUser(s.league.auction, s.league, ctx.players, rng, ctx.byId, { minOverall: ui.minAsk });
+      reason = speedMs === 0
+        ? advanceToUser(s.league.auction, s.league, ctx.players, rng, ctx.byId, { minOverall: ui.minAsk })
+        : advanceToUser(s.league.auction, s.league, ctx.players, rng, ctx.byId, { minOverall: ui.minAsk, maxSteps: 1 });
       s.league.rngState = rng.state;
     }, { silent: true });
+    freshLot = a.sold.length > before ? a.sold.length - 1 : null;
+    // Still the room's business: come back for the next lot on the clock.
+    if (reason === 'stalled' && !a.complete) {
+      lotTimer = setTimeout(() => { lotTimer = null; ctx.notify(); }, speedMs || 0);
+    }
   }
 
   if (a.complete) return complete(root, ctx, league, u);
@@ -43,6 +71,21 @@ export function view(root, params, ctx) {
   const totalToSell = a.sold.length + league.teams.reduce((s, t) => s + slotsLeft(t), 0);
   const nominator = currentNominator(a, league);
 
+  const rows = auctionRows(league, a);
+  // The flash goes on the cell the newest sale landed in: its club's column,
+  // and the row it took in that club's stack.
+  let freshKey = null;
+  if (freshLot != null && a.sold[freshLot]) {
+    const sale = a.sold[freshLot];
+    const upTo = a.sold.slice(0, freshLot + 1).filter((x) => x.team === sale.team).length - 1;
+    freshKey = `${upTo}:${sale.team}`;
+  }
+  const last = a.sold[a.sold.length - 1];
+  const boardCard = () => draftBoard(league, rows, {
+    labels: rows.map((_, i) => String(i + 1)),
+    freshKey, byId: ctx.byId, observer: u, title: 'The room',
+  });
+
   const header = html`
     <div class="card tight">
       <div class="row between" style="gap:.5rem">
@@ -53,18 +96,16 @@ export function view(root, params, ctx) {
         <div class="muted" style="font-size:.8rem;text-align:right;white-space:nowrap">Lot ${sold + 1}<br>of ${totalToSell}</div>
       </div>
       <div class="needs" style="margin-top:.45rem">${raw(POSITION_ORDER.filter((p) => open[p]).map((pos) => `<span class="need open">${pos} ×${open[pos]}</span>`).join('') || '<span class="need">Roster full</span>')}</div>
+      <div class="row between" style="align-items:baseline;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+        <div class="ticker-line">${last
+          ? raw(`<span class="pick-line ${freshKey ? 'fresh' : ''}"><b>$${last.price}</b> ${teamChip(league.teams[last.team], { abbr: true }).__raw} take <b>${esc(lastName(ctx.byId.get(last.playerId)?.name || ''))}</b></span>`)
+          : html`<span class="muted">The room has not sold anything yet.</span>`}</div>
+        <div class="speed">${raw(SPEEDS.map(([n]) => `<button class="tab ${speedName === n ? 'active' : ''}" data-speed="${n}">${n}</button>`).join(''))}</div>
+      </div>
     </div>`;
 
   const board = html`
     <div class="stack">
-      <div class="card tight">
-        <h3>Recent lots</h3>
-        <ul class="plain ticker">${raw(a.sold.slice(-12).reverse().map((s) => {
-          const p = ctx.byId.get(s.playerId);
-          const t = league.teams[s.team];
-          return `<li class="${t.isUser ? 'me' : ''}"><b>$${s.price}</b> ${teamChip(t, { abbr: true }).__raw} — ${esc(p.name)} <small class="muted">${p.pos} · ${p.season}</small></li>`;
-        }).join('') || '<li class="muted">No lots sold yet.</li>')}</ul>
-      </div>
       <div class="card tight">
         <h3>Budgets</h3>
         <div class="table-wrap"><table><tbody>${raw(league.teams.map((t, i) => `<tr class="${t.isUser ? 'me' : ''}"><td>${teamChip(t, { abbr: true }).__raw}</td><td class="num"><b>$${a.budgets[i]}</b></td><td class="num muted">${slotsLeft(t)} left</td><td class="num muted">$${slotsLeft(t) ? Math.floor(a.budgets[i] / slotsLeft(t)) : 0}/slot</td></tr>`).join(''))}</tbody></table></div>
@@ -140,6 +181,7 @@ export function view(root, params, ctx) {
 
   render(root, html`<div id="auction-view">
     ${header}
+    ${raw(boardCard())}
     <details class="card tight" id="valueGuide" style="margin-top:.5rem">
       <summary style="cursor:pointer"><b>Where money wins games</b> <span class="muted">${valueHint()}</span></summary>
       ${valuePanel()}
@@ -148,6 +190,11 @@ export function view(root, params, ctx) {
   </div>`);
 
   const el = root.querySelector('#auction-view');
+  el.querySelector('.speed')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-speed]');
+    if (b) ctx.update((s) => { s.prefs.draftSpeed = b.dataset.speed; });
+  });
+  scrollToPick(root);
   const redraw = () => view(root, params, ctx);
 
   el.querySelector('#minAsk')?.addEventListener('input', (e) => { el.querySelector('#askLbl').textContent = `${e.target.value}+`; });
@@ -210,6 +257,9 @@ export function view(root, params, ctx) {
     }
     redraw();
   }
+
+  // Leaving the room cancels the lot that was about to be called.
+  return stopAuction;
 }
 
 function attrRow(p) {

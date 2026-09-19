@@ -146,6 +146,22 @@ export function makePick(league, draft, player) {
   return teamIdx;
 }
 
+/**
+ * Exactly one AI pick, for a screen that shows a draft happening rather than
+ * applying it. Returns the pick record, or null if there was nothing to do.
+ * `runAiPicks` stays for everything that wants the whole burst at once — the
+ * scripts, the tests and the auto-draft button all still do.
+ */
+export function stepAiPick(league, draft, pool, rng) {
+  if (draft.complete) return null;
+  const t = currentPicker(draft);
+  if (t == null || league.teams[t].isUser) return null;
+  const p = aiChoose(league, draft, pool, t, rng);
+  if (!p) return null;
+  makePick(league, draft, p);
+  return draft.picks[draft.picks.length - 1];
+}
+
 /** Run AI picks until it is the user's turn (or the draft ends). */
 export function runAiPicks(league, draft, pool, rng, { stopAtUser = true } = {}) {
   let guard = 0;

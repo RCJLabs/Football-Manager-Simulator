@@ -1,4 +1,4 @@
-import { load, getState, subscribe, update, saveError } from './store.js';
+import { load, getState, subscribe, update, saveError, notify } from './store.js';
 import { route, startRouter, navigate, currentRoute } from './router.js';
 import { PLAYERS, PLAYERS_BY_ID } from './data/db.js';
 import { registerPlayers } from './engine/season.js';
@@ -49,7 +49,7 @@ function currentPool() {
 }
 
 const ctx = {
-  getState, update, navigate, toast,
+  getState, update, navigate, toast, notify,
   get players() { return currentPool().players; },
   get byId() { return currentPool().byId; },
 };

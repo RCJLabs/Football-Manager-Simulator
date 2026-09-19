@@ -68,6 +68,18 @@ try {
 
   // Auction room: nominate, bid, pass, then hand the rest to the AI.
   await page.waitForSelector('#auction-view');
+
+  // The board: the room used to sell most of its lots in silence.
+  await page.waitForSelector('#auction-view .board');
+  const aucBoard = await page.evaluate(() => ({
+    cols: document.querySelectorAll('.board thead th').length - 1,
+    speeds: document.querySelectorAll('.speed .tab').length,
+    scrolls: getComputedStyle(document.querySelector('.board-scroll')).overflow,
+  }));
+  if (aucBoard.cols !== 8) errors.push(`the auction board shows ${aucBoard.cols} clubs, expected 8`);
+  if (aucBoard.speeds !== 4) errors.push(`the auction has ${aucBoard.speeds} speed settings, expected 4`);
+  if (!/auto|scroll/.test(aucBoard.scrolls)) errors.push('the board must scroll inside itself, not push the page');
+  await checkOverflow('auction with the board');
   // A new manager has no way to know where a budget wins games, so it is on the
   // screen where the budget is being spent.
   const guideRows = await page.$$eval('#valueGuide .value-table tbody tr', (r) => r.length);
@@ -565,12 +577,49 @@ try {
   await page.waitForSelector('#setup');
   await page.check('input[name="type"][value="snake"]');
   await page.click('button[type="submit"]');
-  await page.waitForSelector('#draft-view .plist .prow');
+  // The draft room: picks land one at a time onto a board, rather than the
+  // other clubs' selections being applied in one silent burst.
+  await page.waitForSelector('#draft-view .board');
   await checkOverflow('snake draft');
+  const board = await page.evaluate(() => ({
+    cols: document.querySelectorAll('.board thead th').length - 1,
+    speeds: document.querySelectorAll('.speed .tab').length,
+    scrolls: getComputedStyle(document.querySelector('.board-scroll')).overflow,
+    onClock: !!document.querySelector('.board .bc.clock, .draft-head.mine'),
+  }));
+  if (board.cols !== 8) errors.push(`the draft board shows ${board.cols} clubs, expected 8`);
+  if (board.speeds !== 4) errors.push(`the draft has ${board.speeds} speed settings, expected 4`);
+  if (!/auto|scroll/.test(board.scrolls)) errors.push('the board must scroll inside itself, not push the page');
+  if (!board.onClock) errors.push('nothing on the board says who is on the clock');
+
+  // Picks have to keep arriving without the player doing anything — unless the
+  // player happens to hold the first pick, in which case the room is correctly
+  // waiting on them and there is nothing to watch yet.
+  const waitingOnMe = await page.evaluate(() => !!document.querySelector('.draft-head.mine'));
+  if (!waitingOnMe) {
+    const before = await page.$$eval('.board .bc:not(.empty)', (n) => n.length);
+    await page.waitForFunction((n) => document.querySelectorAll('.board .bc:not(.empty)').length > n, before, { timeout: 8000 })
+      .catch(() => errors.push('no pick landed on the board on its own'));
+  }
+  await shot('02-draft');
+
+  // Skip the queue, then take somebody and check he lands on the board.
+  const skip = await page.$('#skip');
+  if (skip) await skip.click();
+  await page.waitForSelector('#draft-view .plist .prow', { timeout: 8000 });
+  const mine = await page.evaluate(() => !!document.querySelector('.draft-head.mine'));
+  if (!mine) errors.push('skipping to my pick did not put me on the clock');
+  const wanted = await page.$eval('button[data-draft]', (b) => b.dataset.draft);
   await page.click('button[data-draft]');
-  await page.waitForSelector('.ticker li.me');
+  const onBoard = await page.waitForFunction(
+    (id) => [...document.querySelectorAll('.board .bc')].some((c) => c.dataset.show === id), wanted, { timeout: 4000 },
+  ).then(() => true).catch(() => false);
+  if (!onBoard) errors.push('the pick did not appear on the board');
+
   await page.click('#autoAll');
   await page.waitForSelector('#start');
+  const rounds = await page.$$eval('.board tbody tr', (r) => r.length);
+  if (rounds !== 27) errors.push(`the finished board has ${rounds} rounds, expected 27`);
   await page.click('#start');
   await page.waitForSelector('#play');
   await checkOverflow('snake season');
