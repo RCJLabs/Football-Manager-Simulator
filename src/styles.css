@@ -48,6 +48,15 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 .nav::-webkit-scrollbar { display: none; }
 .nav a { color: var(--muted); padding: 0.3rem 0.55rem; border-radius: 999px; font-size: 0.85rem; white-space: nowrap; }
 .nav a.active, .nav a:hover { background: var(--bg-3); color: var(--text); text-decoration: none; }
+.nav a[hidden] { display: none; }
+
+/* What does not fit goes here rather than off the end of a sideways scroll. */
+.nav-more { flex: none; color: var(--muted); background: transparent; border: 1px solid var(--line); padding: 0.3rem 0.55rem; border-radius: 999px; font-size: 0.85rem; white-space: nowrap; cursor: pointer; }
+.nav-more:hover, .nav-more[aria-expanded="true"] { background: var(--bg-3); color: var(--text); }
+.nav-menu { position: absolute; top: 100%; right: var(--gutter); z-index: 30; display: flex; flex-direction: column; gap: 0.15rem; min-width: 9rem; padding: 0.3rem; background: var(--card, #12211a); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+.nav-menu[hidden] { display: none; }
+.nav-menu a { color: var(--text); padding: 0.45rem 0.6rem; border-radius: 6px; font-size: 0.9rem; white-space: nowrap; }
+.nav-menu a:hover, .nav-menu a.active { background: var(--bg-3); text-decoration: none; }
 
 .app { max-width: 1100px; margin: 0 auto; padding: var(--gutter); }
 .loading { color: var(--muted); padding: 2rem; text-align: center; }
@@ -363,6 +372,18 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .poshead:first-of-type { border-top: 0; margin-top: 0.2rem; }
 .poshead small { font-family: var(--mono); font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); }
 .badge.warn { background: #5c3a1a; color: #ffdfae; }
+
+/* A form's primary action, pinned to the bottom of the screen. Everything above
+   it has a default, so the button is reachable at once and the form is there for
+   anyone who wants to change something rather than a gate in front of it.
+   Fixed rather than sticky: the bar is the last thing in its form, so a sticky
+   element has no range left to stick over and simply sits where it falls. */
+.actionbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: flex; gap: 0.5rem; justify-content: center; align-items: center; padding: 0.6rem var(--gutter); padding-bottom: calc(0.6rem + env(safe-area-inset-bottom)); background: rgba(15, 26, 18, 0.94); backdrop-filter: blur(8px); border-top: 1px solid var(--line); }
+.actionbar .btn { flex: 1; max-width: 20rem; }
+.actionbar .btn.ghost { flex: 0 0 auto; }
+/* Room for it on the whole screen, not just the card: the bar is fixed to the
+   viewport, so it sits over whatever else the view puts below the form too. */
+.has-actionbar { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
 
 /* Saving has stopped working. Loud on purpose, and it stays until it is fixed. */
 .savewarn { background: #5c1a1a; color: #ffe9e9; border-bottom: 2px solid #ff6b6b; padding: 0.6rem 1rem; font-size: 0.9rem; line-height: 1.45; }

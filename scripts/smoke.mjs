@@ -19,6 +19,33 @@ page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
 const shot = async (name) => page.screenshot({ path: `${process.env.SHOT_DIR || '/tmp'}/${name}.png`, fullPage: false });
 
+/**
+ * Everything in the nav has to be reachable: on the bar, or in the menu that
+ * holds whatever does not fit. The bar is a sideways scroller, so before this
+ * it could silently strand Settings off the end of a strip nothing marked as
+ * scrollable.
+ */
+async function checkNav(where) {
+  const nav = await page.evaluate(() => {
+    const el = document.getElementById('nav'), more = document.getElementById('navMore'), menu = document.getElementById('navMenu');
+    if (!el) return null;
+    const links = [...el.querySelectorAll('a')];
+    return {
+      total: links.length,
+      onBar: links.filter((a) => !a.hidden).length,
+      inMenu: menu ? menu.querySelectorAll('a').length : 0,
+      moreShown: more ? !more.hidden : false,
+      overflowing: el.scrollWidth > el.clientWidth + 1,
+      activeHidden: links.some((a) => a.classList.contains('active') && a.hidden),
+    };
+  });
+  if (!nav) return;
+  if (nav.overflowing) errors.push(`nav on ${where} still scrolls sideways`);
+  if (nav.onBar + nav.inMenu !== nav.total) errors.push(`nav on ${where}: ${nav.total - nav.onBar - nav.inMenu} items reachable from neither bar nor menu`);
+  if (nav.activeHidden) errors.push(`nav on ${where} hid the page you are on`);
+  if (nav.inMenu && !nav.moreShown) errors.push(`nav on ${where} has items in the menu and no button to open it`);
+}
+
 /** Fails if the page scrolls sideways, and names the widest offending element. */
 async function checkOverflow(where) {
   const bad = await page.evaluate(() => {
@@ -38,6 +65,7 @@ async function checkOverflow(where) {
     return { docW, scrollW: document.documentElement.scrollWidth, offenders: offenders.slice(0, 5) };
   });
   if (bad) errors.push(`overflow on ${where}: page is ${bad.scrollW}px wide in a ${bad.docW}px viewport — ${bad.offenders.join(', ') || 'no single offender found'}`);
+  await checkNav(where);
 }
 
 try {
@@ -508,8 +536,11 @@ try {
   await shot('11e-scouting');
 
   // Chemistry is on the team screen with its inputs, not hidden in the engine.
-  // It lives on the Squad tab now.
-  await page.click('#nav a[href^="#/team/"]');
+  // It lives on the Squad tab now. Reached by its address rather than by the nav
+  // link, which at 360px may be in the overflow menu — the nav itself is checked
+  // by `checkNav` on every screen.
+  const teamHref = await page.$eval('#nav a[href^="#/team/"], #navMenu a[href^="#/team/"]', (a) => a.getAttribute('href'));
+  await page.goto(`http://localhost:${port}/${teamHref}`);
   await page.waitForSelector('#team-view');
   await page.click('#team-view .tab[href$="/squad"]');
   await page.waitForFunction(() => /Era spread|Chemistry is switched off/.test(document.querySelector('#team-view').textContent), { timeout: 5000 });
@@ -680,11 +711,16 @@ try {
   // How far a first-time player has to scroll before they can start. Measured in
   // screens at phone height, because a form nobody reaches the bottom of is a
   // form nobody finishes.
+  // Every field on this form has a working default, so the primary action has
+  // to be reachable without reading the whole thing. It used to sit 1.6 screens
+  // down; it is pinned to the bottom of the viewport now.
   const reach = await page.evaluate(() => {
     const b = document.querySelector('button[type="submit"]');
-    return (b.getBoundingClientRect().top + window.scrollY) / window.innerHeight;
+    const r = b.getBoundingClientRect();
+    return { down: (r.top + window.scrollY) / window.innerHeight, onScreen: r.top >= 0 && r.bottom <= window.innerHeight };
   });
-  console.log(`setup: Create league sits ${reach.toFixed(1)} screens down`);
+  console.log(`setup: Create league sits ${reach.down.toFixed(1)} screens down`);
+  if (!reach.onScreen) errors.push('the Create league button is not on screen without scrolling');
   if (reach > 2.6) errors.push(`setup makes you scroll ${reach.toFixed(1)} screens to reach Create league`);
   await page.evaluate(() => { document.querySelector('#moreOpts').open = true; });
   // Coaching jobs are a pro-league option and appear only in pro mode.

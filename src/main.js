@@ -27,6 +27,8 @@ import * as guide from './ui/views/guide.js';
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
 const saveWarnEl = document.getElementById('savewarn');
+const moreEl = document.getElementById('navMore');
+const menuEl = document.getElementById('navMenu');
 // The pool the app plays with is the shipped file plus the open league's own
 // generated rookies. Rebuilt only when that array is replaced, which the
 // rookie and career code both replace their state rather than mutating it.
@@ -132,6 +134,53 @@ function renderNav() {
   items.push({ href: '#/players', label: 'Players', match: '/players' });
   items.push({ href: '#/settings', label: 'Settings', match: '/settings' });
   navEl.innerHTML = items.map((i) => `<a href="${i.href}" class="${path === i.match || (i.match !== '/' && path.startsWith(i.match)) ? 'active' : ''}">${i.label}</a>`).join('');
+  fitNav();
+}
+
+/**
+ * Put whatever does not fit into a menu instead of behind a sideways scroll.
+ *
+ * The strip is `overflow-x: auto`, so nothing was ever unreachable — but a nav
+ * bar that scrolls sideways does not look like one, and there is no fade or
+ * arrow to say so. Measured at 360px with a league open, 340px of items sat in
+ * a 309px strip and Settings was simply off the end; in a pro league Awards and
+ * Players went with it. So the items that fit stay, the rest move into a "More"
+ * menu that is always at the right-hand edge, and on a wide screen where
+ * everything fits the button never appears at all.
+ */
+function fitNav() {
+  if (!moreEl || !menuEl) return;
+  const links = [...navEl.querySelectorAll('a')];
+  for (const a of links) a.hidden = false;
+  moreEl.hidden = true;
+  closeNavMenu();
+  // A scrollWidth over clientWidth is the strip admitting it does not fit.
+  if (navEl.scrollWidth <= navEl.clientWidth + 1) { menuEl.innerHTML = ''; return; }
+
+  moreEl.hidden = false;
+  for (let i = links.length - 1; i > 0; i--) {
+    if (navEl.scrollWidth <= navEl.clientWidth + 1) break;
+    links[i].hidden = true;
+  }
+  // Whatever screen you are on stays on the bar, even if it sorts to the end:
+  // a nav that hides the page you are looking at is worse than one that scrolls.
+  const active = links.find((a) => a.classList.contains('active'));
+  if (active && active.hidden) {
+    active.hidden = false;
+    for (let i = links.length - 1; i > 0; i--) {
+      if (navEl.scrollWidth <= navEl.clientWidth + 1) break;
+      if (!links[i].hidden && links[i] !== active) links[i].hidden = true;
+    }
+  }
+  const spilled = links.filter((a) => a.hidden);
+  menuEl.innerHTML = spilled.map((a) => `<a href="${a.getAttribute('href')}" role="menuitem" class="${a.className}">${a.textContent}</a>`).join('');
+  if (!spilled.length) moreEl.hidden = true;
+}
+
+function closeNavMenu() {
+  if (!menuEl) return;
+  menuEl.hidden = true;
+  moreEl?.setAttribute('aria-expanded', 'false');
 }
 
 route('/', () => mount(home));
@@ -162,6 +211,20 @@ load();
   applyOverrides(PLAYERS, PLAYERS_BY_ID, prefs.ratingOverrides || {});
   applyNameMode(PLAYERS, prefs.nameMode || 'real');
 }
+moreEl?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const open = menuEl.hidden;
+  menuEl.hidden = !open;
+  moreEl.setAttribute('aria-expanded', String(open));
+});
+menuEl?.addEventListener('click', () => closeNavMenu());
+document.addEventListener('click', (e) => { if (!menuEl?.hidden && !menuEl.contains(e.target) && e.target !== moreEl) closeNavMenu(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNavMenu(); });
+// The bar has to be refitted when the width changes, or a phone turned sideways
+// keeps items in the menu that would now fit on it.
+let navFitTimer = null;
+window.addEventListener('resize', () => { clearTimeout(navFitTimer); navFitTimer = setTimeout(fitNav, 120); });
+
 subscribe(() => { if (activeView && !activeView.selfRendering) mount(activeView, activeParams); else { renderNav(); renderSaveWarning(); } });
 startRouter();
 
