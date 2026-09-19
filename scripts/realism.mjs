@@ -77,9 +77,16 @@ for (let i = 0; i < N; i++) {
 const per = (k) => (acc[k] || 0) / sides;
 const pct = (a, b) => (acc[b] ? (acc[a] / acc[b]) * 100 : 0);
 const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+const bad = [];
+let checked = 0;
 const row = (label, got, want, fmt = (v) => v.toFixed(1)) => {
-  const bad = Array.isArray(want) && (got < want[0] || got > want[1]);
-  console.log(`${bad ? '!' : ' '} ${label.padEnd(26)} ${fmt(got).padStart(7)}   ${Array.isArray(want) ? `${want[0]}–${want[1]}` : want}`);
+  // Judged on the number as printed, not on the raw one. A row reading 10.0
+  // against a range of 10–13 and carrying a mark looks like a broken report,
+  // and the printed figure is the claim the reader is being asked to check.
+  const shown = Number(fmt(got));
+  const off = Array.isArray(want) && (shown < want[0] || shown > want[1]);
+  if (Array.isArray(want)) { checked++; if (off) bad.push(label.trim()); }
+  console.log(`${off ? '!' : ' '} ${label.padEnd(26)} ${fmt(got).padStart(7)}   ${Array.isArray(want) ? `${want[0]}–${want[1]}` : want}`);
 };
 
 console.log(`${games} games, ${sides} team-games. "!" marks a number outside the real league's range.\n`);
@@ -118,21 +125,28 @@ row('extra point %', pct('xpm', 'xpa'), [92, 98]);
 row('penalties', per('penalties'), [5, 8], (v) => v.toFixed(2));
 row('penalty yards', per('penYds'), [40, 65]);
 console.log('');
-console.log(`  drives / team / game      ${(drives / 2 / games).toFixed(1).padStart(7)}   10–13`);
-console.log(`  plays / drive             ${mean(lens.drivePlays).toFixed(1).padStart(7)}   5.5–6.5`);
-console.log(`  scoring drive %           ${((scoringDrives / drives) * 100).toFixed(1).padStart(7)}   35–42`);
-console.log(`  punt drive %              ${((puntDrives / drives) * 100).toFixed(1).padStart(7)}   32–40`);
-console.log(`  mean run                  ${mean(lens.run).toFixed(2).padStart(7)}   4.2–4.6`);
-console.log(`  runs stopped at or behind ${((lens.run.filter((x) => x <= 0).length / Math.max(1, lens.run.length)) * 100).toFixed(1).padStart(7)}   16–22 %`);
-console.log(`  yards / completion        ${mean(lens.pass).toFixed(2).padStart(7)}   10.8–12.0`);
-console.log(`  20+ yard plays / team     ${((lens.run.filter((x) => x >= 20).length + lens.pass.filter((x) => x >= 20).length) / sides).toFixed(2).padStart(7)}   3.5–5.5`);
+// Everything below used to be hand-written console.log lines carrying the
+// reference range as a literal string, which meant fifteen of the forty rows
+// could never be marked. The report said "! marks a number outside the real
+// league's range" while quietly exempting a third of itself — TD : FG sat at
+// 1.99 against a stated 1.3–1.8 with no mark on it for as long as that lasted.
+// Every row goes through `row` now, and `bad` at the end is the count.
+row('drives / team / game', drives / 2 / games, [10, 13]);
+row('plays / drive', mean(lens.drivePlays), [5.5, 6.5]);
+row('scoring drive %', (scoringDrives / drives) * 100, [35, 42]);
+row('punt drive %', (puntDrives / drives) * 100, [32, 40]);
+row('mean run', mean(lens.run), [4.2, 4.6], (v) => v.toFixed(2));
+row('runs stopped at or behind', (lens.run.filter((x) => x <= 0).length / Math.max(1, lens.run.length)) * 100, [16, 22]);
+row('yards / completion', mean(lens.pass), [10.8, 12.0], (v) => v.toFixed(2));
+row('20+ yard plays / team', (lens.run.filter((x) => x >= 20).length + lens.pass.filter((x) => x >= 20).length) / sides, [3.5, 5.5], (v) => v.toFixed(2));
 console.log('');
-console.log(`  overtime games %          ${((otGames / games) * 100).toFixed(1).padStart(7)}   5–8`);
-console.log(`  ties %                    ${((ties / games) * 100).toFixed(1).padStart(7)}   ~1`);
-console.log(`  shutouts %                ${((shutouts / games) * 100).toFixed(1).padStart(7)}   1–3`);
-console.log(`  mean margin               ${mean(margins).toFixed(1).padStart(7)}   9.5–11.5`);
-console.log(`  mean total points         ${mean(totals).toFixed(1).padStart(7)}   42–47`);
+row('overtime games %', (otGames / games) * 100, [5, 8]);
+row('ties %', (ties / games) * 100, [0, 2]);
+row('shutouts %', (shutouts / games) * 100, [1, 3]);
+row('mean margin', mean(margins), [9.5, 11.5]);
+row('mean total points', mean(totals), [42, 47]);
 // Counts turnover on downs alongside giveaways, so the reference is roughly
 // 1.3 giveaways plus 0.6 failed fourth downs over 11 drives, not 1.3 over 11.
-console.log(`  turnover drive %          ${((driveTurnovers / drives) * 100).toFixed(1).padStart(7)}   14–19`);
-console.log(`  TD : FG                   ${(tds / Math.max(1, fgs)).toFixed(2).padStart(7)}   1.3–1.8`);
+row('turnover drive %', (driveTurnovers / drives) * 100, [14, 19]);
+row('TD : FG', tds / Math.max(1, fgs), [1.3, 1.8], (v) => v.toFixed(2));
+console.log(`\n${bad.length ? `${bad.length} of ${checked} outside the range: ${bad.join(', ')}` : `all ${checked} inside the real league's range`}`);

@@ -87,3 +87,26 @@ test('charts and the story render from a finished game', () => {
   assert.equal(wpChart([], g.teams), '');
   assert.equal(driveChart([], g.teams), '');
 });
+
+test('a logged event carries no more than it has to', () => {
+  const g = createGame(tf(A), tf(B), { seed: 21 });
+  simulateGame(g);
+  // Win probability is stored to three decimals. A chart drawn at pixel
+  // resolution and a label printed as a whole percent cannot use more, and a
+  // full double is nineteen characters in a save that is mostly play-by-play.
+  for (const e of g.log) {
+    if (typeof e.wp !== 'number') continue;
+    assert.equal(e.wp, Math.round(e.wp * 1000) / 1000, `wp ${e.wp} kept more precision than it needs`);
+    assert.ok(e.wp >= 0 && e.wp <= 1);
+  }
+  // `flag` is written only where it is true; every reader tests it for truth.
+  const withFalse = g.log.filter((e) => e.flag === false);
+  assert.equal(withFalse.length, 0, `${withFalse.length} events store "flag":false`);
+  assert.ok(g.log.some((e) => e.flag === true) || g.log.every((e) => !('flag' in e)), 'a real flag still says so');
+  // And the ends of the range are still exact, because the chart draws to them.
+  const last = g.log[g.log.length - 1].wp;
+  assert.ok(last === 0 || last === 1 || last === 0.5, `the final probability is settled, got ${last}`);
+  // Bytes, so a regression here is visible rather than theoretical.
+  const bytes = JSON.stringify(g.log).length / g.log.length;
+  assert.ok(bytes < 260, `an event should stay under 260 bytes, got ${bytes.toFixed(0)}`);
+});

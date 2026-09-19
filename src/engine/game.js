@@ -79,7 +79,7 @@ export function createGame(home, away, options = {}) {
   // AI clubs read the matchup and adjust; a human's sliders are left alone.
   for (const side of [0, 1]) if (!teams[side].isUser || options.planForUser) teams[side].plan = makeGameplan(teams[side].comp, teams[1 - side].comp);
   logEvent(g, { type: 'info', text: `${teams[receiving].name} will receive the opening kickoff.` });
-  g.lastEvent.wp = winProbability(g);
+  g.lastEvent.wp = roundWp(winProbability(g));
   return g;
 }
 
@@ -172,7 +172,17 @@ function saveRng(g, rng) {
   g.rngState = rng.state;
 }
 
+/**
+ * Three decimals is more than a chart drawn at pixel resolution and a label
+ * printed as a whole percent can use, and a full double costs nineteen
+ * characters against five in a save that is mostly play-by-play.
+ */
+const roundWp = (p) => Math.round(p * 1000) / 1000;
+
 function logEvent(g, e) {
+  // `flag` is false on almost every event, and `"flag":false` is twelve
+  // characters of nothing. Every reader tests it for truth.
+  if (e && e.flag === false) { e = { ...e }; delete e.flag; }
   const entry = {
     i: g.log.length,
     q: g.quarter,
@@ -290,7 +300,7 @@ export function step(g, calls = {}) {
  * it: the play, and the drive or timeout note that may follow it.
  */
 function stampWp(g, from) {
-  const wp = winProbability(g);
+  const wp = roundWp(winProbability(g));
   for (let i = from; i < g.log.length; i++) g.log[i].wp = wp;
 }
 
