@@ -6,14 +6,22 @@ import { playerItem, playerModal, teamChip, esc, outBadge, toast, modal } from '
 import { fillLineup, fmtWeeks, irList, irReady, canPlaceOnIr, placeOnIr, activateFromIr, releaseFromIr, irCapacity, IR_MIN_WEEKS } from '../../engine/injuries.js';
 import { fantasyPoints } from '../../engine/stats.js';
 import { chemistryFor, describeChemistry, MAX_BONUS } from '../../engine/chemistry.js';
+import { strategyRead } from '../../engine/strategy.js';
 
+// Grouped by what each one was measured to be worth, because presenting five
+// dials as five equal decisions is not what the numbers say. See strategy.js.
 const STRATEGY_FIELDS = [
-  { key: 'passRate', label: 'Pass / run balance', lo: 'Run heavy', hi: 'Pass heavy', min: 0.35, max: 0.7 },
-  { key: 'aggression', label: '4th-down aggression', lo: 'Conservative', hi: 'Go for it', min: 0, max: 1 },
-  { key: 'tempo', label: 'Tempo', lo: 'Slow', hi: 'Fast', min: 0, max: 1 },
-  { key: 'blitzRate', label: 'Blitz frequency', lo: 'Rarely', hi: 'Often', min: 0.05, max: 0.6 },
-  { key: 'deepShell', label: 'Deep coverage', lo: 'Aggressive', hi: 'Prevent', min: 0, max: 0.6 },
+  { key: 'passRate', label: 'Pass / run balance', lo: 'Run heavy', hi: 'Pass heavy', min: 0.35, max: 0.7, group: 'decides' },
+  { key: 'aggression', label: '4th-down aggression', lo: 'Conservative', hi: 'Go for it', min: 0, max: 1, group: 'helps' },
+  { key: 'tempo', label: 'Tempo', lo: 'Slow', hi: 'Fast', min: 0, max: 1, group: 'small' },
+  { key: 'blitzRate', label: 'Blitz frequency', lo: 'Rarely', hi: 'Often', min: 0.05, max: 0.6, group: 'small' },
+  { key: 'deepShell', label: 'Deep coverage', lo: 'Aggressive', hi: 'Prevent', min: 0, max: 0.6, group: 'small' },
 ];
+
+const GROUP_NOTES = {
+  helps: 'Going for it more pays off with a strong offence and a poor kicker, and costs little otherwise.',
+  small: 'Measured end to end on rosters built to want each end, these three came back inside the noise — they change the shape of a game more than its result. They are being reworked; for now the pass/run balance is the dial that decides games.',
+};
 
 /**
  * Which section is open. The team page was doing four unrelated jobs in one
@@ -147,6 +155,10 @@ export function view(root, params, ctx) {
     ${fillIns.length ? html`<p class="muted" style="font-size:.85rem;margin:.4rem 0 0">${fillIns.length === 1 ? 'A replacement-level fill-in starts at' : 'Replacement-level fill-ins start at'} ${fillIns.map((p) => p.pos).join(', ')}. ${canEdit ? html`<a href="#/moves">Find cover on the wire.</a>` : ''}</p>` : ''}
   </div>` : '';
 
+  // Only the club you manage gets a read: telling you what a rival should be
+  // doing is coaching the opposition.
+  const read = canEdit ? strategyRead(league, idx, ctx.byId) : null;
+
   // A tab that has nothing to say is worth saying so on, rather than showing an
   // empty page and leaving the player wondering whether it failed to load.
   const nothing = (what) => html`<div class="card tight"><p class="muted" style="margin:0">${what}</p></div>`;
@@ -167,13 +179,24 @@ export function view(root, params, ctx) {
       <div class="card tight"><h3>Unit ratings</h3>${raw(unitTable(lineup))}</div>
     </div>`,
     injuries: irCard || reportCard ? html`<div class="stack">${reportCard}${irCard}</div>` : nothing('Nobody is hurt and the injured reserve is empty.'),
-    strategy: html`<div class="card tight">
-      <h3>Strategy ${canEdit ? '' : html`<small class="muted">(AI)</small>`}</h3>
-      ${STRATEGY_FIELDS.map((f) => html`<div class="slider-row">
-        <div class="lbl"><span>${f.label}</span><b id="lbl-${f.key}">${pctLabel(f, team.strategy[f.key])}</b></div>
-        <input type="range" data-strat="${f.key}" min="${f.min}" max="${f.max}" step="0.01" value="${team.strategy[f.key]}" ${canEdit ? '' : 'disabled'}>
-        <div class="lbl"><span>${f.lo}</span><span>${f.hi}</span></div>
-      </div>`)}
+    strategy: html`<div class="stack">
+      ${read ? html`<div class="card tight">
+        <h3>What you built</h3>
+        <p style="margin:.1rem 0 .4rem"><b>${read.lean === 'run' ? 'A running team.' : read.lean === 'pass' ? 'A throwing team.' : 'An even team.'}</b> <span class="muted">${read.why}</span></p>
+        <div class="row between" style="align-items:baseline;gap:.6rem;flex-wrap:wrap">
+          <span class="muted" style="font-size:.9rem">Suits this squad: <b style="color:var(--fg,#e8f0ea)">${Math.round(read.rate * 100)}% pass</b> · you are at ${Math.round(read.current * 100)}%</span>
+          ${canEdit && read.act ? html`<button class="btn sm primary" id="useFit">Set it there</button>` : ''}
+        </div>
+        <small class="muted">${read.act ? `Moving it is ${read.strength}.` : read.even ? 'Your squad is even enough that this is close to a free choice.' : 'Your dial is already about where it should be.'} The read comes from who is on the field now, so it moves when you sign, drop or lose somebody.</small>
+      </div>` : ''}
+      <div class="card tight">
+        <h3>Strategy ${canEdit ? '' : html`<small class="muted">(AI)</small>`}</h3>
+        ${['decides', 'helps', 'small'].map((group) => html`${STRATEGY_FIELDS.filter((f) => f.group === group).map((f) => html`<div class="slider-row">
+          <div class="lbl"><span>${f.label}</span><b id="lbl-${f.key}">${pctLabel(f, team.strategy[f.key])}</b></div>
+          <input type="range" data-strat="${f.key}" min="${f.min}" max="${f.max}" step="0.01" value="${team.strategy[f.key]}" ${canEdit ? '' : 'disabled'}>
+          <div class="lbl"><span>${f.lo}</span><span>${f.hi}</span></div>
+        </div>`)}${GROUP_NOTES[group] ? html`<small class="muted" style="display:block;margin:-.2rem 0 .7rem">${GROUP_NOTES[group]}</small>` : ''}`)}
+      </div>
     </div>`,
   };
 
@@ -198,6 +221,11 @@ export function view(root, params, ctx) {
     const chip = e.target.closest('[data-jump]');
     if (!chip) return;
     el.querySelector(`#pos-${chip.dataset.jump}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+
+  el.querySelector('#useFit')?.addEventListener('click', () => {
+    ctx.update((s) => { s.league.teams[idx].strategy.passRate = read.rate; });
+    toast(`Pass/run balance set to ${Math.round(read.rate * 100)}% pass`);
   });
 
   el.querySelector('#density')?.addEventListener('click', () => {

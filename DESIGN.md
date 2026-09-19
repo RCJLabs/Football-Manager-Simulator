@@ -487,6 +487,40 @@ Three things an AI club does that a preset never did.
 
 **A game plan.** At kickoff each AI side reads the matchup from the two clubs' composites and adjusts its sliders for this game only: quick throws and screens when the other rush beats its line, more runs at a soft front, more passing when its quarterback beats their coverage, deep shots at a slow secondary; on defence, pressure at a weak line (and a heavy blitz at a replacement-level fill-in), a stacked box against a strong run game, a shell over a great passer. The human's sliders are the human's own; the matchup card tells you what the other side plans, which is the invitation to answer it.
 
+### What the strategy dials are actually worth
+
+Five dials were presented as five decisions. Driven end to end on identical rosters, 700 to 1,500 paired games per cell, only one of them is:
+
+| dial | measured end to end | verdict |
+| --- | --- | --- |
+| Pass / run balance | best setting flips with roster shape: run-built wants 0.35, pass-built wants 0.70 | a real decision |
+| 4th-down aggression | +1.40 ± 0.38 with a strong offence and a poor kicker, +0.14 ± 0.51 otherwise | helps sometimes, never hurts |
+| Blitz frequency | −0.58 ± 0.42 and −0.29 ± 0.51 on rosters built to want each end | flat |
+| Deep coverage | −0.44 ± 0.43 and −0.36 ± 0.50, same test | flat |
+| Tempo | +0.17 ± 0.36 and +0.08 ± 0.50, same test | flat |
+
+The three flat ones were tested twice, because the first reading was a false negative: a dial with a symmetric trade-off reads as noise on a balanced roster, which is exactly what the pass rate did before it was tested on shaped ones. They were then retested on rosters built to want each end — elite front seven and poor secondary for the blitz, and so on — and stayed flat. The trade-offs are in the play matrix (`plays.js` MATRIX: blitz buys pressure and sells coverage, per play call) but they net out at the current tuning. Retuning them is engine work that moves every simulated game, so it is a separate pass with a full re-measure; until then the UI says so rather than implying a decision that is not there.
+
+Also measured and not built: the per-opponent game plan the audit proposed. `makeGameplan` already exists and every AI club gets one; it nudges the dials by ±0.06 to ±0.15 and fires in **16 of 1,500** even matchups because its thresholds need a composite gap over 5 or 8 points. Where it does fire it is worth +0.39 ± 0.41 points. The `planForUser` option that would extend it to the human has never been passed by anything, which is deliberate (see the game plan note above) and costs the player nothing measurable.
+
+### The pass/run read (`strategy.js`)
+
+Every AI personality drafts and calls plays coherently — Air Raid buys quarterbacks and receivers and throws at 0.66, Ground & Pound buys backs and linemen and runs at 0.44. The human's roster is whatever the human drafted and the dial starts at a flat 0.55 regardless. That asymmetry, not the absence of a weekly decision, was the real gap.
+
+`runEdge(comp)` scores how much a club's running game beats its passing game from the composites the engine already builds, so it moves when a player is signed, hurt, dropped down the depth chart or developed. The recommendation is a line fitted to a sweep of 450 paired games per cell:
+
+| run edge | −19.6 | −13.1 | −6.8 | −0.2 | +6.2 | +12.5 | +19.0 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| best pass rate | .70 | .70 | .70 | .65 | .50 | .35 | .35 |
+
+giving `clamp(0.64 − edge × 0.023, 0.35, 0.70)`, which reproduces every cell.
+
+**The honest size of it.** That sweep used synthetic rosters built to order and overstates what a real league offers. Surveyed across 144 drafted clubs the run edge only spans −7.3 to +1.4 in an eight-club snake league, −8.9 to −0.4 in an auction and −11.1 to +4.6 in a 32-club pro league: the pool and the worth table between them mean nearly every squad comes out leaning pass, and none comes out as run-built as the sweep's far end. So the figure quoted on screen is the one measured on real rosters — following the read rather than sitting at 0.55 is worth **+0.98 ± 0.22 points a game over 3,200 games**. Real, and about a point. The test that pins the fit to the sweep is the thing that will fail first if the engine is retuned.
+
+What makes the metric trustworthy is that it reads the league correctly without being told: sorted by average run edge, Ground & Pound clubs come out the most run-leaning (−0.1) and Air Raid the most pass-leaning (−6.1), in personality order, with the personality never consulted.
+
+Only the club you manage gets a read; telling you what a rival should be doing is coaching the opposition. Left open for the engine pass: `DEFAULT_STRATEGY` sits at 0.55 while nearly every real roster wants 0.61 to 0.70, so the shipped default is simply low for the rosters this game produces. `scripts/gameplan-sim.mjs` runs all of the above.
+
 **Weekly drift.** After each week every AI club drifts its sliders from its own season: toward the pass when the passing game is the efficient unit, away from it when the passer is being sacked, toward the blitz when points are pouring in, toward aggression when the playoff line is slipping away late and toward caution when it is safe. Every slider stays within 0.12 of the personality's base, so a Ground & Pound club never turns into an Air Raid.
 
 **Deals among themselves.** Surplus for need: a club with a good bench player at one position and a weak starter at another looks for a club in the mirror image and swaps two for two, positions matching, when both lineups improve by at least their greed. A few pairs are tried each week before the deadline and every deal lands in the log, so the human can see the market move without being in every trade.

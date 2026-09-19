@@ -1,0 +1,111 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { PLAYERS, PLAYERS_BY_ID } from '../src/data/db.js';
+import { RNG } from '../src/engine/rng.js';
+import { createLeague, startSeason, registerPlayers, userTeamIndex } from '../src/engine/season.js';
+import { autoDraftAll } from '../src/engine/draft.js';
+import { composites, buildLineup } from '../src/engine/ratings.js';
+import { syntheticTeam } from '../scripts/synthetic.mjs';
+import {
+  runEdge, recommendedPassRate, strategyRead, RATE_MIN, RATE_MAX, EVEN_ENOUGH, FIT_BASE,
+} from '../src/engine/strategy.js';
+
+registerPlayers(PLAYERS_BY_ID);
+
+const compFor = (posMeans) => {
+  const t = syntheticTeam('t', 82, 2, 11, { posMeans });
+  return composites(buildLineup(t.slots, t.byId));
+};
+
+test('the recommendation reproduces the sweep it was fitted to', () => {
+  // Measured best pass rate at each run edge, 450 paired games per cell. If the
+  // engine is retuned these move and this test is the thing that says so.
+  const measured = [[-19.6, 0.7], [-13.1, 0.7], [-6.8, 0.7], [-0.2, 0.65], [6.2, 0.5], [12.5, 0.35], [19.0, 0.35]];
+  for (const [edge, best] of measured) {
+    const got = recommendedPassRate(edge);
+    assert.ok(Math.abs(got - best) <= 0.055, `run edge ${edge}: recommends ${got.toFixed(2)}, measured best ${best}`);
+  }
+});
+
+test('it never recommends a setting the slider cannot reach', () => {
+  for (let edge = -60; edge <= 60; edge += 1.5) {
+    const r = recommendedPassRate(edge);
+    assert.ok(r >= RATE_MIN && r <= RATE_MAX, `run edge ${edge} gave ${r}`);
+  }
+});
+
+test('more pass rate is recommended the more the roster leans that way', () => {
+  for (let edge = -30; edge < 30; edge += 2) {
+    assert.ok(recommendedPassRate(edge) >= recommendedPassRate(edge + 2) - 1e-9,
+      `the curve turned back on itself at ${edge}`);
+  }
+});
+
+test('a roster built to run reads as one, and so does a roster built to throw', () => {
+  const run = runEdge(compFor({ RB: 93, OL: 93, TE: 90, QB: 72, WR: 72 }));
+  const pass = runEdge(compFor({ QB: 93, WR: 93, TE: 90, RB: 72, OL: 76 }));
+  const even = runEdge(compFor({}));
+  assert.ok(run > EVEN_ENOUGH, `a run-built squad read ${run.toFixed(1)}`);
+  assert.ok(pass < -EVEN_ENOUGH, `a pass-built squad read ${pass.toFixed(1)}`);
+  assert.ok(Math.abs(even) < EVEN_ENOUGH * 2, `an even squad read ${even.toFixed(1)}`);
+  assert.ok(recommendedPassRate(run) < recommendedPassRate(pass), 'the two should want opposite ends');
+});
+
+test('an even squad is told the dial is close to a free choice, not given a number to chase', () => {
+  const league = { teams: [{ isUser: true, slots: {}, strategy: { passRate: 0.55 } }], injuries: {} };
+  const t = syntheticTeam('even', 82, 2, 5);
+  league.teams[0].slots = t.slots;
+  const read = strategyRead(league, 0, t.byId);
+  assert.ok(read.even, `an even squad read ${read.edge.toFixed(1)}`);
+  assert.equal(read.act, false, 'nothing to act on when the squad is balanced');
+  assert.match(read.strength, /barely/);
+});
+
+test('a tilted squad already on the right setting is not nagged to change it', () => {
+  const t = syntheticTeam('run', 82, 2, 5, { posMeans: { RB: 93, OL: 93, TE: 90, QB: 72, WR: 72 } });
+  const edge = runEdge(composites(buildLineup(t.slots, t.byId)));
+  const league = { teams: [{ isUser: true, slots: t.slots, strategy: { passRate: recommendedPassRate(edge) } }], injuries: {} };
+  const read = strategyRead(league, 0, t.byId);
+  assert.ok(!read.even, 'this squad is tilted');
+  assert.equal(read.act, false, 'the dial is already there');
+});
+
+test('the read follows who is actually on the field, not who is on the roster', () => {
+  // A hurt quarterback is the case that matters: his replacement changes what
+  // the squad can do this week, and the read has to notice.
+  const t = syntheticTeam('pass', 82, 2, 5, { posMeans: { QB: 95, WR: 93, RB: 74, OL: 78 } });
+  const qbId = t.slots.QB1;
+  const healthy = { teams: [{ isUser: true, slots: t.slots, strategy: { passRate: 0.55 } }], injuries: {} };
+  const hurt = { teams: [{ isUser: true, slots: t.slots, strategy: { passRate: 0.55 } }], injuries: { [qbId]: { weeks: 4, kind: 'shoulder' } } };
+  const a = strategyRead(healthy, 0, t.byId), b = strategyRead(hurt, 0, t.byId);
+  assert.ok(b.edge > a.edge, `losing the passer should push the read toward the run (${a.edge.toFixed(1)} -> ${b.edge.toFixed(1)})`);
+});
+
+test('it works on a real drafted league and only ever suggests a legal setting', () => {
+  const lg = createLeague({ name: 'S', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 31, draftType: 'snake' });
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(31));
+  startSeason(lg, PLAYERS_BY_ID);
+  for (let i = 0; i < lg.teams.length; i++) {
+    const read = strategyRead(lg, i, PLAYERS_BY_ID);
+    assert.ok(read, `no read for team ${i}`);
+    assert.ok(read.rate >= RATE_MIN && read.rate <= RATE_MAX);
+    assert.ok(Number.isFinite(read.edge));
+    assert.ok(read.why.length > 20);
+    assert.ok(['run', 'pass', 'balanced'].includes(read.lean));
+  }
+  const mine = strategyRead(lg, userTeamIndex(lg), PLAYERS_BY_ID);
+  assert.equal(mine.current, lg.teams[userTeamIndex(lg)].strategy.passRate);
+});
+
+test('a club with no squad at all does not throw', () => {
+  const lg = { teams: [{ isUser: true, slots: {}, strategy: {} }], injuries: {} };
+  const read = strategyRead(lg, 0, new Map());
+  assert.ok(read && Number.isFinite(read.edge) && read.rate >= RATE_MIN);
+  assert.equal(read.current, 0.55, 'a club with no strategy set reads as the default');
+  assert.equal(strategyRead(lg, 9, new Map()), null, 'a club that does not exist has no read');
+});
+
+test('the fitted base is where a balanced squad is told to sit', () => {
+  assert.ok(Math.abs(recommendedPassRate(0) - FIT_BASE) < 1e-9);
+  assert.ok(FIT_BASE > 0.55, 'the sweep put an even squad above the old flat default, not at it');
+});

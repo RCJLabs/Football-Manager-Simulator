@@ -243,6 +243,31 @@ try {
     await checkOverflow(`team page · ${tab}`);
   }
   await page.waitForSelector('.slider-row');
+
+  // The pass/run read: the one dial measured to decide games, and the only one
+  // the player had no way to set correctly for the squad they drafted.
+  const readText = await page.$eval('#team-view', (e) => e.textContent);
+  if (!/What you built/.test(readText)) errors.push('no strategy read on your own club');
+  if (!/Suits this squad/.test(readText)) errors.push('the read does not say what the squad suits');
+  const fitBtn = await page.$('#useFit');
+  if (fitBtn) {
+    const was = await page.$eval('[data-strat="passRate"]', (e) => Number(e.value));
+    await fitBtn.click();
+    await sleep(400);
+    const now = await page.$eval('[data-strat="passRate"]', (e) => Number(e.value));
+    if (now === was) errors.push(`"Set it there" did not move the pass rate off ${was}`);
+    if (now < 0.35 || now > 0.7) errors.push(`the read set the pass rate to ${now}, outside the slider`);
+    if (await page.$('#useFit')) errors.push('the read still offers to move a dial that is already where it wants it');
+  }
+  await shot('10c-strategy');
+  // A rival's strategy tab must not coach you through their squad.
+  await page.goto(`http://localhost:${port}/#/team/1/strategy`);
+  await page.waitForSelector('.slider-row');
+  if (/What you built/.test(await page.$eval('#team-view', (e) => e.textContent))) {
+    errors.push('a rival club shows the strategy read');
+  }
+  await page.goto(`http://localhost:${port}/#/team/0/depth`);
+  await page.waitForSelector('.poshead');
   await page.goto(`http://localhost:${port}/#/team/0/depth`);
   await page.waitForSelector('#density');
 
