@@ -3,6 +3,7 @@ import { ROSTER_SLOTS, SLOT_COUNTS } from '../data/positions.js';
 import { GM_PERSONALITIES } from '../data/teams.js';
 import { overall } from './ratings.js';
 import { RNG } from './rng.js';
+import { scoutedOverall } from './scouting.js';
 
 export const TOTAL_ROUNDS = ROSTER_SLOTS.length;
 
@@ -97,7 +98,8 @@ export function rankForTeam(league, draft, pool, teamIdx, rng) {
   const ranked = [];
   for (const p of available) {
     if (!open[p.pos]) continue;
-    const ovr = overall(p);
+    // A club drafts on what its own scouts say, not on the truth.
+    const ovr = scoutedOverall(league, p, teamIdx);
     let value = (ovr - (repl[p.pos] ?? 60)) * POS_BASE[p.pos] * (gm.pos[p.pos] ?? 1);
     if (gm.era) value *= gm.era(p.season);
     value += (ovr - 80) * 0.15; // slight preference for raw talent

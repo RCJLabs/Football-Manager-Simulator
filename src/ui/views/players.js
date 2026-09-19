@@ -4,6 +4,7 @@ import { POSITION_ORDER } from '../../data/positions.js';
 import { overall } from '../../engine/ratings.js';
 import { playerItem, playerModal, teamChip, esc } from '../components.js';
 import { ownerMap } from '../../engine/transactions.js';
+import { shownOverall } from '../../engine/scouting.js';
 
 const ui = { pos: 'ALL', era: 'ALL', q: '', owned: 'all', limit: 120 };
 
@@ -23,6 +24,10 @@ function eraTable(players) {
 }
 
 export function view(root, params, ctx) {
+  // Rank by what we believe about a player: sorting an unscouted rookie by his
+  // true rating would put the number back on screen as his place in the list.
+  const scoutObs = ctx.getState().league ? ctx.getState().league.teams.findIndex((t) => t.isUser) : -1;
+  const scoutRank = (p) => (ctx.getState().league ? shownOverall(ctx.getState().league, p, scoutObs) : overall(p));
   const { league } = ctx.getState();
   const owned = league ? ownerMap(league) : new Map();
   const owner = (p) => (owned.has(p.id) ? league.teams[owned.get(p.id)] : null);
@@ -33,7 +38,7 @@ export function view(root, params, ctx) {
       .filter((p) => (ui.pos === 'ALL' || p.pos === ui.pos) && (ui.era === 'ALL' || `${Math.floor(p.season / 10) * 10}s` === ui.era)
         && (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase() === q)
         && (ui.owned === 'all' || (ui.owned === 'free' ? !owner(p) : !!owner(p))))
-      .sort((a, b) => overall(b) - overall(a) || a.name.localeCompare(b.name));
+      .sort((a, b) => scoutRank(b) - scoutRank(a) || a.name.localeCompare(b.name));
   }
 
   function draw() {

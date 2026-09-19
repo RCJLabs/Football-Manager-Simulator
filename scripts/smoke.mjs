@@ -377,6 +377,19 @@ try {
   await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return false; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return Object.keys(slot?.league?.dev || {}).length > 20; }, { timeout: 4000 }).catch(() => {});
   const careers = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return 0; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return Object.keys(slot?.league?.dev || {}).length; });
   if (careers < 20) errors.push(`only ${careers} careers started after a season`);
+  // Rookies are fogged in the pool: a band, not a number, until they have played.
+  await page.goto(`http://localhost:${port}/#/players`);
+  await page.waitForSelector('.plist .prow');
+  await page.fill('#q', 'RK');
+  await page.waitForFunction(() => !!document.querySelector('.badge.rookie'), { timeout: 4000 }).catch(() => {});
+  const bands = await page.$$eval('.ovr.range', (e) => e.map((x) => x.textContent.trim()));
+  if (!bands.length) errors.push('no scouting band on any unplayed rookie');
+  else if (!bands.some((b) => /^\d{2}[–-]\d{2}$/.test(b))) errors.push(`a scouting band did not read as a range: ${bands[0]}`);
+  const exactRookie = await page.$$eval('.plist .prow', (rows) => rows.filter((r) => r.querySelector('.badge.rookie') && r.querySelector('.ovr:not(.range)')).length);
+  if (exactRookie) errors.push(`${exactRookie} unplayed rookies showed an exact rating`);
+  await checkOverflow('player pool with scouting bands');
+  await shot('11e-scouting');
+
   // Chemistry is on the team screen with its inputs, not hidden in the engine.
   await page.click('#nav a[href^="#/team/"]');
   await page.waitForSelector('#team-view');

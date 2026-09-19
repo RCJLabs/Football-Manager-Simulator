@@ -113,6 +113,8 @@ tr.dim td { color: var(--muted); }
 .badge.rookie { background: #2c3a4a; color: #bcd6f0; }
 .badge.age { background: #3a3428; color: #ddc79a; font-family: var(--mono); }
 .badge.retired { background: #3d2f3d; color: #d9b8d9; }
+.ovr.range { background: #2e3a46; color: #c6d8e8; font-size: .78rem; min-width: 3.4rem; letter-spacing: -.02em; }
+.attr.est b { color: var(--muted); font-weight: 600; }
 .clinch { display: inline-block; min-width: 1.1rem; margin-right: .3rem; font-family: var(--mono); font-size: .75rem; font-weight: 700; text-align: center; border-radius: 4px; padding: 0 .2rem; background: var(--bg-3); color: var(--muted); }
 .clinch.x, .clinch.y, .clinch.z { background: #2c4a37; color: #cfe6d6; }
 .clinch.e { background: #4a2626; color: #ffb3b0; }

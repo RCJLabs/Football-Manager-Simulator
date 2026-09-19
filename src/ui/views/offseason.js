@@ -8,6 +8,7 @@ import {
 } from '../../engine/offseason.js';
 import { playerItem, playerModal, teamChip, toast, esc, modal } from '../components.js';
 import { simulateAhead, describeRun } from '../../engine/autosim.js';
+import { scoutingHits, scoutingOn } from '../../engine/scouting.js';
 import { RNG } from '../../engine/rng.js';
 
 const ui = { picked: null, leagueId: null, season: null };
@@ -69,11 +70,21 @@ export function view(root, params, ctx) {
     <small class="muted">Rostered players age each offseason; everyone still in the pool waits at his prime. Keep that in mind before you pay a keeper's raise.</small>
   </div>` : '';
 
+  // Last year's class, one season on: what you projected against what happened.
+  // Fog is only worth having if you find out afterwards whether you were right.
+  const seen = scoutingOn(league) ? scoutingHits(league, ctx.players, league.teams.findIndex((t) => t.isUser)) : [];
+  const scoutCard = seen.length ? html`<div class="card tight" style="margin-top:.5rem">
+    <h3>Last year's rookies <small class="muted" style="text-transform:none;letter-spacing:0">· one season on</small></h3>
+    <div class="table-wrap"><table style="font-size:.88rem"><thead><tr><th>Player</th><th></th><th class="num">Projected</th><th class="num">Now</th><th class="hide-sm">First year</th></tr></thead><tbody>
+      ${seen.slice(0, 8).map((h) => html`<tr><td>${h.name}</td><td class="muted">${h.pos}</td><td class="num muted">${h.low}–${h.high}</td><td class="num"><b>${h.now}</b> ${h.moved >= 0 ? `+${h.moved}` : h.moved}</td><td class="hide-sm muted">${h.verdict}</td></tr>`)}
+    </tbody></table></div>
+    <small class="muted">A projection is a career range, not a first-year target — the top of it is four or five seasons away. What one season tells you is the direction.</small>
+  </div>` : '';
+
   render(root, html`<div id="offseason-view">
     <div class="card">
       <h1 style="margin:0">Offseason · after season ${league.offseason.season}</h1>
       ${league.offseason.rookies ? html`<p class="notice" style="margin:.5rem 0 0"><b>${league.offseason.rookies} rookies</b> entered the pool${league.offseason.washedOut ? `, and ${league.offseason.washedOut} unsigned from earlier classes washed out` : ''}. <a href="#/players">Look them over</a> before the ${auction ? 'auction' : 'draft'}.</p>` : ''}
-      ${yearOlder}
       ${summary ? html`<p class="muted" style="margin:.3rem 0 0">${teamChip(summary.champion)} won the title. You finished <b>${ord(summary.user.rank)}</b> of ${summary.teams} at ${summary.user.record.w}-${summary.user.record.l}${summary.user.record.t ? `-${summary.user.record.t}` : ''}.</p>` : ''}
       <p class="muted" style="font-size:.9rem;margin:.5rem 0 0">
         ${auction
@@ -81,6 +92,8 @@ export function view(root, params, ctx) {
           : html`Keep up to <b>${limit}</b> players; they hold their slots. Everyone else returns to the pool and a draft fills the rest, worst club first. A player can be kept three years running before he must go back to the pool.`}
       </p>
     </div>
+    ${yearOlder}
+    ${scoutCard}
     <div class="grid grid-2" style="margin-top:.75rem">
       <div class="card tight">
         <h3>Your keepers <small class="muted" style="text-transform:none;letter-spacing:0">· ${picked.length} of ${limit}</small></h3>

@@ -19,6 +19,13 @@ export const AI_TEAMS = [
   { name: 'Cardiac Kids',      abbr: 'CDK', color: '#d50a0a' },
 ];
 
+/**
+ * How much of a GM's valuation comes from real win impact rather than hype.
+ * It also decides how well he reads a prospect he has never seen play: the
+ * general managers who chase value are the ones whose scouting is worth having.
+ */
+export const SAVVY = { modern: 0.7, trenches: 0.62, defense: 0.5, balanced: 0.34, gambler: 0.26, ground: 0.16, oldschool: 0.18, airraid: 0.1 };
+
 export const GM_PERSONALITIES = [
   { id: 'balanced',  name: 'Balanced',        blurb: 'Takes the best value on the board.', pos: {}, era: null,
     strategy: { passRate: 0.55, aggression: 0.4, tempo: 0.5, blitzRate: 0.25, deepShell: 0.2 } },

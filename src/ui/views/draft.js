@@ -6,11 +6,16 @@ import { currentPicker, overallPickNumber, availablePlayers, openSlotsByPos, mak
 import { startSeason } from '../../engine/season.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { ovrBadge, playerItem, playerModal, teamChip, toast, esc } from '../components.js';
+import { shownOverall } from '../../engine/scouting.js';
 
 const ui = { pos: 'ALL', era: 'ALL', q: '' };
 const PAGE = 120;
 
 export function view(root, params, ctx) {
+  // Rank by what we believe about a player: sorting an unscouted rookie by his
+  // true rating would put the number back on screen as his place in the list.
+  const scoutObs = ctx.getState().league ? ctx.getState().league.teams.findIndex((t) => t.isUser) : -1;
+  const scoutRank = (p) => (ctx.getState().league ? shownOverall(ctx.getState().league, p, scoutObs) : overall(p));
   const { league } = ctx.getState();
   if (!league) { ctx.navigate('#/new'); return; }
   if (league.draftType === 'auction') { ctx.navigate('#/auction'); return; }
@@ -51,7 +56,7 @@ export function view(root, params, ctx) {
   const q = ui.q.trim().toLowerCase();
   const rows = avail
     .filter((p) => (ui.pos === 'ALL' || p.pos === ui.pos) && (ui.era === 'ALL' || `${Math.floor(p.season / 10) * 10}s` === ui.era) && (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase() === q))
-    .sort((a, b) => overall(b) - overall(a));
+    .sort((a, b) => scoutRank(b) - scoutRank(a));
   const shown = rows.slice(0, PAGE);
   const recent = draft.picks.slice(-12).reverse();
   const myPicks = ROSTER_SLOTS.map((s) => ({ slot: s, p: me.slots[s.id] ? ctx.byId.get(me.slots[s.id]) : null })).filter((x) => x.p);

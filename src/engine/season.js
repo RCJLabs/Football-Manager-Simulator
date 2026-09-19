@@ -84,7 +84,7 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
     injuries: {},
     contracts: {},
     offseason: null,
-    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode) },
+    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, scouting: true, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode) },
   };
   assignGms(league, rng);
   if (draftType === 'auction') league.auction = createAuction(league, rng, budget ? { budget } : {});

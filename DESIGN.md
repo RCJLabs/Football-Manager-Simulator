@@ -292,6 +292,28 @@ A keeper run is three seasons, which costs about 1.3 overall — noticeable when
 
 Not built: injuries that shorten a career, positional decline that forces a move, or any scouting fog over a rookie's growth curve. The curve is hidden but its effects are immediate and exact, so a patient manager can read a breakout after one season.
 
+## Scouting (`scouting.js`)
+
+Everything in this game was arithmetic. Every rating of all 1,269 players was exact and permanent, so once you had internalised the leverage table you won auctions forever and the economy stopped being a puzzle. Real general-manager games run on fog.
+
+**Real players are never fogged, and that is not a compromise.** They are the content. Somebody playing all-time fantasy football wants to know they are bidding on Jerry Rice at 97; hiding it turns the marquee feature into a guessing game rather than a decision. The fog goes on generated rookies, who nobody has seen play, and lifts the moment they have.
+
+**The width of the band is the information.** A range that is merely a noisier number changes nothing — you would still take the highest midpoint. So the band runs from what a rookie is today to what his career could reach, which careers.js already derives deterministically from the league seed and his id before he is ever signed. A safe prospect reads 70–76 and a boom-or-bust reads 58–86, and choosing between them at the same price is the decision this exists to create. A bust's ceiling is barely above his floor, so his band comes out narrow and low with no extra machinery. Measured over 400 rookies: widths run 5 to 39, median 14.
+
+The low end leans conservative on purpose and the high end does not. A first pass used symmetric error on both, and the band failed to contain the player's current rating 43% of the time, which makes the low end meaningless. Biasing it down fixes that (100% now) and puts the genuine uncertainty where it belongs: how far up his own band he climbs. The band contains his true ceiling 64% of the time. No band is ever narrower than five points, because a range that collapses to a single number claims a precision nobody has.
+
+**Everyone scouts, not just the human.** Fog on one side only is a handicap, not a mechanic. Each club reads the same rookie through its own seeded error, scaled by the GM's savvy — the same table that decides who chases value and who chases names. Measured against a perfect scout, error runs monotonically with savvy: Air Raid at 0.10 accuracy misses by 2.27 points, Analytics at 0.70 by 0.75, the human by 1.47. You can win a player because you rated him higher than the room, and be wrong.
+
+**The asking price comes from the room, not from the truth.** This is the leak that would have made the whole thing theatre: the auction's price guide is built from ratings, so a rookie's price would let anyone read his real number straight off the board. Unscouted rookies are therefore priced on `marketView` — the consensus, computed directly rather than by averaging every club's read, since the observational errors are mean-zero and cancel. It sits above a rookie's current rating by the upside the room pays for, so chasing a prospect is a risk rather than a free option. List ordering had the same leak, and for the same reason the player pool, the free-agent list and the draft board all rank by what the observer believes rather than by what is true: a place in a table is a number.
+
+**Attributes coarsen rather than disappear.** A scout can tell you the shape of a player — fast, hands of stone — without giving you the number, and the rookie generator makes lopsided players on purpose, so hiding the shape would throw away the most interesting part. Unscouted rookies show attributes rounded to the nearest five with a `~`.
+
+**A rookie is known once he has been on a roster through a completed season**, marked by his career entry in `league.dev`. The obvious alternative, a line in the statistical record, does not work and the reason is worth keeping: AI regular-season box scores hold team totals only, so a rookie can start three years for a computer club with no games to his name. Measured on a 32-club dynasty, 50 rookies were on rosters and not one had a recorded game — the first version of this marker left every rookie permanently unscouted.
+
+**The payoff is an annual report card.** Last year's class, one season on, with what you projected against where they actually are. Fog is only worth having if you find out afterwards whether you were right. The verdict is about the first year's movement rather than arrival, because the top of a band is a career ceiling four to six seasons away and judging a rookie against it after one year would make almost everyone read as a bust.
+
+Not built: a scouting budget, staff to hire, or fog over anything a club already owns. The error is free and automatic, so scouting is a risk to weigh rather than a resource to spend. Speculation: whether error of one to two rating points is enough to make auctions feel uncertain. The larger uncertainty is inherent — the band says 60–85 and he may finish at 65 — and that is the part intended to carry the drama.
+
 ## Team chemistry (`chemistry.js`)
 
 Chemistry in sports games is usually an invisible multiplier that either does nothing you can feel or quietly decides your season. This one is a number on the team screen with both its inputs shown, and it is worth at most 1.8 rating points, which is under two home-field edges.

@@ -9,10 +9,15 @@ import {
 } from '../../engine/transactions.js';
 import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge, outBadge } from '../components.js';
 import { emptySlotAt } from '../../engine/transactions.js';
+import { shownOverall } from '../../engine/scouting.js';
 
 const ui = { tab: 'fa', pos: 'ALL', era: 'ALL', q: '', limit: 60, partner: null, give: new Set(), get: new Set() };
 
 export function view(root, params, ctx) {
+  // Rank by what we believe about a player: sorting an unscouted rookie by his
+  // true rating would put the number back on screen as his place in the list.
+  const scoutObs = ctx.getState().league ? ctx.getState().league.teams.findIndex((t) => t.isUser) : -1;
+  const scoutRank = (p) => (ctx.getState().league ? shownOverall(ctx.getState().league, p, scoutObs) : overall(p));
   const { league } = ctx.getState();
   if (!league) { ctx.navigate('#/new'); return; }
   if (league.phase === 'draft') { ctx.navigate(league.draftType === 'auction' ? '#/auction' : '#/draft'); return; }
@@ -41,7 +46,7 @@ export function view(root, params, ctx) {
     const q = ui.q.trim().toLowerCase();
     const rows = fa
       .filter((p) => (ui.pos === 'ALL' || p.pos === ui.pos) && (ui.era === 'ALL' || `${Math.floor(p.season / 10) * 10}s` === ui.era) && (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase() === q))
-      .sort((a, b) => overall(b) - overall(a));
+      .sort((a, b) => scoutRank(b) - scoutRank(a));
     const shown = rows.slice(0, ui.limit);
     body = html`
       <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${open ? `Claims resolve when the week advances. You are ${ordinalOf(myPriority)} of ${order.length} in the waiver order${isPro(league) ? ' (reverse standings)' : ' (a successful claim sends you to the back)'}.` : 'The wire is closed until next season.'}</p>

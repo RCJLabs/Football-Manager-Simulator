@@ -12,7 +12,8 @@
 // every roster is guaranteed to fill.
 
 import { ROSTER_SLOTS, SLOT_COUNTS } from '../data/positions.js';
-import { GM_PERSONALITIES } from '../data/teams.js';
+import { GM_PERSONALITIES, SAVVY } from '../data/teams.js';
+import { marketView, scoutReport } from './scouting.js';
 import { overall } from './ratings.js';
 import { clamp } from './rng.js';
 
@@ -40,7 +41,16 @@ const GLAMOUR = { QB: 2.3, RB: 1.6, WR: 1.5, TE: 0.95, DL: 0.95, LB: 0.75, CB: 0
 const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) => [k, Math.pow(v, 0.72)]));
 
 /** How much of a GM's valuation comes from real win impact rather than hype. */
-const SAVVY = { modern: 0.7, trenches: 0.62, defense: 0.5, balanced: 0.34, gambler: 0.26, ground: 0.16, oldschool: 0.18, airraid: 0.1 };
+/**
+ * How much one rating point of misjudgement moves a bid. Prices scale roughly
+ * with the square of talent above replacement, so a point is worth more than a
+ * point; this is the linear approximation, bounded hard either way.
+ */
+const PERCEPTION_PER_POINT = 0.055;
+
+// SAVVY lives with the GM definitions in data/teams.js: it is a trait of the
+// general manager, and keeping it there lets the scout read it without the
+// auction and the scouting code importing each other.
 
 /**
  * Once a club has its starters at a position, the next man is a bench player:
@@ -93,27 +103,27 @@ function demandByPos(league) {
  * Replacement level per position: the overall of the last player who would still
  * find a roster spot if demand were filled purely by rating.
  */
-function replacementLevels(available, demand) {
+function replacementLevels(available, demand, rate = overall) {
   const byPos = {};
   for (const p of available) (byPos[p.pos] ??= []).push(p);
   const out = {};
   for (const [pos, arr] of Object.entries(byPos)) {
-    arr.sort((a, b) => overall(b) - overall(a));
+    arr.sort((a, b) => rate(b) - rate(a));
     const need = Math.max(1, demand[pos] || 1);
     const idx = Math.min(arr.length - 1, need - 1);
-    out[pos] = overall(arr[idx]);
+    out[pos] = rate(arr[idx]);
   }
   return out;
 }
 
 /** What the room pays: star power, convex in rating, glamour by position. */
-function marketRaw(p) {
-  return Math.pow(Math.max(2, overall(p) - 68), 2.1) * (GLAMOUR[p.pos] ?? 1);
+function marketRaw(p, rate = overall) {
+  return Math.pow(Math.max(2, rate(p) - 68), 2.1) * (GLAMOUR[p.pos] ?? 1);
 }
 
 /** What the player is actually worth: talent above replacement times leverage. */
-function trueRaw(p, repl) {
-  const above = overall(p) - (repl[p.pos] ?? 60);
+function trueRaw(p, repl, rate = overall) {
+  const above = rate(p) - (repl[p.pos] ?? 60);
   return Math.max(0.35, above + 1.5) * (LEVERAGE[p.pos] ?? 1);
 }
 
@@ -125,7 +135,9 @@ function trueRaw(p, repl) {
 export function priceGuide(auction, league, pool) {
   const available = availablePlayers(auction, pool);
   const demand = demandByPos(league);
-  const repl = replacementLevels(available, demand);
+  // An unscouted rookie is priced on what the room believes, not on what he is.
+  const rate = (p) => marketView(league, p);
+  const repl = replacementLevels(available, demand, rate);
   const totalSlots = Object.values(demand).reduce((s, n) => s + n, 0);
   if (!totalSlots) return { prices: new Map(), repl, totalSlots: 0 };
 
@@ -134,20 +146,20 @@ export function priceGuide(auction, league, pool) {
   for (const p of available) (byPos[p.pos] ??= []).push(p);
   const contenders = [];
   for (const [pos, arr] of Object.entries(byPos)) {
-    arr.sort((a, b) => overall(b) - overall(a));
+    arr.sort((a, b) => rate(b) - rate(a));
     for (const p of arr.slice(0, demand[pos] || 0)) contenders.push(p);
   }
   const moneyLeft = auction.budgets.reduce((s, b, i) => s + (slotsLeft(league.teams[i]) > 0 ? b : 0), 0);
   // Every bought player costs at least $1; the rest of the money chases stars.
   const discretionary = Math.max(0, moneyLeft - totalSlots * MIN_BID);
-  const mScale = discretionary / (contenders.reduce((s, p) => s + marketRaw(p), 0) || 1);
-  const tScale = discretionary / (contenders.reduce((s, p) => s + trueRaw(p, repl), 0) || 1);
+  const mScale = discretionary / (contenders.reduce((s, p) => s + marketRaw(p, rate), 0) || 1);
+  const tScale = discretionary / (contenders.reduce((s, p) => s + trueRaw(p, repl, rate), 0) || 1);
 
   const prices = new Map();
   const worth = new Map();
   for (const p of available) {
-    prices.set(p.id, Math.max(MIN_BID, Math.round(MIN_BID + marketRaw(p) * mScale)));
-    worth.set(p.id, Math.max(MIN_BID, Math.round(MIN_BID + trueRaw(p, repl) * tScale)));
+    prices.set(p.id, Math.max(MIN_BID, Math.round(MIN_BID + marketRaw(p, rate) * mScale)));
+    worth.set(p.id, Math.max(MIN_BID, Math.round(MIN_BID + trueRaw(p, repl, rate) * tScale)));
   }
   return { prices, worth, repl, totalSlots, moneyLeft };
 }
@@ -210,6 +222,12 @@ export function aiMaxBid(auction, league, pool, teamIdx, player, guide, rng) {
   const asking = guide.prices.get(player.id) ?? MIN_BID;
   const real = guide.worth.get(player.id) ?? asking;
   let v = asking * (1 - savvy) + real * savvy;
+  // A prospect nobody has seen play is bid on this club's own read of him. The
+  // guide already prices him at the room's consensus, so what moves the bid is
+  // only how far this GM's view sits from that consensus — which is why a
+  // shrewd room still produces disagreement rather than one agreed number.
+  const view = scoutReport(league, player, teamIdx);
+  if (!view.known) v *= clamp(1 + (view.estimate - marketView(league, player)) * PERCEPTION_PER_POINT, 0.45, 2.2);
   // Personalities bid distinctly, or every roster converges again.
   v *= Math.pow(gm.pos[player.pos] ?? 1, 2.5);
   if (gm.era) v *= Math.pow(gm.era(player.season), 2);

@@ -5,12 +5,28 @@ import { getState, update } from '../store.js';
 import { setOverride } from '../data/tuning.js';
 import { POSITIONS, eraOf } from '../data/positions.js';
 import { careerPhase } from '../engine/careers.js';
+import { scoutReport, coarseAttrs, scoutLabel, shownOverall } from '../engine/scouting.js';
 
 export function ovrClass(o) {
   return o >= 95 ? 'o95' : o >= 90 ? 'o90' : o >= 85 ? 'o85' : o >= 80 ? 'o80' : 'o0';
 }
 
+/**
+ * Whose eyes the screen is looking through. Read from the store rather than
+ * threaded through every caller, the same way the rating editor already is.
+ */
+export function scoutView() {
+  const lg = getState().league;
+  if (!lg) return null;
+  return { league: lg, observer: lg.teams.findIndex((t) => t.isUser) };
+}
+
 export function ovrBadge(p) {
+  const v = scoutView();
+  const rep = v ? scoutReport(v.league, p, v.observer) : null;
+  if (rep && !rep.known) {
+    return html`<span class="ovr range" title="Projection, not a measurement: ${scoutLabel(rep)}. He has not played yet.">${rep.low}–${rep.high}</span>`;
+  }
   const o = overall(p);
   return html`<span class="ovr ${ovrClass(o)}">${o}</span>`;
 }
@@ -55,11 +71,14 @@ export function teamChip(team, { abbr = false, responsive = false } = {}) {
 }
 
 export function attrList(p, { highlight = true } = {}) {
-  const def = POSITIONS[p.pos];
-  return raw(def.attrs.map((a) => {
-    const v = p.r[a];
-    const cls = highlight ? (v >= 92 ? 'hi' : v <= 70 ? 'lo' : '') : '';
-    return `<span class="attr ${cls}">${a} <b>${v}</b></span>`;
+  const view = scoutView();
+  // A scout can tell you the shape of a player — fast, hands of stone — without
+  // giving you the number, and the rookie generator makes lopsided players on
+  // purpose, so the shape is the part worth keeping.
+  const attrs = view ? coarseAttrs(view.league, p, view.observer) : POSITIONS[p.pos].attrs.map((a) => ({ attr: a, value: p.r[a], exact: true }));
+  return raw(attrs.map(({ attr, value, exact }) => {
+    const cls = highlight && exact ? (value >= 92 ? 'hi' : value <= 70 ? 'lo' : '') : '';
+    return `<span class="attr ${cls}${exact ? '' : ' est'}">${attr} <b>${exact ? '' : '~'}${value}</b></span>`;
   }).join(''));
 }
 
@@ -71,9 +90,8 @@ export function attrList(p, { highlight = true } = {}) {
  *   meta    extra raw HTML appended to the small grey line
  */
 export function playerItem(p, { action = '', meta = '', cls = '', attrs = true, era = true } = {}) {
-  const o = overall(p);
   return `<li class="prow ${cls}" data-id="${esc(p.id)}">
-    <span class="ovr ${ovrClass(o)}">${o}</span>
+    ${ovrBadge(p).__raw}
     <div class="who">
       <div class="nm"><span class="tap" data-show="${esc(p.id)}">${esc(p.name)}</span>${posBadge(p.pos).__raw}</div>
       <div class="meta">${p.generated ? `class of ${p.season}` : `${p.season} ${esc(p.team)}`}${p.generated ? rookieBadge(p).__raw : era ? eraBadge(p.season).__raw : ''}${ageBadge(p).__raw}${meta}</div>

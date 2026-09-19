@@ -236,7 +236,7 @@ export function advanceCareers(league, byId, { season = league.season } = {}) {
   for (const id of owned) {
     if (league.dev && league.dev[id]) continue;
     const p = byId.get(id);
-    if (p) careers[id] = startCareer(league, p.base || p);
+    if (p) careers[id] = { ...startCareer(league, p.base || p), from: season };
   }
   for (const [id, prev] of Object.entries(league.dev || {})) careers[id] = prev;
 
