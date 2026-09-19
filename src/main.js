@@ -21,6 +21,7 @@ import * as boxscore from './ui/views/boxscore.js';
 import * as players from './ui/views/players.js';
 import * as settings from './ui/views/settings.js';
 import * as career from './ui/views/career.js';
+import * as guide from './ui/views/guide.js';
 
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
@@ -106,6 +107,7 @@ route('/box/:kind/:a/:b', (p) => mount(boxscore, p));
 route('/box/:kind', (p) => mount(boxscore, p));
 route('/players', () => mount(players));
 route('/career', () => mount(career));
+route('/guide', () => mount(guide));
 route('/settings', () => mount(settings));
 
 registerPlayers(PLAYERS_BY_ID);

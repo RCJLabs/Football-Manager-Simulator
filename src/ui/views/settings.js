@@ -73,6 +73,9 @@ export function view(root, params, ctx) {
         </div>
       </div>
       <div class="card" style="grid-column:1/-1">
+        <h2>How it is won</h2>
+        <p class="muted" style="font-size:.9rem;margin:.2rem 0 .4rem">Where money wins games, why the asking prices are deliberately wrong, and what the table leaves out.</p>
+        <div class="row" style="margin-bottom:1rem"><a class="btn" href="#/guide">Read it</a></div>
         <h2>About</h2>
         <p>Gridiron Eras is a single-player all-time football simulator. Player ratings are editorial estimates of each player's prime season, scaled so eras can be compared; they are not official statistics. Names are used for identification only — no likenesses, logos, or team marks.</p>
         <p class="muted">Ratings live in <code>src/data/players.js</code>. Simulation constants live in <code>src/engine/game.js</code>. Version 0.1.0.</p>

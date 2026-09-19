@@ -6,6 +6,7 @@ Draft real football players from every era at their prime season — Otto Graham
 
 ## What's in the box
 
+- **It tells you where games are won.** The auction is deliberately mispriced — asking prices follow reputation, real value follows win impact — and a panel in the draft and auction rooms shows the gap per position, with a standalone page you can read before you start. Positional only: it will tell you the room overpays for running backs, never what a particular back is worth.
 - **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…) who game-plan each opponent, drift their strategy with the season and trade among themselves. $200 buys 27 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about two to three wins a season over paying sticker price. A plain snake draft is still an option.
 - **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime, and flags: false starts, holding, interference, roughing and the rest, at rates tied to the players on the field.
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself. A live win-probability curve, a drive chart and a game story (turning points, stars, injuries) come with every game you play.
@@ -94,6 +95,7 @@ src/engine/careers.js                    ageing, development, ceilings and retir
 src/engine/chemistry.js                  continuity and era cohesion, scored against the league
 src/engine/scouting.js                   rookie projections, per-club error, the report card
 src/engine/jobs.js                       owners, expectations, the sack and the coaching carousel
+src/ui/value-panel.js                    the positional value board, derived from the auction tables
 src/engine/autosim.js                    simulating ahead to a named point in the calendar
 src/engine/clinch.js                     conservative clinch and elimination markers
 src/engine/winprob.js                    win probability fitted to the simulation

@@ -1,4 +1,5 @@
 import { html, render, raw } from '../../util.js';
+import { valuePanel, valueHint } from '../value-panel.js';
 import { POSITION_ORDER, ROSTER_SLOTS } from '../../data/positions.js';
 import { ERAS } from '../../data/db.js';
 import { overall } from '../../engine/ratings.js';
@@ -71,6 +72,10 @@ export function view(root, params, ctx) {
         <button class="btn sm" id="autoAll">Auto-draft the rest</button>
       </div>
     </div>
+    <details class="card tight" id="valueGuide" style="margin-top:.5rem">
+      <summary style="cursor:pointer"><b>Where money wins games</b> <span class="muted">${valueHint()}</span></summary>
+      ${valuePanel()}
+    </details>
     <div class="grid grid-3" style="margin-top:.75rem">
       <div class="card tight stack">
         <div class="tabs" id="posTabs">${raw(['ALL', ...POSITION_ORDER].map((p) => `<button class="tab ${ui.pos === p ? 'active' : ''}" data-pos="${p}">${p}</button>`).join(''))}</div>

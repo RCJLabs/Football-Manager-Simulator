@@ -24,6 +24,8 @@ export function view(root, params, ctx) {
         <a class="btn primary lg" href="#/new">Start a league</a>
         <span style="display:inline-block;width:.5rem"></span>
         <a class="btn lg" href="#/players">Browse the player pool</a>
+        <span style="display:inline-block;width:.5rem"></span>
+        <a class="btn lg" href="#/guide">How it is won</a>
       </section>
       ${slotsCard(ctx, null)}
       <div class="features">

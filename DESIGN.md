@@ -84,6 +84,18 @@ Each AI GM sees a blend of the two according to a `SAVVY` rating, so the
 Analytics GM chases value while the Air Raid GM chases names, and the market is
 beatable without being free money.
 
+**Which positions are actually the bargains** is not the intuitive answer, and it is now computed rather than asserted. `positionValue()` normalises both tables to a share of their own total, which makes them comparable per player of equal rating, and divides:
+
+| | TE | QB | CB | S | OL | LB | RB | WR | DL | K | P |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Wins share | 18.6% | 33.1% | 8.4% | 6.0% | 3.8% | 5.4% | 10.0% | 8.8% | 4.9% | 0.7% | 0.4% |
+| Price share | 9.3% | 22.5% | 6.9% | 5.9% | 4.9% | 7.3% | 15.7% | 14.7% | 9.3% | 2.2% | 1.4% |
+| Value | 2.00× | 1.47× | 1.22× | 1.02× | 0.77× | 0.73× | 0.64× | 0.60× | 0.53× | 0.32× | 0.29× |
+
+Cheap is not the same as underpriced, which is where the intuition goes wrong: linemen have low glamour and low leverage together and come out *overpaid*. The underpaid positions are the tight end, the quarterback and the corner. The strategy table below agrees independently — the trenches-first buyer finished worst of every strategy measured.
+
+One caveat carried openly: the tight end leads this table partly because he is the only starter at his position, so the per-starter normalisation concentrates his value, and partly because the simulation covers him with a linebacker or safety on a coin flip rather than a corner (pool-wide mean coverage 73.3 and 77.4 against a corner's 80.1). Whether that is the intended game is an open question; the board is derived from the tables at render time, so retuning it moves the board with it.
+
 Measured over twenty-four 8-team leagues with the human team following fixed
 strategies, on the current 1,269-player pool with the 27-slot roster, injuries
 at the default setting and penalties on:
@@ -118,6 +130,18 @@ means every team must keep money back to fill it.
 
 The snake draft is still available as a league option, and `draftType` on the
 league selects between them.
+
+## The value board (`ui/value-panel.js`, `ui/views/guide.js`)
+
+The auction's mispricing was the most interesting thing in the game and it was documented here and nowhere in the product. A first-time manager faced $200 over 1,269 names with no way to know a kicker is worth a fortieth of a quarterback, and the only way to find out was to lose a season to it.
+
+It is positional, never per player. Showing what an individual is worth would hand over the answer and delete the auction; showing that the room overpays for running backs is a strategy you still have to execute under a budget, against nine other bidders, with the best names gone by the time you commit. There is no per-player worth figure anywhere on screen.
+
+Everything is derived from `positionValue()` at render time rather than written into the view, so retuning a leverage number moves the panel with it and it cannot quietly start teaching something the simulation no longer does. A test asserts the derivation against the tables directly for exactly that reason.
+
+It appears as a collapsed panel in the auction room and the draft room — closed by default, with the one-sentence version in the summary, because both screens are busy and the reader is mid-decision — and as a standalone page at `#/guide`, linked from the home screen so somebody can read it before they have a league to ruin, and from settings for later.
+
+The page also carries the three things the table cannot show: that bench slots are insurance rather than luxury, that a rating is not a career now that players age, and that chemistry is worth about two home-field edges. Not built: any live per-position read of the market as the auction runs, which would be more useful and is also much closer to simply giving the answer away.
 
 ## Draft AI (`draft.js`)
 

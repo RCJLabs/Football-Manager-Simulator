@@ -46,6 +46,16 @@ try {
   await checkOverflow('home');
   await shot('01-home');
 
+  // The guide stands alone: readable from the home screen before a league exists.
+  await page.click('a[href="#/guide"]');
+  await page.waitForSelector('#guide-view');
+  const guideText = await page.$eval('#guide-view', (e) => e.textContent);
+  if (!/wrong on purpose/.test(guideText)) errors.push('the guide does not explain why prices are mispriced');
+  await checkOverflow('how it is won');
+  await shot('01c-guide');
+  await page.goto(`http://localhost:${port}/#/`);
+  await page.waitForSelector('a[href="#/new"]');
+
   await page.click('a[href="#/new"]');
   await page.waitForSelector('#setup');
   await page.check('input[name="coach"]');
@@ -56,6 +66,16 @@ try {
 
   // Auction room: nominate, bid, pass, then hand the rest to the AI.
   await page.waitForSelector('#auction-view');
+  // A new manager has no way to know where a budget wins games, so it is on the
+  // screen where the budget is being spent.
+  const guideRows = await page.$$eval('#valueGuide .value-table tbody tr', (r) => r.length);
+  if (guideRows !== 11) errors.push(`the value panel lists ${guideRows} positions, expected 11`);
+  const summaryText = await page.$eval('#valueGuide summary', (e) => e.textContent);
+  if (!/go for less than they are worth/.test(summaryText)) errors.push('the value panel gives away no hint when closed');
+  await page.evaluate(() => { document.querySelector('#valueGuide').open = true; });
+  await checkOverflow('auction with the value panel open');
+  await shot('02b-value');
+  await page.evaluate(() => { document.querySelector('#valueGuide').open = false; });
   await checkOverflow('auction');
   await shot('02-auction');
   let bought = 0;

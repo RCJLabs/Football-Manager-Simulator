@@ -35,10 +35,51 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * team the same quality of roster, which is exactly the parity problem the
  * auction is meant to solve. Pricing on reputation instead leaves real bargains
  * on the board for a manager who knows where games are won.
+ *
+ * Which bargains, exactly, is not what it looks like, and `positionValue()`
+ * below is the honest answer rather than the intuition. Cheap is not the same
+ * as underpriced: linemen have low glamour and low leverage together, and come
+ * out overpaid. Normalised against each other the underpaid positions are the
+ * tight end, the quarterback and the corner; the traps are the receiver, the
+ * back and the defensive line. The strategy table in DESIGN.md agrees — a
+ * trenches-first buyer finished worst of every strategy measured.
  */
-const TRUE_LEVERAGE = { QB: 16.6, TE: 9.3, RB: 5.0, WR: 4.4, CB: 4.2, S: 3.0, LB: 2.7, DL: 2.45, OL: 1.9, K: 0.35, P: 0.2 };
-const GLAMOUR = { QB: 2.3, RB: 1.6, WR: 1.5, TE: 0.95, DL: 0.95, LB: 0.75, CB: 0.7, S: 0.6, OL: 0.5, K: 0.22, P: 0.14 };
+export const TRUE_LEVERAGE = { QB: 16.6, TE: 9.3, RB: 5.0, WR: 4.4, CB: 4.2, S: 3.0, LB: 2.7, DL: 2.45, OL: 1.9, K: 0.35, P: 0.2 };
+export const GLAMOUR = { QB: 2.3, RB: 1.6, WR: 1.5, TE: 0.95, DL: 0.95, LB: 0.75, CB: 0.7, S: 0.6, OL: 0.5, K: 0.22, P: 0.14 };
 const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) => [k, Math.pow(v, 0.72)]));
+
+/**
+ * The two tables above, side by side and on one scale, which is the only form
+ * in which they are any use to a person.
+ *
+ * Both are per player of equal rating: TRUE_LEVERAGE is what he is worth,
+ * GLAMOUR is what the room will pay. Normalising each to a share of its own
+ * total makes them comparable, and the ratio is the whole strategy — above 1 is
+ * a position the market underpays for, below 1 one it overpays for.
+ *
+ * `starters` is carried too, because the per-player number is the right unit
+ * when bidding on one man and the wrong one when deciding where a budget goes:
+ * a lineman is worth a fifth of a tight end and you have to buy five of him.
+ */
+export function positionValue() {
+  const levSum = Object.values(TRUE_LEVERAGE).reduce((a, b) => a + b, 0);
+  const glamSum = Object.values(GLAMOUR).reduce((a, b) => a + b, 0);
+  return Object.keys(TRUE_LEVERAGE).map((pos) => {
+    const wins = TRUE_LEVERAGE[pos] / levSum;
+    const price = GLAMOUR[pos] / glamSum;
+    const ratio = wins / price;
+    return {
+      pos,
+      leverage: TRUE_LEVERAGE[pos],
+      starters: STARTERS_AT[pos] || 0,
+      wins,
+      price,
+      ratio,
+      group: TRUE_LEVERAGE[pos] * (STARTERS_AT[pos] || 0),
+      verdict: ratio >= 1.35 ? 'underpaid' : ratio >= 0.95 ? 'about right' : ratio >= 0.7 ? 'overpaid' : 'badly overpaid',
+    };
+  }).sort((a, b) => b.ratio - a.ratio);
+}
 
 /** How much of a GM's valuation comes from real win impact rather than hype. */
 /**
@@ -61,7 +102,6 @@ const STARTERS_AT = {};
 for (const s of ROSTER_SLOTS) if (s.starter) STARTERS_AT[s.pos] = (STARTERS_AT[s.pos] || 0) + 1;
 const BENCH_VALUE = { QB: 0.3, RB: 0.75, WR: 0.7 };
 
-export { TRUE_LEVERAGE, GLAMOUR };
 
 export function openSlots(team) {
   return ROSTER_SLOTS.filter((s) => !team.slots[s.id]);
