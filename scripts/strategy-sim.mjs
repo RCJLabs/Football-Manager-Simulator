@@ -9,6 +9,8 @@ import { autoCompleteAll, priceGuide, maxAffordable, canRoster, slotsLeft, openS
 import { overall } from '../src/engine/ratings.js';
 
 const L = Number(process.argv[2] || 16);
+// Optional second argument: run every strategy at one difficulty level.
+const DIFF = process.argv[3] || null;
 
 // Each strategy returns the human team's maximum bid for the player on the block.
 const STRATEGIES = {
@@ -22,6 +24,7 @@ const STRATEGIES = {
 
 function runLeague(seed, strategy) {
   const league = createLeague({ name: 'x', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed, draftType: 'auction' });
+  if (DIFF) league.settings.difficulty = DIFF;
   const rng = new RNG(league.rngState);
   const a = league.auction;
   const u = league.teams.findIndex((t) => t.isUser);
@@ -61,7 +64,7 @@ function runLeague(seed, strategy) {
   return { w: me.record.w, l: me.record.l, diff: me.record.pf - me.record.pa, rank, champ: league.champion === u ? 1 : 0 };
 }
 
-console.log(`Human team following each strategy, ${L} leagues of 14 games each\n`);
+console.log(`Human team following each strategy, ${L} leagues of 14 games each${DIFF ? ` — difficulty: ${DIFF}` : ''}\n`);
 const out = [];
 for (const [name, fn] of Object.entries(STRATEGIES)) {
   const res = [];

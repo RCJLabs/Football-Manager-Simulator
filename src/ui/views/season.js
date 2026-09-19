@@ -6,6 +6,7 @@ import { clinchMarkers, markerLetter, MARKER_LEGEND } from '../../engine/clinch.
 import { makeGameplan } from '../../engine/gm.js';
 import { simulateAhead, targetAvailable, describeRun, TARGET_LABELS, TARGETS } from '../../engine/autosim.js';
 import { jobsOn, seatWarmth, goalFor, yourCoach, coachOf } from '../../engine/jobs.js';
+import { weekPulse, quietWeek } from '../../engine/pulse.js';
 import { composites, buildLineup } from '../../engine/ratings.js';
 import { fillLineup } from '../../engine/injuries.js';
 import { createGame, simulateGame } from '../../engine/game.js';
@@ -197,6 +198,16 @@ export function view(root, params, ctx) {
       <div class="row" style="margin-top:.4rem"><a class="btn sm" href="#/career">Your career</a></div>
     </div>`;
   })() : '';
+  // What happened last week, everywhere, not just in your game. Thirty-one
+  // other clubs played and none of it used to be narrated.
+  const pulseWeek = league.phase === 'season' ? league.week - 1 : (league.schedule || []).length;
+  const pulse = pulseWeek >= 1 ? weekPulse(league, ctx.byId, pulseWeek, { limit: 5 }) : [];
+  const quiet = pulseWeek >= 1 && !pulse.length ? quietWeek(league, pulseWeek) : null;
+  const pulseCard = pulse.length || quiet ? html`<div class="card tight">
+    <h3>Around the league <small class="muted" style="text-transform:none;letter-spacing:0">· week ${pulseWeek}</small></h3>
+    ${pulse.length ? html`<ul class="pulse">${pulse.map((p) => html`<li class="p-${p.kind}">${p.text}</li>`)}</ul>`
+    : html`<p class="muted" style="font-size:.9rem;margin:.2rem 0">${quiet}</p>`}
+  </div>` : '';
   const simTargets = TARGETS.filter((t) => targetAvailable(league, t));
   const simCard = simTargets.length ? html`<div class="card tight">
     <h3>Simulate ahead</h3>
@@ -229,6 +240,7 @@ export function view(root, params, ctx) {
         </details>
       </div>
       <div class="stack">
+        ${pulseCard}
         ${jobCard}
         ${simCard}
         ${injuryCard}

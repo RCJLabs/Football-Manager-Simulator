@@ -15,6 +15,7 @@ import { ROSTER_SLOTS } from '../data/positions.js';
 import { GM_PERSONALITIES } from '../data/teams.js';
 import { overall } from './ratings.js';
 import { TRUE_LEVERAGE } from './auction.js';
+import { greedFor } from './difficulty.js';
 import { standings, isPro, sortDepthCharts, playoffFieldSize } from './season.js';
 import { availability, weeksLeft, SEASON_ENDING, irList, aiManageIr, irCapacity } from './injuries.js';
 import { aiAdjustStrategies } from './gm.js';
@@ -293,7 +294,7 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId) {
   const before = lineupStrength(team.slots, byId, league);
   const after = lineupStrength(slotsAfter(team, aiGives, aiGets, byId), byId, league);
   const delta = Math.round((after - before) * 10) / 10;
-  const greed = aiGreed(team);
+  const greed = aiGreed(team, league);
   const accept = delta >= greed;
   let reason;
   if (accept) reason = delta >= greed * 3 ? 'They jump at it.' : 'They think about it, then agree.';
@@ -303,8 +304,15 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId) {
 }
 
 /** How much a club must gain, in lineup strength, to agree to a deal. */
-export function aiGreed(team) {
-  return { modern: 8, trenches: 6, defense: 5, balanced: 4, gambler: 2, airraid: 4, ground: 4, oldschool: 5 }[team.gm] ?? 4;
+const BASE_GREED = { modern: 8, trenches: 6, defense: 5, balanced: 4, gambler: 2, airraid: 4, ground: 4, oldschool: 5 };
+
+/**
+ * What a club wants out of a trade before it will agree, in lineup-strength
+ * points. `league` is optional so an older caller still works; passing it is
+ * what lets the difficulty setting make clubs harder to fleece.
+ */
+export function aiGreed(team, league = null) {
+  return greedFor(league, BASE_GREED[team.gm] ?? 4);
 }
 
 /**
@@ -339,7 +347,7 @@ export function aiTrades(league, byId, rng, { pairs = 4 } = {}) {
       if (!validateTrade(league, a, b, aGives, bGives, byId).ok) continue;
       const gainA = lineupStrength(slotsAfter(A, aGives, bGives, byId), byId, league) - baseA;
       const gainB = lineupStrength(slotsAfter(B, bGives, aGives, byId), byId, league) - baseB;
-      if (gainA >= aiGreed(A) && gainB >= aiGreed(B) && (!best || gainA + gainB > best.total)) best = { aGives, bGives, total: gainA + gainB };
+      if (gainA >= aiGreed(A, league) && gainB >= aiGreed(B, league) && (!best || gainA + gainB > best.total)) best = { aGives, bGives, total: gainA + gainB };
     }
     if (best) done.push(executeTrade(league, a, b, best.aGives, best.bGives, byId));
   }
@@ -434,7 +442,7 @@ export function makeAiOffers(league, byId, rng, { max = 2 } = {}) {
       if (refused.has(offerSignature(a, gives, wants))) continue;
       const gainA = lineupStrength(slotsAfter(A, gives, wants, byId), byId, league) - baseA;
       const gainU = lineupStrength(slotsAfter(U, wants, gives, byId), byId, league) - baseU;
-      if (gainA < aiGreed(A) || gainU < -OFFER_FAIR_MARGIN) continue;
+      if (gainA < aiGreed(A, league) || gainU < -OFFER_FAIR_MARGIN) continue;
       if (!best || gainA > best.aiGain) best = { gives, wants, aiGain: Math.round(gainA * 10) / 10, userDelta: Math.round(gainU * 10) / 10, need: Q, surplus: P };
     }
     if (!best) continue;

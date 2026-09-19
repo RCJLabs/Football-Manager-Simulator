@@ -12,7 +12,8 @@
 // every roster is guaranteed to fill.
 
 import { ROSTER_SLOTS, SLOT_COUNTS } from '../data/positions.js';
-import { GM_PERSONALITIES, SAVVY } from '../data/teams.js';
+import { GM_PERSONALITIES } from '../data/teams.js';
+import { savvyFor, bidBoldness } from './difficulty.js';
 import { marketView, scoutReport } from './scouting.js';
 import { overall } from './ratings.js';
 import { clamp } from './rng.js';
@@ -292,7 +293,7 @@ export function aiMaxBid(auction, league, pool, teamIdx, player, guide, rng) {
   const gm = GM_PERSONALITIES.find((g) => g.id === team.gm) || GM_PERSONALITIES[0];
   // Each GM sees a blend of the asking price and what the player is really
   // worth. The shrewd ones chase value; the rest chase names.
-  const savvy = typeof team.savvy === 'number' ? team.savvy : (SAVVY[team.gm] ?? 0.3);
+  const savvy = savvyFor(league, team);
   const asking = guide.prices.get(player.id) ?? MIN_BID;
   const real = guide.worth.get(player.id) ?? asking;
   let v = asking * (1 - savvy) + real * savvy;
@@ -322,6 +323,10 @@ export function aiMaxBid(auction, league, pool, teamIdx, player, guide, rng) {
   // Kickers and punters are a last-rounds problem, not a budget item.
   if ((player.pos === 'K' || player.pos === 'P') && left > 3) v = Math.min(v, Math.max(MIN_BID, dollarsPerSlot * 0.5));
 
+  // How hard the room is to outbid, which is the half of difficulty that savvy
+  // does not cover: a club that values a player correctly and stops there is
+  // still beaten by anyone willing to pay a premium.
+  v *= bidBoldness(league);
   v *= rng.normal(1, 0.13);
   return clamp(Math.round(v), 0, cap);
 }

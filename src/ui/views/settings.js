@@ -7,6 +7,7 @@ import { drawRosterCard, shareCanvas } from '../share-card.js';
 import { applyNameMode } from '../../data/names.js';
 import { clearOverrides, overridesFile } from '../../data/tuning.js';
 import { poolFingerprint } from '../../engine/share.js';
+import { DIFFICULTY, LEVELS, DEFAULT_DIFFICULTY } from '../../engine/difficulty.js';
 
 export function view(root, params, ctx) {
   const s = ctx.getState();
@@ -15,6 +16,11 @@ export function view(root, params, ctx) {
     <div class="grid grid-2">
       <div class="card">
         <h2>Game settings</h2>
+        <div class="row between" style="align-items:center;margin-bottom:.5rem">
+          <label style="margin:0">How good the opposition is</label>
+          <select id="difficulty" style="max-width:10rem">${LEVELS.map((k) => html`<option value="${k}" ${(league.settings.difficulty || DEFAULT_DIFFICULTY) === k ? 'selected' : ''}>${DIFFICULTY[k].label}</option>`)}</select>
+        </div>
+        <small class="muted" style="display:block;margin-bottom:.75rem">${DIFFICULTY[league.settings.difficulty || DEFAULT_DIFFICULTY].blurb} It moves how the other clubs bid, scout and trade, never the simulation.</small>
         ${league ? html`
           <label class="check"><input type="checkbox" id="coach" ${league.settings.coachMode ? 'checked' : ''}> Coach mode — call offensive plays in my games</label>
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="coachDef" ${league.settings.coachDefense ? 'checked' : ''}> Call defensive plays too</label>
@@ -91,6 +97,7 @@ export function view(root, params, ctx) {
     root.querySelector('#chemistry').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.chemistry = e.target.checked; }));
     root.querySelector('#scouting').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.scouting = e.target.checked; }));
     root.querySelector('#jobs')?.addEventListener('change', (e) => ctx.update((st) => { st.league.settings.jobs = e.target.checked; }));
+    root.querySelector('#difficulty').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.difficulty = e.target.value; }));
     root.querySelector('#keepers').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.keepers = Number(e.target.value); }, { silent: true }));
   }
   root.querySelector('#fictional').addEventListener('change', (e) => {

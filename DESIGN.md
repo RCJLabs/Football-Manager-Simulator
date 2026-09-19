@@ -342,6 +342,41 @@ A keeper run is three seasons, which costs about 1.3 overall — noticeable when
 
 Not built: injuries that shorten a career, positional decline that forces a move, or any scouting fog over a rookie's growth curve. The curve is hidden but its effects are immediate and exact, so a patient manager can read a breakout after one season.
 
+## Difficulty (`difficulty.js`)
+
+There was no difficulty setting at all: every league ran the same fixed spread of general managers, so a manager who had learned where value hides beat the room every year with no dial to turn.
+
+**What a level changes, and what it deliberately does not.** It moves how well the computer clubs compete with you *for players*: how much of a bid follows real win impact rather than reputation, how far above its own valuation a club will go, how accurately it reads a prospect nobody has seen play, how hard it is to fleece in a trade, and how much rope an owner gives you. It never touches the simulation. No level hands a club a rating bonus or a thumb on the scale in a game — that kind of difficulty makes the score stop meaning what it says, breaks the calibration every other constant was tuned against, and teaches nothing transferable. A test asserts it. On Brutal the other clubs are not luckier than you; they are better at buying players than you are.
+
+**Savvy alone is not difficulty, and the measurement caught it.** The first version scaled only how accurately clubs valued players. Run through the strategy simulation, the setting meant to be hard made the game *easier* for a value shopper — 9.1 wins against 8.5 at standard. The reason is plain in hindsight: a club that values a player correctly and bids exactly that loses every contested lot to somebody bidding fifteen per cent over. Accuracy decides which players the computer clubs chase. Aggression decides whether you can outbid them for it, so `bid` was added as a second lever.
+
+Measured over twenty 8-club leagues per level, the human following each fixed strategy:
+
+| | Relaxed | Standard | Sharp | Brutal |
+|---|---|---|---|---|
+| Value shopper, wins of 14 | 8.9 | 8.5 | 8.3 | 7.7 |
+| Value shopper, point differential | +52 | +43 | +43 | +5 |
+| Stars and scrubs, wins | 7.8 | 7.7 | 7.0 | 6.4 |
+| Market follower, wins | 6.2 | 4.4 | 4.0 | 4.5 |
+
+The honest reading: the dial moves a skilled manager by about 1.2 wins across its whole range, and moves dominance much more — point differential collapses from +52 to +5. Difficulty is deliberately a smaller effect than how you bid, which is worth about four wins. It is a headwind, not a handicap.
+
+Savvy is capped at 0.95 rather than 1. A room where every club values every player perfectly has no bargains in it, and an auction with no bargains hands every club the same quality of roster — the parity problem the mispricing exists to avoid. Brutal should be hard, not pointless.
+
+A league written before this reads as standard, and `standard` is defined as every multiplier at exactly 1, so it is not a tuning in disguise.
+
+## The weekly pulse (`pulse.js`)
+
+The hub had standings, a playoff picture and a transaction log, and no answer to the only question a manager asks on a Monday: what happened? Thirty-one other clubs played and none of it was narrated, so a season read as a table that changed rather than a thing that happened.
+
+It reports upsets against the power table, blowouts, shutouts, overtime, long-term injuries, win and loss runs, trades and notable waiver claims — five lines on the season hub, most interesting first, with one of each kind before a second of any kind so a week of five blowouts still reads as a week.
+
+Everything is read back out of records the season already keeps: the schedule's results, each game's injury list, the transaction log. Nothing new is stored, so an old save produces a pulse for its own past weeks. There is no randomness in it, because a shared league and a season card have to agree about what happened.
+
+**One real limit shapes what it can say.** AI regular-season box scores keep team totals only — individual lines exist for the human's games and the playoffs and nowhere else. So a computer club's week is told through team numbers and the players named are the ones the injury ledger and the transaction log know about. Lifting that would mean storing player lines for every AI game, which is the single biggest thing in a save.
+
+Your own club is weighted up but capped in practice: measured over eight weeks, under 60% of lines are about you.
+
 ## Coaching jobs (`jobs.js`)
 
 There was no failure state. You could finish last for twenty seasons and nothing happened, which meant no decision ever really cost anything. An owner fixes that — but a hard game-over is the wrong shape for a dynasty, so being sacked moves you rather than ending you.

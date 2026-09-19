@@ -510,6 +510,9 @@ try {
   if (!proShown) errors.push('pro mode does not show the franchise picker');
   await checkOverflow('setup in pro mode');
   await shot('01b-setup-pro');
+  const levels = await page.$$eval('select[name="difficulty"] option', (o) => o.map((x) => x.value));
+  if (levels.length !== 4) errors.push(`setup offers ${levels.length} difficulty levels, expected 4`);
+  if (levels[1] !== 'standard') errors.push(`difficulty defaults look wrong: ${levels.join(',')}`);
   // Coaching jobs are a pro-league option and appear only in pro mode.
   const jobsShown = await page.$eval('#jobsOpt', (e) => e.getBoundingClientRect().height > 0);
   if (!jobsShown) errors.push('pro mode does not offer coaching jobs');
@@ -541,7 +544,13 @@ try {
   await page.waitForSelector('#advance');
   await page.click('#advance');
   await page.waitForSelector('#play');
+  // A played week is narrated, not just tabulated.
+  const pulseItems = await page.$$eval('#season-view ul.pulse li', (l) => l.map((x) => x.textContent.trim()));
+  if (!pulseItems.length) errors.push('no league pulse after a played week');
+  const sentinel = pulseItems.find((t) => /99 week/.test(t));
+  if (sentinel) errors.push(`the pulse printed the season-ending sentinel: ${sentinel}`);
   await checkOverflow('pro week 2');
+  await shot('12b-pulse');
   await page.goto(`http://localhost:${port}/#/team/12`);
   await page.waitForSelector('#teamPick');
   await checkOverflow('pro team page');

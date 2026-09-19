@@ -34,7 +34,7 @@
 import { hashSeed, RNG } from './rng.js';
 import { overall } from './ratings.js';
 import { startCareer } from './careers.js';
-import { SAVVY } from '../data/teams.js';
+import { savvyFor } from './difficulty.js';
 import { POSITIONS } from '../data/positions.js';
 
 /** Scouting error in rating points for a GM who knows nothing. */
@@ -83,9 +83,11 @@ export function isScouted(league, p) {
 export function accuracyOf(league, observerIdx) {
   const team = league.teams && league.teams[observerIdx];
   if (!team) return USER_ACCURACY;
+  // Your own staff read a prospect the same however good the opposition is. A
+  // harder league is one where the other clubs are better, not one where you
+  // are suddenly worse at your own job.
   if (team.isUser) return USER_ACCURACY;
-  if (typeof team.savvy === 'number') return clamp(team.savvy, 0, 0.85);
-  return clamp(SAVVY[team.gm] ?? 0.3, 0, 0.85);
+  return clamp(savvyFor(league, team), 0, 0.85);
 }
 
 /**

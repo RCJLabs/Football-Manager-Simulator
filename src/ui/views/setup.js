@@ -8,6 +8,7 @@ import { decodeLeagueCode, leagueFromSnapshot } from '../../engine/share.js';
 import { autoDraftAll, RNG } from '../../engine/draft.js';
 import { autoCompleteAll } from '../../engine/auction.js';
 import { PRO_TEAMS, CONFERENCES, DIVISIONS } from '../../data/pro.js';
+import { DIFFICULTY, LEVELS, DEFAULT_DIFFICULTY } from '../../engine/difficulty.js';
 
 export function view(root, params, ctx) {
   const hasLeague = !!ctx.getState().league;
@@ -69,6 +70,12 @@ export function view(root, params, ctx) {
           <small class="muted">Each offseason a club keeps this many players (a keeper costs last year's price plus 15% or $3; three years running at most) and the rest go back to the pool. Fantasy leagues default to 6, the pro league to 18.</small>
         </div>
         <div>
+          <label>How good the opposition is</label>
+          <select name="difficulty" style="max-width:14rem">${LEVELS.map((k) => html`<option value="${k}" ${k === DEFAULT_DIFFICULTY ? 'selected' : ''}>${DIFFICULTY[k].label}</option>`)}</select>
+          <small class="muted" id="diffNote">${DIFFICULTY[DEFAULT_DIFFICULTY].blurb}</small>
+          <small class="muted" style="display:block;margin-top:.3rem">It changes how well the other clubs bid, scout and trade, and how patient an owner is. It never touches the simulation — no level gives anybody a rating bonus or a thumb on the scale in a game.</small>
+        </div>
+        <div>
           <label>Careers</label>
           <label class="check"><input type="checkbox" name="careers" checked> Players age: rostered men get a year older each offseason, rookies develop, the old retire</label>
           <label class="check"><input type="checkbox" name="chemistry" checked> Chemistry: a settled squad from a tight era band plays a little better</label>
@@ -127,6 +134,7 @@ export function view(root, params, ctx) {
 
   form.keepers.addEventListener('change', () => { form.dataset.touchedKeepers = '1'; });
   form.league.addEventListener('input', () => { form.dataset.touchedLeague = '1'; });
+  form.difficulty.addEventListener('change', () => { form.querySelector('#diffNote').textContent = DIFFICULTY[form.difficulty.value].blurb; });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = new FormData(form);
@@ -153,6 +161,7 @@ export function view(root, params, ctx) {
     league.settings.chemistry = f.get('chemistry') === 'on';
     league.settings.scouting = f.get('scouting') === 'on';
     league.settings.jobs = mode === 'pro' && f.get('jobs') === 'on';
+    league.settings.difficulty = LEVELS.includes(f.get('difficulty')) ? f.get('difficulty') : DEFAULT_DIFFICULTY;
     const auto = f.get('draft') === 'auto';
     if (auto) {
       const rng = new RNG(league.rngState);

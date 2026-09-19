@@ -23,6 +23,7 @@
 
 import { hashSeed, RNG } from './rng.js';
 import { GM_PERSONALITIES, SAVVY } from '../data/teams.js';
+import { patienceShift } from './difficulty.js';
 import { FIRST_NAMES, LAST_NAMES } from '../data/rookie-names.js';
 import { buildLineup, teamPower } from './ratings.js';
 
@@ -123,7 +124,7 @@ export function initJobs(league, rng = new RNG(hashSeed(`jobs:${league.seed >>> 
   const taken = new Set();
   const u = userTeamIndex(league);
   league.teams.forEach((t, i) => {
-    t.patience = BASE_PATIENCE + rng.int(-1, 2);
+    t.patience = Math.max(2, BASE_PATIENCE + patienceShift(league) + rng.int(-1, 2));
     if (i === u) {
       const you = blankCoach('you', 'You', null, BASE_REP);
       you.you = true;
