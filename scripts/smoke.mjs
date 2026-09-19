@@ -230,8 +230,20 @@ try {
   await page.goto(`http://localhost:${port}/#/moves/trade`);
   await page.waitForSelector('#partner');
   await checkOverflow('moves trades');
-  await page.click('[data-give]');
-  await page.click('[data-get]');
+  // Like-for-like, and found rather than assumed. The give list is ordered by
+  // what each man costs to replace, so its first row is whoever the club can
+  // most easily spare — offering him for the other club's best quarterback is
+  // a deal the engine rightly refuses. Match the positions instead.
+  const paired = await page.evaluate(() => {
+    const posOf = (el) => el.closest('li')?.querySelector('.badge.pos')?.textContent.trim();
+    for (const get of document.querySelectorAll('[data-get]')) {
+      const pos = posOf(get);
+      const give = [...document.querySelectorAll('[data-give]')].find((g) => posOf(g) === pos);
+      if (give) { give.click(); get.click(); return pos; }
+    }
+    return null;
+  });
+  if (!paired) errors.push('no like-for-like pair on the trade screen');
   await page.waitForSelector('#propose:not([disabled])');
   await checkOverflow('moves trade selected');
   await shot('09c-trade');

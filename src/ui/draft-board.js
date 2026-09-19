@@ -132,13 +132,35 @@ export function scrollToPick(root, { onlyFresh = false } = {}) {
  * board: makePick increments it and only then notices the draft is over, so a
  * complete 27-round draft leaves the counter on 28.
  */
+/**
+ * The board, one row per round — except that once picks are traded a club can
+ * hold two in the same round, and a round is then as many rows deep as its
+ * busiest club. Before that, the second pick wrote over the first and simply
+ * vanished off the board.
+ *
+ * The returned array carries two extra properties, so every caller that just
+ * indexes it keeps working: `labels`, the round label for each row (blank on a
+ * continuation row), and `roundRow`, the first row index of each round, which
+ * is what the on-the-clock marker needs.
+ */
 export function snakeRows(league, draft) {
-  const teams = league.teams.length;
   let rounds = draft.complete ? 0 : Math.max(draft.round, 1);
   for (const pk of draft.picks) rounds = Math.max(rounds, pk.round || 1);
-  const rows = [];
-  for (let r = 0; r < Math.max(rounds, 1); r++) rows.push(new Array(teams).fill(null));
-  for (const pk of draft.picks) rows[(pk.round || 1) - 1][pk.team] = pk;
+  rounds = Math.max(rounds, 1);
+  const perRound = [];
+  for (let r = 0; r < rounds; r++) perRound.push(league.teams.map(() => []));
+  for (const pk of draft.picks) perRound[(pk.round || 1) - 1][pk.team].push(pk);
+  const rows = [], labels = [], roundRow = [];
+  for (let r = 0; r < rounds; r++) {
+    const depth = Math.max(1, ...perRound[r].map((a) => a.length));
+    roundRow.push(rows.length);
+    for (let d = 0; d < depth; d++) {
+      rows.push(league.teams.map((_, t) => perRound[r][t][d] || null));
+      labels.push(d === 0 ? `R${r + 1}` : '');
+    }
+  }
+  rows.labels = labels;
+  rows.roundRow = roundRow;
   return rows;
 }
 

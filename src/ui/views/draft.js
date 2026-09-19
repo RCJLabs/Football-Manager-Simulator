@@ -22,10 +22,22 @@ import { GM_PERSONALITIES } from '../../data/teams.js';
 import { ovrBadge, playerItem, playerModal, teamChip, toast, esc } from '../components.js';
 import { shownOverall } from '../../engine/scouting.js';
 import { draftBoard, boardOverlay, snakeRows, scrollToPick, lastName } from '../draft-board.js';
+import { openPickTrade, pickOfferCard } from '../pick-trade.js';
+import { survivalOdds, remainingPicks, nextPickFor, makePickOffers, executePickTrade } from '../../engine/draftpicks.js';
 
 export const selfRendering = true;
 
 const ui = { pos: 'ALL', era: 'ALL', q: '', boardOpen: false };
+
+/**
+ * Both of these cost real time — a survival read drafts the board forward
+ * eight times, an offer drafts it twice — so each is worked out once per turn
+ * and kept against the pick count, which is what changes when a turn does.
+ */
+const turnCache = { key: null, odds: null, untilPick: null, offers: null, declined: new Set() };
+
+/** Beyond here the order barely matters and the clubs stop ringing about it. */
+const OFFER_ROUNDS = 6;
 const PAGE = 120;
 
 /** Watchable, brisk, and a way out. Remembered across drafts in preferences. */
@@ -99,6 +111,16 @@ export function view(root, params, ctx) {
     const mine = onClock === u;
     const open = openSlotsByPos(me);
     const pickNo = overallPickNumber(draft);
+    const turnKey = `${draft.picks.length}:${u}`;
+    if (mine && turnCache.key !== turnKey) {
+      const sv = survivalOdds(league, draft, ctx.players, u, { trials: 8 });
+      turnCache.key = turnKey;
+      turnCache.odds = sv.odds;
+      turnCache.untilPick = sv.untilPick;
+      turnCache.offers = draft.round <= OFFER_ROUNDS
+        ? makePickOffers(league, draft, ctx.players, ctx.byId, null, { max: 1 }).filter((o) => !turnCache.declined.has(o.id))
+        : [];
+    }
     const rows = snakeRows(league, draft);
     const clockTeam = league.teams[onClock];
 
@@ -117,11 +139,27 @@ export function view(root, params, ctx) {
         <input type="search" id="q" placeholder="Search player or team…" value="${esc(ui.q)}">
         <div class="plist-scroll"><ul class="plist">${shown.map((p) => playerItem(p, {
           cls: open[p.pos] ? '' : 'dim',
+          meta: lastsBadge(p.id),
           action: `<button class="btn sm primary" data-draft="${esc(p.id)}" ${open[p.pos] ? '' : 'disabled'}>Draft</button>`,
         })).join('')}</ul>
         ${shown.length === 0 ? '<p class="empty">No available players match.</p>' : ''}
         ${all.length > shown.length ? `<p class="empty">${all.length - shown.length} more — narrow the filters or search.</p>` : ''}
         </div></div>`;
+    }
+
+    /**
+     * Whether a man lasts to your next turn. Only the ones in danger are
+     * marked: a list of a hundred rows each saying "100%" is a list nobody
+     * reads, and the whole point is to find the three you have to take now.
+     */
+    function lastsBadge(id) {
+      const odds = turnCache.odds;
+      if (!odds || !turnCache.untilPick) return '';
+      const q = odds.get(id);
+      if (q == null || q > 0.75) return '';
+      const pct = Math.round(q * 100);
+      const cls = q <= 0.15 ? 'gone' : 'risky';
+      return ` <span class="badge lasts ${cls}" title="How often he was still there at your next pick, #${turnCache.untilPick}, over eight runs of the rest of the draft">${pct === 0 ? 'gone by #' + turnCache.untilPick : pct + '% to last'}</span>`;
     }
 
     const announce = lastPick ? (() => {
@@ -143,13 +181,15 @@ export function view(root, params, ctx) {
         <div class="needs" style="margin-top:.45rem">${raw(POSITION_ORDER.map((pos) => `<span class="need ${open[pos] ? 'open' : ''}" data-filter="${pos}">${pos} ${open[pos] ? `×${open[pos]}` : '✓'}</span>`).join(''))}</div>
         <div class="btn-group" style="margin-top:.6rem">
           <button class="btn sm primary" id="openBoard">Draft board <span class="muted">${draft.picks.length}/${TOTAL_ROUNDS * league.teams.length}</span></button>
+          <button class="btn sm" id="tradePicks">Trade picks <span class="muted">${remainingPicks(draft, u).length} left</span></button>
           ${mine ? html`<button class="btn sm" id="autoOne">Auto-pick for me</button>` : html`<button class="btn sm" id="skip">Skip to my pick</button>`}
           <button class="btn sm" id="autoAll">Auto-draft the rest</button>
         </div>
       </div>
+      ${mine && turnCache.offers?.length ? raw(turnCache.offers.map((o) => pickOfferCard(league, o)).join('')) : ''}
       ${ui.boardOpen ? raw(boardOverlay(draftBoard(league, rows, {
-        labels: rows.map((_, i) => `R${i + 1}`),
-        onClock: { row: draft.round - 1, team: onClock },
+        labels: rows.labels,
+        onClock: { row: rows.roundRow[draft.round - 1] ?? draft.round - 1, team: onClock },
         freshKey: fresh, byId: ctx.byId, observer: u, order: draft.order,
       }), { title: 'Draft board', sub: `${draft.picks.length} of ${TOTAL_ROUNDS * league.teams.length} picks` })) : ''}
       <details class="card tight" id="valueGuide" style="margin-top:.5rem">
@@ -209,6 +249,42 @@ export function view(root, params, ctx) {
     const el = root.querySelector('#draft-view');
     if (!el) return;
     el.querySelector('#openBoard')?.addEventListener('click', () => { ui.boardOpen = true; fresh = null; draw(); });
+    el.querySelector('#tradePicks')?.addEventListener('click', () => {
+      stop();
+      let dealt = false;
+      const m = openPickTrade({
+        league, draft, pool: ctx.players, byId: ctx.byId, userIdx: u,
+        onDone: () => { dealt = true; ctx.update(() => {}, { silent: true }); turnCache.key = null; fresh = null; run(); },
+      });
+      // Closing the room without dealing has to start the board moving again.
+      const back = m.el;
+      const observer = new MutationObserver(() => {
+        if (back.isConnected) return;
+        observer.disconnect();
+        if (!dealt && !stopped) run();
+      });
+      observer.observe(document.body, { childList: true });
+    });
+    el.addEventListener('click', (e) => {
+      const acc = e.target.closest('[data-pkaccept]');
+      if (acc) {
+        const o = (turnCache.offers || []).find((x) => x.id === acc.dataset.pkaccept);
+        if (!o) return;
+        try {
+          executePickTrade(league, draft, o.from, u, o.gives, o.wants);
+          ctx.update(() => {}, { silent: true });
+          toast('Deal done');
+        } catch (err) { toast(err.message); }
+        turnCache.key = null; fresh = null; draw();
+        return;
+      }
+      const dec = e.target.closest('[data-pkdecline]');
+      if (dec) {
+        turnCache.declined.add(dec.dataset.pkdecline);
+        turnCache.offers = (turnCache.offers || []).filter((x) => x.id !== dec.dataset.pkdecline);
+        draw();
+      }
+    });
     el.querySelector('#boardClose')?.addEventListener('click', () => { ui.boardOpen = false; draw(); });
     el.querySelector('.speed').addEventListener('click', (e) => {
       const b = e.target.closest('[data-speed]');

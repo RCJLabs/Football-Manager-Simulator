@@ -46,11 +46,16 @@ export function settlePointer(league, draft) {
   draft.complete = true;
 }
 
-/** Team index whose turn it is. */
+/**
+ * Team index whose turn it is: the snake, unless this pick has been traded.
+ * `draft.traded` maps an overall pick number to its new owner and is absent
+ * in every league where nobody has dealt, so the lookup costs nothing.
+ */
 export function currentPicker(draft) {
   const n = draft.order.length;
   const idx = draft.round % 2 === 1 ? draft.pickInRound : n - 1 - draft.pickInRound;
-  return draft.order[idx];
+  const traded = draft.traded?.[(draft.round - 1) * n + draft.pickInRound + 1];
+  return traded == null ? draft.order[idx] : traded;
 }
 
 export function overallPickNumber(draft) {

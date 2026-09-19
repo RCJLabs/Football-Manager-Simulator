@@ -162,6 +162,12 @@ tr.dim td { color: var(--muted); }
 .badge.block { background: #2b3f4a; color: #b6dcec; }
 .badge.cost { background: #3a3328; color: #e0c79d; font-family: var(--mono); }
 .badge.need { background: #4a3226; color: #f0c4aa; min-width: 2.3rem; text-align: center; }
+/* Draft: whether a man lasts to your next pick, and the pick-trading room. */
+.badge.lasts.gone { background: #4a2626; color: #ffb3b0; }
+.badge.lasts.risky { background: #4a3f1f; color: #f0dba0; }
+.pick-list { max-height: 15rem; overflow: auto; }
+.pick-row .nm { font-family: var(--mono); font-weight: 700; }
+.pick-offer { margin-top: .5rem; border-color: var(--accent); }
 .ovr.range { background: #2e3a46; color: #c6d8e8; font-size: .78rem; min-width: 3.4rem; letter-spacing: -.02em; }
 .attr.est b { color: var(--muted); font-weight: 600; }
 .seat { display: inline-block; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .1rem .4rem; border-radius: 4px; margin-right: .3rem; }
