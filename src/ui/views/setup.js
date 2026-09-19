@@ -73,6 +73,7 @@ export function view(root, params, ctx) {
           <label class="check"><input type="checkbox" name="careers" checked> Players age: rostered men get a year older each offseason, rookies develop, the old retire</label>
           <label class="check"><input type="checkbox" name="chemistry" checked> Chemistry: a settled squad from a tight era band plays a little better</label>
           <label class="check"><input type="checkbox" name="scouting" checked> Scouting: a rookie shows a projected range until he has played a season</label>
+          <label class="check" id="jobsOpt" hidden><input type="checkbox" name="jobs" checked> Coaching jobs: an owner with expectations, rivals who get sacked, and a career you can be moved around (pro league only)</label>
           <small class="muted">The pool stays frozen at its prime until you sign a man — the auction is the same puzzle either way. It is what happens after that changes: a keeper's third year is not his first, and a 63-overall rookie can become an 80 if you are patient.</small>
         </div>
         <div>
@@ -113,6 +114,7 @@ export function view(root, params, ctx) {
     form.querySelector('#nameLbl').textContent = pro ? 'Rename the franchise (optional)' : 'Your team name';
     form.name.placeholder = pro ? 'Leave blank to keep the franchise name' : '';
     form.querySelector('#typeNote').hidden = !pro;
+    form.querySelector('#jobsOpt').hidden = !pro;
     if (pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="snake"]').checked = true;
     if (!form.dataset.touchedKeepers) form.keepers.value = String(defaultKeepers(pro ? 'pro' : 'fantasy'));
     if (!pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="auction"]').checked = true;
@@ -150,6 +152,7 @@ export function view(root, params, ctx) {
     league.settings.careers = f.get('careers') === 'on';
     league.settings.chemistry = f.get('chemistry') === 'on';
     league.settings.scouting = f.get('scouting') === 'on';
+    league.settings.jobs = mode === 'pro' && f.get('jobs') === 'on';
     const auto = f.get('draft') === 'auto';
     if (auto) {
       const rng = new RNG(league.rngState);

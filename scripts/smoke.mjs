@@ -490,6 +490,9 @@ try {
   if (!proShown) errors.push('pro mode does not show the franchise picker');
   await checkOverflow('setup in pro mode');
   await shot('01b-setup-pro');
+  // Coaching jobs are a pro-league option and appear only in pro mode.
+  const jobsShown = await page.$eval('#jobsOpt', (e) => e.getBoundingClientRect().height > 0);
+  if (!jobsShown) errors.push('pro mode does not offer coaching jobs');
   await page.selectOption('select[name="franchise"]', '12');
   await page.check('input[name="draft"][value="auto"]');
   await page.click('button[type="submit"]');
@@ -500,6 +503,20 @@ try {
   if (divisions !== 8) errors.push(`pro hub shows ${divisions} divisions, expected 8`);
   const weekGames = await page.$$eval('#season-view .card .matchup', (m) => m.length);
   if (weekGames < 16) errors.push(`pro week lists ${weekGames} matchups, expected at least 16`);
+  // The pro league has an owner, a bar to clear, and a league of rival coaches.
+  const ownerText = await page.$eval('#season-view', (e) => e.textContent);
+  if (!/The owner/.test(ownerText)) errors.push('no owner card on a pro season hub');
+  if (!/Squad ranked/.test(ownerText)) errors.push('the owner card does not say what the bar is set against');
+  await page.click('a[href="#/career"]');
+  await page.waitForSelector('#career-view');
+  const careerText = await page.$eval('#career-view', (e) => e.textContent);
+  if (!/Coaches around the league/.test(careerText)) errors.push('the career screen does not list rival coaches');
+  const rivalRows = await page.$$eval('#career-view tbody tr', (r) => r.length);
+  if (rivalRows < 20) errors.push(`career screen listed only ${rivalRows} coach rows, expected a league of them`);
+  await checkOverflow('coaching career');
+  await shot('13a-career');
+  await page.goto(`http://localhost:${port}/#/season`);
+  await page.waitForSelector('#season-view');
   await page.click('#simWeek');
   await page.waitForSelector('#advance');
   await page.click('#advance');

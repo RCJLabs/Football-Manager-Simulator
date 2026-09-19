@@ -19,6 +19,7 @@ import { createGame, simulateGame } from './game.js';
 import { INJURY_LEVELS, DEFAULT_INJURY_LEVEL, recordGameInjuries, tickInjuries, returnFromIr, clearIr, irList } from './injuries.js';
 import { closeSeasonBooks } from './awards.js';
 import { chemistryBonuses } from './chemistry.js';
+import { jobsOn, initJobs } from './jobs.js';
 
 export const LEAGUE_VERSION = 3;
 export const FANTASY_SIZES = [8, 10, 12];
@@ -84,7 +85,7 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
     injuries: {},
     contracts: {},
     offseason: null,
-    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, scouting: true, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode) },
+    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, scouting: true, jobs: true, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode) },
   };
   assignGms(league, rng);
   if (draftType === 'auction') league.auction = createAuction(league, rng, budget ? { budget } : {});
@@ -398,6 +399,9 @@ export function startSeason(league, byId) {
   league.rngState = rng.state;
   syncContracts(league);
   syncTenure(league);
+  // The carousel stands itself up the first time a season starts, so a league
+  // opened from a code gets one too without the code having to carry it.
+  if (jobsOn(league) && !league.jobs) initJobs(league);
   return league;
 }
 

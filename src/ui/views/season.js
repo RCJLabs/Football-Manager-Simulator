@@ -5,6 +5,7 @@ import { fmtWeeks, IR_MIN_WEEKS, irList } from '../../engine/injuries.js';
 import { clinchMarkers, markerLetter, MARKER_LEGEND } from '../../engine/clinch.js';
 import { makeGameplan } from '../../engine/gm.js';
 import { simulateAhead, targetAvailable, describeRun, TARGET_LABELS, TARGETS } from '../../engine/autosim.js';
+import { jobsOn, seatWarmth, goalFor, yourCoach, coachOf } from '../../engine/jobs.js';
 import { composites, buildLineup } from '../../engine/ratings.js';
 import { fillLineup } from '../../engine/injuries.js';
 import { createGame, simulateGame } from '../../engine/game.js';
@@ -180,6 +181,22 @@ export function view(root, params, ctx) {
     <div class="btn-group"><a class="btn sm" href="#/moves">Free agents</a><a class="btn sm ${offerCount ? 'primary' : ''}" href="#/moves/offers">Offers${offerCount ? ` (${offerCount})` : ''}</a><a class="btn sm" href="#/moves/trade">Trades</a></div>
   </div>` : '';
   const powerShown = pro ? power.slice(0, 12) : power;
+  // The owner, and how close you are to the door. A hidden number nobody can
+  // see is not pressure, it is a trap, so both the bar and the heat are shown.
+  const seat = jobsOn(league) ? seatWarmth(league, u) : null;
+  const jobCard = seat ? (() => {
+    const goal = goalFor(league, u, ctx.byId);
+    const you = yourCoach(league);
+    const review = league.jobs.lastReview;
+    const moved = review ? review.results.filter((r) => r.fired) : [];
+    return html`<div class="card tight">
+      <h3>The owner <small class="muted" style="text-transform:none;letter-spacing:0">· season ${you.seasons + 1} in the job</small></h3>
+      <p style="margin:.2rem 0;font-size:.92rem">Wants you to <b>${goal.text}</b>. <span class="muted">Squad ranked ${goal.rank} of ${league.teams.length}.</span></p>
+      <p class="muted" style="font-size:.88rem;margin:.2rem 0 .3rem"><span class="seat ${seat.band}">${seat.band === 'hot' ? 'Hot seat' : seat.band === 'warm' ? 'Under pressure' : 'Secure'}</span> ${seat.text}</p>
+      ${moved.length ? html`<small class="muted">Last offseason ${moved.length === 1 ? 'one club' : `${moved.length} clubs`} changed coach.</small>` : ''}
+      <div class="row" style="margin-top:.4rem"><a class="btn sm" href="#/career">Your career</a></div>
+    </div>`;
+  })() : '';
   const simTargets = TARGETS.filter((t) => targetAvailable(league, t));
   const simCard = simTargets.length ? html`<div class="card tight">
     <h3>Simulate ahead</h3>
@@ -212,6 +229,7 @@ export function view(root, params, ctx) {
         </details>
       </div>
       <div class="stack">
+        ${jobCard}
         ${simCard}
         ${injuryCard}
         ${movesCard}

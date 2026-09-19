@@ -9,6 +9,8 @@ import {
 import { playerItem, playerModal, teamChip, toast, esc, modal } from '../components.js';
 import { simulateAhead, describeRun } from '../../engine/autosim.js';
 import { scoutingHits, scoutingOn } from '../../engine/scouting.js';
+import { takeJob } from '../../engine/offseason.js';
+import { jobsOn, yourCoach, careerSummary, coachOf } from '../../engine/jobs.js';
 import { RNG } from '../../engine/rng.js';
 
 const ui = { picked: null, leagueId: null, season: null };
@@ -21,6 +23,11 @@ export function view(root, params, ctx) {
   if (league.phase === 'complete') {
     ctx.update((s) => { enterOffseason(s.league, ctx.players, ctx.byId); }, { silent: true });
   }
+  // Sacked: the owners have moved, and nothing else in the offseason happens
+  // until you have somewhere to work.
+  if (league.phase === 'offseason' && league.offseason.step === 'jobs') { jobMarket(root, league, ctx); return; }
+  if (jobsOn(league) && league.jobs.status === 'retired') { careerOver(root, league, ctx); return; }
+
   const u = userTeamIndex(league);
   const me = league.teams[u];
   const auction = league.draftType === 'auction';
@@ -177,4 +184,67 @@ export function view(root, params, ctx) {
     });
   });
   void PLAYERS;
+}
+
+/** The offer screen: who wants you, what they expect, and how long you get. */
+function jobMarket(root, league, ctx) {
+  const car = league.offseason.carousel || {};
+  const offers = car.offers || [];
+  const you = yourCoach(league);
+  const oldClub = league.teams.find((t) => t.isUser);
+  render(root, html`<div id="offseason-view">
+    <div class="card">
+      <h1 style="margin:0">You are out of a job</h1>
+      <p class="muted" style="margin:.4rem 0 0">${oldClub ? `${oldClub.name} have let you go` : 'Your club has let you go'} after season ${league.offseason.season}. Your reputation around the league is <b>${you.rep}</b>.</p>
+      <p class="muted" style="font-size:.9rem;margin:.5rem 0 0">Whatever you had built stays behind. The keepers, the contracts and the squad you know are theirs now; you take over somebody else's, with their deals already on the books.</p>
+    </div>
+    ${car.sacked && car.sacked.length > 1 ? html`<div class="card tight" style="margin-top:.75rem">
+      <h3>Around the league</h3>
+      <p class="muted" style="font-size:.88rem;margin:.2rem 0">${car.sacked.filter((x) => !x.you).map((x) => `${x.name} (${league.teams[x.team].abbr})`).join(' · ')} went too.</p>
+    </div>` : ''}
+    <div class="card" style="margin-top:.75rem">
+      <h2 style="margin:0 0 .5rem">${offers.length === 1 ? 'One club is interested' : `${offers.length} clubs are interested`}</h2>
+      <div class="stack">
+        ${offers.map((o) => {
+    const t = league.teams[o.team];
+    return html`<div class="card tight" style="margin:0">
+          <div class="row between" style="align-items:baseline">
+            <h3 style="margin:0">${teamChip(t)}</h3>
+            <span class="muted" style="font-size:.85rem">${t.record ? `${t.record.w}-${t.record.l}${t.record.t ? `-${t.record.t}` : ''} last year` : ''}</span>
+          </div>
+          <p class="muted" style="font-size:.88rem;margin:.35rem 0 .1rem">The owner wants you to <b>${o.goal.text}</b>. Squad ranked <b>${o.goal.rank}</b> of ${league.teams.length}.</p>
+          <p class="muted" style="font-size:.88rem;margin:.1rem 0 .5rem">${o.patience <= 3 ? 'Impatient: you would get about three seasons.' : o.patience >= 6 ? 'Patient: you would get time to build.' : 'Reasonable: four or five seasons of rope.'}${o.lastResort ? ' Nobody else was calling.' : ''}</p>
+          <button class="btn primary block" data-take="${o.team}">Take the ${t.name} job</button>
+        </div>`;
+  })}
+      </div>
+    </div>
+  </div>`);
+  root.querySelectorAll('[data-take]').forEach((b) => b.addEventListener('click', () => {
+    const idx = Number(b.dataset.take);
+    let club;
+    ctx.update((s) => { club = takeJob(s.league, idx, ctx.players, ctx.byId); }, { silent: true });
+    toast(`You are the new coach of the ${club.name}`);
+    ctx.navigate('#/offseason');
+  }));
+}
+
+/** Nobody called. The league stays readable; the career does not go on. */
+function careerOver(root, league, ctx) {
+  const c = careerSummary(league);
+  render(root, html`<div id="offseason-view">
+    <div class="card">
+      <h1 style="margin:0">That is the end of it</h1>
+      <p class="muted" style="margin:.4rem 0 0">${league.jobs.retiredReason}</p>
+      <div class="table-wrap" style="margin-top:.75rem"><table><tbody>
+        <tr><td>Seasons coached</td><td class="num"><b>${c.seasons}</b></td></tr>
+        <tr><td>Record</td><td class="num"><b>${c.w}-${c.l}${c.t ? `-${c.t}` : ''}</b> · ${(c.winPct * 100).toFixed(1)}%</td></tr>
+        <tr><td>Titles</td><td class="num"><b>${c.titles}</b></td></tr>
+        <tr><td>Times sacked</td><td class="num"><b>${c.sacked}</b></td></tr>
+        <tr><td>Clubs</td><td class="num">${c.clubs.map((j) => j.name).join(', ')}</td></tr>
+      </tbody></table></div>
+      <p class="muted" style="font-size:.9rem;margin-top:.75rem">The league, its records and its hall of fame are all still here to read. A new career means a new league.</p>
+      <div class="row" style="margin-top:.5rem"><a class="btn" href="#/awards/hall">Hall of fame</a><a class="btn" href="#/players">Player pool</a><a class="btn primary" href="#/new">Start again</a></div>
+    </div>
+  </div>`);
 }

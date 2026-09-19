@@ -292,6 +292,34 @@ A keeper run is three seasons, which costs about 1.3 overall — noticeable when
 
 Not built: injuries that shorten a career, positional decline that forces a move, or any scouting fog over a rookie's growth curve. The curve is hidden but its effects are immediate and exact, so a patient manager can read a breakout after one season.
 
+## Coaching jobs (`jobs.js`)
+
+There was no failure state. You could finish last for twenty seasons and nothing happened, which meant no decision ever really cost anything. An owner fixes that — but a hard game-over is the wrong shape for a dynasty, so being sacked moves you rather than ending you.
+
+**That only works as a stake because careers and chemistry already exist.** Losing your job costs the squad you spent five seasons building, the keepers you were compounding, and the continuity your chemistry was made of, and hands you somebody else's mess with somebody else's contracts on the books. Without those systems, changing club would be a reroll; with them it is a real price.
+
+**Pro mode only.** An eight-club league has no job market worth the name.
+
+**The bar is set against the roster, not the table.** Power rank decides what an owner wants: the top quarter must win a playoff round, the second quarter reach the playoffs, the third finish above .500, and the bottom show progress on last year. A club with the worst roster in the league being told to make the playoffs is not an expectation, it is a pretext — and a coach who builds a great squad should be expected to win with it. The bar moves as the roster does, so it follows the job rather than the man. Measured across three 32-club leagues over eight seasons each, the bands come out at 41%, 51%, 45% and 45% met — close to a coin flip, and slightly the wrong side of it, which is what a job you can lose should feel like.
+
+**Heat and reputation are separate on purpose.** Heat is what gets you sacked and resets when you move; reputation is what gets you hired and follows you. A good coach at a bad club can lose his job and still be wanted, which is the whole reason the carousel is interesting. Owners have a fixed temperament (three to six seasons of patience), set at league creation and never changed, so a club known for firing people keeps being one and you can learn that about the league.
+
+**Rival coaches are the supply, not decoration.** If the computer clubs never changed coach there would be no vacancies, nobody would ever call you, and being sacked would be a dead end after all. Every club's coach is under the same pressure, sacked on the same rule, and when one goes his job is on the market. His GM personality travels with him, so a club that changes coach changes how it drafts and how it plays.
+
+Measured: about 3 of 32 clubs change coach per season, roughly 10%. The real league runs at 20–25%, and this is deliberately gentler — chemistry saturates at three seasons of continuity, so a carousel spinning that fast would mean nobody ever saw the system pay off. Over five 15-season careers played passively, the human was sacked between one and three times and worked two to four clubs.
+
+**Two rules stop the market being nonsense.** A club that has offered you the job keeps it open until you answer, or the carousel hires over your own offer before you can take it. And the club that just sacked you is never on your list — no owner fires a man in February and rehires him in March, and being handed your own job back would make the sacking meaningless.
+
+That second rule creates a hole: if you were the only coach sacked that year, the only vacancy is the one you cannot have. Rather than end a career on the luck of being the only sacking, a coach the league still rates gets a club to make room for him — an employed coach rated ten points below you is moved on, which is a thing clubs do. It is the only path by which `acceptOffer` displaces a sitting coach, and it refuses if the incumbent is rated anywhere near you.
+
+**The floor is where the career actually ends.** Below 18 reputation, nobody calls and that is that; the league, its records and its hall of fame stay readable, but there is no playing on. Reputation sits at a median near 47 across experienced coaches, so this is a tail risk rather than a treadmill: none of five 15-season careers reached it, though one finished at 20.
+
+**Nothing is hidden.** The season hub shows what the owner wants, what the squad is ranked, and how warm the seat is in words rather than a number you cannot see. A hidden meter is a trap, not pressure. The career screen carries your record, the clubs you have worked, the carousel log and every rival coach with his reputation and his own seat.
+
+Plumbing: `jobs.js` deliberately does not import `season.js`, because `startSeason` has to stand the carousel up; `isPro`, `userTeamIndex` and a power ranking are small enough to keep locally rather than build a cycle for. Moving the human between clubs needed no other changes at all — all 68 references to the user's team derive from one `userTeamIndex` lookup, and the history entry already snapshots each season's club name and colours, so a multi-club career reads correctly in the hub.
+
+Not built: assistant coaches, contracts or compensation for a coach, interviews, or any say in which club poaches you. Speculation: whether 10% turnover is the right number. It is chosen against chemistry's three-season payoff rather than against the real league, and it has not been tested for how it feels over a long save.
+
 ## Scouting (`scouting.js`)
 
 Everything in this game was arithmetic. Every rating of all 1,269 players was exact and permanent, so once you had internalised the leverage table you won auctions forever and the economy stopped being a puzzle. Real general-manager games run on fog.

@@ -115,6 +115,14 @@ tr.dim td { color: var(--muted); }
 .badge.retired { background: #3d2f3d; color: #d9b8d9; }
 .ovr.range { background: #2e3a46; color: #c6d8e8; font-size: .78rem; min-width: 3.4rem; letter-spacing: -.02em; }
 .attr.est b { color: var(--muted); font-weight: 600; }
+.seat { display: inline-block; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .1rem .4rem; border-radius: 4px; margin-right: .3rem; }
+.seat.safe { background: #24382b; color: #b9d2c3; }
+.seat.warm { background: #4a3f26; color: #e6d3a3; }
+.seat.hot { background: #4a2626; color: #ffb3b0; }
+ul.log { list-style: none; margin: .3rem 0 0; padding: 0; font-size: .88rem; }
+ul.log li { padding: .25rem 0; border-bottom: 1px solid var(--line); }
+ul.log li:last-child { border-bottom: 0; }
+ul.log .muted { font-family: var(--mono); font-size: .78rem; margin-right: .35rem; }
 .clinch { display: inline-block; min-width: 1.1rem; margin-right: .3rem; font-family: var(--mono); font-size: .75rem; font-weight: 700; text-align: center; border-radius: 4px; padding: 0 .2rem; background: var(--bg-3); color: var(--muted); }
 .clinch.x, .clinch.y, .clinch.z { background: #2c4a37; color: #cfe6d6; }
 .clinch.e { background: #4a2626; color: #ffb3b0; }

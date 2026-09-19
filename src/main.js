@@ -20,6 +20,7 @@ import * as game from './ui/views/game.js';
 import * as boxscore from './ui/views/boxscore.js';
 import * as players from './ui/views/players.js';
 import * as settings from './ui/views/settings.js';
+import * as career from './ui/views/career.js';
 
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
@@ -104,6 +105,7 @@ route('/game', () => mount(game));
 route('/box/:kind/:a/:b', (p) => mount(boxscore, p));
 route('/box/:kind', (p) => mount(boxscore, p));
 route('/players', () => mount(players));
+route('/career', () => mount(career));
 route('/settings', () => mount(settings));
 
 registerPlayers(PLAYERS_BY_ID);

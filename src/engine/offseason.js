@@ -21,6 +21,7 @@ import { standings, syncContracts, userTeamIndex } from './season.js';
 import { clearIr } from './injuries.js';
 import { addRookieClass } from './rookies.js';
 import { advanceCareers, releaseRetired } from './careers.js';
+import { jobsOn, reviewSeason, fillVacancies, makeOffers, acceptOffer, yourCoach, retire, REP_FLOOR } from './jobs.js';
 
 export const MAX_KEEPS = 3;
 export const KEEPER_RAISE_MIN = 3;
@@ -89,19 +90,72 @@ export function enterOffseason(league, pool, byId) {
   releaseRetired(league, careers.retired.map((r) => r.id));
   // A new intake arrives before the market opens, and old unsigned rookies wash out.
   const intake = addRookieClass(league, rng);
-  const keepers = {};
-  league.teams.forEach((t, i) => { if (!t.isUser) keepers[i] = aiKeepers(league, i, pool, byId, rng); });
+  // The owners have their say before anybody picks a keeper, because a coach
+  // who has just been sacked should not be choosing who his old club keeps, and
+  // a coach who has just been hired should be choosing for his new one.
+  const carousel = jobsOn(league) ? runCarousel(league, byId, rng) : null;
   league.rngState = rng.state;
   league.offseason = {
-    season: league.season, step: 'keepers', keepers, user: null, releasedFromIr: released,
+    season: league.season, step: carousel && carousel.offers ? 'jobs' : 'keepers',
+    keepers: {}, user: null, releasedFromIr: released,
     rookies: intake.arrived.length, washedOut: intake.washed.length,
     aged: careers.aged,
     retired: careers.retired.filter((r) => r.owned).map((r) => ({ name: r.name, pos: r.pos, age: r.age })),
     risers: careers.risers.slice(0, 5),
     fallers: careers.fallers.slice(0, 5),
+    carousel,
   };
   league.phase = 'offseason';
+  // The keeper round waits for a coach without a club to find one.
+  if (league.offseason.step === 'keepers') pickAiKeepers(league, pool, byId);
   return league.offseason;
+}
+
+/**
+ * Owners review, coaches are sacked, and every vacancy but yours is filled.
+ * Returns what happened plus your offers, or null for `offers` when you still
+ * have a job — in which case the offseason carries straight on.
+ */
+export function runCarousel(league, byId, rng) {
+  const review = reviewSeason(league, byId, rng);
+  const you = yourCoach(league);
+  const youSacked = !!(you && you.team == null);
+  let offers = null;
+  if (youSacked) {
+    offers = makeOffers(league, byId);
+    if (!offers.length) retire(league, `No club will have you. Your reputation is ${you.rep}, and below ${REP_FLOOR} the phone stops ringing.`);
+  }
+  // Fill the rest now: the jobs you are not being offered are gone by the time
+  // you decide, which is what makes a middling offer worth taking.
+  const hired = fillVacancies(league, byId, rng, { hold: (offers || []).map((o) => o.team) });
+  return { results: review.results, sacked: review.sacked, hired, offers: offers && offers.length ? offers : null };
+}
+
+/**
+ * Take one of the offers: the club becomes yours, the ones you turned down are
+ * filled by somebody else on the spot, and the keeper round can begin.
+ */
+export function takeJob(league, teamIdx, pool, byId) {
+  const club = acceptOffer(league, teamIdx);
+  const rng = new RNG(league.rngState);
+  const alsoHired = fillVacancies(league, byId, rng);
+  league.rngState = rng.state;
+  if (league.offseason) {
+    league.offseason.carousel = { ...(league.offseason.carousel || {}), offers: null, hired: [...((league.offseason.carousel || {}).hired || []), ...alsoHired] };
+  }
+  pickAiKeepers(league, pool, byId);
+  return club;
+}
+
+/** AI keepers, deferred until it is settled which club is yours. */
+export function pickAiKeepers(league, pool, byId) {
+  const rng = new RNG(league.rngState);
+  const keepers = {};
+  league.teams.forEach((t, i) => { if (!t.isUser) keepers[i] = aiKeepers(league, i, pool, byId, rng); });
+  league.rngState = rng.state;
+  league.offseason.keepers = keepers;
+  league.offseason.step = 'keepers';
+  return keepers;
 }
 
 /**

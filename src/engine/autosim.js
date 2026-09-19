@@ -10,7 +10,8 @@
 
 import { simulateWeekAi, advanceWeek, startSeason, weekComplete } from './season.js';
 import { advanceWeekWithMoves } from './transactions.js';
-import { enterOffseason, aiKeepers, confirmKeepers } from './offseason.js';
+import { enterOffseason, aiKeepers, confirmKeepers, takeJob } from './offseason.js';
+import { makeOffers } from './jobs.js';
 import { autoCompleteAll } from './auction.js';
 import { autoDraftAll } from './draft.js';
 import { leaguePool, leagueIndex } from './rookies.js';
@@ -88,7 +89,16 @@ export function simulateAhead(league, byId, pool, rng, target, { maxWeeks = 200 
   // rebuilt pool rather than the one passed in.
   pool = applyCareers(league, leaguePool(league, pool));
   byId = careerIndex(league, leagueIndex(league, byId));
-  if (league.phase === 'offseason') {
+  // Sacked mid-run: take the best job going rather than stalling on a choice
+  // nobody is here to make, and say so, because it is not a small thing.
+  if (league.phase === 'offseason' && league.offseason && league.offseason.step === 'jobs') {
+    const offers = league.offseason.carousel?.offers || makeOffers(league, byId);
+    if (offers && offers.length) {
+      const club = takeJob(league, offers[0].team, pool, byId);
+      decided.push(`the ${club.name} job taken for you after the sack`);
+    }
+  }
+  if (league.phase === 'offseason' && league.offseason && league.offseason.step === 'keepers') {
     const u = league.teams.findIndex((t) => t.isUser);
     const keep = aiKeepers(league, u, pool, byId, null);
     confirmKeepers(league, keep, pool, byId);
