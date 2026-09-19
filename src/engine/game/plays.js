@@ -48,6 +48,46 @@ export const RUN_OUT = 4.2;     // the same outside, where the spread is wider
 // itself is lower than that share, because the branch that is *not* stuffed
 // still produces the occasional nothing.
 export const STUFF_RATE = 0.145;
+
+/**
+ * What a broken tackle and a breakaway are worth, and how often they happen.
+ *
+ * These four numbers are one setting, not four, because they trade against
+ * each other: the pair of them has to leave the mean carry where it is while
+ * moving the shape around it. The shape was wrong in a specific way. Measured
+ * over twenty-seven thousand carries, run lengths ran p50 4, p90 10, p95 13 —
+ * and then p99 30. A cliff. A carry was a normal four-to-ten or it was a
+ * thirty-yard housecall, and the thirteen-to-twenty-five band, the good run
+ * that is not a touchdown, barely existed. That showed up in the audit as 3.3
+ * explosive plays a team against a real 3.5 to 5.5, with only 0.47 of them
+ * runs against a real 1.1.
+ *
+ * The cliff came from the breakaway being a uniform draw: `rng.int(12, 45)` is
+ * flat between its ends and cannot go past them, so it produced no
+ * thirteen-to-twenty-five band below and a hard ceiling above. It is now a
+ * mixture — usually a medium burst, occasionally a long one off an
+ * exponential, which has the tail a uniform cannot have. It fires more than
+ * twice as often and is smaller when it does, and the break-tackle yardage is
+ * cut to pay for the extra mean.
+ *
+ * Measured paired against the same seeds: explosive plays 3.35 to 3.58, runs
+ * of twenty or more 0.47 to 0.69, runs of forty or more held at 0.07, mean
+ * carry 4.48 to 4.55 and the stuffed share unmoved. One audit row fixed.
+ *
+ * The thing that did *not* work is worth recording, because it looked obvious:
+ * letting a carry break several tackles in a row. It buys the tail (+0.11
+ * explosive plays) but buys mean with it, and every way of paying that mean
+ * back costs more than it gives. Shaving the base run moves the *left* tail
+ * too and pushes the stuffed share out of range; shrinking each break to
+ * compensate cancels the gain outright (+0.002, inside the noise). The tail
+ * was coming from the extra yards, not from the stacking, so the cascade was
+ * an expensive way to write `+= more`.
+ */
+export const BREAK_YDS_IN = 1.9;    // mean yards a broken tackle adds inside
+export const BREAK_YDS_OUT = 2.6;   // the same outside, where there is grass
+export const BREAKAWAY_RATE = 2.4;  // multiplier on the per-carry breakaway chance
+export const HOUSECALL = 0.12;      // share of breakaways that are the long one
+
 export const PUNT_GROSS = 45;
 
 /**
@@ -159,10 +199,15 @@ export function resolveRun(g, rng, call, defCall) {
       yards = (base + (blockEdge - 0.5) * 5 + (m.run || 0)) * (1 - squeeze(g.ballOn) * 0.24);
       // Break a tackle.
       const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) / 170, 0.05, 0.45);
-      if (rng.chance(btP)) yards += rng.exp(outside ? 5.5 : 4) + 1;
-      // Breakaway.
-      const baP = clamp(0.014 + Math.max(0, spd - def.defSpeed) / 300 + (m.breakaway || 0) + (outside ? 0.01 : 0), 0.004, 0.1);
-      if (rng.chance(baP)) yards += rng.int(12, 45) * (spd >= 92 ? 1.3 : 1);
+      if (rng.chance(btP)) yards += rng.exp(outside ? BREAK_YDS_OUT : BREAK_YDS_IN) + 0.48;
+      // Breakaway: usually a medium burst, occasionally one that goes the
+      // distance. The exponential is what gives the long one a tail instead of
+      // a ceiling — a ninety-yard run is rare rather than impossible.
+      const baP = clamp(BREAKAWAY_RATE * (0.014 + Math.max(0, spd - def.defSpeed) / 300 + (m.breakaway || 0) + (outside ? 0.01 : 0)), 0.004, 0.24);
+      if (rng.chance(baP)) {
+        const burst = rng.chance(HOUSECALL) ? 30 + rng.exp(20) : rng.int(9, 26);
+        yards += burst * (spd >= 92 ? 1.3 : 1);
+      }
       yards = Math.round(yards);
     }
   }

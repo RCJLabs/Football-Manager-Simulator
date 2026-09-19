@@ -204,3 +204,30 @@ test('pro leagues use reverse standings as the waiver order', () => {
   assert.ok(results.find((r) => r.team === worst).ok, 'worst record wins the claim');
   assert.ok(!results.find((r) => r.team === best).ok);
 });
+
+test('a claim voided by a trade is reported, not silently dropped', () => {
+  // You cannot release a man you have just dealt away, so voiding the claim is
+  // right. Doing it in silence was the defect: the claim left the tab, never
+  // reached the wire, and produced no line in the results.
+  const league = fantasyLeague(31);
+  const u = user(league);
+  const other = league.teams.findIndex((t) => !t.isUser);
+  const me = league.teams[u];
+  const wr = bestFreeAt(league, 'WR');
+  const myWr = me.slots.WR3;
+  fileClaim(league, u, wr.id, myWr, byId);
+  assert.equal(claimsThisWeek(league, u).length, 1);
+
+  // Trade away the very man the claim named as the drop.
+  const theirWr = league.teams[other].slots.WR3;
+  executeTrade(league, u, other, [myWr], [theirWr], byId, PLAYERS);
+  assert.equal(claimsThisWeek(league, u).length, 0, 'the claim is voided');
+
+  const results = processWaivers(league, byId);
+  const mine = results.filter((r) => r.team === u);
+  assert.equal(mine.length, 1, 'the voided claim still reports');
+  assert.equal(mine[0].ok, false);
+  assert.equal(mine[0].lapsed, true);
+  assert.match(mine[0].reason, /was traded before the wire ran/);
+  assert.equal(league.lapsedClaims.length, 0, 'reported once, then cleared');
+});

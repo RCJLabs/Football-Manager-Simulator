@@ -115,6 +115,7 @@ function withSwap(slots, slotId, newId) {
 
 export function initWaivers(league) {
   league.claims ??= [];
+  league.lapsedClaims ??= [];
   league.transactions ??= [];
   if (!league.waiverOrder || league.waiverOrder.length !== league.teams.length) {
     const order = (league.draft?.order || league.auction?.order || league.teams.map((_, i) => i)).slice().reverse();
@@ -211,7 +212,13 @@ export function aiFileClaims(league, pool, byId, rng) {
 export function processWaivers(league, byId) {
   initWaivers(league);
   const claims = league.claims.filter((c) => c.week === league.week);
-  if (!claims.length) { league.lastWaivers = { week: league.week, results: [] }; return []; }
+  // Claims a trade voided earlier in the week. They never reach priority, but
+  // they belong in the report, because from the manager's side they are a
+  // claim that did not land and the reason is not obvious.
+  const lapsed = (league.lapsedClaims || []).filter((c) => c.week === league.week);
+  league.lapsedClaims = (league.lapsedClaims || []).filter((c) => c.week !== league.week);
+  const lapsedRows = lapsed.map((c) => ({ team: c.team, add: c.add, drop: c.drop, ok: false, reason: c.reason, lapsed: true }));
+  if (!claims.length) { league.lastWaivers = { week: league.week, results: lapsedRows }; return lapsedRows; }
   let order;
   if (isPro(league)) order = standings(league).map((r) => r.idx).reverse();
   else order = league.waiverOrder.slice();
@@ -240,6 +247,7 @@ export function processWaivers(league, byId) {
     results.push({ team: c.team, add: c.add, drop: c.drop, ok, reason });
   }
   league.claims = league.claims.filter((c) => c.week !== league.week);
+  results.push(...lapsedRows);
   league.lastWaivers = { week: league.week, results };
   // AI clubs put their new man where he belongs; the human arranges their own.
   const saved = league.teams.map((t) => t.depthSorted);
@@ -535,9 +543,25 @@ export function executeTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = nu
     tx.releases = [fa.releases.slice(), fb.releases.slice()];
   }
   league.transactions.push(tx);
-  // Drop any pending claims that named a traded, signed or released player.
+  // Void any pending claim that named a traded, signed or released player — and
+  // say so. Voiding is right: you cannot release a man you have just dealt
+  // away, and you cannot claim one who has just been signed. Doing it in
+  // silence was not. A claim filed on Tuesday and voided by Thursday's trade
+  // simply stopped existing: it left the claims tab, never reached the wire,
+  // and produced no line in the results, so the only way to notice was to
+  // remember having filed it. These now surface as failed claims when the wire
+  // runs, alongside the ones that lost on priority.
   const moved = new Set([...aGives, ...bGives, ...fa.signs, ...fb.signs, ...fa.releases, ...fb.releases]);
+  const voided = (league.claims || []).filter((c) => moved.has(c.drop) || moved.has(c.add));
   league.claims = (league.claims || []).filter((c) => !moved.has(c.drop) && !moved.has(c.add));
+  if (voided.length) {
+    league.lapsedClaims = (league.lapsedClaims || []).concat(voided.map((c) => ({
+      ...c,
+      reason: moved.has(c.add)
+        ? `${byId.get(c.add)?.name || 'The player'} was signed in a trade before the wire ran`
+        : `${byId.get(c.drop)?.name || 'The player you named'} was traded before the wire ran`,
+    })));
+  }
   const saved = league.teams.map((t) => t.depthSorted);
   league.teams.forEach((t) => { if (t.isUser) t.depthSorted = true; });
   sortDepthCharts(league, byId);

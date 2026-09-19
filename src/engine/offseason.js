@@ -257,6 +257,7 @@ export function confirmKeepers(league, userIds, pool, byId) {
   league.results = [];
   league.injuries = {};
   league.claims = [];
+  league.lapsedClaims = [];
   league.week = 1;
 
   const rng = new RNG(league.rngState);

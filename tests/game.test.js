@@ -94,6 +94,33 @@ test('league averages are football-shaped', () => {
   assert.ok(per(agg.to) > 0.5 && per(agg.to) < 2.2, `turnovers ${per(agg.to)}`);
 });
 
+test('run lengths have a tail, not a cliff', () => {
+  // The band between a good run and a touchdown run. A uniform breakaway draw
+  // leaves it empty and caps the long run at its own top end, which read as
+  // too few explosive plays in the realism audit. Bounds are set from the
+  // measured distribution: the old shape gave 0.55 runs of twenty or more a
+  // team and is excluded by the floor here.
+  const runs = [];
+  let sides = 0;
+  for (let seed = 4000; seed < 4150; seed++) {
+    const g = simulateGame(mk(seed));
+    sides += g.stats.length;
+    for (const e of g.log) {
+      if (e.type !== 'run') continue;
+      const m = /for (-?\d+) yards?/.exec(e.text);
+      if (m) runs.push(Number(m[1]));
+      else if (/for no gain/.test(e.text)) runs.push(0);
+      else { const l = /for a loss of (\d+)/.exec(e.text); if (l) runs.push(-Number(l[1])); }
+    }
+  }
+  const per = (n) => n / sides;
+  const twenty = per(runs.filter((y) => y >= 20).length);
+  const forty = runs.filter((y) => y >= 40).length;
+  assert.ok(twenty > 0.7 && twenty < 1.3, `runs of 20+ per team ${twenty}`);
+  assert.ok(forty >= 8, `runs of 40+ over ${sides} team-games: ${forty}`);
+  assert.ok(Math.max(...runs) > 45, `longest run ${Math.max(...runs)} — the tail has a ceiling`);
+});
+
 test('playoff games never end tied', () => {
   for (let seed = 3000; seed < 3400; seed++) {
     const g = simulateGame(mk(seed, { playoff: true }));
