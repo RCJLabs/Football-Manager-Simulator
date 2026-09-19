@@ -16,6 +16,8 @@ Draft real football players from every era at their prime season — Otto Graham
 - **A trade market that calls you.** AI clubs ring with two-for-two offers when they are deep where you are thin, gated so an insulting offer is never made and a declined deal never comes back. About four calls a season, half of them worth taking.
 - **In-season roster moves.** A waiver wire with weekly priority (rolling in fantasy leagues, reverse standings in the pro league), a two-claim weekly limit, AI clubs that work the wire too, and position-matched trades with AI general managers who judge every offer on lineup strength and refuse to be fleeced. A trade deadline and a full transaction log.
 - **A dynasty loop.** Every player carries a contract from his auction price. In the offseason each club keeps a handful at a raised price (three years running at most), everyone else goes back to the pool, and the market reopens with whatever cap is left, worst club first. AI clubs keep their bargains, not their names. Or run it back with the same rosters if you prefer.
+- **A rookie class every offseason.** Three and a half per club with invented names from 343,200 combinations, rated the way a real intake is rated: most of them replacement level, the odd genuine prospect, and attributes that scatter so you get a fast receiver who drops the ball rather than a smooth one. They enter the same market as everyone else. How much they matter depends on league size — an eight-club league's worst starter is an 88, so most classes are noise there, while the pro league's cutoff is 75 and a good rookie beats what is left on the wire. Anyone nobody signs in three seasons washes out, so a twenty-season dynasty's free-agent list stays readable.
+- **Simulate ahead.** Jump to the halfway point, to the playoffs, through the playoffs, or straight into next season. The weekly machinery still runs underneath — waivers, trades, injuries, AI strategy drift all happen — so it removes the clicking, not the season. Going into next season picks your keepers and runs the market for you; it warns you first and tells you what it decided.
 - **Season hub.** Standings with clinch markers, playoff picture, season leaders, box scores, and a history card that keeps every season's champion and your finish.
 - **Season cards.** Finish a season and copy a short card: your record, where you finished, how far you went, the champion, the MVP and your three biggest seasons. Paste a friend's card, after you have both played the same shared league, to see who did more with the same rosters. Because every game is seeded from the league, two people who decide nothing get the same season, so what the comparison measures is the decisions. Shareable as an image.
 - **Awards, records, a hall of fame.** An MVP race scored against each player's own position, players of the year on both sides of the ball, an all-league team, a record book of season, single-game and team marks, and careers that build a résumé toward induction.
@@ -68,6 +70,7 @@ src/engine/share.js                      league codes: a pasteable snapshot of a
 src/engine/result.js                     season cards and the comparison between two of them
 src/data/positions.js                    position attributes, overall weights, roster template
 src/data/names.js, tuning.js             fictional names, rating overrides
+src/data/rookie-names.js                 first and last names for generated rookies
 src/data/players.js                      the player database (1,269 prime-season snapshots)
 src/data/pro.js                          the 32 pro franchises, conferences and divisions
 src/data/teams.js                        AI franchise names and GM personalities
@@ -81,6 +84,8 @@ src/engine/transactions.js               free agents, waiver claims, trades, AI 
 src/engine/injuries.js                   injury rolls, replacement-level fill-ins, the weeks-out ledger
 src/engine/penalties.js                  flags: rates, enforcement, half the distance
 src/engine/offseason.js                  contracts, keepers, the offseason market
+src/engine/rookies.js                    generated rookie classes, wash-out, the league's own pool
+src/engine/autosim.js                    simulating ahead to a named point in the calendar
 src/engine/clinch.js                     conservative clinch and elimination markers
 src/engine/winprob.js                    win probability fitted to the simulation
 src/engine/awards.js                     season honours, the record book, careers and the hall of fame

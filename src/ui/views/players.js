@@ -1,11 +1,16 @@
 import { html, render, raw } from '../../util.js';
 import { POSITION_ORDER } from '../../data/positions.js';
-import { ERAS } from '../../data/db.js';
+
 import { overall } from '../../engine/ratings.js';
 import { playerItem, playerModal, teamChip, esc } from '../components.js';
 import { ownerMap } from '../../engine/transactions.js';
 
 const ui = { pos: 'ALL', era: 'ALL', q: '', owned: 'all', limit: 120 };
+
+/** The decades present in the pool in play, rookie classes included. */
+function erasOf(players) {
+  return [...new Set(players.map((p) => `${Math.floor(p.season / 10) * 10}s`))].sort();
+}
 
 function eraTable(players) {
   const eras = {};
@@ -38,7 +43,7 @@ export function view(root, params, ctx) {
       <h2 style="margin:0">Player pool <small class="muted" style="font-weight:400">${ctx.players.length} players · ${rows.length} match</small></h2>
       <input type="search" id="q" placeholder="Search player or team…" value="${ui.q}">
       <div class="tabs" id="posTabs">${raw(['ALL', ...POSITION_ORDER].map((p) => `<button class="tab ${ui.pos === p ? 'active' : ''}" data-pos="${p}">${p}</button>`).join(''))}</div>
-      <div class="tabs" id="eraTabs">${raw(['ALL', ...ERAS].map((e) => `<button class="tab ${ui.era === e ? 'active' : ''}" data-era="${e}">${e}</button>`).join(''))}</div>
+      <div class="tabs" id="eraTabs">${raw(['ALL', ...erasOf(ctx.players)].map((e) => `<button class="tab ${ui.era === e ? 'active' : ''}" data-era="${e}">${e}</button>`).join(''))}</div>
       ${league ? html`<div class="tabs" id="ownTabs">${raw([['all', 'Everyone'], ['free', 'Undrafted'], ['owned', 'Drafted']].map(([k, label]) => `<button class="tab ${ui.owned === k ? 'active' : ''}" data-own="${k}">${label}</button>`).join(''))}</div>` : ''}
       <ul class="plist">${raw(shown.map((p) => { const o = owner(p); return playerItem(p, { meta: o ? ` · <span class="muted">${esc(o.abbr)}</span>` : '' }); }).join(''))}</ul>
       ${shown.length === 0 ? html`<p class="empty">Nothing matches those filters.</p>` : ''}

@@ -8,14 +8,18 @@
 
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { createLeague, startSeason } from './season.js';
+import { leagueIndex } from './rookies.js';
 
 export const CODE_VERSION = 1;
 
 /** A cheap fingerprint of the player pool: count plus a rolling hash of the ids. */
 export function poolFingerprint(players) {
+  // Generated rookies belong to one league, so they are not part of what two
+  // people have to agree on for a code to open.
+  const base = players.filter((p) => !p.generated);
   let h = 2166136261;
-  for (const p of players) for (let i = 0; i < p.id.length; i++) { h ^= p.id.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
-  return `${players.length}-${h.toString(36)}`;
+  for (const p of base) for (let i = 0; i < p.id.length; i++) { h ^= p.id.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return `${base.length}-${h.toString(36)}`;
 }
 
 export const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -62,8 +66,14 @@ export async function unpackCode(tag, code, what = 'code') {
 
 /** What the code carries. Player ids become pool indices to keep it short. */
 export function snapshot(league, players) {
-  const index = new Map(players.map((p, i) => [p.id, i]));
+  const base = players.filter((p) => !p.generated);
+  const index = new Map(base.map((p, i) => [p.id, i]));
+  const rookies = league.rookies || [];
+  const rookieAt = new Map(rookies.map((p, i) => [p.id, i]));
+  // A slot holds a base-pool index, -1 for empty, or -(k + 2) for rookie k.
+  const slotRef = (id) => (id == null ? -1 : index.has(id) ? index.get(id) : rookieAt.has(id) ? -(rookieAt.get(id) + 2) : -1);
   return {
+    rookies,
     v: CODE_VERSION,
     pool: poolFingerprint(players),
     name: league.name, mode: league.mode, seed: league.seed, season: league.season, draftType: league.draftType,
@@ -71,11 +81,11 @@ export function snapshot(league, players) {
     settings: { ...league.settings },
     teams: league.teams.map((t) => ({
       n: t.name, a: t.abbr, c: t.color, g: t.gm, u: t.isUser ? 1 : 0,
-      s: ROSTER_SLOTS.map((sl) => (t.slots[sl.id] ? index.get(t.slots[sl.id]) ?? -1 : -1)),
-      ir: (t.ir || []).map((id) => index.get(id) ?? -1).filter((i) => i >= 0),
+      s: ROSTER_SLOTS.map((sl) => slotRef(t.slots[sl.id])),
+      ir: (t.ir || []).map((id) => slotRef(id)).filter((i) => i !== -1),
       st: t.strategy,
     })),
-    contracts: Object.fromEntries(Object.entries(league.contracts || {}).map(([id, c]) => [index.get(id), c]).filter(([k]) => k != null)),
+    contracts: Object.fromEntries(Object.entries(league.contracts || {}).map(([id, c]) => [slotRef(id), c]).filter(([k]) => k !== -1)),
   };
 }
 
@@ -100,21 +110,25 @@ export function leagueFromSnapshot(snap, players, byId) {
   });
   league.settings = { ...league.settings, ...snap.settings };
   league.season = snap.season || 1;
+  // The league's own rookies come with it; a slot reference of -(k + 2) names one.
+  league.rookies = (snap.rookies || []).map((p) => ({ ...p, r: { ...p.r } }));
+  const base = players.filter((p) => !p.generated);
+  const idAt = (ref) => (ref >= 0 ? base[ref]?.id : ref <= -2 ? league.rookies[-ref - 2]?.id : null) || null;
   snap.teams.forEach((st, i) => {
     const t = league.teams[i];
     t.name = st.n; t.abbr = st.a; t.color = st.c; t.gm = st.g; t.isUser = !!st.u;
     t.strategy = { ...t.strategy, ...(st.st || {}) };
     const slots = {};
-    ROSTER_SLOTS.forEach((sl, k) => { const idx = st.s[k]; slots[sl.id] = idx >= 0 && players[idx] ? players[idx].id : null; });
+    ROSTER_SLOTS.forEach((sl, k) => { slots[sl.id] = idAt(st.s[k]); });
     t.slots = slots;
-    t.ir = (st.ir || []).map((i) => players[i]?.id).filter(Boolean);
+    t.ir = (st.ir || []).map(idAt).filter(Boolean);
   });
-  league.contracts = Object.fromEntries(Object.entries(snap.contracts || {}).map(([k, c]) => [players[Number(k)]?.id, c]).filter(([id]) => id));
+  league.contracts = Object.fromEntries(Object.entries(snap.contracts || {}).map(([k, c]) => [idAt(Number(k)), c]).filter(([id]) => id));
   // The market is over: the auction or draft is complete by definition.
   const held = (t, ti) => [...Object.values(t.slots).filter(Boolean), ...(t.ir || [])].map((id) => [id, ti]);
   if (league.auction) { league.auction.complete = true; league.auction.taken = Object.fromEntries(league.teams.flatMap(held)); }
   if (league.draft) { league.draft.complete = true; league.draft.taken = Object.fromEntries(league.teams.flatMap(held)); }
   league.shared = true;
-  startSeason(league, byId);
+  startSeason(league, leagueIndex(league, byId));
   return league;
 }

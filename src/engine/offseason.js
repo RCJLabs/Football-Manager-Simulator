@@ -19,6 +19,7 @@ import { createAuction, priceGuide, DEFAULT_BUDGET, MIN_BID } from './auction.js
 import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex } from './season.js';
 import { clearIr } from './injuries.js';
+import { addRookieClass } from './rookies.js';
 
 export const MAX_KEEPS = 3;
 export const KEEPER_RAISE_MIN = 3;
@@ -75,10 +76,12 @@ export function enterOffseason(league, pool, byId) {
   const released = clearIr(league, byId);
   syncContracts(league);
   const rng = new RNG(league.rngState);
+  // A new intake arrives before the market opens, and old unsigned rookies wash out.
+  const intake = addRookieClass(league, rng);
   const keepers = {};
   league.teams.forEach((t, i) => { if (!t.isUser) keepers[i] = aiKeepers(league, i, pool, byId, rng); });
   league.rngState = rng.state;
-  league.offseason = { season: league.season, step: 'keepers', keepers, user: null, releasedFromIr: released };
+  league.offseason = { season: league.season, step: 'keepers', keepers, user: null, releasedFromIr: released, rookies: intake.arrived.length, washedOut: intake.washed.length };
   league.phase = 'offseason';
   return league.offseason;
 }

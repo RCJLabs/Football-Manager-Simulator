@@ -1,6 +1,6 @@
 import { html, render, raw } from '../../util.js';
 import { POSITION_ORDER, ROSTER_SLOTS } from '../../data/positions.js';
-import { ERAS } from '../../data/db.js';
+
 import { overall } from '../../engine/ratings.js';
 import { userTeamIndex, isPro, standings } from '../../engine/season.js';
 import {
@@ -46,7 +46,7 @@ export function view(root, params, ctx) {
     body = html`
       <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${open ? `Claims resolve when the week advances. You are ${ordinalOf(myPriority)} of ${order.length} in the waiver order${isPro(league) ? ' (reverse standings)' : ' (a successful claim sends you to the back)'}.` : 'The wire is closed until next season.'}</p>
       <div class="tabs" id="posTabs">${raw(['ALL', ...POSITION_ORDER].map((p) => `<button class="tab ${ui.pos === p ? 'active' : ''}" data-pos="${p}">${p}</button>`).join(''))}</div>
-      <div class="tabs" id="eraTabs">${raw(['ALL', ...ERAS].map((e) => `<button class="tab ${ui.era === e ? 'active' : ''}" data-era="${e}">${e}</button>`).join(''))}</div>
+      <div class="tabs" id="eraTabs">${raw(['ALL', ...[...new Set(ctx.players.map((p) => `${Math.floor(p.season / 10) * 10}s`))].sort()].map((e) => `<button class="tab ${ui.era === e ? 'active' : ''}" data-era="${e}">${e}</button>`).join(''))}</div>
       <input type="search" id="q" placeholder="Search player or team…" value="${ui.q}">
       <ul class="plist" style="margin-top:.5rem">${raw(shown.map((p) => playerItem(p, {
         meta: inj(p),

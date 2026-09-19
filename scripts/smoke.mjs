@@ -277,6 +277,16 @@ try {
   const saved = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league.week);
   console.log('persisted week:', saved);
 
+  // Simulating ahead: jump to the playoffs in one press.
+  await page.goto(`http://localhost:${port}/#/season`);
+  await page.waitForSelector('[data-sim="playoffs"]');
+  await checkOverflow('simulate ahead');
+  await shot('09z-simahead');
+  await page.click('[data-sim="playoffs"]');
+  const inPlayoffs = await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; return lg.phase === 'playoffs' || lg.phase === 'complete'; }, null, { timeout: 20000 }).then(() => true).catch(() => false);
+  if (!inPlayoffs) errors.push('simulating to the playoffs did not get there');
+  await checkOverflow('after simulating to the playoffs');
+
   // Play the season out, then run the offseason: keepers, the auction, season two.
   let tookOffer = false;
   for (let i = 0; i < 40 && !(await page.$('.champ')); i++) {
@@ -342,6 +352,25 @@ try {
   await page.waitForSelector('#offseason-view');
   await checkOverflow('offseason');
   await shot('09f-offseason');
+  const intake = await page.$eval('#offseason-view', (e) => e.textContent);
+  if (!/rookies entered the pool/.test(intake)) errors.push('the offseason did not announce a rookie class');
+  // The store saves on a debounce, so read the slot only once the class has landed in it.
+  const readRookies = () => page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return 0; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return slot?.league?.rookies?.length || 0; });
+  await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return false; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return (slot?.league?.rookies?.length || 0) >= 16; }, { timeout: 4000 }).catch(() => {});
+  const rookieCount = await readRookies();
+  if (rookieCount < 16) errors.push(`only ${rookieCount} rookies were generated`);
+  // Rookies sit around the middle of the pool, so find them by their RK team code rather
+  // than expecting one in the top 120 by overall.
+  await page.goto(`http://localhost:${port}/#/players`);
+  await page.waitForSelector('.plist .prow');
+  await page.fill('#q', 'RK');
+  await page.waitForFunction(() => document.querySelectorAll('.plist .prow').length > 0 && !!document.querySelector('.badge.rookie'), { timeout: 4000 }).catch(() => {});
+  const badged = await page.$$eval('.badge.rookie', (b) => b.length);
+  if (badged === 0) errors.push('no rookie badge appears in the player pool');
+  await checkOverflow('player pool with rookies');
+  await shot('11c-rookies');
+  await page.goto(`http://localhost:${port}/#/offseason`);
+  await page.waitForSelector('#offseason-view');
   await page.click('button[data-keep]');
   await page.waitForSelector('button[data-keep].primary');
   await page.click('#autoKeep');

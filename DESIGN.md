@@ -237,7 +237,35 @@ A season ends at the final; the offseason starts from the hub. Every rostered pl
 
 Measured across six 8-team auction leagues run four seasons each (`scripts/dynasty-sim.mjs`, AI keepers for the human too): clubs keep 5.0 of 6 on average, committing about $47 of $200, and the players they keep average 90 overall, which is to say keepers are the stars bought under market. About a third of a roster carries over season to season once re-buys are counted, so a league has continuity without freezing. With the $5 minimum raise that most keeper leagues use, the same clubs kept 2.4, because a 27-man roster is mostly $1 to $4 players and a $5 bump prices every one of them out; the lower floor is what makes late bargains worth keeping.
 
-Simplifications, all deliberate: no aging or development (the pool is one snapshot per player, so the churn the rules force is what makes one year differ from the next), no rookie draft, no pick cost for draft-league keepers, and no contract lengths beyond the keep count. Speculation: whether the 15% raise is steep enough to stop a club sitting on a $10 quarterback for three years. It is not measured; the three-year limit is the backstop.
+**Rookies.** Each offseason opens with a generated intake (below), so the pool a league plays with grows rather than only churning.
+
+Simplifications, all deliberate: no aging or development (the shipped pool is one snapshot per player, and rookies do not improve either, so the churn the rules force is what makes one year differ from the next), no separate rookie draft (the intake enters the same market as everyone else), no pick cost for draft-league keepers, and no contract lengths beyond the keep count. Speculation: whether the 15% raise is steep enough to stop a club sitting on a $10 quarterback for three years. It is not measured; the three-year limit is the backstop.
+
+## Generated rookie classes (`rookies.js`, `data/rookie-names.js`)
+
+Every offseason a new intake enters the pool: invented names, ratings spread the way a draft class is spread, and a wash-out rule so a long dynasty does not drown in players nobody wants.
+
+**Where they live.** On the league, in `league.rookies`, not in the shipped player file. Two leagues never see each other's players, and `src/data/players.js` keeps the fingerprint that league codes and season cards check, so a rookie class does not stop a code opening. `leaguePool(league, players)` and `leagueIndex(league, byId)` build the pool in play; both are idempotent (they strip generated entries from the base first), so calling them on an already-merged pool is safe. `main.js` holds the merged pool behind a getter keyed on the `league.rookies` array identity, so opening a different slot swaps the pool without anyone asking it to. `addRookieClass` replaces that array rather than pushing to it, which is what makes the identity check work.
+
+**Size and names.** Three and a half per club, at least sixteen: 28 in an eight-club league, 42 in a twelve, 112 in the pro league. Positions come out in roster proportions, so every group gets somebody. Names are drawn from 440 first names and 780 last names, 343,200 combinations, and a name already in the league is re-rolled up to eight times. The lists are append-only for the same reason the fictional-name lists are: reordering them renames players in saved leagues.
+
+**How good they are.** A single power law cannot give a class both a replacement-level body and a few genuine prospects — it either drowns the league in stars or leaves nobody worth a bid. So a rookie's target is `normal(62, 6.5)` plus, 7% of the time, `|normal(16, 7)|` on top, clamped to 40–99. Measured over 200,000 rolls: median 63, 17.3% at 70 or better, 3.3% at 80 or better, 0.8% at 90 or better, 3.5% at 50 or worse. Each attribute then scatters `normal(0, 6)` around that target, so classes contain lopsided players — a fast receiver who drops the ball, a mauler who cannot pass protect — rather than smooth ones.
+
+**What that means in practice, and it depends on league size.** A club rosters 27, so eight clubs need 216 of 1,269 shipped players and the last man in is an 88 overall; twelve clubs need 324 and the cutoff is 86; the pro league's 32 clubs need 864 and the cutoff is 75. A 63-median class is therefore mostly irrelevant in a small fantasy league and genuinely useful in the pro league, where a 78 rookie beats what is left on the wire. That is the honest behaviour and it is what the tests assert: signed rookies average eight or more overall above their class mean, rather than every class producing a starter. Inflating the ratings to make small leagues care would break the pro league, which is the mode the intake exists for.
+
+**Washing out.** A generated player nobody has rostered, from a class older than three seasons, leaves the league; a rostered one stays however old his class is. Without this the free-agent list in a twenty-season pro dynasty carries a couple of thousand names nobody will ever sign. Ids are `rk-<seed36>-<season>-<index>`, derived from the league seed, so the same league regenerated from the same seed produces the same class.
+
+**In the interface.** Generated players carry a `rookie` badge and read "class of 2029" in lists and modals, and the players screen computes its era tabs from the pool in play rather than the shipped constant, so new classes get their own decade tab. Season cards and league codes both filter generated players out of the pool fingerprint; a league code rebuilds `league.rookies` from the snapshot and maps rosters through it, so a shared league arrives with its rookies intact.
+
+Not built: aging, development, or a separate rookie draft. A rookie is a player like any other from the moment he lands, and he is exactly as good at 40 as at 22, because nothing in this simulation knows what age is.
+
+## Simulating ahead (`autosim.js`)
+
+Four buttons on the season hub: to the halfway point, to the playoffs, through the playoffs, into next season. Each one runs the ordinary weekly machinery in a loop — `simulateWeekAi` then `advanceWeekWithMoves` — so the waiver wire, AI trades, injuries, strategy drift and clinch markers all still happen; the only thing removed is the clicking. A guard of 200 weeks stops a malformed league spinning.
+
+`targetAvailable` hides a target that is behind you or not yet reachable (nothing runs during a draft or auction), so the card only ever offers moves that go forward.
+
+"Into next season" is the one that decides things for you, and it says so before it runs and again afterwards. It finishes the season, opens the offseason, picks your keepers on the same surplus rule the AI clubs use, and runs the market to completion. Those are the two biggest decisions in the dynasty loop, so the button asks first and `describeRun` reports what was decided rather than only where it got to. The subtle part: a rookie class arrives with the offseason, so the run rebuilds its pool and index from `leaguePool`/`leagueIndex` after `enterOffseason` and before the market — without that the keeper and auction logic worked from a stale pool and no rookie was ever signed, which is exactly the bug the dynasty test caught.
 
 ## Live game presentation (`winprob.js`, `ui/charts.js`)
 

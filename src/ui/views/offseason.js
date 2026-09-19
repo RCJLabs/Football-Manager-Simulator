@@ -7,6 +7,8 @@ import {
   keeperCost, keeperEligible, keeperLimit, validateKeepers, enterOffseason, aiKeepers, confirmKeepers, seasonSummary, MAX_KEEPS,
 } from '../../engine/offseason.js';
 import { playerItem, playerModal, teamChip, toast, esc, modal } from '../components.js';
+import { simulateAhead, describeRun } from '../../engine/autosim.js';
+import { RNG } from '../../engine/rng.js';
 
 const ui = { picked: null, leagueId: null, season: null };
 
@@ -58,6 +60,7 @@ export function view(root, params, ctx) {
   render(root, html`<div id="offseason-view">
     <div class="card">
       <h1 style="margin:0">Offseason · after season ${league.offseason.season}</h1>
+      ${league.offseason.rookies ? html`<p class="notice" style="margin:.5rem 0 0"><b>${league.offseason.rookies} rookies</b> entered the pool${league.offseason.washedOut ? `, and ${league.offseason.washedOut} unsigned from earlier classes washed out` : ''}. <a href="#/players">Look them over</a> before the ${auction ? 'auction' : 'draft'}.</p>` : ''}
       ${summary ? html`<p class="muted" style="margin:.3rem 0 0">${teamChip(summary.champion)} won the title. You finished <b>${ord(summary.user.rank)}</b> of ${summary.teams} at ${summary.user.record.w}-${summary.user.record.l}${summary.user.record.t ? `-${summary.user.record.t}` : ''}.</p>` : ''}
       <p class="muted" style="font-size:.9rem;margin:.5rem 0 0">
         ${auction
@@ -85,6 +88,7 @@ export function view(root, params, ctx) {
             <button class="btn" id="autoKeep">Pick my keepers for me</button>
             <button class="btn ghost" id="clear">Clear</button>
           </div>
+          <button class="btn block" id="skipOff" style="margin-top:.4rem">Skip it: pick my keepers and run the market</button>
           <details style="margin-top:.6rem"><summary class="muted" style="cursor:pointer;font-size:.85rem">Skip contracts and run it back with the same rosters</summary>
             <button class="btn danger sm" id="runBack" style="margin-top:.4rem">Same rosters, season ${league.season + 1}</button></details>
         </div>
@@ -126,6 +130,17 @@ export function view(root, params, ctx) {
       ui.picked = new Set();
       ctx.navigate(auction ? '#/auction' : '#/draft');
     } catch (err) { toast(err.message); }
+  });
+  el.querySelector('#skipOff').addEventListener('click', () => {
+    let result;
+    ctx.update((s) => {
+      const rng = new RNG(s.league.rngState);
+      result = simulateAhead(s.league, ctx.byId, ctx.players, rng, 'nextSeason');
+      s.league.rngState = rng.state;
+      s.game = null;
+    }, { silent: true });
+    toast(describeRun(result));
+    ctx.navigate('#/season');
   });
   el.querySelector('#runBack').addEventListener('click', () => {
     const m = modal(html`<h2>Skip the offseason?</h2><p class="muted">Same rosters, no contracts, season ${league.season + 1} starts now.</p><div class="row"><button class="btn primary" id="yes">Run it back</button><button class="btn" data-close>Cancel</button></div>`);

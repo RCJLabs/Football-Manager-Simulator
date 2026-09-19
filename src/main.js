@@ -4,6 +4,7 @@ import { PLAYERS, PLAYERS_BY_ID } from './data/db.js';
 import { registerPlayers } from './engine/season.js';
 import { applyNameMode } from './data/names.js';
 import { applyOverrides } from './data/tuning.js';
+import { leaguePool, leagueIndex } from './engine/rookies.js';
 import { toast } from './ui/components.js';
 import * as home from './ui/views/home.js';
 import * as setup from './ui/views/setup.js';
@@ -21,7 +22,25 @@ import * as settings from './ui/views/settings.js';
 
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
-const ctx = { getState, update, navigate, byId: PLAYERS_BY_ID, players: PLAYERS, toast };
+// The pool the app plays with is the shipped file plus the open league's own
+// generated rookies. Rebuilt only when that array is replaced, which the
+// rookie code always does rather than pushing in place.
+let poolCache = { rookies: null, players: PLAYERS, byId: PLAYERS_BY_ID };
+function currentPool() {
+  const rookies = getState().league?.rookies || null;
+  if (poolCache.rookies !== rookies) {
+    const view = { rookies };
+    poolCache = { rookies, players: leaguePool(view, PLAYERS), byId: leagueIndex(view, PLAYERS_BY_ID) };
+    registerPlayers(poolCache.byId);
+  }
+  return poolCache;
+}
+
+const ctx = {
+  getState, update, navigate, toast,
+  get players() { return currentPool().players; },
+  get byId() { return currentPool().byId; },
+};
 
 let cleanup = null;
 let activeView = null;

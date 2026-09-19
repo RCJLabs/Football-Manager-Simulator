@@ -24,6 +24,11 @@ export function outBadge(inj) {
   return raw(`<span class="badge out" title="${esc(inj.kind || 'injured')}">OUT · ${fmtWeeks(inj.weeks)}</span>`);
 }
 
+/** Generated players carry their class instead of a decade. */
+export function rookieBadge(p) {
+  return p && p.generated ? raw(`<span class="badge rookie">rookie</span>`) : raw('');
+}
+
 export function eraBadge(season) {
   return html`<span class="badge era">${eraOf(season)}</span>`;
 }
@@ -62,7 +67,7 @@ export function playerItem(p, { action = '', meta = '', cls = '', attrs = true, 
     <span class="ovr ${ovrClass(o)}">${o}</span>
     <div class="who">
       <div class="nm"><span class="tap" data-show="${esc(p.id)}">${esc(p.name)}</span>${posBadge(p.pos).__raw}</div>
-      <div class="meta">${p.season} ${esc(p.team)}${era ? eraBadge(p.season).__raw : ''}${meta}</div>
+      <div class="meta">${p.generated ? `class of ${p.season}` : `${p.season} ${esc(p.team)}`}${p.generated ? rookieBadge(p).__raw : era ? eraBadge(p.season).__raw : ''}${meta}</div>
     </div>
     <div class="act">${action}</div>
     ${attrs ? `<div class="attrs">${attrList(p).__raw}</div>` : ''}
@@ -102,7 +107,7 @@ export function playerModal(p, extra = '') {
   const rows = def.attrs.map((a) => `<div class="slider-row"><div class="lbl"><span>${ATTR_NAMES[a] || a}${p.baseR && p.baseR[a] !== p.r[a] ? ` <small class="muted">(was ${p.baseR[a]})</small>` : ''}</span>${editing ? `<input type="number" class="rating-edit" data-attr="${a}" min="40" max="99" value="${p.r[a]}" style="width:4.5rem;padding:.2rem .4rem;text-align:right">` : `<b>${p.r[a]}</b>`}</div><div class="bar"><i style="width:${p.r[a]}%"></i></div></div>`).join('');
   const m = modal(html`
     <div class="row between"><h2 style="margin:0">${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
-    <p class="muted">${def.name} · ${p.season} ${p.team} · ${eraOf(p.season)} · Overall <span id="ovrNow">${ovrBadge(p)}</span></p>
+    <p class="muted">${def.name} · ${p.generated ? `generated rookie, class of ${p.season}` : `${p.season} ${p.team} · ${eraOf(p.season)}`} · Overall <span id="ovrNow">${ovrBadge(p)}</span></p>
     ${raw(rows)}
     ${editing ? html`<small class="muted">Rating editor is on (settings). Edits apply everywhere at once and export as a diff.</small>` : ''}
     ${raw(extra)}

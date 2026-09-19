@@ -4,6 +4,7 @@ import { ROSTER_SLOTS } from '../../data/positions.js';
 import { fmtWeeks, IR_MIN_WEEKS, irList } from '../../engine/injuries.js';
 import { clinchMarkers, markerLetter, MARKER_LEGEND } from '../../engine/clinch.js';
 import { makeGameplan } from '../../engine/gm.js';
+import { simulateAhead, targetAvailable, describeRun, TARGET_LABELS, TARGETS } from '../../engine/autosim.js';
 import { composites, buildLineup } from '../../engine/ratings.js';
 import { fillLineup } from '../../engine/injuries.js';
 import { createGame, simulateGame } from '../../engine/game.js';
@@ -179,6 +180,12 @@ export function view(root, params, ctx) {
     <div class="btn-group"><a class="btn sm" href="#/moves">Free agents</a><a class="btn sm ${offerCount ? 'primary' : ''}" href="#/moves/offers">Offers${offerCount ? ` (${offerCount})` : ''}</a><a class="btn sm" href="#/moves/trade">Trades</a></div>
   </div>` : '';
   const powerShown = pro ? power.slice(0, 12) : power;
+  const simTargets = TARGETS.filter((t) => targetAvailable(league, t));
+  const simCard = simTargets.length ? html`<div class="card tight">
+    <h3>Simulate ahead</h3>
+    <div class="btn-group">${raw(simTargets.map((t) => `<button class="btn sm" data-sim="${t}">${TARGET_LABELS[t]}</button>`).join(''))}</div>
+    <small class="muted" style="display:block;margin-top:.4rem">Weeks run with everything on: the wire, trades, injuries and the AI's own moves.${simTargets.includes('nextSeason') ? ' Going into next season also picks your keepers on value and runs the market for you.' : ''}</small>
+  </div>` : '';
   const myHurt = hurtList(u);
   const leagueHurt = Object.keys(injuries).length;
   const injuryCard = league.phase === 'season' || league.phase === 'playoffs' ? html`<div class="card tight">
@@ -205,6 +212,7 @@ export function view(root, params, ctx) {
         </details>
       </div>
       <div class="stack">
+        ${simCard}
         ${injuryCard}
         ${movesCard}
         <div class="card tight">
@@ -260,6 +268,26 @@ export function view(root, params, ctx) {
       if (calls) toast(calls === 1 ? 'A club has a trade offer for you' : `${calls} clubs have trade offers for you`);
     }
   });
+  el.querySelectorAll('[data-sim]').forEach((b) => b.addEventListener('click', () => {
+    const target = b.dataset.sim;
+    const run = () => {
+      let result;
+      ctx.update((s) => {
+        const rng = new RNG(s.league.rngState);
+        result = simulateAhead(s.league, ctx.byId, ctx.players, rng, target);
+        s.league.rngState = rng.state;
+        s.game = null;
+      });
+      toast(describeRun(result));
+    };
+    const warnings = [];
+    if (target === 'nextSeason') warnings.push('Your keepers will be picked on value and the market run for you.');
+    if (state.game && !state.game.g.final) warnings.push('The game you have in progress will be given up and simulated instead.');
+    if (!warnings.length) { run(); return; }
+    const m = modal(html`<h2>${TARGET_LABELS[target]}?</h2>${raw(warnings.map((w) => `<p class="muted">${w}</p>`).join(''))}
+      <div class="row"><button class="btn primary" id="yes">Simulate</button><button class="btn" data-close>Cancel</button></div>`);
+    m.el.querySelector('#yes').addEventListener('click', () => { m.close(); run(); });
+  }));
   el.querySelector('#abandon')?.addEventListener('click', () => {
     const m = modal(html`<h2>Abandon the game in progress?</h2><p class="muted">You'll be able to start it over from the season hub.</p><div class="row"><button class="btn danger" id="yes">Abandon</button><button class="btn" data-close>Cancel</button></div>`);
     m.el.querySelector('#yes').addEventListener('click', () => { m.close(); ctx.update((s) => { s.game = null; }); });
