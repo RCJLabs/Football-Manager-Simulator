@@ -208,6 +208,16 @@ export function view(root, params, ctx) {
     ${pulse.length ? html`<ul class="pulse">${pulse.map((p) => html`<li class="p-${p.kind}">${p.text}</li>`)}</ul>`
     : html`<p class="muted" style="font-size:.9rem;margin:.2rem 0">${quiet}</p>`}
   </div>` : '';
+  // Sixteen matchups is reference, not a decision, and on a phone it used to sit
+  // between the reader and everything they might actually do. A big league folds
+  // it away; a small one is short enough to leave open.
+  const weekList = wk && league.phase === 'season'
+    ? html`<div class="stack">${raw(gamesList(wk.games, 'w', league.week))}</div>${(wk.byes || []).length ? html`<small class="muted" style="display:block;margin-top:.5rem">Bye: ${wk.byes.map((i) => league.teams[i].abbr).join(', ')}</small>` : ''}`
+    : '';
+  const weekCard = !weekList ? ''
+    : wk.games.length > 6
+      ? html`<details class="card tight"><summary><b>Week ${league.week} games</b> <span class="muted">· ${wk.games.length} games</span></summary><div style="margin-top:.5rem">${weekList}</div></details>`
+      : html`<div class="card tight"><h3>Week ${league.week} games</h3>${weekList}</div>`;
   const simTargets = TARGETS.filter((t) => targetAvailable(league, t));
   const simCard = simTargets.length ? html`<div class="card tight">
     <h3>Simulate ahead</h3>
@@ -233,18 +243,15 @@ export function view(root, params, ctx) {
     <div class="grid grid-2" style="margin-top:1rem">
       <div class="stack">
         ${bracketCard}
-        ${wk && league.phase === 'season' ? html`<div class="card tight"><h3>Week ${league.week} games${pro ? html` <small class="muted" style="text-transform:none;letter-spacing:0">· ${wk.games.length} games</small>` : ''}</h3><div class="stack">${raw(gamesList(wk.games, 'w', league.week))}</div>${(wk.byes || []).length ? html`<small class="muted" style="display:block;margin-top:.5rem">Bye: ${wk.byes.map((i) => league.teams[i].abbr).join(', ')}</small>` : ''}</div>` : ''}
-        ${standingsCard}
-        <details class="card tight"><summary><b>Full schedule &amp; results</b></summary>
-          <div class="stack" style="margin-top:.5rem">${raw(league.schedule.map((w) => `<div><div class="muted" style="font-size:.8rem;margin:.4rem 0 .2rem">Week ${w.week}${w.week === league.week && league.phase === 'season' ? ' (current)' : ''}${(w.byes || []).length ? ` · bye: ${w.byes.map((i) => league.teams[i].abbr).join(', ')}` : ''}</div><div class="stack">${gamesList(w.games, 'w', w.week)}</div></div>`).join(''))}</div>
-        </details>
-      </div>
-      <div class="stack">
+        ${movesCard}
+        ${injuryCard}
         ${pulseCard}
         ${jobCard}
         ${simCard}
-        ${injuryCard}
-        ${movesCard}
+      </div>
+      <div class="stack">
+        ${weekCard}
+        ${standingsCard}
         <div class="card tight">
           <h3>Season leaders</h3>
           ${leaders.length ? raw(leaders.map((l) => `<div style="margin-bottom:.6rem"><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${l.title}</div>${l.rows.map((r) => `<div class="row between" style="font-size:.88rem;flex-wrap:nowrap;gap:.5rem"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span class="teamdot" style="background:${r.team.color}"></span>${r.p.name} <small class="muted">${r.p.pos} · ${r.team.abbr}</small></span><b class="mono">${r.val}</b></div>`).join('')}</div>`).join('')) : html`<p class="muted">No games played yet.</p>`}
@@ -255,6 +262,9 @@ export function view(root, params, ctx) {
           ${pro && !powerShown.some((p) => p.team.isUser) ? html`<small class="muted">You are ranked ${power.findIndex((p) => p.team.isUser) + 1} of 32 (${power.find((p) => p.team.isUser).power}).</small>` : ''}
         </div>
         ${league.history && league.history.length ? html`<div class="card tight"><h3>History</h3>${raw(league.history.map((h) => `<div class="row between" style="font-size:.9rem"><span>Season ${h.season}</span><span>${teamChip(league.teams[h.champion], { abbr: true }).__raw} 🏆${h.user ? ` <small class="muted">· you ${h.user.record.w}-${h.user.record.l}, ${h.user.rank}${['th', 'st', 'nd', 'rd'][(h.user.rank % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][h.user.rank % 100] || 'th'}</small>` : ''}</span></div>`).join(''))}</div>` : ''}
+        <details class="card tight"><summary><b>Full schedule &amp; results</b></summary>
+          <div class="stack" style="margin-top:.5rem">${raw(league.schedule.map((w) => `<div><div class="muted" style="font-size:.8rem;margin:.4rem 0 .2rem">Week ${w.week}${w.week === league.week && league.phase === 'season' ? ' (current)' : ''}${(w.byes || []).length ? ` · bye: ${w.byes.map((i) => league.teams[i].abbr).join(', ')}` : ''}</div><div class="stack">${gamesList(w.games, 'w', w.week)}</div></div>`).join(''))}</div>
+        </details>
       </div>
     </div>
   </div>`);

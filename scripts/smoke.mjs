@@ -58,8 +58,10 @@ try {
 
   await page.click('a[href="#/new"]');
   await page.waitForSelector('#setup');
-  await page.check('input[name="coach"]');
   await page.check('input[name="type"][value="auction"]');
+  // Coach mode and the injury dial live behind the fold now, so open it first.
+  await page.evaluate(() => { document.querySelector('#moreOpts').open = true; });
+  await page.check('input[name="coach"]');
   await page.check('input[name="injuries"][value="high"]');
   await checkOverflow('setup');
   await page.click('button[type="submit"]');
@@ -472,7 +474,7 @@ try {
   if (!/^GE[01]\./.test(code)) errors.push(`league code looks wrong: ${code.slice(0, 20)}`);
   await page.goto(`http://localhost:${port}/#/new`);
   await page.waitForSelector('#setup');
-  await page.evaluate(() => { document.querySelector('details').open = true; });
+  await page.evaluate(() => { document.querySelector('#codeBlock').open = true; });
   await page.waitForSelector('#code');
   await page.fill('#code', code);
   await page.click('#openCode');
@@ -513,9 +515,27 @@ try {
   const levels = await page.$$eval('select[name="difficulty"] option', (o) => o.map((x) => x.value));
   if (levels.length !== 4) errors.push(`setup offers ${levels.length} difficulty levels, expected 4`);
   if (levels[1] !== 'standard') errors.push(`difficulty defaults look wrong: ${levels.join(',')}`);
+  // The advanced options start folded away: a first league should be a handful
+  // of decisions, not a fourteen-item form.
+  const foldOpen = await page.$eval('#moreOpts', (e) => e.open);
+  if (foldOpen) errors.push('the advanced options are not folded away by default');
+  const foldedInputs = await page.$$eval('#moreOpts input, #moreOpts select', (e) => e.length);
+  if (foldedInputs < 8) errors.push(`only ${foldedInputs} inputs are behind the fold, expected the advanced set`);
+  // How far a first-time player has to scroll before they can start. Measured in
+  // screens at phone height, because a form nobody reaches the bottom of is a
+  // form nobody finishes.
+  const reach = await page.evaluate(() => {
+    const b = document.querySelector('button[type="submit"]');
+    return (b.getBoundingClientRect().top + window.scrollY) / window.innerHeight;
+  });
+  console.log(`setup: Create league sits ${reach.toFixed(1)} screens down`);
+  if (reach > 2.6) errors.push(`setup makes you scroll ${reach.toFixed(1)} screens to reach Create league`);
+  await page.evaluate(() => { document.querySelector('#moreOpts').open = true; });
   // Coaching jobs are a pro-league option and appear only in pro mode.
   const jobsShown = await page.$eval('#jobsOpt', (e) => e.getBoundingClientRect().height > 0);
   if (!jobsShown) errors.push('pro mode does not offer coaching jobs');
+  await checkOverflow('setup with the options open');
+  await page.evaluate(() => { document.querySelector('#moreOpts').open = false; });
   await page.selectOption('select[name="franchise"]', '12');
   await page.check('input[name="draft"][value="auto"]');
   await page.click('button[type="submit"]');
@@ -544,7 +564,20 @@ try {
   await page.waitForSelector('#advance');
   await page.click('#advance');
   await page.waitForSelector('#play');
-  // A played week is narrated, not just tabulated.
+  // What you act on comes before what you read. A 32-club league renders 16
+  // matchups, and when those sat first every decision on this screen was below
+  // the fold on a phone — the grid collapses to one column under 820px, so DOM
+  // order is reading order.
+  const cardOrder = await page.$$eval('#season-view .card h3, #season-view details.card summary', (els) => els.map((e) => e.textContent.trim().split('·')[0].trim()));
+  const at = (re) => cardOrder.findIndex((t) => re.test(t));
+  // The first purely-referential card: the week's full slate, or the table.
+  const reference = [/^Week \d+ games/, /Conference$/, /^Standings/, /^Power rankings/]
+    .map(at).filter((i) => i !== -1).sort((a, b) => a - b)[0];
+  for (const [label, re] of [['Roster moves', /^Roster moves/], ['Injuries', /^Injuries/], ['Around the league', /^Around the league/]]) {
+    const i = at(re);
+    if (i === -1 || reference == null) continue;
+    if (i > reference) errors.push(`"${label}" sits below the reference cards on the season hub: ${cardOrder.join(' | ')}`);
+  }
   const pulseItems = await page.$$eval('#season-view ul.pulse li', (l) => l.map((x) => x.textContent.trim()));
   if (!pulseItems.length) errors.push('no league pulse after a played week');
   const sentinel = pulseItems.find((t) => /99 week/.test(t));

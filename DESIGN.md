@@ -504,6 +504,20 @@ Layout is phone-first and the page must never scroll sideways. Two rules keep it
 
 `teamChip(team, { responsive: true })` renders the abbreviation on a phone and the full club name from 560px, so scoreboards and matchup rows stay legible instead of ellipsised. The smoke test asserts no horizontal overflow on every screen at 360, 768 and 1280px and names the offending element when it finds one.
 
+### Reading order is DOM order
+
+A two-column `.grid-2` collapses to one column under 820px, so on a phone the **whole** first column renders before the **whole** second. That is easy to forget and it quietly broke the season hub: a 32-club league lists sixteen matchups, and with the slate, the table and the full schedule filling the first column, every decision on the screen — trade offers with a deadline, injured players, the owner's patience, the simulate-ahead buttons — sat below them. The app had started apologising for its own layout with a toast reading "2 clubs have trade offers for you", because the card saying so was off-screen.
+
+The columns are therefore split by **purpose, not by size**: what you act on first (playoff bracket, roster moves, injuries, the weekly pulse, the owner, simulating ahead), what you read second (the week's slate, standings, leaders, power rankings, the full schedule, history). A slate of more than six games folds into a `<details>`, since it is reference rather than a decision and your own game already has its own card at the top.
+
+The smoke test asserts the ordering rather than trusting it, by reading the rendered card headings and checking the actionable ones come first.
+
+### A form nobody reaches the bottom of
+
+Setup had grown to fourteen sections, five of them added in one run of feature work, each with a paragraph of explanation. On a phone the first screen ended in the middle of naming your club. The options with sensible defaults — injuries, keepers, ageing, chemistry, scouting, coach mode — now sit behind one **More options** fold, and the prose above it was cut to what you need to choose with rather than everything true about the choice.
+
+Measured at 360×780, the Create league button moved from roughly four screens down to **1.6**. The smoke test prints that number every run and fails past 2.6, because this is the kind of thing that creeps back one paragraph at a time.
+
 ## Roadmap: ten audited recommendations
 
 Each item names the evidence in the current build, what it touches, and the

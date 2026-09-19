@@ -131,6 +131,9 @@ ul.pulse li.p-injury { border-left-color: #a34a47; }
 ul.pulse li.p-streak { border-left-color: #d4a017; }
 ul.pulse li.p-trade, ul.pulse li.p-waiver { border-left-color: #7a5ea8; }
 ul.pulse li.p-overtime { border-left-color: #c47f2a; }
+details.fold { border: 1px solid var(--line); border-radius: 10px; padding: .6rem .75rem; background: var(--bg-2); }
+details.fold > summary { cursor: pointer; font-size: .92rem; list-style-position: outside; }
+details.fold[open] > summary { margin-bottom: .25rem; }
 .value-table td, .value-table th { vertical-align: middle; }
 .value-table .vcell { min-width: 5.5rem; white-space: nowrap; }
 .vbar { display: inline-block; height: .55rem; border-radius: 3px; vertical-align: middle; min-width: 2px; }
