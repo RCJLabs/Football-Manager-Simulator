@@ -20,6 +20,22 @@ This is editorial. The file is meant to be argued with and edited.
 
 A game is a plain JSON object advanced by `step()`. One step is one event: kickoff, scrimmage play, or PAT. All randomness comes from a mulberry32 RNG whose state lives inside the game object, so a game can be paused, saved, reloaded, and continued identically. Coach mode simply passes `{ off, def, pat }` into `step()`; anything omitted is chosen by the AI.
 
+### How the simulation is split up
+
+`game.js` had grown to 1,226 lines, more than twice the next module, and every feature touched it. It is now three files, and the line the split follows is one the code already had:
+
+- **`game/plays.js`** — what happens on a snap. Each resolver reads the game, decides an outcome and returns it as a plain object: yards, seconds elapsed, whether the clock stops, the sentence to print. None of them advances the clock, changes possession, scores or writes to the log.
+- **`game/picks.js`** — who gets the ball and who makes the play. Pure selection from a team's composite and a random number.
+- **`game.js`** — the state machine: `createGame`, the step loop, the clock, drives, kickoffs, extra points, and `applyOutcome`, which takes the object a resolver returned and does everything that changes the game.
+
+That seam was already there. Across four hundred lines of play resolution the only thing reached for outside the region was `statFor`, so lifting it out needed no new abstraction — just moving it and letting the imports point one way.
+
+**It stops there deliberately.** What remains is `applyOutcome`, `changePossession`, `doKickoff` and `endOfQuarter`, which call each other and share the whole game object. Splitting mutually recursive state machinery across files makes it harder to follow, not easier; 836 lines against `season.js`'s 791 is no longer an outlier, which was the actual problem.
+
+**How it was verified.** The engine is seeded, so the same rosters and seed must produce the same game down to the last word of play-by-play — which makes a hash of the output a far stronger check than the test suite, because a test asserts the properties somebody thought of and a fingerprint asserts everything. `scripts/game-fingerprint.mjs` (`npm run fingerprint`) simulates 232 games across the paths that diverge — five roster gaps, penalties off, every injury rate, neutral sites, playoff rules, chemistry, and twelve coach-mode games driving `step()` by hand — and prints one hash over 43,269 log lines, plus a per-game hash so a divergence names itself. Before and after the split: `a9480bd47f40cac9`, identical.
+
+It is a tool, not a test. Pinning that hash in the suite would fire on every legitimate retune — and retuning constants is normal work here — so it stays something you run either side of a refactor. The property that *is* tested, in `tests/game.test.js`, is that a seed replays identically, which no tuning change can break.
+
 ### Team composites (`ratings.js`)
 
 Offense: pass block (OL pbk + TE), run block, QB attributes, receiver target weights. Defense: pass rush (top two DL heavy, LB share; blitz shifts weight to LB/S), run stop, coverage at three depths (CB/LB/S weighted differently for short/medium/deep), ball skills, tackling, secondary speed.

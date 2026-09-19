@@ -18,6 +18,7 @@
     "dynasty": "node scripts/dynasty-sim.mjs",
     "careers": "node scripts/career-sim.mjs",
     "leverage": "node scripts/leverage-sim.mjs",
+    "fingerprint": "node scripts/game-fingerprint.mjs",
     "report": "node scripts/db-report.mjs",
     "offers": "node scripts/offer-sim.mjs",
     "ir": "node scripts/ir-sim.mjs"

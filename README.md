@@ -57,6 +57,7 @@ npm run injuries     # injury rates by dial setting, weeks lost per club, and wh
 npm run dynasty      # keeper counts, cap committed and roster turnover over four-season runs
 npm run careers      # ageing curves: decline from a prime signing, rookie development, career lengths
 npm run leverage     # re-measure what each position is worth, the table the auction economy rests on
+npm run fingerprint  # hash 232 simulated games play-for-play; diff before and after a refactor
 npm run report       # top and bottom of every position, multi-season players, era balance
 node scripts/apply-overrides.mjs edits.json [--write]   # bake exported rating edits into the data file
 npm run icons        # re-rasterize icons/icon.svg to PNG (needs Playwright)
@@ -84,6 +85,8 @@ src/data/players.js                      the player database (1,269 prime-season
 src/data/pro.js                          the 32 pro franchises, conferences and divisions
 src/data/teams.js                        AI franchise names and GM personalities
 src/engine/game.js                       the simulation state machine (kickoff → play → PAT …)
+src/engine/game/plays.js                 what happens on a snap: run, pass, field goal, punt
+src/engine/game/picks.js                 who gets the ball and who makes the play
 src/engine/playcall.js                   AI play-calling, 4th-down logic, timeouts, tempo
 src/engine/ratings.js                    overall ratings and team composite ratings
 src/engine/draft.js                      snake draft with value-over-replacement AI
