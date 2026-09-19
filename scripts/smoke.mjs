@@ -616,6 +616,9 @@ try {
   await page.goto(`http://localhost:${port}/#/`);
   await page.waitForSelector('[data-open]');
   await checkOverflow('home with two leagues');
+  // Both saves have to be on disk before the slots are counted; a slot that has
+  // not been written to yet is, correctly, still an empty one.
+  await page.waitForFunction(() => document.querySelectorAll('[data-del]').length === 2, null, { timeout: 5000 }).catch(() => {});
   await shot('12a-slots');
   const slotCount = await page.$$eval('[data-del]', (b) => b.length);
   if (slotCount !== 2) errors.push(`home lists ${slotCount} leagues, expected 2`);
@@ -644,6 +647,7 @@ try {
 
   // The snake draft is still an option and must still work.
   await page.evaluate(() => localStorage.clear());
+  await page.reload();
   await page.goto(`http://localhost:${port}/#/new`);
   await page.waitForSelector('#setup');
   await page.check('input[name="type"][value="snake"]');
@@ -718,6 +722,7 @@ try {
 
   // Pro league: 32 teams, divisions, a 17-game slate.
   await page.evaluate(() => localStorage.clear());
+  await page.reload();
   await page.goto(`http://localhost:${port}/#/new`);
   await page.waitForSelector('#setup');
   await page.check('input[name="mode"][value="pro"]');

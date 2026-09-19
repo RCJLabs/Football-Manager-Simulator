@@ -2,7 +2,8 @@
 // plus preferences shared by every slot. Slots are managed in slots.js.
 import { migrateLeague } from './engine/season.js';
 import {
-  loadRegistry, readSlot, writeSlot, createSlot, activateSlot, deleteSlot, renameSlot, slotSizeKb, PREFS_KEY,
+  loadRegistry, readSlot, writeSlot, createSlot, activateSlot, deleteSlot, renameSlot, slotSizeKb,
+  firstEmptySlot, slotIsEmpty, MAX_SLOTS, PREFS_KEY,
 } from './slots.js';
 
 const DEFAULT_PREFS = { autoplayMs: 900, showAttrs: true };
@@ -72,7 +73,9 @@ export function saveNow() {
   try {
     storage.setItem(PREFS_KEY, JSON.stringify(state.prefs));
     if (!registry) registry = loadRegistry(storage);
-    if (!registry.active && state.league) createSlot(storage, registry, state.league.name);
+    // A league in memory with nowhere to go keeps its data rather than losing
+    // it to the slot limit: `force` makes room beyond the three if it has to.
+    if (!registry.active && state.league) createSlot(storage, registry, state.league.name, { force: true });
     if (registry.active) writeSlot(storage, registry, registry.active, state);
     dirty = false;
     lastSaveError = null;
@@ -87,10 +90,32 @@ export function saveNow() {
   if (wasFailing !== !!lastSaveError) notify();
 }
 
+/**
+ * Set when a slot has been taken but nothing written into it yet. Saves are
+ * debounced by 250 ms, and in that window the new slot is on disk with no
+ * league in it — so the home screen called the save you are playing an empty
+ * slot, and the next new league would have been handed the same one. The first
+ * write into a fresh slot therefore skips the debounce.
+ */
+let firstWritePending = false;
+
 function scheduleSave() {
   dirty = true;
   clearTimeout(saveTimer);
+  if (firstWritePending && state.league) { firstWritePending = false; saveNow(); return; }
   saveTimer = setTimeout(saveNow, 250);
+}
+
+/**
+ * Forget a write that has not happened yet. Saves are debounced by 250 ms, so
+ * a league deleted a moment after a move had a write still in flight against
+ * it; the delete has to cancel that, not race it.
+ */
+function dropPendingSave() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  dirty = false;
+  firstWritePending = false;
 }
 
 /** Mutate state in place via fn, then persist and notify. */
@@ -110,17 +135,15 @@ export function notify() {
   for (const l of listeners) l(state);
 }
 
-/** Delete the active league (its slot goes with it) and open the most recent other slot, if any. */
+/**
+ * Empty the open slot. Nothing is opened in its place — see the note in
+ * slots.js about why handing over another save reads as a failed delete.
+ */
 export function resetAll() {
-  if (storage && registry && registry.active) {
-    const next = deleteSlot(storage, registry, registry.active);
-    const slot = next ? readSlot(storage, next) : null;
-    state = { league: slot?.league || null, game: slot?.game || null, prefs: state.prefs };
-    if (state.league) migrateLeague(state.league);
-  } else {
-    state = { league: null, game: null, prefs: state.prefs };
-  }
-  saveNow();
+  dropPendingSave();
+  if (storage && registry && registry.active) deleteSlot(storage, registry, registry.active);
+  state = { league: null, game: null, prefs: state.prefs };
+  try { if (storage) storage.setItem(PREFS_KEY, JSON.stringify(state.prefs)); } catch { /* prefs are not worth failing over */ }
   notify();
 }
 
@@ -128,21 +151,46 @@ export function resetAll() {
 // Slots
 // ---------------------------------------------------------------------------
 
-export function listSlots() {
-  if (!storage) return { active: null, slots: [] };
-  if (!registry) registry = loadRegistry(storage);
-  return { active: registry.active, slots: registry.slots.map((s) => ({ ...s, kb: slotSizeKb(storage, s.id) })) };
+/**
+ * Re-read the registry from storage. The cached copy can be behind: another
+ * tab of the same game writes to the same origin, and a browser's site data
+ * can be cleared underneath a running page. Both of these queries are
+ * read-only and cheap — one small JSON parse — so they ask rather than assume.
+ */
+function syncRegistry() {
+  if (storage) registry = loadRegistry(storage);
+  return registry;
 }
 
-/** Start a fresh, empty slot and make it active. The current league stays saved in its own slot. */
+export function listSlots() {
+  if (!storage) return { active: null, slots: [], max: MAX_SLOTS, full: false };
+  syncRegistry();
+  const slots = registry.slots.map((s) => ({ ...s, kb: slotSizeKb(storage, s.id), empty: slotIsEmpty(storage, s) }));
+  return { active: registry.active, slots, max: MAX_SLOTS, full: !slots.some((s) => s.empty) };
+}
+
+/**
+ * Take an empty slot for a new league, keeping the current one saved where it
+ * is. Returns null when all three are full, which the setup screen turns into
+ * a message rather than overwriting anything.
+ */
 export function openNewSlot(name = 'New league') {
   if (dirty) saveNow();
   if (!storage) { state = { league: null, game: null, prefs: state.prefs }; return null; }
   if (!registry) registry = loadRegistry(storage);
   const id = createSlot(storage, registry, name);
+  if (!id) return null;
+  firstWritePending = true;
   state = { league: null, game: null, prefs: state.prefs };
   notify();
   return id;
+}
+
+/** Whether there is anywhere to put a new league. */
+export function hasEmptySlot() {
+  if (!storage) return true;
+  syncRegistry();
+  return !!firstEmptySlot(storage, registry);
 }
 
 export function switchSlot(id) {
@@ -159,12 +207,12 @@ export function removeSlot(id) {
   if (!storage) return;
   if (!registry) registry = loadRegistry(storage);
   const wasActive = registry.active === id;
-  const next = deleteSlot(storage, registry, id);
-  if (wasActive) {
-    const slot = next ? readSlot(storage, next) : null;
-    state = { league: slot?.league || null, game: slot?.game || null, prefs: state.prefs };
-    if (state.league) migrateLeague(state.league);
-  }
+  // Cancel first: a debounced write still in flight would land on the slot
+  // being emptied, or on whatever is open, moments after the delete.
+  if (wasActive) dropPendingSave();
+  else if (dirty) saveNow();
+  deleteSlot(storage, registry, id);
+  if (wasActive) state = { league: null, game: null, prefs: state.prefs };
   notify();
 }
 

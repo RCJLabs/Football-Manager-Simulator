@@ -1,16 +1,37 @@
 import { html, render, raw } from '../../util.js';
-import { teamChip, toast, modal } from '../components.js';
+import { teamChip, toast, modal, esc } from '../components.js';
 import { fmtPhase } from './season.js';
 import { listSlots, switchSlot, removeSlot, nameSlot, openNewSlot } from '../../store.js';
 
-function slotsCard(ctx, league) {
-  const { active, slots } = listSlots();
-  if (!slots.length || (slots.length === 1 && league)) return '';
-  const phaseText = (s) => s.summary && s.summary.phase !== 'empty' ? `${s.summary.mode === 'pro' ? 'Pro' : 'Fantasy'} · season ${s.summary.season} · ${s.summary.phase === 'season' ? `week ${s.summary.week} of ${s.summary.weeks}` : s.summary.phase}${s.summary.record ? ` · ${s.summary.team} ${s.summary.record}` : ''}` : 'empty';
+/**
+ * The three saves, always all three. They used to hide themselves whenever
+ * there was only one, which left a player with a single league no way to see
+ * or delete it outside Settings — and no sense that a second was possible.
+ */
+function slotsCard() {
+  const { active, slots, max } = listSlots();
+  if (!slots.length) return '';
+  const used = slots.filter((s) => !s.empty).length;
   const total = slots.reduce((a, s) => a + (s.kb || 0), 0);
+  const line = (s) => {
+    if (s.empty) return 'Empty';
+    const sm = s.summary || {};
+    const where = sm.phase === 'season' ? `week ${sm.week} of ${sm.weeks}` : sm.phase === 'draft' ? 'drafting' : sm.phase || '';
+    return `${sm.mode === 'pro' ? 'Pro' : 'Fantasy'} · ${sm.teams || 0} clubs · season ${sm.season} · ${where}${sm.record ? ` · ${sm.team} ${sm.record}` : ''}`;
+  };
+  const row = (s, i) => `<li class="slot-row ${s.id === active ? 'me' : ''} ${s.empty ? 'empty' : ''}">
+    <span class="slot-no">${i + 1}</span>
+    <span class="slot-what">
+      <b>${s.empty ? 'Empty slot' : esc(s.name || 'Untitled league')}</b>${s.id === active ? ' <span class="badge">open</span>' : ''}
+      <br><small class="muted">${esc(line(s))}${s.empty ? '' : ` · ${s.kb || 0} KB`}</small>
+    </span>
+    <span class="btn-group">${s.empty
+      ? `<a class="btn sm primary" href="#/new" data-startin="${s.id}">Start a league</a>`
+      : `${s.id === active ? '' : `<button class="btn sm" data-open="${s.id}">Open</button>`}<button class="btn sm ghost" data-rename="${s.id}">Rename</button><button class="btn sm danger" data-del="${s.id}">Delete</button>`}</span>
+  </li>`;
   return html`<div class="card" style="margin-top:1rem">
-    <div class="row between"><h2 style="margin:0">Your leagues</h2><small class="muted">${slots.length} saved · ${total > 1024 ? `${(total / 1024).toFixed(1)} MB` : `${total} KB`} of browser storage${total > 3500 ? ' · getting close to the limit, export and delete old ones' : ''}</small></div>
-    <ul class="plain ticker" style="max-height:none;margin-top:.5rem">${raw(slots.map((s) => `<li class="${s.id === active ? 'me' : ''}" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap"><span style="min-width:0"><b>${s.name}</b>${s.id === active ? ' <span class="badge">open</span>' : ''}<br><small class="muted">${phaseText(s)} · ${s.kb || 0} KB</small></span><span class="btn-group">${s.id === active ? '' : `<button class="btn sm" data-open="${s.id}">Open</button>`}<button class="btn sm ghost" data-rename="${s.id}">Rename</button><button class="btn sm danger" data-del="${s.id}">Delete</button></span></li>`).join(''))}</ul>
+    <div class="row between"><h2 style="margin:0">Saved leagues</h2><small class="muted">${used} of ${max} used · ${total > 1024 ? `${(total / 1024).toFixed(1)} MB` : `${total} KB`}${total > 3500 ? ' · close to the browser limit, export and delete one' : ''}</small></div>
+    <ul class="plain slot-list">${raw(slots.map(row).join(''))}</ul>
   </div>`;
 }
 
@@ -27,7 +48,7 @@ export function view(root, params, ctx) {
         <span style="display:inline-block;width:.5rem"></span>
         <a class="btn lg" href="#/guide">How it is won</a>
       </section>
-      ${slotsCard(ctx, null)}
+      ${slotsCard()}
       <div class="features">
         <div class="feature"><b>Snake draft vs. AI GMs</b><span class="muted">Each rival general manager has a personality: Air Raid, Ground &amp; Pound, Old School, Analytics…</span></div>
         <div class="feature"><b>Play-by-play simulation</b><span class="muted">Ratings drive every snap: pass rush vs. protection, coverage vs. separation, tackling vs. YAC.</span></div>
@@ -64,12 +85,20 @@ export function view(root, params, ctx) {
       <a class="feature" href="#/settings"><b>Settings &amp; sharing</b><span class="muted">Coach mode, injuries, save files, league codes.</span></a>
       <a class="feature" href="${cont}"><b>${league.phase === 'draft' ? 'Back to the auction room' : 'League hub'}</b><span class="muted">Schedule, standings, playoffs.</span></a>
     </div>
-    ${slotsCard(ctx, league)}
+    ${slotsCard()}
   `);
   wireSlots(root, ctx);
 }
 
+/**
+ * Bound once per element, not once per render. `mount` hands every view the
+ * same container, so adding a delegated listener on each draw stacked them —
+ * four visits to this screen meant one Delete click opened four dialogs.
+ */
+const wired = new WeakSet();
 function wireSlots(root, ctx) {
+  if (wired.has(root)) return;
+  wired.add(root);
   root.addEventListener('click', (e) => {
     const open = e.target.closest('[data-open]');
     if (open) { switchSlot(open.dataset.open); toast('League opened'); ctx.navigate('#/'); return; }
@@ -77,8 +106,17 @@ function wireSlots(root, ctx) {
     if (del) {
       const { slots } = listSlots();
       const s = slots.find((x) => x.id === del.dataset.del);
-      const m = modal(html`<h2>Delete ${s ? s.name : 'this league'}?</h2><p class="muted">This removes it from this browser. Export it first if you want a backup.</p><div class="row"><button class="btn danger" id="yes">Delete</button><button class="btn" data-close>Cancel</button></div>`);
-      m.el.querySelector('#yes').addEventListener('click', () => { m.close(); removeSlot(del.dataset.del); toast('Deleted'); ctx.navigate('#/'); });
+      const where = s ? ` in slot ${slots.indexOf(s) + 1}` : '';
+      const sm = (s && s.summary) || {};
+      const m = modal(html`<h2>Delete ${s ? s.name : 'this league'}?</h2>
+        <p class="muted">${sm.phase && sm.phase !== 'empty' ? `Season ${sm.season}, ${sm.phase === 'season' ? `week ${sm.week}` : sm.phase}${sm.record ? `, ${sm.team} ${sm.record}` : ''}${where}. ` : ''}This removes it from this browser for good. Export it from Settings first if you want a backup.</p>
+        <div class="row"><button class="btn danger" id="yes">Delete</button><button class="btn" data-close>Cancel</button></div>`);
+      m.el.querySelector('#yes').addEventListener('click', () => {
+        m.close();
+        removeSlot(del.dataset.del);
+        toast(`Deleted${s ? ` — slot ${slots.indexOf(s) + 1} is empty` : ''}`);
+        ctx.navigate('#/');
+      });
       return;
     }
     const ren = e.target.closest('[data-rename]');

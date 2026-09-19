@@ -3,7 +3,7 @@ import { createLeague, startSeason, FANTASY_SIZES } from '../../engine/season.js
 import { ROSTER_SLOTS } from '../../data/positions.js';
 import { INJURY_LEVEL_LABELS, DEFAULT_INJURY_LEVEL } from '../../engine/injuries.js';
 import { defaultKeepers } from '../../engine/season.js';
-import { openNewSlot } from '../../store.js';
+import { openNewSlot, hasEmptySlot, listSlots } from '../../store.js';
 import { decodeLeagueCode, leagueFromSnapshot } from '../../engine/share.js';
 import { autoDraftAll, RNG } from '../../engine/draft.js';
 import { autoCompleteAll } from '../../engine/auction.js';
@@ -116,6 +116,7 @@ export function view(root, params, ctx) {
     try {
       const snap = await decodeLeagueCode(root.querySelector('#code').value);
       const league = leagueFromSnapshot(snap, ctx.players, ctx.byId);
+      if (hasLeague && !hasEmptySlot()) { note.textContent = 'All three save slots are full — delete one on the home screen first.'; return; }
       if (hasLeague) openNewSlot(league.name);
       ctx.update((s) => { s.league = league; s.game = null; }, { silent: true });
       ctx.toast('League opened from code');
@@ -148,6 +149,15 @@ export function view(root, params, ctx) {
   form.difficulty.addEventListener('change', () => { form.querySelector('#diffNote').textContent = DIFFICULTY[form.difficulty.value].blurb; });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    // Three saves, and a new league needs one of them. Refusing here is the
+    // whole point of a fixed number of slots: the alternative is writing over
+    // a dynasty somebody has been playing for nine seasons.
+    if (hasLeague && !hasEmptySlot()) {
+      const { max } = listSlots();
+      ctx.toast(`All ${max} save slots are full — delete one on the home screen first`);
+      ctx.navigate('#/');
+      return;
+    }
     const f = new FormData(form);
     const mode = f.get('mode') === 'pro' ? 'pro' : 'fantasy';
     const draftType = f.get('type') === 'snake' ? 'snake' : 'auction';

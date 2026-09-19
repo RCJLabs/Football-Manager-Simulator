@@ -168,6 +168,14 @@ tr.dim td { color: var(--muted); }
 .pick-list { max-height: 15rem; overflow: auto; }
 .pick-row .nm { font-family: var(--mono); font-weight: 700; }
 .pick-offer { margin-top: .5rem; border-color: var(--accent); }
+/* The three save slots: numbered, always all three, empty ones included. */
+.slot-list { margin-top: .5rem; display: grid; gap: .4rem; }
+.slot-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .55rem .6rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--bg-2); }
+.slot-row.me { border-color: var(--accent); }
+.slot-row.empty { opacity: .75; border-style: dashed; }
+.slot-no { font-family: var(--mono); font-weight: 700; color: var(--muted); min-width: 1.2rem; text-align: center; }
+.slot-what { flex: 1 1 11rem; min-width: 0; }
+.slot-row .btn-group { margin-left: auto; }
 .ovr.range { background: #2e3a46; color: #c6d8e8; font-size: .78rem; min-width: 3.4rem; letter-spacing: -.02em; }
 .attr.est b { color: var(--muted); font-weight: 600; }
 .seat { display: inline-block; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .1rem .4rem; border-radius: 4px; margin-right: .3rem; }

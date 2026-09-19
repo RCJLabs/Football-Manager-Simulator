@@ -40,7 +40,8 @@ async function freshStore() {
   return { storage, store: mod };
 }
 
-const league = () => ({ name: 'Test', phase: 'season', season: 1, week: 1, teams: [{ isUser: true, name: 'Me' }] });
+// `slots` is there because switchSlot runs migrateLeague, which walks rosters.
+const league = () => ({ name: 'Test', phase: 'season', season: 1, week: 1, teams: [{ isUser: true, name: 'Me', slots: {} }] });
 
 test('a normal save reports no error', async () => {
   const { store } = await freshStore();
@@ -151,4 +152,86 @@ test('a refused write leaves the last good save intact', async () => {
 
   assert.equal(storage.getItem('gridiron-eras:slots:v1'), registryBefore, 'the registry must not have moved on');
   assert.equal(storage.getItem(`gridiron-eras:slot:${slotKey}`), slotBefore, 'the stored league must be untouched');
+});
+
+test('three slots: a new league takes an empty one, and the fourth is refused', async () => {
+  const { store } = await freshStore();
+  const listed = store.listSlots();
+  assert.equal(listed.slots.length, 3, 'three slots exist before anything is played');
+  assert.ok(listed.slots.every((s) => s.empty));
+  assert.equal(store.hasEmptySlot(), true);
+
+  store.update((s) => { s.league = league(); });
+  store.saveNow();
+  assert.equal(store.listSlots().slots.filter((s) => !s.empty).length, 1);
+
+  for (const name of ['Two', 'Three']) {
+    assert.ok(store.openNewSlot(name), `${name} should find a slot`);
+    store.update((s) => { s.league = { ...league(), name }; });
+    store.saveNow();
+  }
+  const full = store.listSlots();
+  assert.equal(full.slots.filter((s) => !s.empty).length, 3);
+  assert.equal(full.full, true);
+  assert.equal(store.hasEmptySlot(), false);
+  assert.equal(store.openNewSlot('Four'), null, 'a fourth is refused rather than overwriting');
+  assert.equal(store.listSlots().slots.filter((s) => !s.empty).length, 3, 'and nothing was disturbed');
+});
+
+test('deleting the open league leaves nothing open, and it does not come back', async () => {
+  const { storage, store } = await freshStore();
+  store.update((s) => { s.league = { ...league(), name: 'Keep' }; });
+  store.saveNow();
+  const keepId = store.listSlots().active;
+  store.openNewSlot('Doomed');
+  store.update((s) => { s.league = { ...league(), name: 'Doomed' }; });
+  store.saveNow();
+  const doomed = store.listSlots().active;
+  assert.notEqual(doomed, keepId);
+
+  // A move lands, then the league is deleted before the debounce fires. The
+  // pending write must not resurrect it.
+  store.update((s) => { s.league.week = 9; });
+  store.removeSlot(doomed);
+  assert.equal(store.getState().league, null, 'nothing is open afterwards');
+  assert.equal(store.listSlots().active, null);
+  store.saveNow();
+
+  const after = store.listSlots();
+  assert.equal(after.slots.length, 3, 'the slot stays, it is just empty');
+  assert.equal(after.slots.filter((s) => !s.empty).length, 1);
+  assert.equal(JSON.parse(storage.getItem(`gridiron-eras:slot:${doomed}`)).league, null);
+  // The other save is untouched and reopens cleanly.
+  store.switchSlot(keepId);
+  assert.equal(store.getState().league.name, 'Keep');
+  assert.equal(store.getState().league.week, 1, 'and is not carrying the deleted one\'s move');
+});
+
+test('deleting a league that is not open leaves the open one alone', async () => {
+  const { store } = await freshStore();
+  store.update((s) => { s.league = { ...league(), name: 'First' }; });
+  store.saveNow();
+  const first = store.listSlots().active;
+  store.openNewSlot('Second');
+  store.update((s) => { s.league = { ...league(), name: 'Second' }; });
+  store.saveNow();
+  const second = store.listSlots().active;
+  store.removeSlot(first);
+  assert.equal(store.getState().league.name, 'Second', 'still playing what we were playing');
+  assert.equal(store.listSlots().active, second);
+  assert.equal(store.listSlots().slots.filter((s) => !s.empty).length, 1);
+});
+
+test('a slot taken for a new league is written at once, not on the debounce', async () => {
+  const { storage, store } = await freshStore();
+  store.update((s) => { s.league = { ...league(), name: 'One' }; });
+  store.saveNow();
+  store.openNewSlot('Two');
+  const id = store.listSlots().active;
+  // No saveNow, no timers: the first write into a fresh slot is immediate,
+  // because until it lands the slot reads as empty to everything that asks.
+  store.update((s) => { s.league = { ...league(), name: 'Two' }; });
+  assert.equal(JSON.parse(storage.getItem(`gridiron-eras:slot:${id}`)).league.name, 'Two');
+  assert.equal(store.listSlots().slots.filter((s) => !s.empty).length, 2);
+  assert.equal(store.hasEmptySlot(), true, 'the third is still free');
 });

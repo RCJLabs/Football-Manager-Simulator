@@ -1,9 +1,24 @@
-// Save slots: several leagues in one browser. A registry lists the slots and
-// which one is active; each slot's state lives under its own key. The logic
+// Save slots: three leagues in one browser. A registry lists the slots and
+// which one is open; each slot's state lives under its own key. The logic
 // takes the storage object as an argument so it can be tested without a
 // browser (any object with getItem/setItem/removeItem works).
+//
+// **Three fixed slots, not a growing list.** Slots used to be created on
+// demand and removed outright, which meant a player with one league saw no
+// slot list at all — the card hid itself — and the only way to delete was a
+// button in Settings. Now the three are always there, numbered and in the same
+// order, and an empty one is a place to start rather than an absence.
+//
+// **Deleting never opens something else.** It used to hand the next slot to
+// whoever deleted one, so a player who removed the league they were playing
+// landed back on a home screen with a Continue button, a league name and a
+// record — all belonging to a different save that happened to share the
+// default name. That reads exactly like a delete that did not work. Deleting
+// the open slot now leaves nothing open, and the player picks.
 
 export const REGISTRY_KEY = 'gridiron-eras:slots:v1';
+/** How many saves a browser holds. Three is a menu; a list is a filing system. */
+export const MAX_SLOTS = 3;
 export const LEGACY_KEY = 'gridiron-eras:state:v1';
 export const PREFS_KEY = 'gridiron-eras:prefs:v1';
 export const slotKey = (id) => `gridiron-eras:slot:${id}`;
@@ -15,22 +30,47 @@ function write(storage, key, value) {
   storage.setItem(key, JSON.stringify(value));
 }
 
-/** The registry, created on first use. A save from before slots existed becomes slot one. */
+/** A slot with nothing in it: a place to start, not an absence. */
+function blankSlot() {
+  return { id: newId(), name: '', created: Date.now(), updated: 0, summary: summarize(null) };
+}
+
+/** Whether a slot holds a league. */
+export function slotIsEmpty(storage, slot) {
+  if (!slot) return true;
+  if (slot.summary && slot.summary.phase && slot.summary.phase !== 'empty') return false;
+  return !readSlot(storage, slot.id)?.league;
+}
+
+/**
+ * The registry, created on first use and always padded out to three. A save
+ * from before slots existed becomes slot one; a browser that already holds
+ * more than three keeps every one of them, because silently dropping somebody's
+ * save to enforce a new rule is not a thing to do.
+ */
 export function loadRegistry(storage) {
   let reg = read(storage, REGISTRY_KEY);
-  if (reg && Array.isArray(reg.slots)) return reg;
-  reg = { active: null, slots: [] };
-  const legacy = read(storage, LEGACY_KEY);
-  if (legacy && legacy.league) {
-    const id = newId();
-    write(storage, slotKey(id), { league: legacy.league, game: legacy.game || null });
-    reg.slots.push({ id, name: legacy.league.name || 'League', created: Date.now(), updated: Date.now(), summary: summarize(legacy.league) });
-    reg.active = id;
-    if (legacy.prefs) write(storage, PREFS_KEY, legacy.prefs);
-    try { storage.removeItem(LEGACY_KEY); } catch { /* fine */ }
+  if (!reg || !Array.isArray(reg.slots)) {
+    reg = { active: null, slots: [] };
+    const legacy = read(storage, LEGACY_KEY);
+    if (legacy && legacy.league) {
+      const id = newId();
+      write(storage, slotKey(id), { league: legacy.league, game: legacy.game || null });
+      reg.slots.push({ id, name: legacy.league.name || 'League', created: Date.now(), updated: Date.now(), summary: summarize(legacy.league) });
+      reg.active = id;
+      if (legacy.prefs) write(storage, PREFS_KEY, legacy.prefs);
+      try { storage.removeItem(LEGACY_KEY); } catch { /* fine */ }
+    }
   }
-  write(storage, REGISTRY_KEY, reg);
+  let padded = false;
+  while (reg.slots.length < MAX_SLOTS) { reg.slots.push(blankSlot()); padded = true; }
+  if (padded || !read(storage, REGISTRY_KEY)) write(storage, REGISTRY_KEY, reg);
   return reg;
+}
+
+/** The first slot with nothing in it, or null when all three are taken. */
+export function firstEmptySlot(storage, reg) {
+  return reg.slots.find((s) => slotIsEmpty(storage, s)) || null;
 }
 
 export function newId() {
@@ -69,13 +109,24 @@ export function writeSlot(storage, reg, id, state) {
   write(storage, REGISTRY_KEY, reg);
 }
 
-export function createSlot(storage, reg, name = 'New league') {
-  const id = newId();
-  reg.slots.push({ id, name, created: Date.now(), updated: Date.now(), summary: summarize(null) });
-  write(storage, slotKey(id), { league: null, game: null });
-  reg.active = id;
+/**
+ * Take a slot for a new league: the first empty one, or a fourth slot when a
+ * browser is already carrying more than three. Returns its id, or null when
+ * all three are full — which the caller has to handle rather than quietly
+ * overwriting somebody's dynasty.
+ */
+export function createSlot(storage, reg, name = 'New league', { force = false } = {}) {
+  const empty = firstEmptySlot(storage, reg);
+  if (!empty && !force) return null;
+  const slot = empty || (() => { const s = blankSlot(); reg.slots.push(s); return s; })();
+  slot.name = name;
+  slot.created = Date.now();
+  slot.updated = Date.now();
+  slot.summary = summarize(null);
+  write(storage, slotKey(slot.id), { league: null, game: null });
+  reg.active = slot.id;
   write(storage, REGISTRY_KEY, reg);
-  return id;
+  return slot.id;
 }
 
 export function activateSlot(storage, reg, id) {
@@ -85,10 +136,25 @@ export function activateSlot(storage, reg, id) {
   return readSlot(storage, id) || { league: null, game: null };
 }
 
+/**
+ * Empty a slot. The slot itself stays — it is slot two whether or not there is
+ * a league in it — and nothing else is opened in its place. Returns the id
+ * that is open afterwards, which is null when the slot deleted was the open
+ * one.
+ */
 export function deleteSlot(storage, reg, id) {
-  reg.slots = reg.slots.filter((s) => s.id !== id);
+  const slot = reg.slots.find((s) => s.id === id);
   try { storage.removeItem(slotKey(id)); } catch { /* fine */ }
-  if (reg.active === id) reg.active = reg.slots.length ? reg.slots[reg.slots.length - 1].id : null;
+  if (slot) {
+    slot.name = '';
+    slot.updated = 0;
+    slot.summary = summarize(null);
+    write(storage, slotKey(id), { league: null, game: null });
+  } else {
+    // A slot beyond the three, from a browser that had more: drop it outright.
+    reg.slots = reg.slots.filter((s) => s.id !== id);
+  }
+  if (reg.active === id) reg.active = null;
   write(storage, REGISTRY_KEY, reg);
   return reg.active;
 }
