@@ -107,6 +107,38 @@ export function playerList(players, opts = {}) {
 }
 
 let toastTimer;
+/**
+ * Run work that blocks, after the button has had a chance to say so.
+ *
+ * Javascript is single threaded, so a handler that takes a second takes the
+ * whole interface with it: the tap does not depress, the button does not
+ * change, nothing scrolls. The player reads that as the game having hung,
+ * which is exactly the report that led here — press a button, wait, and then
+ * it works. Yielding once before starting costs a frame and buys a label that
+ * says what is happening, which is the difference between a slow button and a
+ * broken one.
+ *
+ * This does not make anything faster and is not a substitute for doing so. It
+ * is for the handful of actions that are genuinely a lot of work and that the
+ * player asked for on purpose — completing an auction, drafting out a whole
+ * board. Anything that runs on a redraw belongs off the render path instead.
+ */
+export function withBusy(btn, fn, label = 'Working…') {
+  if (!btn) { fn(); return; }
+  const text = btn.textContent;
+  const wasDisabled = btn.disabled;
+  btn.textContent = label;
+  btn.disabled = true;
+  setTimeout(() => {
+    try {
+      fn();
+    } finally {
+      // The view usually redraws out from under it, which is why this checks.
+      if (btn.isConnected) { btn.textContent = text; btn.disabled = wasDisabled; }
+    }
+  }, 20);
+}
+
 export function toast(msg, ms = 2200) {
   const el = document.getElementById('toast');
   if (!el) return;

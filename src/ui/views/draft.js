@@ -19,11 +19,11 @@ import { overall } from '../../engine/ratings.js';
 import { currentPicker, overallPickNumber, availablePlayers, openSlotsByPos, makePick, runAiPicks, stepAiPick, aiChoose, autoDraftAll, TOTAL_ROUNDS, RNG } from '../../engine/draft.js';
 import { startSeason } from '../../engine/season.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
-import { ovrBadge, playerItem, playerModal, teamChip, toast, esc } from '../components.js';
+import { ovrBadge, playerItem, playerModal, teamChip, toast, esc, withBusy } from '../components.js';
 import { shownOverall } from '../../engine/scouting.js';
 import { draftBoard, boardOverlay, snakeRows, scrollToPick, lastName } from '../draft-board.js';
 import { openPickTrade, pickOfferCard } from '../pick-trade.js';
-import { survivalOdds, remainingPicks, nextPickFor, makePickOffers, executePickTrade } from '../../engine/draftpicks.js';
+import { survivalOdds, remainingPicks, nextPickFor, pickOfferCandidates, tryPickOffer, OFFER_BUDGET, executePickTrade } from '../../engine/draftpicks.js';
 
 export const selfRendering = true;
 
@@ -103,6 +103,83 @@ export function view(root, params, ctx) {
     timer = setTimeout(tick, reduced ? Math.min(ms, 120) : ms);
   }
 
+  /**
+   * The two expensive reads on the player's turn, done after the screen is up.
+   *
+   * These used to run inside `draw()`, which meant the board, the player list
+   * and every button waited on them. Measured in the browser, arriving at the
+   * first pick of a draft blocked the main thread for **9.4 seconds in one
+   * task** on a desktop — and the player was on a phone, where it is several
+   * times worse. That is the freeze reported on starting a league, on making a
+   * pick and on accepting a pick trade: all three end a turn, and ending a
+   * turn is what triggered this.
+   *
+   * They are now two deferred steps, so the screen paints first and the odds
+   * and the offer appear as they are worked out. A job is tied to the turn it
+   * was started for and checks it is still the live one before touching the
+   * cache or redrawing, because a turn can end while it is thinking — the
+   * player can trade a pick, or the AI board can move on.
+   */
+  let turnJob = null;
+
+  /** Redraw without stealing the caret out of the search box. */
+  function redraw() {
+    const active = document.activeElement;
+    const inQ = active && active.id === 'q';
+    const at = inQ ? active.selectionStart : 0;
+    draw();
+    if (!inQ) return;
+    const again = root.querySelector('#q');
+    if (again) { again.focus(); again.setSelectionRange(at, at); }
+  }
+
+  function startTurnWork(turnKey) {
+    if (turnJob) turnJob.cancelled = true;
+    const job = { key: turnKey, cancelled: false };
+    turnJob = job;
+    // Claim the turn straight away, or every redraw would start another job.
+    turnCache.key = turnKey;
+    turnCache.odds = null;
+    turnCache.untilPick = null;
+    turnCache.offers = null;
+    const live = () => !job.cancelled && !stopped && turnJob === job;
+    const step = (fn) => setTimeout(() => { if (live()) fn(); }, 0);
+    step(() => {
+      const sv = survivalOdds(league, draft, ctx.players, u, { trials: 8 });
+      if (!live()) return;
+      turnCache.odds = sv.odds;
+      turnCache.untilPick = sv.untilPick;
+      redraw();
+      if (draft.round > OFFER_ROUNDS) { turnCache.offers = []; return; }
+      // One candidate per task. Each is a single simulated draft; running the
+      // whole budget in one go measured a two-second block on a throttled
+      // phone, which is the freeze this is all about.
+      step(() => {
+        const plan = pickOfferCandidates(league, draft, ctx.players, ctx.byId, null);
+        if (!live()) return;
+        if (!plan) { turnCache.offers = []; return; }
+        let i = 0, spent = 0;
+        const askOne = () => {
+          if (!live()) return;
+          if (spent >= OFFER_BUDGET || i >= plan.candidates.length) {
+            turnCache.offers = turnCache.offers || [];
+            return;
+          }
+          spent++;
+          const offer = tryPickOffer(league, plan, plan.candidates[i++]);
+          if (!live()) return;
+          if (offer && !turnCache.declined.has(offer.id)) {
+            turnCache.offers = [offer];
+            redraw();
+            return;
+          }
+          step(askOne);
+        };
+        askOne();
+      });
+    });
+  }
+
   function draw() {
     if (stopped) return;
     if (draft.complete) return drawComplete();
@@ -112,15 +189,7 @@ export function view(root, params, ctx) {
     const open = openSlotsByPos(me);
     const pickNo = overallPickNumber(draft);
     const turnKey = `${draft.picks.length}:${u}`;
-    if (mine && turnCache.key !== turnKey) {
-      const sv = survivalOdds(league, draft, ctx.players, u, { trials: 8 });
-      turnCache.key = turnKey;
-      turnCache.odds = sv.odds;
-      turnCache.untilPick = sv.untilPick;
-      turnCache.offers = draft.round <= OFFER_ROUNDS
-        ? makePickOffers(league, draft, ctx.players, ctx.byId, null, { max: 1 }).filter((o) => !turnCache.declined.has(o.id))
-        : [];
-    }
+    if (mine && turnCache.key !== turnKey) startTurnWork(turnKey);
     const rows = snakeRows(league, draft);
     const clockTeam = league.teams[onClock];
 
@@ -307,14 +376,16 @@ export function view(root, params, ctx) {
       const p = aiChoose(league, draft, ctx.players, u, rng);
       if (p) pick(p);
     });
-    el.querySelector('#autoAll')?.addEventListener('click', () => {
+    el.querySelector('#autoAll')?.addEventListener('click', (e) => {
       stop();
-      ctx.update((s) => {
-        const rng = new RNG(s.league.rngState);
-        autoDraftAll(s.league, s.league.draft, ctx.players, rng);
-        s.league.rngState = rng.state;
-      }, { silent: true });
-      draw();
+      withBusy(e.currentTarget, () => {
+        ctx.update((s) => {
+          const rng = new RNG(s.league.rngState);
+          autoDraftAll(s.league, s.league.draft, ctx.players, rng);
+          s.league.rngState = rng.state;
+        }, { silent: true });
+        draw();
+      }, 'Drafting…');
     });
     el.querySelector('#posTabs')?.addEventListener('click', (e) => { const b = e.target.closest('[data-pos]'); if (b) { ui.pos = b.dataset.pos; draw(); } });
     el.querySelector('#eraTabs')?.addEventListener('click', (e) => { const b = e.target.closest('[data-era]'); if (b) { ui.era = b.dataset.era; draw(); } });

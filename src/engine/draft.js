@@ -90,8 +90,16 @@ function replacementLevels(available, demand) {
 
 /**
  * Rank available players for `teamIdx`. Returns [{ player, value }] sorted desc.
+ *
+ * With `bestOnly` it returns just the top man and skips the sort. That matters
+ * because `aiChoose` reads `ranked[0]` and nothing else, and it is called once
+ * per pick — eight hundred and sixty-four times in a thirty-two club draft,
+ * and a whole draft is what `projectPickTrade` runs to value a single pick
+ * swap. Sorting a thousand players to read one of them was a third of the cost
+ * of every projection. The scoring loop is shared so the random draws happen
+ * in the same order either way, which keeps a seeded draft identical.
  */
-export function rankForTeam(league, draft, pool, teamIdx, rng) {
+export function rankForTeam(league, draft, pool, teamIdx, rng, { bestOnly = false } = {}) {
   const team = league.teams[teamIdx];
   const open = openSlotsByPos(team);
   const available = availablePlayers(draft, pool);
@@ -101,6 +109,7 @@ export function rankForTeam(league, draft, pool, teamIdx, rng) {
   const roundsLeft = TOTAL_ROUNDS - draft.round + 1;
   const openCount = openSlots(team).length;
   const ranked = [];
+  let best = null;
   for (const p of available) {
     if (!open[p.pos]) continue;
     // A club drafts on what its own scouts say, not on the truth.
@@ -119,14 +128,21 @@ export function rankForTeam(league, draft, pool, teamIdx, rng) {
     // A backup quarterback is insurance, not a starter: last few rounds.
     if (p.pos === 'QB' && filled >= 1 && draft.round <= TOTAL_ROUNDS - 4) value -= 14;
     if (rng) value += rng.normal(0, 1.6);
+    if (bestOnly) {
+      // Strictly greater, so a tie keeps the earlier player — which is what a
+      // stable sort on the full list would also have done.
+      if (best === null || value > best.value) best = { player: p, value };
+      continue;
+    }
     ranked.push({ player: p, value });
   }
+  if (bestOnly) return best ? [best] : [];
   ranked.sort((a, b) => b.value - a.value);
   return ranked;
 }
 
 export function aiChoose(league, draft, pool, teamIdx, rng) {
-  const ranked = rankForTeam(league, draft, pool, teamIdx, rng);
+  const ranked = rankForTeam(league, draft, pool, teamIdx, rng, { bestOnly: true });
   return ranked.length ? ranked[0].player : null;
 }
 

@@ -99,14 +99,16 @@ function sandbox(league, draft) {
 }
 
 /** Run the AI's draft forward to a pick number, or to the end. */
-function rollForward(lg, d, pool, rng, untilOverall) {
+function rollForward(lg, d, pool, rng, untilOverall, landed = null) {
   let guard = 0;
   while (!d.complete && guard++ < TOTAL_ROUNDS * d.order.length + 5) {
     if (untilOverall != null && overallOf(d, d.round, d.pickInRound) > untilOverall) break;
     const t = pickOwner(d, d.round, d.pickInRound);
     if (t == null) break;
+    const ov = landed ? overallOf(d, d.round, d.pickInRound) : 0;
     const p = aiChoose(lg, d, pool, t, rng);
     if (!p) break;
+    if (landed) landed.set(ov, p);
     makePick(lg, d, p);
   }
 }
@@ -177,16 +179,69 @@ function rosterValue(lg, teamIdx, byId) {
  * the modal draft, not the mean of every draft.
  */
 export function projectPickTrade(league, draft, pool, byId, aIdx, bIdx, aGives, bGives) {
+  return pickTradeProjector(league, draft, pool, byId).project(aIdx, bIdx, aGives, bGives);
+}
+
+/**
+ * The same projection, with the half of it that never changes done once.
+ *
+ * Every projection drafts two worlds: the one where nothing happens and the
+ * one where the swap does. The first is *identical* for every candidate swap,
+ * and it was being rebuilt for each one — so asking about nine swaps ran
+ * eighteen drafts where ten would do. That was half of a much larger problem:
+ * `makePickOffers` asked about up to ninety-nine of them on the render path,
+ * which measured as a single nine-and-a-half-second block of the main thread
+ * on a desktop, and several times that on a phone. The player's report was
+ * that pressing a button froze the game for a moment; this was the moment.
+ *
+ * A projector holds the untouched world and the roster values that come out of
+ * it, so each further question costs one draft instead of two. It also exposes
+ * `slotValue`, which is what the free half buys: the before-world knows which
+ * player every pick slot actually produced, so a club's own board prices a
+ * swap without simulating anything. Treat that as a hint and nothing more —
+ * measured against the real projection where it is used it correlates r =
+ * -0.05, and it earns its place only by ordering candidates slightly better
+ * than not ordering them at all (see `makePickOffers`).
+ */
+export function pickTradeProjector(league, draft, pool, byId) {
   const before = sandbox(league, draft);
-  rollForward(before.league, before.draft, pool, null, null);
-  const after = sandbox(league, draft);
-  applySwap(after.draft, aIdx, bIdx, aGives, bGives);
-  rollForward(after.league, after.draft, pool, null, null);
+  const landed = new Map();
+  rollForward(before.league, before.draft, pool, null, null, landed);
+  const baseline = league.teams.map((_, i) => rosterValue(before.league, i, byId));
+  const boards = new Map();
+  const boardFor = (i) => {
+    let b = boards.get(i);
+    if (!b) {
+      b = new Map();
+      for (const r of rankForTeam(league, draft, pool, i, null)) {
+        const id = r.player ? r.player.id : r.id;
+        if (id != null) b.set(id, r.score ?? r.value ?? 0);
+      }
+      boards.set(i, b);
+    }
+    return b;
+  };
   const round1 = (x) => Math.round(x * 10) / 10;
   return {
-    a: round1(rosterValue(after.league, aIdx, byId) - rosterValue(before.league, aIdx, byId)),
-    b: round1(rosterValue(after.league, bIdx, byId) - rosterValue(before.league, bIdx, byId)),
-    horizon: null,
+    baseline,
+    /** Who each pick slot produced when nobody traded. */
+    landed,
+    /** What club `i` thinks swapping away `give` for `get` is worth, for free. */
+    slotValue(i, give, get) {
+      const b = boardFor(i);
+      const pg = landed.get(get.overall), pv = landed.get(give.overall);
+      return (pg ? (b.get(pg.id) ?? 0) : 0) - (pv ? (b.get(pv.id) ?? 0) : 0);
+    },
+    project(aIdx, bIdx, aGives, bGives) {
+      const after = sandbox(league, draft);
+      applySwap(after.draft, aIdx, bIdx, aGives, bGives);
+      rollForward(after.league, after.draft, pool, null, null);
+      return {
+        a: round1(rosterValue(after.league, aIdx, byId) - baseline[aIdx]),
+        b: round1(rosterValue(after.league, bIdx, byId) - baseline[bIdx]),
+        horizon: null,
+      };
+    },
   };
 }
 
@@ -275,38 +330,96 @@ export function proposePickTrade(league, draft, pool, byId, userIdx, aiIdx, user
  */
 export const PICK_OFFER_FAIR_MARGIN = 2;
 
-export function makePickOffers(league, draft, pool, byId, rng, { max = 1 } = {}) {
-  if (draft.complete) return [];
+/**
+ * How many swaps this will simulate before giving up for the turn.
+ *
+ * It used to simulate every one it could think of — every other club against
+ * three of its picks and three of yours, ninety-nine drafted twice — to find
+ * the *best* offer. That is the wrong target. An offer only has to clear two
+ * bars, the club's own greed and not costing you more than
+ * `PICK_OFFER_FAIR_MARGIN`, and those are checked by the real projection
+ * whichever candidate is put through it. So the candidates are ranked for free
+ * off the before-world and tried in that order until one clears, and the
+ * budget caps what a turn can cost when none of them do.
+ */
+export const OFFER_BUDGET = 4;
+
+/**
+ * The candidate swaps for the player's turn, ranked, with the shared world
+ * built. Split out from `makePickOffers` so a caller can spend the budget one
+ * question at a time: each `tryPickOffer` is a single draft, which is the
+ * smallest piece this can be cut into, and the screen stays alive between
+ * them. Doing all of them in one go measured a two-second block on a throttled
+ * phone even after the count came down.
+ */
+export function pickOfferCandidates(league, draft, pool, byId, rng, { projector = null } = {}) {
+  if (draft.complete) return null;
   const u = league.teams.findIndex((t) => t.isUser);
-  if (u < 0) return [];
+  if (u < 0) return null;
   const mine = remainingPicks(draft, u);
-  if (!mine.length) return [];
-  const made = [];
+  if (!mine.length) return null;
   const others = league.teams.map((_, i) => i).filter((i) => i !== u && remainingPicks(draft, i).length > 0);
+  if (!others.length) return null;
   if (rng) for (let i = others.length - 1; i > 0; i--) { const j = rng.int(0, i); [others[i], others[j]] = [others[j], others[i]]; }
+
+  // One for one only, and only the near picks: a club does not ring about
+  // round nineteen, and the projection cannot see that far anyway.
+  const candidates = [];
   for (const a of others) {
-    if (made.length >= max) break;
     const theirs = remainingPicks(draft, a);
-    let best = null;
-    // One for one only, and only the near picks: a club does not ring about
-    // round nineteen, and the projection cannot see that far anyway.
     for (const mp of mine.slice(0, 3)) for (const tp of theirs.slice(0, 3)) {
       if (mp.overall === tp.overall) continue;
-      const v = validatePickTrade(league, draft, a, u, [tp], [mp]);
-      if (!v.ok) continue;
-      const proj = projectPickTrade(league, draft, pool, byId, a, u, [tp], [mp]);
-      if (proj.a < aiGreed(league.teams[a], league)) continue;
-      if (proj.b < -PICK_OFFER_FAIR_MARGIN) continue;
-      if (!best || proj.a > best.aiGain) best = { gives: [tp], wants: [mp], aiGain: proj.a, userDelta: proj.b };
+      if (!validatePickTrade(league, draft, a, u, [tp], [mp]).ok) continue;
+      candidates.push({ a, mp, tp });
     }
-    if (!best) continue;
-    const up = best.gives[0].overall > best.wants[0].overall;
-    made.push({
-      id: `pk-${league.season}-${draft.round}-${a}-${best.wants[0].overall}`,
-      season: league.season, round: draft.round, from: a,
-      gives: best.gives, wants: best.wants, aiGain: best.aiGain, userDelta: best.userDelta,
-      note: `${league.teams[a].abbr} want to move ${up ? 'up' : 'down'}: their #${best.gives[0].overall} for your #${best.wants[0].overall}.`,
-    });
+  }
+  if (!candidates.length) return null;
+
+  const proj = projector || pickTradeProjector(league, draft, pool, byId);
+  // Try the likelier candidates first. The before-world already knows who each
+  // slot produced, so the club's own board prices a swap for nothing.
+  //
+  // How much this is worth was measured over ninety-eight turns, at a budget
+  // of four: ordering by the club's gain finds an offer on 30% of turns
+  // against 22% for leaving the candidates in the order they were built. It is
+  // a weak signal and it is honest to say so — a plausible-looking alternative,
+  // ordering by the worse of the two sides on the theory that only near-even
+  // swaps can pass both bars, measured 7%, and ordering by the player's side
+  // 14%. So this is the best of the four tried and not much better than none.
+  // What it is not is a substitute for the projection: paired against the real
+  // answer at the point this actually runs, the board estimate of the club's
+  // gain correlates r = -0.05. It sorts; it does not decide.
+  for (const c of candidates) c.guess = proj.slotValue(c.a, c.tp, c.mp);
+  candidates.sort((x, y) => y.guess - x.guess);
+  return { user: u, round: draft.round, projector: proj, candidates };
+}
+
+/** Put one candidate through the real projection. Returns an offer, or null. */
+export function tryPickOffer(league, plan, c) {
+  const u = plan.user;
+  const v = plan.projector.project(c.a, u, [c.tp], [c.mp]);
+  if (v.a < aiGreed(league.teams[c.a], league)) return null;
+  if (v.b < -PICK_OFFER_FAIR_MARGIN) return null;
+  const up = c.tp.overall > c.mp.overall;
+  return {
+    id: `pk-${league.season}-${plan.round}-${c.a}-${c.mp.overall}`,
+    season: league.season, round: plan.round, from: c.a,
+    gives: [c.tp], wants: [c.mp], aiGain: v.a, userDelta: v.b,
+    note: `${league.teams[c.a].abbr} want to move ${up ? 'up' : 'down'}: their #${c.tp.overall} for your #${c.mp.overall}.`,
+  };
+}
+
+export function makePickOffers(league, draft, pool, byId, rng, { max = 1, budget = OFFER_BUDGET, projector = null } = {}) {
+  const plan = pickOfferCandidates(league, draft, pool, byId, rng, { projector });
+  if (!plan) return [];
+  const made = [];
+  let spent = 0;
+  for (const c of plan.candidates) {
+    if (made.length >= max || spent >= budget) break;
+    if (made.some((o) => o.from === c.a)) continue;
+    spent++;
+    const o = tryPickOffer(league, plan, c);
+    if (o) made.push(o);
   }
   return made;
 }
@@ -321,19 +434,29 @@ export function aiPickTrades(league, draft, pool, byId, rng, { pairs = 2 } = {})
   const ai = league.teams.map((t, i) => (t.isUser ? -1 : i)).filter((i) => i >= 0);
   if (ai.length < 2) return [];
   const done = [];
+  // Built on first use and dropped after a deal, because a deal changes the
+  // world the untouched draft was rolled from.
+  let projector = null;
   for (let n = 0; n < pairs; n++) {
     const a = ai[rng.int(0, ai.length - 1)], b = ai[rng.int(0, ai.length - 1)];
     if (a === b) continue;
     const pa = remainingPicks(draft, a).slice(0, 2), pb = remainingPicks(draft, b).slice(0, 2);
-    let best = null;
+    const pairs = [];
     for (const x of pa) for (const y of pb) {
       if (x.overall === y.overall) continue;
       if (!validatePickTrade(league, draft, a, b, [x], [y]).ok) continue;
-      const proj = projectPickTrade(league, draft, pool, byId, a, b, [x], [y]);
-      if (proj.a < aiGreed(league.teams[a], league) || proj.b < aiGreed(league.teams[b], league)) continue;
-      if (!best || proj.a + proj.b > best.total) best = { x, y, total: proj.a + proj.b };
+      pairs.push({ x, y });
     }
-    if (best) done.push(executePickTrade(league, draft, a, b, [best.x], [best.y]));
+    if (!pairs.length) continue;
+    // Same economy as the offers: rank for free, simulate the best one only.
+    // Each club has to gain, so rank on the pair rather than on either side.
+    const proj = projector || (projector = pickTradeProjector(league, draft, pool, byId));
+    for (const q of pairs) q.guess = proj.slotValue(a, q.x, q.y) + proj.slotValue(b, q.y, q.x);
+    pairs.sort((p, q) => q.guess - p.guess);
+    const top = pairs[0];
+    const v = proj.project(a, b, [top.x], [top.y]);
+    const best = (v.a >= aiGreed(league.teams[a], league) && v.b >= aiGreed(league.teams[b], league)) ? top : null;
+    if (best) { done.push(executePickTrade(league, draft, a, b, [best.x], [best.y])); projector = null; }
   }
   return done;
 }

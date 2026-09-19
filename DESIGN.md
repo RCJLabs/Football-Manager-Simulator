@@ -314,6 +314,86 @@ User games keep the full log and every player line. Playoff games keep player li
 
 At season start every position group is ordered by overall. Slots fill in the order players were bought, so an auction could otherwise leave a 92 back at RB2 behind a 75. AI clubs are re-sorted each season; the user's club only the first time.
 
+## Why the interface froze (performance)
+
+A report that pressing a button locked the game for a moment — starting a
+league, making a draft pick, accepting a pick trade — and then worked. It was
+one defect with one cause, and the cause was a function written earlier in this
+file's history with a comment explaining why it was expensive and why that was
+acceptable. It was not acceptable.
+
+**Measured, in the browser, throttled to roughly a mid-range Android: arriving
+at the player's first draft pick blocked the main thread for 17.8 seconds in a
+single task.** Not spread over a second or two of work — one task, during which
+nothing scrolls, no tap registers and no button depresses.
+
+`projectPickTrade` values a pick swap by drafting the whole remaining draft
+twice, once under each ownership, and comparing the finished rosters. That is
+right, and the reason is in its comment: lineup strength weights by position
+leverage, so part-built rosters do not compare — a club holding one quarterback
+scores 96×18 against 96×3.3 for one holding a receiver. Truncating the horizon
+was re-tested here and it is still wrong: padding the empty slots to
+replacement level, which is the obvious fix for that trap and does help (the
+correlation with the true answer goes from r=0.45 to r=0.75), still leaves a
+six-round horizon at r=0.75 for only a 3x saving. The full draft stays.
+
+What was wrong was how many of them ran. `makePickOffers` asked the question for
+every other club against three of its picks and three of yours — up to
+ninety-nine swaps, each drafted twice — to find the *best* offer, and it ran
+inside `draw()` on every one of the player's turns in the first six rounds. All
+three symptoms are the same moment: starting a league puts you on the clock in
+round one, making a pick brings the next turn, and accepting a trade ends the
+turn too.
+
+Four changes, in order of how much they bought:
+
+- **Only ask about a few swaps.** An offer has to clear two bars — the club's
+  greed, and not costing the player more than `PICK_OFFER_FAIR_MARGIN` — and
+  those are checked by the real projection whichever candidate goes through it,
+  so there is no reason to find the *best* one. Candidates are ranked off the
+  before-world for nothing and tried until one clears, with `OFFER_BUDGET`
+  capping the turn. This is a behaviour change and worth stating plainly: the
+  old exhaustive search produced an offer on **97% of the player's turns** at
+  two seconds a turn, which is a club ringing you about a pick swap on
+  essentially every pick. It is now about 30%.
+- **Do the half that never changes once.** Every projection drafts the
+  untouched world and the swapped one; the untouched one is identical for every
+  candidate and was being rebuilt for each. `pickTradeProjector` holds it, so
+  each further question costs one draft instead of two.
+- **Stop sorting a thousand players to read one.** `aiChoose` takes
+  `ranked[0]` and nothing else, and it is called once per pick — 864 times in a
+  32-club draft, and a whole draft is what a projection runs. `rankForTeam`
+  gained a `bestOnly` path that scans for the maximum instead of sorting. The
+  scoring loop is shared so the random draws happen in the same order, and the
+  draft output is byte-identical: same hash before and after.
+- **Get it off the render path, one question per task.** The board, the player
+  list and every button are drawn from what is already known; the odds and the
+  offer fill in afterwards, each candidate in its own task, with the job tied
+  to the turn that started it so a turn ending mid-thought cancels it.
+
+17.8 seconds to a worst single block of 0.82. The remaining block is one
+simulated draft, which is the floor without making `rollForward` resumable.
+
+**The ranking heuristic is weak and the code says so.** The before-world knows
+which player each pick slot produced, so a club's own board prices a swap for
+free. Measured over ninety-eight turns at a budget of four it finds an offer on
+30% of turns against 22% for no ranking at all — and against the real
+projection at the point it runs it correlates r = −0.05. An earlier measurement
+of the same idea gave r = 0.84 and was wrong: it pooled candidates from a fresh
+draft where pick numbers span the whole board, so it measured "trading pick 3
+for pick 50 is bad", which is not the question. Two plausible alternatives were
+tried and are worse (ordering by the worse of the two sides, 7%; by the
+player's side, 14%).
+
+**Everything else on a render path was measured and is fine**: the auction's
+price guide 2–5 ms, position scarcity and lot advice under 1 ms, the free-agent
+board 2–4 ms, the trade block 3 ms, player search 0.4 ms, the keeper board 3 ms.
+A save is 279 KB after a week and stringifies in 2.6 ms, so the debounced write
+is not the problem either. Two deliberate actions are genuinely slow and now say
+so rather than appearing hung: completing an auction (1.1–1.4 s) and drafting
+out the board (0.1–0.2 s) go through `withBusy`, which yields a frame so the
+button can change before the thread disappears.
+
 ## Transactions (`transactions.js`)
 
 Rosters are exactly 27 slots, so every in-season move is a swap and no separate bench-management screen is needed (the one exception is a slot left open by an older save, which a claim can fill outright). Three kinds of move exist, all from the Moves screen during the regular season.

@@ -113,11 +113,22 @@ export function openPickTrade({ league, draft, pool, byId, userIdx, onDone }) {
     el.querySelector('#pkPropose')?.addEventListener('click', () => {
       const mine = remainingPicks(draft, userIdx).filter((p) => sel.mine.has(p.overall));
       const theirs = remainingPicks(draft, sel.partner).filter((p) => sel.theirs.has(p.overall));
-      const r = proposePickTrade(league, draft, pool, byId, userIdx, sel.partner, mine, theirs);
-      if (!r.ok || !r.accepted) { toast(r.reason); return; }
-      toast(`Deal: ${league.teams[sel.partner].abbr} take #${mine.map((p) => p.overall).join(', #')}`);
-      m.close();
-      onDone && onDone(r);
+      // Proposing costs the same draft-long projection that valuing does — the
+      // club has to work out whether it wants the deal — so it gets the same
+      // spinner. Without it the button simply did not respond for a second or
+      // two, which read as the game having frozen.
+      busy = true; redraw();
+      setTimeout(() => {
+        let r;
+        try {
+          r = proposePickTrade(league, draft, pool, byId, userIdx, sel.partner, mine, theirs);
+        } catch (err) { busy = false; redraw(); toast(err.message); return; }
+        busy = false; redraw();
+        if (!r.ok || !r.accepted) { toast(r.reason); return; }
+        toast(`Deal: ${league.teams[sel.partner].abbr} take #${mine.map((p) => p.overall).join(', #')}`);
+        m.close();
+        onDone && onDone(r);
+      }, 20);
     });
   }
 

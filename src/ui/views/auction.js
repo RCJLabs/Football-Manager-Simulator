@@ -10,7 +10,7 @@ import {
   currentNominator, nominatable, autoCompleteAll, autoUserMax, canRoster, MIN_BID, TOTAL_SLOTS,
 } from '../../engine/auction.js';
 import { lotAdvice, lotNote, positionScarcity } from '../../engine/market.js';
-import { playerItem, playerModal, teamChip, toast, ovrBadge, esc, posBadge } from '../components.js';
+import { playerItem, playerModal, teamChip, toast, ovrBadge, esc, posBadge, withBusy } from '../components.js';
 import { draftBoard, boardOverlay, auctionRows, scrollToPick, lastName } from '../draft-board.js';
 import { SPEEDS, DEFAULT_SPEED } from './draft.js';
 
@@ -213,12 +213,16 @@ export function view(root, params, ctx) {
 
   el.querySelector('#minAsk')?.addEventListener('input', (e) => { el.querySelector('#askLbl').textContent = `${e.target.value}+`; });
   el.querySelector('#minAsk')?.addEventListener('change', (e) => { ui.minAsk = Number(e.target.value); redraw(); });
-  el.querySelector('#autoAll')?.addEventListener('click', () => {
-    ctx.update((s) => {
-      const rng = new RNG(s.league.rngState);
-      autoCompleteAll(s.league.auction, s.league, ctx.players, rng, ctx.byId);
-      s.league.rngState = rng.state;
-    });
+  el.querySelector('#autoAll')?.addEventListener('click', (e) => {
+    // Filling every remaining seat runs the rest of the room, which measures
+    // over a second on a desktop and several on a phone.
+    withBusy(e.currentTarget, () => {
+      ctx.update((s) => {
+        const rng = new RNG(s.league.rngState);
+        autoCompleteAll(s.league.auction, s.league, ctx.players, rng, ctx.byId);
+        s.league.rngState = rng.state;
+      });
+    }, 'Completing…');
   });
 
   el.querySelector('#posTabs')?.addEventListener('click', (e) => { const b = e.target.closest('[data-pos]'); if (b) { ui.pos = b.dataset.pos; ui.limit = 60; redraw(); } });
