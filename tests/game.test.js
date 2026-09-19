@@ -121,6 +121,41 @@ test('run lengths have a tail, not a cliff', () => {
   assert.ok(Math.max(...runs) > 45, `longest run ${Math.max(...runs)} — the tail has a ceiling`);
 });
 
+test('third down is the hardest down', () => {
+  // The defence plays the marker on third and long, so a series that reaches
+  // third down should gain less than one on first. Before `sticks` existed
+  // nothing in the passing game read toGo and third down gained *more* than
+  // first — 6.27 yards against 6.18 — which is why the defence could not get
+  // off the field.
+  const gain = { 1: [], 3: [] };
+  const SCRIM = new Set(['run', 'pass', 'incomplete', 'sack']);
+  for (let seed = 5000; seed < 5120; seed++) {
+    const g = simulateGame(mk(seed));
+    // Log entries carry post-play state, so the down a play was run on is the
+    // previous entry's; a 'drive' entry opens a series at first and ten.
+    let pre = null;
+    for (const e of g.log) {
+      if (e.type === 'drive') { pre = { down: 1, toGo: 10 }; continue; }
+      if (SCRIM.has(e.type) && pre && gain[pre.down]) {
+        let y = null;
+        if (e.type === 'incomplete') y = 0;
+        else {
+          const m = /for (-?\d+) yards?/.exec(e.text);
+          if (m) y = Number(m[1]);
+          else if (/for no gain/.test(e.text)) y = 0;
+          else { const l = /for a loss of (\d+)/.exec(e.text); if (l) y = -Number(l[1]); }
+        }
+        if (y != null) gain[pre.down].push(y);
+      }
+      if (e.down) pre = { down: e.down, toGo: e.toGo };
+    }
+  }
+  const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  const first = mean(gain[1]), third = mean(gain[3]);
+  assert.ok(gain[3].length > 500, `only ${gain[3].length} third-down plays sampled`);
+  assert.ok(third < first, `third down gained ${third.toFixed(2)}, first down ${first.toFixed(2)}`);
+});
+
 test('playoff games never end tied', () => {
   for (let seed = 3000; seed < 3400; seed++) {
     const g = simulateGame(mk(seed, { playoff: true }));

@@ -104,8 +104,63 @@ export function squeeze(ballOn) {
   return clamp((ballOn - 75) / 25, 0, 1);
 }
 
+/**
+ * How hard the defence plays the first-down marker: 0 on early downs and in
+ * short yardage, 1 on third or fourth and long.
+ *
+ * Nothing in the passing game read `toGo` at all, so a throw on third and nine
+ * was resolved exactly like one on first and ten and the receiver ran after
+ * the catch as if the sticks were not there. That showed up as a defence that
+ * could not get off the field: third down converted 43.9% against a real 39,
+ * and the gap widened with distance — 43% from third and seven to nine against
+ * a real 32. The offence gained *more* on third down than on first, 6.27 yards
+ * against 6.18, where real football has third down as the hardest down by more
+ * than a yard.
+ *
+ * The yards it takes away are subtracted rather than scaled, and that is the
+ * whole trick. Scaling multiplies the tail along with the mean, so a version
+ * that multiplied cost 0.18 explosive plays a team and undid a row fixed the
+ * commit before. Taking a fixed number of yards off instead kills the
+ * three-yard checkdown that moves the chains and leaves the twenty-five-yard
+ * catch a twenty-yard catch: the conversion goes, the big play stays.
+ */
+export function sticks(down, toGo) {
+  return down >= 3 ? clamp((toGo - 3) / 7, 0, 1) : 0;
+}
+
+/** Yards after the catch the defence takes away when it is fully playing the sticks. */
+export const STICKS_YAC = 7.0;
+
 /** How much each pass concept suffers for it. A screen barely notices; a deep shot has nowhere to go. */
 const SQUEEZE_COMP = { screen: 0.4, pass_short: 0.6, pass_med: 1, pass_deep: 1.4, pa_pass: 0.9 };   // an average punter's leg, before the return
+
+/**
+ * How much the squeeze actually costs, once it was measured rather than guessed.
+ *
+ * The red zone was still the easiest place on the field to score: a touchdown
+ * on 64% of trips against a real 56, which is the same defect as touchdowns
+ * per field goal reading 2.05 against a real 1.3 to 1.8 — the drives that
+ * should have stalled into a kick were finishing. Raising all four
+ * coefficients together took red zone touchdowns to 58%, field goal attempts
+ * from 1.45 to 1.58 and the ratio to 1.72, and cost nothing else: paired
+ * against the same seeds, explosive plays and yards per completion did not
+ * move outside the noise.
+ */
+export const SQUEEZE_STUFF = 0.11;  // added to the chance a run is stuffed
+export const SQUEEZE_RUN = 0.36;    // taken off a run that is not
+export const SQUEEZE_PASS = 0.18;   // taken off completion probability
+export const SQUEEZE_YAC = 0.58;    // taken off yards after the catch
+
+/**
+ * Chance a catch turns into a long gain, before the receiver's speed edge.
+ *
+ * Raised to pay back what `sticks` costs. Taking yards after the catch away on
+ * third down removes explosive plays as well as conversions, because third and
+ * long is where the deep ball lives; this buys them back somewhere that does
+ * not also buy back the conversions, since a breakaway is rare and lands on
+ * early downs as often as late.
+ */
+export const PASS_BREAKAWAY = 0.024;
 
 /**
  * What the defence showed, when it is the reason the play went the way it did.
@@ -191,12 +246,12 @@ export function resolveRun(g, rng, call, defCall) {
   if (sneak) {
     yards = rng.chance(0.78 + (comp.runBlock - def.runStop) / 200) ? rng.int(1, 3) : rng.int(-1, 0);
   } else {
-    const stuffP = clamp(STUFF_RATE * (1.6 - blockEdge * 1.2) + (m.stuff || 0) + squeeze(g.ballOn) * 0.07, 0.05, 0.45);
+    const stuffP = clamp(STUFF_RATE * (1.6 - blockEdge * 1.2) + (m.stuff || 0) + squeeze(g.ballOn) * SQUEEZE_STUFF, 0.05, 0.45);
     if (rng.chance(stuffP)) {
       yards = clamp(Math.round(rng.normal(-1, 1.4)), -5, 1);
     } else {
       const base = outside ? rng.normal(RUN_OUT, 3.4) : rng.normal(RUN_IN, 2.7);
-      yards = (base + (blockEdge - 0.5) * 5 + (m.run || 0)) * (1 - squeeze(g.ballOn) * 0.24);
+      yards = (base + (blockEdge - 0.5) * 5 + (m.run || 0)) * (1 - squeeze(g.ballOn) * SQUEEZE_RUN);
       // Break a tackle.
       const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) / 170, 0.05, 0.45);
       if (rng.chance(btP)) yards += rng.exp(outside ? BREAK_YDS_OUT : BREAK_YDS_IN) + 0.48;
@@ -316,7 +371,7 @@ export function resolvePass(g, rng, call, defCall) {
   let compP = baseComp + (skill - cov) * 0.008 + (m.comp || 0);
   if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003 + (qb.r.thp - 85) * 0.003;
   if (pressured) compP -= 0.08;
-  compP -= squeeze(g.ballOn) * 0.10 * (SQUEEZE_COMP[call] ?? 1);
+  compP -= squeeze(g.ballOn) * SQUEEZE_PASS * (SQUEEZE_COMP[call] ?? 1);
   compP = clamp(compP, 0.12, 0.93);
 
   st.pass.att++;
@@ -360,8 +415,9 @@ export function resolvePass(g, rng, call, defCall) {
   // Completion.
   const yacMean = { screen: 5.9, pass_short: 2.9, pass_med: 2.3, pass_deep: 3.4, pa_pass: 3.0 }[call] + (m.yac || 0);
   const rac = target.r.rac ?? (target.r.elu ? (target.r.elu * 0.6 + target.r.pow * 0.4) : 70);
-  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09)) * (1 - squeeze(g.ballOn) * 0.40);
-  const baP = clamp(0.012 + Math.max(0, (target.r.spd ?? 80) - def.defSpeed) / 300 + (call === 'screen' ? 0.015 : 0), 0.004, 0.1);
+  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09)) * (1 - squeeze(g.ballOn) * SQUEEZE_YAC);
+  yac = Math.max(0, yac - sticks(g.down, g.toGo) * STICKS_YAC);
+  const baP = clamp(PASS_BREAKAWAY + Math.max(0, (target.r.spd ?? 80) - def.defSpeed) / 300 + (call === 'screen' ? 0.015 : 0), 0.004, 0.15);
   if (rng.chance(baP)) yac += rng.int(15, 45);
   let yards = Math.round(air + yac);
   yards = Math.max(yards, -g.ballOn + 1);

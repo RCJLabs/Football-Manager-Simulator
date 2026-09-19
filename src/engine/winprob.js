@@ -37,10 +37,20 @@ export function Phi(z) {
  * The fit is weighted by how many drives sit behind each spot, because the far
  * end of the field is thin and an unweighted line lets a handful of drives from
  * the opponent's ten drag the whole curve. Mean error against the measured
- * buckets is 0.24 points.
+ * buckets is 0.15 points.
+ *
+ * Re-fitted after `sticks` and the stronger red-zone squeeze, which changed
+ * what drives are worth and so made the previous fit — 0.0525 and 0.009 — a
+ * stale measurement of an engine that no longer existed. It read own-20 at
+ * 1.06 points against a measured 0.93. Note the loop: this curve decides
+ * fourth downs, fourth downs change drive outcomes, and drive outcomes are
+ * what the curve is fitted to, so re-running `npm run ep` after changing it
+ * gives a slightly different answer again. It settles quickly — 0.0547 then
+ * 0.0539, which is eight hundredths of a point at midfield — and the second
+ * pass is what ships.
  */
-export const EP_PER_YARD = 0.0525;
-export const EP_AT_OWN_GOAL = 0.009;
+export const EP_PER_YARD = 0.0539;
+export const EP_AT_OWN_GOAL = -0.215;
 
 export function expectedPoints(ballOn, down = 1, toGo = 10) {
   let ep = ballOn * EP_PER_YARD + EP_AT_OWN_GOAL;

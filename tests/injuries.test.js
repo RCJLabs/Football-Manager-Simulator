@@ -72,15 +72,22 @@ test('a position group left short is padded with replacement-level players', () 
   const rep = replacementFromId('rep:QB:1');
   assert.equal(rep.pos, 'QB');
   assert.ok(overall(rep) < 50);
-  // A team without a real quarterback is a lot worse.
+  // A team without a real quarterback is a lot worse. Measured over 200 games
+  // rather than 40, because 40 cannot tell this apart from noise: the rate is
+  // about 24%, so a forty-game sample has a standard deviation of 2.7 wins and
+  // the old bound of 14 sat 1.6 of them away — close enough that an engine
+  // change anywhere could trip it without moving the thing being asserted. It
+  // did, and the change turned out to have left quarterback leverage alone
+  // (solo win rate 69.3% before, 69.7% after, from scripts/leverage-sim.mjs).
   const noQb = { ...tf(A), lineup: { ...buildLineup(A.slots, A.byId), QB: [] } };
   let wins = 0;
-  for (let i = 0; i < 40; i++) {
+  const n = 200;
+  for (let i = 0; i < n; i++) {
     const g = createGame(noQb, tf(B), { seed: 3000 + i });
     simulateGame(g);
     if (g.score[0] > g.score[1]) wins++;
   }
-  assert.ok(wins < 14, `a replacement QB won ${wins} of 40 against an equal roster`);
+  assert.ok(wins / n < 0.35, `a replacement QB won ${wins} of ${n} against an equal roster`);
 });
 
 test('injuries carry between weeks: out for exactly the stated weeks, then back', () => {
