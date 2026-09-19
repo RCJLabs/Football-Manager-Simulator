@@ -21,11 +21,11 @@ import { startSeason } from '../../engine/season.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { ovrBadge, playerItem, playerModal, teamChip, toast, esc } from '../components.js';
 import { shownOverall } from '../../engine/scouting.js';
-import { draftBoard, snakeRows, scrollToPick, lastName } from '../draft-board.js';
+import { draftBoard, boardOverlay, snakeRows, scrollToPick, lastName } from '../draft-board.js';
 
 export const selfRendering = true;
 
-const ui = { pos: 'ALL', era: 'ALL', q: '' };
+const ui = { pos: 'ALL', era: 'ALL', q: '', boardOpen: false };
 const PAGE = 120;
 
 /** Watchable, brisk, and a way out. Remembered across drafts in preferences. */
@@ -45,7 +45,9 @@ export function view(root, params, ctx) {
 
   let timer = null;
   let fresh = null;          // `${row}:${team}` of the pick that just landed
-  let lastPick = null;       // what to announce on the ticker line
+  // Seeded from the draft, not left null: coming back to a room already twenty
+  // picks deep used to announce "waiting on the first pick".
+  let lastPick = draft.picks.length ? draft.picks[draft.picks.length - 1] : null;
   let stopped = false;       // set by the cleanup so a late tick cannot draw
 
   const speedName = () => ctx.getState().prefs?.draftSpeed || DEFAULT_SPEED;
@@ -140,16 +142,16 @@ export function view(root, params, ctx) {
         <div class="ticker-line">${raw(announce)}</div>
         <div class="needs" style="margin-top:.45rem">${raw(POSITION_ORDER.map((pos) => `<span class="need ${open[pos] ? 'open' : ''}" data-filter="${pos}">${pos} ${open[pos] ? `×${open[pos]}` : '✓'}</span>`).join(''))}</div>
         <div class="btn-group" style="margin-top:.6rem">
+          <button class="btn sm primary" id="openBoard">Draft board <span class="muted">${draft.picks.length}/${TOTAL_ROUNDS * league.teams.length}</span></button>
           ${mine ? html`<button class="btn sm" id="autoOne">Auto-pick for me</button>` : html`<button class="btn sm" id="skip">Skip to my pick</button>`}
           <button class="btn sm" id="autoAll">Auto-draft the rest</button>
         </div>
       </div>
-      ${raw(draftBoard(league, rows, {
+      ${ui.boardOpen ? raw(boardOverlay(draftBoard(league, rows, {
         labels: rows.map((_, i) => `R${i + 1}`),
         onClock: { row: draft.round - 1, team: onClock },
-        freshKey: fresh,
-        byId: ctx.byId, observer: u,
-      }))}
+        freshKey: fresh, byId: ctx.byId, observer: u, order: draft.order,
+      }), { title: 'Draft board', sub: `${draft.picks.length} of ${TOTAL_ROUNDS * league.teams.length} picks` })) : ''}
       <details class="card tight" id="valueGuide" style="margin-top:.5rem">
         <summary style="cursor:pointer"><b>Where money wins games</b> <span class="muted">${valueHint()}</span></summary>
         ${valuePanel()}
@@ -170,7 +172,7 @@ export function view(root, params, ctx) {
       </div>
     </div>`);
     wire();
-    scrollToPick(root);
+    scrollToPick(root, { onlyFresh: true });
   }
 
   function drawComplete() {
@@ -184,21 +186,30 @@ export function view(root, params, ctx) {
           <button class="btn primary lg" id="start">Start the season</button>
         </div>
       </div>
-      ${raw(draftBoard(league, snakeRows(league, draft), { labels: snakeRows(league, draft).map((_, i) => `R${i + 1}`), byId: ctx.byId, observer: u, title: 'The board' }))}
+      ${ui.boardOpen ? raw(boardOverlay(draftBoard(league, snakeRows(league, draft), {
+        labels: snakeRows(league, draft).map((_, i) => `R${i + 1}`), byId: ctx.byId, observer: u, order: draft.order,
+      }), { title: 'The board', sub: `${draft.picks.length} picks` })) : ''}
+      <div class="card tight" style="text-align:center"><button class="btn primary" id="openBoard">See the full draft board</button></div>
     </div>`);
     root.querySelector('#start').addEventListener('click', () => {
       ctx.update((s) => { startSeason(s.league, ctx.byId); }, { silent: true });
       ctx.navigate('#/season');
     });
-    root.querySelector('#draft-view').addEventListener('click', (e) => {
+    const done = root.querySelector('#draft-view');
+    done.querySelector('#openBoard')?.addEventListener('click', () => { ui.boardOpen = true; drawComplete(); });
+    done.querySelector('#boardClose')?.addEventListener('click', () => { ui.boardOpen = false; drawComplete(); });
+    done.addEventListener('click', (e) => {
       const show = e.target.closest('[data-show]');
       if (show) playerModal(ctx.byId.get(show.dataset.show));
     });
+    if (ui.boardOpen) scrollToPick(root);
   }
 
   function wire() {
     const el = root.querySelector('#draft-view');
     if (!el) return;
+    el.querySelector('#openBoard')?.addEventListener('click', () => { ui.boardOpen = true; fresh = null; draw(); });
+    el.querySelector('#boardClose')?.addEventListener('click', () => { ui.boardOpen = false; draw(); });
     el.querySelector('.speed').addEventListener('click', (e) => {
       const b = e.target.closest('[data-speed]');
       if (!b) return;

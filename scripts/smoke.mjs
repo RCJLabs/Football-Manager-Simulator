@@ -69,17 +69,28 @@ try {
   // Auction room: nominate, bid, pass, then hand the rest to the AI.
   await page.waitForSelector('#auction-view');
 
-  // The board: the room used to sell most of its lots in silence.
-  await page.waitForSelector('#auction-view .board');
-  const aucBoard = await page.evaluate(() => ({
-    cols: document.querySelectorAll('.board thead th').length - 1,
-    speeds: document.querySelectorAll('.speed .tab').length,
-    scrolls: getComputedStyle(document.querySelector('.board-scroll')).overflow,
-  }));
+  // The board: the room used to sell most of its lots in silence. It opens full
+  // screen from a button rather than living in a banner.
+  await page.waitForSelector('#openBoard');
+  if (await page.$('#auction-view .board')) errors.push('the auction board should be behind its button, not on the page');
+  await page.click('#openBoard');
+  await page.waitForSelector('.board-full .board');
+  const aucBoard = await page.evaluate(() => {
+    const o = document.querySelector('.board-full').getBoundingClientRect();
+    return {
+      cols: document.querySelectorAll('.board thead th').length - 1,
+      speeds: document.querySelectorAll('.speed .tab').length,
+      scrolls: getComputedStyle(document.querySelector('.board-scroll')).overflow,
+      fills: Math.round(o.width) >= innerWidth - 1 && Math.round(o.height) >= innerHeight - 1,
+    };
+  });
   if (aucBoard.cols !== 8) errors.push(`the auction board shows ${aucBoard.cols} clubs, expected 8`);
   if (aucBoard.speeds !== 4) errors.push(`the auction has ${aucBoard.speeds} speed settings, expected 4`);
   if (!/auto|scroll/.test(aucBoard.scrolls)) errors.push('the board must scroll inside itself, not push the page');
-  await checkOverflow('auction with the board');
+  if (!aucBoard.fills) errors.push('the board overlay does not fill the screen');
+  await checkOverflow('auction with the board open');
+  await page.click('#boardClose');
+  await page.waitForFunction(() => !document.querySelector('.board-full'));
   // A new manager has no way to know where a budget wins games, so it is on the
   // screen where the budget is being spent.
   const guideRows = await page.$$eval('#valueGuide .value-table tbody tr', (r) => r.length);
@@ -579,14 +590,22 @@ try {
   await page.click('button[type="submit"]');
   // The draft room: picks land one at a time onto a board, rather than the
   // other clubs' selections being applied in one silent burst.
-  await page.waitForSelector('#draft-view .board');
+  await page.waitForSelector('#openBoard');
   await checkOverflow('snake draft');
+  await page.click('#openBoard');
+  await page.waitForSelector('.board-full .board');
   const board = await page.evaluate(() => ({
     cols: document.querySelectorAll('.board thead th').length - 1,
     speeds: document.querySelectorAll('.speed .tab').length,
     scrolls: getComputedStyle(document.querySelector('.board-scroll')).overflow,
     onClock: !!document.querySelector('.board .bc.clock, .draft-head.mine'),
+    // Columns follow the draft order, so the picks made so far run left to
+    // right with nothing skipped. By team index instead they scatter.
+    row1: [...document.querySelectorAll('.board tbody tr')[0].querySelectorAll('.bc')]
+      .map((c) => (c.classList.contains('empty') ? '.' : '#')).join(''),
   }));
+  if (/#\.+#/.test(board.row1)) errors.push(`round one has gaps in it, so the columns are out of draft order: ${board.row1}`);
+  await checkOverflow('draft board open');
   if (board.cols !== 8) errors.push(`the draft board shows ${board.cols} clubs, expected 8`);
   if (board.speeds !== 4) errors.push(`the draft has ${board.speeds} speed settings, expected 4`);
   if (!/auto|scroll/.test(board.scrolls)) errors.push('the board must scroll inside itself, not push the page');
@@ -602,6 +621,8 @@ try {
       .catch(() => errors.push('no pick landed on the board on its own'));
   }
   await shot('02-draft');
+  await page.click('#boardClose');
+  await page.waitForFunction(() => !document.querySelector('.board-full'));
 
   // Skip the queue, then take somebody and check he lands on the board.
   const skip = await page.$('#skip');
@@ -611,15 +632,26 @@ try {
   if (!mine) errors.push('skipping to my pick did not put me on the clock');
   const wanted = await page.$eval('button[data-draft]', (b) => b.dataset.draft);
   await page.click('button[data-draft]');
-  const onBoard = await page.waitForFunction(
-    (id) => [...document.querySelectorAll('.board .bc')].some((c) => c.dataset.show === id), wanted, { timeout: 4000 },
-  ).then(() => true).catch(() => false);
+  await sleep(300);
+  await page.click('#openBoard');
+  await page.waitForSelector('.board-full .board');
+  const onBoard = await page.evaluate(
+    (id) => [...document.querySelectorAll('.board .bc')].some((c) => c.dataset.show === id), wanted,
+  );
   if (!onBoard) errors.push('the pick did not appear on the board');
+  await page.click('#boardClose');
+  await page.waitForFunction(() => !document.querySelector('.board-full'));
 
   await page.click('#autoAll');
   await page.waitForSelector('#start');
+  await page.click('#openBoard');
+  await page.waitForSelector('.board-full .board');
   const rounds = await page.$$eval('.board tbody tr', (r) => r.length);
   if (rounds !== 27) errors.push(`the finished board has ${rounds} rounds, expected 27`);
+  await checkOverflow('the finished board');
+  await shot('02b-board-done');
+  await page.click('#boardClose');
+  await page.waitForFunction(() => !document.querySelector('.board-full'));
   await page.click('#start');
   await page.waitForSelector('#play');
   await checkOverflow('snake season');

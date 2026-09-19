@@ -10,10 +10,10 @@ import {
   currentNominator, nominatable, autoCompleteAll, autoUserMax, canRoster, MIN_BID, TOTAL_SLOTS,
 } from '../../engine/auction.js';
 import { playerItem, playerModal, teamChip, toast, ovrBadge, esc, posBadge } from '../components.js';
-import { draftBoard, auctionRows, scrollToPick, lastName } from '../draft-board.js';
+import { draftBoard, boardOverlay, auctionRows, scrollToPick, lastName } from '../draft-board.js';
 import { SPEEDS, DEFAULT_SPEED } from './draft.js';
 
-const ui = { pos: 'ALL', era: 'ALL', q: '', minAsk: 85, bid: null, limit: 60 };
+const ui = { pos: 'ALL', era: 'ALL', q: '', minAsk: 85, bid: null, limit: 60, boardOpen: false };
 
 // The room used to run itself forward to the next thing it needed from you and
 // apply everything in between in one go — at the default ask of 85 that is most
@@ -81,10 +81,12 @@ export function view(root, params, ctx) {
     freshKey = `${upTo}:${sale.team}`;
   }
   const last = a.sold[a.sold.length - 1];
-  const boardCard = () => draftBoard(league, rows, {
-    labels: rows.map((_, i) => String(i + 1)),
-    freshKey, byId: ctx.byId, observer: u, title: 'The room',
-  });
+  const boardCard = () => (ui.boardOpen
+    ? boardOverlay(draftBoard(league, rows, {
+      labels: rows.map((_, i) => String(i + 1)),
+      freshKey, byId: ctx.byId, observer: u, order: a.order,
+    }), { title: 'The room', sub: `${a.sold.length} lots sold` })
+    : '');
 
   const header = html`
     <div class="card tight">
@@ -96,6 +98,7 @@ export function view(root, params, ctx) {
         <div class="muted" style="font-size:.8rem;text-align:right;white-space:nowrap">Lot ${sold + 1}<br>of ${totalToSell}</div>
       </div>
       <div class="needs" style="margin-top:.45rem">${raw(POSITION_ORDER.filter((p) => open[p]).map((pos) => `<span class="need open">${pos} ×${open[pos]}</span>`).join('') || '<span class="need">Roster full</span>')}</div>
+      <div class="btn-group" style="margin-top:.6rem"><button class="btn sm primary" id="openBoard">The room <span class="muted">${a.sold.length} sold</span></button></div>
       <div class="row between" style="align-items:baseline;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
         <div class="ticker-line">${last
           ? raw(`<span class="pick-line ${freshKey ? 'fresh' : ''}"><b>$${last.price}</b> ${teamChip(league.teams[last.team], { abbr: true }).__raw} take <b>${esc(lastName(ctx.byId.get(last.playerId)?.name || ''))}</b></span>`)
@@ -194,7 +197,9 @@ export function view(root, params, ctx) {
     const b = e.target.closest('[data-speed]');
     if (b) ctx.update((s) => { s.prefs.draftSpeed = b.dataset.speed; });
   });
-  scrollToPick(root);
+  el.querySelector('#openBoard')?.addEventListener('click', () => { ui.boardOpen = true; freshLot = null; view(root, params, ctx); });
+  el.querySelector('#boardClose')?.addEventListener('click', () => { ui.boardOpen = false; view(root, params, ctx); });
+  if (ui.boardOpen) scrollToPick(root, { onlyFresh: true });
   const redraw = () => view(root, params, ctx);
 
   el.querySelector('#minAsk')?.addEventListener('input', (e) => { el.querySelector('#askLbl').textContent = `${e.target.value}+`; });

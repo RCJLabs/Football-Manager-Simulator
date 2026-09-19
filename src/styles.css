@@ -282,7 +282,29 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
    inside its own box rather than pushing the page sideways; the round column
    and the club headings stay put while it does.
    --------------------------------------------------------------------------- */
-.board-scroll { overflow: auto; max-height: 58vh; border: 1px solid var(--line); border-radius: 8px; margin-top: 0.4rem; -webkit-overflow-scrolling: touch; }
+.board-scroll { overflow: auto; -webkit-overflow-scrolling: touch; }
+
+/* The board takes the screen. It was a banner a few centimetres tall trying to
+   hold 27 rounds by 32 clubs; now the draft carries on behind it and the board
+   gets the whole viewport, including whatever the phone's notch and gesture bar
+   leave of it. */
+.board-full { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--bg, #0f1a12); }
+.board-full-head, .board-full-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); }
+.board-full-head { padding-top: calc(0.5rem + env(safe-area-inset-top)); }
+.board-full-foot { border-bottom: 0; border-top: 1px solid var(--line); justify-content: center; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+.board-full-body { flex: 1; min-height: 0; overscroll-behavior: contain; }
+
+/* Full screen means fitting more clubs on it, not the same four bigger. These
+   cells are sized so a phone shows six or seven columns at once and a desktop
+   shows the lot. */
+.board-full .board { font-size: 0.66rem; }
+.board-full .board .bc { min-width: 4rem; max-width: 4rem; padding: 0.2rem 0.25rem; }
+.board-full .board .bn { font-size: 0.66rem; letter-spacing: -0.01em; }
+.board-full .board .bm { font-size: 0.6rem; }
+.board-full .board .bl { min-width: 1.8rem; }
+/* Your own column, findable at a glance among thirty-one others. */
+.board-full .board .bc.mine { background: rgba(233, 196, 106, 0.06); }
+@media (min-width: 700px) { .board-full .board .bc { min-width: 5rem; max-width: 5rem; } }
 .board { border-collapse: separate; border-spacing: 0; font-size: 0.72rem; width: max-content; }
 .board th, .board td { padding: 0.25rem 0.35rem; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
 .board thead th { position: sticky; top: 0; z-index: 2; background: var(--card, #12211a); font-family: var(--mono); font-size: 0.68rem; white-space: nowrap; text-align: left; }
@@ -299,7 +321,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .board .bm { display: block; color: var(--muted); font-size: 0.64rem; }
 .board .bp { float: right; font-family: var(--mono); color: var(--accent); }
 .board .bc.clock { background: #21362a; box-shadow: inset 0 0 0 1px #3c6b4d; }
-.board .onclock { color: #9fd3b0; font-family: var(--mono); font-size: 0.62rem; animation: onclock 1.4s ease-in-out infinite; }
+.board .onclock { display: block; color: #9fd3b0; font-family: var(--mono); font-size: 0.6rem; line-height: 1.1; white-space: normal; animation: onclock 1.4s ease-in-out infinite; }
 @keyframes onclock { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 
 /* The pick landing. Brief, once, and only on the cell that just changed. */
