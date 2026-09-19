@@ -6,12 +6,19 @@ import { userTeamIndex, isPro, standings } from '../../engine/season.js';
 import {
   freeAgents, fileClaim, cancelClaim, claimsThisWeek, waiverLimit, tradeDeadlineWeek, tradesOpen, movesOpen,
   validateTrade, proposeTrade, lineupStrength, initWaivers, slotOf, liveOffers, acceptOffer, declineOffer,
+  slotsAfterTrade, MAX_TRADE_IMBALANCE, MAX_TRADE_SIDE,
 } from '../../engine/transactions.js';
+import { openBlock, teamNeeds, bestAvailable, partingCost, findPlayers } from '../../engine/tradeblock.js';
 import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge, outBadge } from '../components.js';
 import { emptySlotAt } from '../../engine/transactions.js';
 import { shownOverall } from '../../engine/scouting.js';
 
-const ui = { tab: 'fa', pos: 'ALL', era: 'ALL', q: '', limit: 60, partner: null, give: new Set(), get: new Set() };
+const ui = {
+  tab: 'fa', pos: 'ALL', era: 'ALL', q: '', limit: 60, partner: null, give: new Set(), get: new Set(),
+  // The trade finder keeps its own filters: it searches every club's roster,
+  // not the free-agent pool the first tab is looking at.
+  findQ: '', findPos: '', blockOnly: true, findLimit: 10,
+};
 
 export function view(root, params, ctx) {
   // Rank by what we believe about a player: sorting an unscouted rookie by his
@@ -73,6 +80,10 @@ export function view(root, params, ctx) {
         <div class="row between"><b>${teamChip(them).__raw} are calling</b><small class="muted">week ${o.week}</small></div>
         <p class="muted" style="margin:.2rem 0 .4rem;font-size:.85rem">${esc(o.note)}</p>
         <div class="grid grid-2">${side(o.gives, 'You get')}${side(o.wants, 'You give')}</div>
+        ${o.fills && (o.fills.signs.length || o.fills.releases.length) ? `<p class="notice" style="margin:.4rem 0 0;font-size:.8rem"><b>Uneven.</b> Taking it means you ${[
+          o.fills.signs.length ? `sign ${o.fills.signs.map((id) => `<b>${esc(ctx.byId.get(id)?.name)}</b>`).join(' and ')}` : '',
+          o.fills.releases.length ? `release ${o.fills.releases.map((id) => `<b>${esc(ctx.byId.get(id)?.name)}</b>`).join(' and ')}` : '',
+        ].filter(Boolean).join(', and ')}.</p>` : ''}
         <div class="row between" style="margin-top:.5rem">
           <small style="color:${verdict[1]}">${verdict[0]} <span class="muted">(${o.userDelta > 0 ? '+' : ''}${o.userDelta} lineup strength by the same yardstick the AI uses)</span></small>
           <span class="btn-group"><button class="btn primary sm" data-accept="${esc(o.id)}">Accept</button><button class="btn sm" data-decline="${esc(o.id)}">Decline</button></span>
@@ -84,28 +95,114 @@ export function view(root, params, ctx) {
       ${offers.length ? raw(offers.map(card).join('')) : html`<p class="empty">Nobody is calling this week.</p>`}`;
   } else if (ui.tab === 'trade') {
     const partner = league.teams[ui.partner];
-    const list = (team, sel, key) => `<ul class="plist">${ROSTER_SLOTS.map((s) => {
-      const p = ctx.byId.get(team.slots[s.id]);
-      if (!p) return '';
-      const on = sel.has(p.id);
-      return playerItem(p, { attrs: false, cls: on ? 'me' : '', meta: ` · <span class="badge slot">${s.id}</span>${inj(p)}`, action: `<button class="btn sm ${on ? 'primary' : ''}" data-${key}="${esc(p.id)}">${on ? 'Selected' : 'Select'}</button>` });
-    }).join('')}</ul>`;
+    const best = bestAvailable(league, ctx.players);
+    const needs = teamNeeds(league, ctx.byId);
+    const block = openBlock(league, ctx.byId, ctx.players);
+    const onBlock = new Map(block.map((b) => [b.id, b]));
     const give = [...ui.give].filter((id) => slotOf(me, id)), get = [...ui.get].filter((id) => slotOf(partner, id));
-    const v = give.length || get.length ? validateTrade(league, u, ui.partner, give, get, ctx.byId) : null;
+
+    // --- Find. One search across every club's roster, which is the thing that
+    // used to take twenty-eight visits to a dropdown.
+    const found = findPlayers(league, ctx.byId, { q: ui.findQ, pos: ui.findPos, exclude: u, limit: 400 });
+    const rows = (ui.blockOnly ? found.players.filter((x) => onBlock.has(x.id)) : found.players);
+    const shownFind = rows.slice(0, ui.findLimit);
+    const findRow = (x) => {
+      const p = ctx.byId.get(x.id);
+      const b = onBlock.get(x.id);
+      const held = league.teams[x.team];
+      const wants = needs[x.team][0];
+      const tag = b
+        ? `<span class="badge block" title="What it would cost them to replace him">block · ${b.cost <= 0 ? 'free' : b.cost}</span>`
+        : '';
+      const want = wants ? ` <span class="badge need" title="${esc(league.teams[x.team].abbr)} are thinnest here">wants ${wants.pos}</span>` : '';
+      // The era badge goes: the year is already in the line, and on a phone
+      // every badge here costs a row of height across ten results.
+      return playerItem(p, {
+        attrs: false, era: false,
+        cls: ui.get.has(x.id) ? 'me' : '',
+        meta: ` · ${teamChip(held, { abbr: true }).__raw} <span class="badge slot">${x.slot}</span> ${tag}${want}${inj(p)}`,
+        action: `<button class="btn sm ${ui.get.has(x.id) ? 'primary' : ''}" data-target="${esc(x.id)}" data-team="${x.team}">${ui.get.has(x.id) ? 'In the deal' : 'Target'}</button>`,
+      });
+    };
+
+    // --- The deal. The user's side is ordered by what each man costs to
+    // replace, so the cheap pieces to trade are the ones you see first.
+    const mineRows = ROSTER_SLOTS.map((sl) => ({ sl, id: me.slots[sl.id] })).filter((x) => x.id)
+      .map((x) => ({ ...x, p: ctx.byId.get(x.id), cost: partingCost(me, x.id, ctx.byId, best, league) }))
+      .sort((a, b) => a.cost - b.cost);
+    const giveList = `<ul class="plist">${mineRows.map(({ sl, p, cost }) => playerItem(p, {
+      attrs: false, cls: ui.give.has(p.id) ? 'me' : '',
+      meta: ` · <span class="badge slot">${sl.id}</span> <span class="badge cost" title="Lineup points it costs you to give him up and sign the best free agent there">${cost <= 0 ? 'free' : `−${cost}`}</span>${inj(p)}`,
+      action: `<button class="btn sm ${ui.give.has(p.id) ? 'primary' : ''}" data-give="${esc(p.id)}">${ui.give.has(p.id) ? 'Selected' : 'Select'}</button>`,
+    })).join('')}</ul>`;
+    const getList = `<ul class="plist">${ROSTER_SLOTS.map((sl) => {
+      const p = ctx.byId.get(partner.slots[sl.id]);
+      if (!p) return '';
+      const b = onBlock.get(p.id);
+      return playerItem(p, {
+        attrs: false, cls: ui.get.has(p.id) ? 'me' : '',
+        meta: ` · <span class="badge slot">${sl.id}</span>${b ? ' <span class="badge block">on the block</span>' : ''}${inj(p)}`,
+        action: `<button class="btn sm ${ui.get.has(p.id) ? 'primary' : ''}" data-get="${esc(p.id)}">${ui.get.has(p.id) ? 'Selected' : 'Select'}</button>`,
+      });
+    }).join('')}</ul>`;
+
+    // --- Squaring up, and what the deal does to your own lineup.
+    const v = give.length && get.length ? validateTrade(league, u, ui.partner, give, get, ctx.byId, ctx.players) : null;
     const strengthNow = lineupStrength(me.slots, ctx.byId, league);
+    const mineAfter = v && v.ok ? slotsAfterTrade(league, u, give, get, ctx.players, ctx.byId) : null;
+    const myDelta = mineAfter ? Math.round((lineupStrength(mineAfter.slots, ctx.byId, league) - strengthNow) * 10) / 10 : null;
+    const nameOf = (id) => esc(ctx.byId.get(id)?.name || id);
+    const paperwork = (fill, who) => {
+      if (!fill || (!fill.signs.length && !fill.releases.length)) return '';
+      const bits = [];
+      if (fill.signs.length) bits.push(`sign ${fill.signs.map((id) => `<b>${nameOf(id)}</b> (${ctx.byId.get(id).pos})`).join(' and ')}`);
+      if (fill.releases.length) bits.push(`release ${fill.releases.map((id) => `<b>${nameOf(id)}</b> (${ctx.byId.get(id).pos})`).join(' and ')}`);
+      return `<li>${who} ${bits.join(', and ')}</li>`;
+    };
+    const squaring = v && v.ok && v.uneven
+      ? `<div class="notice" style="margin-top:.6rem"><b>Squaring up.</b> The positions do not match, so the deal carries the moves that fix both rosters:<ul class="plain" style="margin:.35rem 0 0">${paperwork(v.fills.a, 'You')}${paperwork(v.fills.b, partner.abbr)}</ul></div>`
+      : '';
+    const chips = (list) => list.map((n) => `<span class="badge need">${n.pos}</span>`).join(' ') || '<span class="muted">nothing pressing</span>';
+
     body = html`
-      <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${tradesOpen(league) ? `Trades are open through week ${deadline}. Positions must match on both sides, up to three players each. The other club judges the lineup it would field afterwards.` : league.phase === 'season' ? `The trade deadline passed after week ${deadline}.` : 'Trades are open during the regular season only.'}</p>
-      <div class="row" style="gap:.5rem;align-items:center">
+      <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${tradesOpen(league)
+        ? `Open through week ${deadline}, ${MAX_TRADE_SIDE} players a side. Positions need not match — an uneven deal carries the signing and the release that square both rosters.`
+        : league.phase === 'season' ? `The trade deadline passed after week ${deadline}.` : 'Trades are open during the regular season only.'}</p>
+
+      <div class="card tight">
+        <div class="row between"><h3 style="margin:0">Find a player</h3><small class="muted">${rows.length} of ${found.total}</small></div>
+        <div class="tabs" id="findPos" style="margin-top:.4rem">${raw(['', ...POSITION_ORDER].map((p) => `<button class="tab ${ui.findPos === p ? 'active' : ''}" data-fpos="${p}">${p || 'ALL'}</button>`).join(''))}</div>
+        <div class="row" style="gap:.5rem;align-items:center;margin-top:.4rem">
+          <input type="search" id="findQ" placeholder="Any club's roster — player or club…" value="${ui.findQ}">
+          <label class="row" style="gap:.3rem;margin:0;white-space:nowrap"><input type="checkbox" id="blockOnly" ${ui.blockOnly ? 'checked' : ''}> On the block</label>
+        </div>
+        <p class="muted" style="margin:.4rem 0 0;font-size:.8rem">${ui.blockOnly ? 'Players their clubs could replace cheaply — the lower the number, the less they lose by moving him.' : 'Every rostered player in the league. Targeting one switches the club you are dealing with.'}</p>
+        <ul class="plist" style="margin-top:.4rem">${raw(shownFind.map(findRow).join(''))}</ul>
+        ${shownFind.length === 0 ? html`<p class="empty">${ui.blockOnly ? 'Nobody on the block matches. Untick "On the block" to search every roster.' : 'Nobody matches that.'}</p>` : ''}
+        ${rows.length > shownFind.length ? html`<button class="btn block" id="findMore">Show more (${rows.length - shownFind.length} left)</button>` : ''}
+      </div>
+
+      <div class="row between" style="margin-top:.6rem;gap:.5rem;flex-wrap:wrap">
+        <small class="muted">You are thin at ${raw(chips(needs[u]))}</small>
+        <small class="muted">${teamChip(partner, { abbr: true })} are thin at ${raw(chips(needs[ui.partner]))}</small>
+      </div>
+
+      <div class="row" style="gap:.5rem;align-items:center;margin-top:.4rem">
         <label style="margin:0">Trade with</label>
         <select id="partner" style="max-width:18rem">${league.teams.map((t, i) => (t.isUser ? '' : html`<option value="${i}" ${i === ui.partner ? 'selected' : ''}>${t.abbr} · ${t.name} (${t.record.w}-${t.record.l})</option>`))}</select>
       </div>
       <div class="grid grid-2" style="margin-top:.6rem">
-        <div class="card tight"><h3>You give <small class="muted">(${teamChip(me, { abbr: true })} · strength ${strengthNow})</small></h3>${raw(list(me, ui.give, 'give'))}</div>
-        <div class="card tight"><h3>You get <small class="muted">(${teamChip(partner, { abbr: true })})</small></h3>${raw(list(partner, ui.get, 'get'))}</div>
+        <div class="card tight"><h3>You give <small class="muted">(${teamChip(me, { abbr: true })} · strength ${strengthNow})</small></h3>${raw(giveList)}</div>
+        <div class="card tight"><h3>You get <small class="muted">(${teamChip(partner, { abbr: true })})</small></h3>${raw(getList)}</div>
       </div>
+      ${raw(squaring)}
       <div class="card tight" style="margin-top:.6rem;position:sticky;bottom:.5rem;z-index:5">
         <div class="row between">
-          <div class="muted" style="font-size:.85rem">${give.length || get.length ? (v.ok ? html`<b style="color:var(--good)">Balanced</b> · ${give.length} for ${get.length}` : html`<span style="color:var(--bad)">${v.reason}</span>`) : 'Select players on both sides.'}</div>
+          <div class="muted" style="font-size:.85rem">${give.length && get.length
+            ? (v.ok
+              ? html`<b style="color:${myDelta > 0 ? 'var(--good)' : myDelta < 0 ? 'var(--bad)' : 'var(--muted)'}">${myDelta > 0 ? '+' : ''}${myDelta}</b> to your lineup · ${give.length} for ${get.length}${v.uneven ? ' · uneven' : ''}`
+              : html`<span style="color:var(--bad)">${v.reason}</span>`)
+            : 'Select players on both sides.'}</div>
           <div class="btn-group"><button class="btn ghost sm" id="clearTrade">Clear</button><button class="btn primary" id="propose" ${v && v.ok && tradesOpen(league) ? '' : 'disabled'}>Propose</button></div>
         </div>
       </div>`;
@@ -118,7 +215,18 @@ export function view(root, params, ctx) {
       if (t.type === 'activate') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} activated <b>${esc(ctx.byId.get(t.add)?.name)}</b>${t.drop ? `, released ${esc(ctx.byId.get(t.drop)?.name)}` : ''}</li>`;
       if (t.type === 'release') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} released <b>${esc(ctx.byId.get(t.drop)?.name)}</b> from injured reserve</li>`;
       const other = league.teams[t.other];
-      return `<li class="${team.isUser || other.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} sent <b>${t.gives.map((id) => esc(ctx.byId.get(id)?.name)).join(', ')}</b> to ${teamChip(other, { abbr: true }).__raw} for <b>${t.gets.map((id) => esc(ctx.byId.get(id)?.name)).join(', ')}</b></li>`;
+      // An uneven trade carried a signing and a release on each side; the log
+      // says so, because otherwise a roster changes for reasons nothing names.
+      const tail = (t.signs || t.releases)
+        ? ` <small class="muted">${[0, 1].map((k) => {
+          const club = k === 0 ? team : other;
+          const bits = [];
+          if (t.signs?.[k]?.length) bits.push(`signed ${t.signs[k].map((id) => esc(ctx.byId.get(id)?.name)).join(' and ')}`);
+          if (t.releases?.[k]?.length) bits.push(`released ${t.releases[k].map((id) => esc(ctx.byId.get(id)?.name)).join(' and ')}`);
+          return bits.length ? `${esc(club.abbr)} ${bits.join(', ')}` : '';
+        }).filter(Boolean).join('; ')}</small>`
+        : '';
+      return `<li class="${team.isUser || other.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} sent <b>${t.gives.map((id) => esc(ctx.byId.get(id)?.name)).join(', ')}</b> to ${teamChip(other, { abbr: true }).__raw} for <b>${t.gets.map((id) => esc(ctx.byId.get(id)?.name)).join(', ')}</b>${tail}</li>`;
     }).join('')}</ul>`) : html`<p class="empty">No transactions yet.</p>`;
   }
 
@@ -145,15 +253,23 @@ export function view(root, params, ctx) {
     const input = root.querySelector('#q'); input.focus(); input.setSelectionRange(pos, pos);
   });
   el.querySelector('#partner')?.addEventListener('change', (e) => { ui.partner = Number(e.target.value); ui.get.clear(); redraw(); });
+  el.querySelector('#findPos')?.addEventListener('click', (e) => { const b = e.target.closest('[data-fpos]'); if (b) { ui.findPos = b.dataset.fpos; ui.findLimit = 10; redraw(); } });
+  el.querySelector('#blockOnly')?.addEventListener('change', (e) => { ui.blockOnly = e.target.checked; ui.findLimit = 10; redraw(); });
+  el.querySelector('#findMore')?.addEventListener('click', () => { ui.findLimit += 15; redraw(); });
+  el.querySelector('#findQ')?.addEventListener('input', (e) => {
+    ui.findQ = e.target.value; ui.findLimit = 10;
+    const caret = e.target.selectionStart; redraw();
+    const input = root.querySelector('#findQ'); input.focus(); input.setSelectionRange(caret, caret);
+  });
   el.querySelector('#clearTrade')?.addEventListener('click', () => { ui.give.clear(); ui.get.clear(); redraw(); });
   el.querySelector('#propose')?.addEventListener('click', () => {
     const give = [...ui.give], get = [...ui.get];
     let r;
-    ctx.update((s) => { r = proposeTrade(s.league, u, ui.partner, give, get, ctx.byId); }, { silent: true });
+    ctx.update((s) => { r = proposeTrade(s.league, u, ui.partner, give, get, ctx.byId, ctx.players); }, { silent: true });
     const partner = league.teams[ui.partner];
     const m = modal(html`<h2>${r.accepted ? 'Deal' : 'No deal'}</h2>
       <p>${r.reason}</p>
-      ${r.accepted ? html`<p class="muted">${give.map((id) => ctx.byId.get(id).name).join(', ')} to ${partner.name}; ${get.map((id) => ctx.byId.get(id).name).join(', ')} join you. Check your depth chart.</p>` : ''}
+      ${r.accepted ? html`<p class="muted">${give.map((id) => ctx.byId.get(id).name).join(', ')} to ${partner.name}; ${get.map((id) => ctx.byId.get(id).name).join(', ')} join you.${r.fills?.a?.signs?.length ? ` You signed ${r.fills.a.signs.map((id) => ctx.byId.get(id).name).join(' and ')}.` : ''}${r.fills?.a?.releases?.length ? ` ${r.fills.a.releases.map((id) => ctx.byId.get(id).name).join(' and ')} released.` : ''} Check your depth chart.</p>` : ''}
       <div class="row"><button class="btn primary" data-close>OK</button>${r.accepted ? html`<a class="btn" href="#/team/${u}/depth">Depth chart</a>` : ''}</div>`);
     void m;
     if (r.accepted) { ui.give.clear(); ui.get.clear(); ui.tab = 'log'; }
@@ -163,14 +279,28 @@ export function view(root, params, ctx) {
     const show = e.target.closest('[data-show]');
     if (show) { playerModal(ctx.byId.get(show.dataset.show)); return; }
     const g = e.target.closest('[data-give]');
-    if (g) { const id = g.dataset.give; if (ui.give.has(id)) ui.give.delete(id); else if (ui.give.size < 3) ui.give.add(id); else toast('Three players a side at most'); redraw(); return; }
+    if (g) { const id = g.dataset.give; if (ui.give.has(id)) ui.give.delete(id); else if (ui.give.size < MAX_TRADE_SIDE) ui.give.add(id); else toast(`${MAX_TRADE_SIDE} players a side at most`); redraw(); return; }
+    const tgt = e.target.closest('[data-target]');
+    if (tgt) {
+      const id = tgt.dataset.target, team = Number(tgt.dataset.team);
+      if (ui.get.has(id)) ui.get.delete(id);
+      else {
+        // A deal is with one club, so targeting somebody else's player moves
+        // the negotiation rather than quietly mixing two rosters together.
+        if (team !== ui.partner) { ui.partner = team; ui.get.clear(); }
+        if (ui.get.size >= MAX_TRADE_SIDE) toast(`${MAX_TRADE_SIDE} players a side at most`);
+        else ui.get.add(id);
+      }
+      redraw();
+      return;
+    }
     const t = e.target.closest('[data-get]');
-    if (t) { const id = t.dataset.get; if (ui.get.has(id)) ui.get.delete(id); else if (ui.get.size < 3) ui.get.add(id); else toast('Three players a side at most'); redraw(); return; }
+    if (t) { const id = t.dataset.get; if (ui.get.has(id)) ui.get.delete(id); else if (ui.get.size < MAX_TRADE_SIDE) ui.get.add(id); else toast(`${MAX_TRADE_SIDE} players a side at most`); redraw(); return; }
     const accept = e.target.closest('[data-accept]');
     if (accept) {
       try {
         let tx;
-        ctx.update((s) => { tx = acceptOffer(s.league, accept.dataset.accept, ctx.byId); }, { silent: true });
+        ctx.update((s) => { tx = acceptOffer(s.league, accept.dataset.accept, ctx.byId, ctx.players); }, { silent: true });
         toast('Deal done');
         void tx;
       } catch (err) { toast(err.message); }

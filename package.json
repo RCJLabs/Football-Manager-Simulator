@@ -23,7 +23,8 @@
     "ep": "node scripts/expected-points.mjs",
     "report": "node scripts/db-report.mjs",
     "offers": "node scripts/offer-sim.mjs",
-    "ir": "node scripts/ir-sim.mjs"
+    "ir": "node scripts/ir-sim.mjs",
+    "trades": "node scripts/trade-sim.mjs"
   },
   "engines": { "node": ">=20" },
   "license": "MIT"

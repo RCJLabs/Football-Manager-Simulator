@@ -122,7 +122,7 @@ test('taking every offer never breaks a roster and stays inside the rules', () =
   while (lg.phase === 'season') {
     for (const o of liveOffers(lg)) {
       if (o.answered) continue;
-      acceptOffer(lg, o.id, byId);
+      acceptOffer(lg, o.id, byId, PLAYERS);
       taken++;
       assert.ok(rostersValid(lg, byId).ok, rostersValid(lg, byId).reason);
       assert.equal(rosterIds(lg.teams[u]).length, ROSTER_SLOTS.length);
