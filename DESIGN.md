@@ -237,9 +237,9 @@ A season ends at the final; the offseason starts from the hub. Every rostered pl
 
 Measured across six 8-team auction leagues run four seasons each (`scripts/dynasty-sim.mjs`, AI keepers for the human too): clubs keep 5.0 of 6 on average, committing about $47 of $200, and the players they keep average 90 overall, which is to say keepers are the stars bought under market. About a third of a roster carries over season to season once re-buys are counted, so a league has continuity without freezing. With the $5 minimum raise that most keeper leagues use, the same clubs kept 2.4, because a 27-man roster is mostly $1 to $4 players and a $5 bump prices every one of them out; the lower floor is what makes late bargains worth keeping.
 
-**Rookies.** Each offseason opens with a generated intake (below), so the pool a league plays with grows rather than only churning.
+**Rookies and ageing.** Each offseason opens with a generated intake and a year on every career (both below), so the pool a league plays with grows and changes rather than only churning. That is also what makes a keeper's third year a different player from his first.
 
-Simplifications, all deliberate: no aging or development (the shipped pool is one snapshot per player, and rookies do not improve either, so the churn the rules force is what makes one year differ from the next), no separate rookie draft (the intake enters the same market as everyone else), no pick cost for draft-league keepers, and no contract lengths beyond the keep count. Speculation: whether the 15% raise is steep enough to stop a club sitting on a $10 quarterback for three years. It is not measured; the three-year limit is the backstop.
+Simplifications, all deliberate: no separate rookie draft (the intake enters the same market as everyone else), no pick cost for draft-league keepers, and no contract lengths beyond the keep count. Speculation: whether the 15% raise is steep enough to stop a club sitting on a $10 quarterback for three years. It is not measured; the three-year limit is the backstop, and ageing now does some of the work the raise was doing alone.
 
 ## Generated rookie classes (`rookies.js`, `data/rookie-names.js`)
 
@@ -258,6 +258,55 @@ Every offseason a new intake enters the pool: invented names, ratings spread the
 **In the interface.** Generated players carry a `rookie` badge and read "class of 2029" in lists and modals, and the players screen computes its era tabs from the pool in play rather than the shipped constant, so new classes get their own decade tab. Season cards and league codes both filter generated players out of the pool fingerprint; a league code rebuilds `league.rookies` from the snapshot and maps rosters through it, so a shared league arrives with its rookies intact.
 
 Not built: aging, development, or a separate rookie draft. A rookie is a player like any other from the moment he lands, and he is exactly as good at 40 as at 22, because nothing in this simulation knows what age is.
+
+## Player careers (`careers.js`)
+
+A dynasty where nobody changes has no arc. Before this, season six played exactly like season one with a different roster: the only thing that moved between years was which names the keeper rules forced back into the pool.
+
+**Only rostered players age, and that is the whole design.** The shipped pool is one prime-season snapshot per player and carries no age at all, so ageing everyone would break the promise the draft screen makes — every era, at its best. A career starts the moment a club signs a man; until then he sits in the pool frozen at his prime. The auction is therefore the same puzzle it always was, and what changed is everything after it. Nothing runs during a season: careers advance once, in the offseason, before keepers are chosen, so you pick knowing who got better and who did not.
+
+**Ages.** A real player enters within two years of his position's prime (backs at 25 and corners at 26, quarterbacks at 29, specialists at 31), because the pool is his prime season. Generated rookies enter at 22. Age, growth and the season a man retires are all derived from the league seed and his id, so he enters the same league at the same age with the same ceiling however late he is finally signed — and two leagues get different careers for the same player.
+
+**The curves.** Attributes age in three groups: physical (speed, elusiveness, power, pass rush, arm strength) turns over a year before the prime, skill (hands, routes, blocking, coverage, tackling) a year after, and mental (awareness, throwing accuracy) six years after. Legs first, hands next, the head last. Each is a yearly gain that ramps in over the four seasons before the turn, then a loss that accelerates. A hidden growth multiplier, median 1 with a 9% chance of a breakout and a 10% chance of never arriving, scales the gains.
+
+**The ceiling.** Growth carries a player toward a ceiling and stops. Without one the two rolls compound — the rookie generator's prospect bump lands a class-leading entry rating, a high growth draw adds twenty more, and a twenty-season pro dynasty manufactures a dozen fictional 98s, swamping the top of the real pool, which is the thing the game is about. Room also shrinks as the entry rating rises. A season that would cross the ceiling has its gains scaled back to land on it.
+
+**Measured** (`scripts/career-sim.mjs`, the pool's top 200 and 600 generated rookies, run through the engine's own step function so the harness cannot drift):
+
+| | |
+|---|---|
+| Signed at his prime, after 1 / 3 / 5 / 10 seasons | +0.0 / −1.3 / −3.4 / −10.0 overall |
+| Career length | median 10 seasons, range 5–14 |
+| Rookie entry → peak, median | 63 → 72 |
+| Rookie peak, 90th / 99th percentile | 83 / 91, best in 600 was 96 |
+| Class that peaks at 80+ / 88+ | 19.8% / 3.2% |
+| Class that never gains 5 | 27.7% |
+
+A keeper run is three seasons, which costs about 1.3 overall — noticeable when you are paying a raise for it, and not a cliff. The rookie numbers are the ones that matter most, because they fix the honest limitation the intake shipped with: an eight-club league's worst starter is an 88, so a class whose median peaks at 72 still mostly does not matter, but 3.2% peaking at 88 or better means roughly one genuine prospect per class instead of none. In the pro league, where the cutoff is 75, a fifth of every class becomes a starter somewhere.
+
+**Retirement.** A player retires nine seasons past his prime, give or take a few, or whenever he drops below 52 overall. He is flagged rather than deleted: league codes and season cards tell player pools apart by counting ids, so dropping a retired man would move that fingerprint and a league would stop being able to open its own code. Signing him is blocked at the three places that offer players — free agency, the auction and the draft — and he stays visible in the pool, which is where a retired great belongs. Retiring frees his roster slot and drops his contract, and the offseason market fills the hole.
+
+**Plumbing.** State lives on `league.dev`, not `league.careers`, because awards.js got there first and uses that name for the statistics a hall-of-fame case is built from. `applyCareers`/`careerIndex` build the league's view of the pool and are idempotent; a developed player carries the base he was built from and his own `ovr`, because the overall cache is keyed by id and two open leagues can hold the same man at different ages. Anything rating a set of attributes not attached to a fixed id goes through `rawOverall`, which does not cache — getting that wrong silently froze the ceiling logic at its pre-scaling value, which is a bug worth remembering.
+
+**Both settings default on for a new league and stay off for an old one.** An absent setting is not a false one: it means the save was written before the feature existed. Turning chemistry on mid-season moves every club by up to two points at once, measured, which is changing the rules under somebody halfway through a season. So a league from before this keeps playing exactly as it did, and the settings screen says so and offers the switch.
+
+Not built: injuries that shorten a career, positional decline that forces a move, or any scouting fog over a rookie's growth curve. The curve is hidden but its effects are immediate and exact, so a patient manager can read a breakout after one season.
+
+## Team chemistry (`chemistry.js`)
+
+Chemistry in sports games is usually an invisible multiplier that either does nothing you can feel or quietly decides your season. This one is a number on the team screen with both its inputs shown, and it is worth at most 1.8 rating points, which is under two home-field edges.
+
+**Continuity** is the ordinary half: starters who were here last year, and the year before, saturating at three seasons. It is counted in seasons on the roster, not in contract age — a fantasy club re-buys most of its roster at auction every year, so contract age says almost nothing about whether the same eleven men have been playing together. `league.tenure`, maintained by `syncTenure` at the start of each season, counts the man rather than the paperwork.
+
+**Era cohesion** is particular to this game. A squad drawn from 1948 to 2024 is the whole fantasy, and it is also eleven men who have never played the same football. The standard deviation of the starters' seasons runs near 4 for a single-decade squad and past 25 for an all-time scatter. It is a first-season tax rather than a permanent penalty: the era term decays as continuity rises, so a scattered all-time team is rough in year one and fine by year three.
+
+**It is scored against the league, not against 100.** The absolute number is not the thing: every club is unsettled in season one and most are settled by season four, and an effect everybody gets at once is no effect at all. Measured across three eight-club and three 32-club dynasties, the raw score climbs from a mean of 17 to 27 in a fantasy league and from 20 to 69 in the pro league — the same mechanic, two completely different scales, because a fantasy league re-auctions most of its rosters and the pro league keeps eighteen. Centring on the league mean cancels that artifact: both modes then hand their best club a 1.1 to 1.8 point edge over their worst, consistently, in every season. The team screen shows the raw score, which is stable and legible, and the bonus, which is relative.
+
+**It is a real choice.** An era-themed squad built only from the 2010s scored 45 against best-available's 15 in season one with zero continuity on either side — a 1.9-point swing, bought by giving up the better players at several positions. That is the trade the mechanic exists to offer.
+
+**Where it lands.** Chemistry rides the same composite keys as the home-field edge (blocking, rush, run stop, coverage, tackling) and is carried on the composite as `chem` for four quarterback reads: two-point conversions, sack avoidance, completion probability and interceptions. It never touches speed or arm strength, because knowing each other does not make anyone faster. `gameOptions` computes both sides once per league-and-tenure and caches it, since it is a league-wide calculation every game in a week asks for.
+
+Speculation, not measured: whether 1.8 points is the right ceiling. It is calibrated against the home-field edge of 1.1, which is worth about two points of margin, so the widest realistic chemistry gap is roughly three points of margin — about half a win over a season. That felt like the right size for something you can see and plan around but never buy outright; it has not been tested against how it feels to play.
 
 ## Simulating ahead (`autosim.js`)
 

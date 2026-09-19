@@ -20,6 +20,7 @@ import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex } from './season.js';
 import { clearIr } from './injuries.js';
 import { addRookieClass } from './rookies.js';
+import { advanceCareers, releaseRetired } from './careers.js';
 
 export const MAX_KEEPS = 3;
 export const KEEPER_RAISE_MIN = 3;
@@ -76,12 +77,29 @@ export function enterOffseason(league, pool, byId) {
   const released = clearIr(league, byId);
   syncContracts(league);
   const rng = new RNG(league.rngState);
+  // Careers run first, so the keeper round is decided on who a player is now
+  // rather than who he was when you signed him. Retired men leave their slots
+  // empty; the market that follows fills them.
+  // Absent, not false, is what a league written before careers existed looks
+  // like. Those stay frozen until the setting is turned on, because turning a
+  // rule on under a league somebody is halfway through is not a kindness.
+  const careers = league.settings?.careers
+    ? advanceCareers(league, byId)
+    : { retired: [], risers: [], fallers: [], aged: 0 };
+  releaseRetired(league, careers.retired.map((r) => r.id));
   // A new intake arrives before the market opens, and old unsigned rookies wash out.
   const intake = addRookieClass(league, rng);
   const keepers = {};
   league.teams.forEach((t, i) => { if (!t.isUser) keepers[i] = aiKeepers(league, i, pool, byId, rng); });
   league.rngState = rng.state;
-  league.offseason = { season: league.season, step: 'keepers', keepers, user: null, releasedFromIr: released, rookies: intake.arrived.length, washedOut: intake.washed.length };
+  league.offseason = {
+    season: league.season, step: 'keepers', keepers, user: null, releasedFromIr: released,
+    rookies: intake.arrived.length, washedOut: intake.washed.length,
+    aged: careers.aged,
+    retired: careers.retired.filter((r) => r.owned).map((r) => ({ name: r.name, pos: r.pos, age: r.age })),
+    risers: careers.risers.slice(0, 5),
+    fallers: careers.fallers.slice(0, 5),
+  };
   league.phase = 'offseason';
   return league.offseason;
 }

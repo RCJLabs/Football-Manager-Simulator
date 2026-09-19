@@ -16,6 +16,7 @@
     "moves": "node scripts/moves-sim.mjs",
     "injuries": "node scripts/injury-sim.mjs",
     "dynasty": "node scripts/dynasty-sim.mjs",
+    "careers": "node scripts/career-sim.mjs",
     "report": "node scripts/db-report.mjs",
     "offers": "node scripts/offer-sim.mjs",
     "ir": "node scripts/ir-sim.mjs"

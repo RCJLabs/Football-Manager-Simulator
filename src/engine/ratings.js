@@ -9,13 +9,26 @@ export function clearOverallCache() {
   ovrCache.clear();
 }
 
+/**
+ * The weighted sum on its own, with no cache. Anything that rates a set of
+ * attributes not attached to a fixed player id — a career being aged, a
+ * what-if — has to come through here, because the cache below is keyed by id
+ * and would hand back a stale number.
+ */
+export function rawOverall(pos, r) {
+  const w = POSITIONS[pos].weights;
+  let s = 0;
+  for (const k in w) s += (r[k] ?? 60) * w[k];
+  return Math.round(s);
+}
+
 /** Weighted overall rating for a player, 40..99. */
 export function overall(p) {
+  // A player the career code has aged carries his own, because the cache is
+  // keyed by id and two leagues can hold the same man at different ages.
+  if (p.ovr != null) return p.ovr;
   if (ovrCache.has(p.id)) return ovrCache.get(p.id);
-  const w = POSITIONS[p.pos].weights;
-  let s = 0;
-  for (const k in w) s += (p.r[k] ?? 60) * w[k];
-  const o = Math.round(s);
+  const o = rawOverall(p.pos, p.r);
   ovrCache.set(p.id, o);
   return o;
 }

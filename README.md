@@ -16,6 +16,8 @@ Draft real football players from every era at their prime season — Otto Graham
 - **A trade market that calls you.** AI clubs ring with two-for-two offers when they are deep where you are thin, gated so an insulting offer is never made and a declined deal never comes back. About four calls a season, half of them worth taking.
 - **In-season roster moves.** A waiver wire with weekly priority (rolling in fantasy leagues, reverse standings in the pro league), a two-claim weekly limit, AI clubs that work the wire too, and position-matched trades with AI general managers who judge every offer on lineup strength and refuse to be fleeced. A trade deadline and a full transaction log.
 - **A dynasty loop.** Every player carries a contract from his auction price. In the offseason each club keeps a handful at a raised price (three years running at most), everyone else goes back to the pool, and the market reopens with whatever cap is left, worst club first. AI clubs keep their bargains, not their names. Or run it back with the same rosters if you prefer.
+- **Careers that run.** Sign a man and his career starts: rostered players age every offseason, rookies develop along hidden growth curves, and the old retire and free their slots. The pool itself stays frozen at its prime until you sign somebody, so the auction is the same puzzle — it is what happens afterwards that changes. A keeper's third year costs him about a point and a half; a patient club can watch a 63-overall rookie become an 80. Backs go early and quarterbacks late, legs fade before hands and hands before the head. Switchable off per league.
+- **Team chemistry.** A settled squad from a tight era band plays a little better than a roster of strangers assembled from eight decades. Worth at most 1.8 rating points — under two home-field edges — measured against the rest of your league rather than an absolute scale, and shown on the team screen with both its inputs so you can see where it comes from. A wide era spread is a first-season tax, not a life sentence: it stops mattering once the squad has played together. Building era-themed is a genuine alternative to taking the best player available.
 - **A rookie class every offseason.** Three and a half per club with invented names from 343,200 combinations, rated the way a real intake is rated: most of them replacement level, the odd genuine prospect, and attributes that scatter so you get a fast receiver who drops the ball rather than a smooth one. They enter the same market as everyone else. How much they matter depends on league size — an eight-club league's worst starter is an 88, so most classes are noise there, while the pro league's cutoff is 75 and a good rookie beats what is left on the wire. Anyone nobody signs in three seasons washes out, so a twenty-season dynasty's free-agent list stays readable.
 - **Simulate ahead.** Jump to the halfway point, to the playoffs, through the playoffs, or straight into next season. The weekly machinery still runs underneath — waivers, trades, injuries, AI strategy drift all happen — so it removes the clicking, not the season. Going into next season picks your keepers and runs the market for you; it warns you first and tells you what it decided.
 - **Season hub.** Standings with clinch markers, playoff picture, season leaders, box scores, and a history card that keeps every season's champion and your finish.
@@ -48,6 +50,7 @@ npm run offers       # how often AI clubs call with a trade and what the offers 
 npm run ir           # injured-reserve usage by injury setting
 npm run injuries     # injury rates by dial setting, weeks lost per club, and what a missing QB costs
 npm run dynasty      # keeper counts, cap committed and roster turnover over four-season runs
+npm run careers      # ageing curves: decline from a prime signing, rookie development, career lengths
 npm run report       # top and bottom of every position, multi-season players, era balance
 node scripts/apply-overrides.mjs edits.json [--write]   # bake exported rating edits into the data file
 npm run icons        # re-rasterize icons/icon.svg to PNG (needs Playwright)
@@ -85,6 +88,8 @@ src/engine/injuries.js                   injury rolls, replacement-level fill-in
 src/engine/penalties.js                  flags: rates, enforcement, half the distance
 src/engine/offseason.js                  contracts, keepers, the offseason market
 src/engine/rookies.js                    generated rookie classes, wash-out, the league's own pool
+src/engine/careers.js                    ageing, development, ceilings and retirement
+src/engine/chemistry.js                  continuity and era cohesion, scored against the league
 src/engine/autosim.js                    simulating ahead to a named point in the calendar
 src/engine/clinch.js                     conservative clinch and elimination markers
 src/engine/winprob.js                    win probability fitted to the simulation

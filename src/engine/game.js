@@ -37,12 +37,14 @@ export function createGame(home, away, options = {}) {
     injuries: [],
   }));
   const homeAdvantage = options.homeAdvantage !== false;
+  const chem = Array.isArray(options.chem) ? [options.chem[0] || 0, options.chem[1] || 0] : [0, 0];
   const receiving = rng.int(0, 1);
   const g = {
     seed,
     rngState: rng.state,
     playoff: !!options.playoff,
     neutral: !homeAdvantage,
+    chem,
     injuryLevel: options.injuryLevel ?? 0,
     penalties: options.penalties !== false,
     teams,
@@ -93,6 +95,11 @@ function cloneLineup(lineup) {
 function rebuildComp(g, side) {
   const comp = composites(fillLineup(g.teams[side].lineup));
   if (side === 0 && !g.neutral) for (const k of HOME_KEYS) comp[k] += HOME_EDGE;
+  // Chemistry is an execution effect, so it rides the same keys as the home
+  // edge and is carried separately for the quarterback reads below.
+  const chem = (g.chem && g.chem[side]) || 0;
+  if (chem) for (const k of HOME_KEYS) comp[k] += chem;
+  comp.chem = chem;
   g.teams[side].comp = comp;
 }
 
@@ -477,7 +484,7 @@ function doPat(g, rng, choice) {
     const pass = rng.chance(0.6);
     let p;
     if (pass) {
-      const skill = (comp.qb ? comp.qb.r.tha * 0.6 + comp.qb.r.awr * 0.4 : 75);
+      const skill = (comp.qb ? comp.qb.r.tha * 0.6 + comp.qb.r.awr * 0.4 + comp.chem : 75);
       p = 0.47 + (skill - def.covShort) / 200 - Math.max(0, def.passRush - comp.passBlock) / 300;
     } else {
       const rb = comp.rb1;
@@ -756,7 +763,7 @@ function resolvePass(g, rng, call, defCall) {
   const pressureP = clamp(baseP * (0.3 + edge(rush, comp.passBlock + (comp.olAwr - 80) * 0.2, 11) * 1.4) + (m.pressure || 0), 0.05, 0.7);
   const pressured = rng.chance(pressureP);
   if (pressured) {
-    const sackP = clamp(0.27 - (qb.r.mob - 70) * 0.004 - (qb.r.awr - 80) * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0), 0.08, 0.5);
+    const sackP = clamp(0.27 - (qb.r.mob - 70) * 0.004 - (qb.r.awr + comp.chem - 80) * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0), 0.08, 0.5);
     if (rng.chance(sackP)) {
       const sacker = pickRusher(g, defT, blitz, rng);
       let yards = -rng.int(3, 10);
@@ -805,7 +812,8 @@ function resolvePass(g, rng, call, defCall) {
   let cov = prim ? 0.55 * prim.r.cov + 0.45 * covComp : covComp;
   cov += m.cov || 0;
   const tSkill = target.pos === 'RB' ? target.r.rec : 0.45 * target.r.rte + 0.55 * target.r.cth;
-  const skill = qb.r.tha * 0.6 + tSkill * 0.4 - (pressured ? 9 : 0);
+  // Chemistry reaches the passing game as timing with receivers he knows.
+  const skill = qb.r.tha * 0.6 + tSkill * 0.4 + comp.chem - (pressured ? 9 : 0);
   const baseComp = { screen: 0.76, pass_short: 0.72, pass_med: 0.59, pass_deep: 0.41, pa_pass: 0.60 }[call];
   let compP = baseComp + (skill - cov) * 0.008 + (m.comp || 0);
   if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003 + (qb.r.thp - 85) * 0.003;
@@ -819,7 +827,7 @@ function resolvePass(g, rng, call, defCall) {
 
   // Interception.
   const baseInt = { screen: 0.004, pass_short: 0.011, pass_med: 0.021, pass_deep: 0.04, pa_pass: 0.02 }[call];
-  let intP = baseInt * (1 + (def.ballSkills - 80) / 35) * (1 + (88 - qb.r.awr) / 25) * (pressured ? 1.5 : 1) * (1 + (cov - skill) / 40) + (m.int || 0);
+  let intP = baseInt * (1 + (def.ballSkills - 80) / 35) * (1 + (88 - qb.r.awr - comp.chem) / 25) * (pressured ? 1.5 : 1) * (1 + (cov - skill) / 40) + (m.int || 0);
   if (g.quarter >= 4 && scoreDiff(g, off) < -8 && g.clock < 240) intP *= 1.25; // desperation
   intP = clamp(intP, 0.002, 0.2);
 

@@ -235,7 +235,7 @@ export function view(root, params, ctx) {
     if (tr) ctx.navigate(`#/team/${tr.dataset.team}`);
   });
   el.querySelector('#play')?.addEventListener('click', () => {
-    const g = createGame(teamForGame(league, myGame.home, ctx.byId), teamForGame(league, myGame.away, ctx.byId), gameOptions(league, myGame));
+    const g = createGame(teamForGame(league, myGame.home, ctx.byId), teamForGame(league, myGame.away, ctx.byId), gameOptions(league, myGame, ctx.byId));
     ctx.update((s) => { s.game = { weekNo: weekNumber(league), phase: league.phase, entryIdx: myGameIdx, g }; }, { silent: true });
     ctx.navigate('#/game');
   });
@@ -244,7 +244,7 @@ export function view(root, params, ctx) {
       const lg = s.league;
       const w = currentWeek(lg);
       const entry = w.games[myGameIdx];
-      const g = createGame(teamForGame(lg, entry.home, ctx.byId), teamForGame(lg, entry.away, ctx.byId), gameOptions(lg, entry));
+      const g = createGame(teamForGame(lg, entry.home, ctx.byId), teamForGame(lg, entry.away, ctx.byId), gameOptions(lg, entry, ctx.byId));
       simulateGame(g);
       recordResult(lg, weekNumber(lg), entry, g, { keepLog: true });
       simulateWeekAi(lg, ctx.byId);

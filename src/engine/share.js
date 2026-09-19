@@ -9,8 +9,9 @@
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { createLeague, startSeason } from './season.js';
 import { leagueIndex } from './rookies.js';
+import { careerIndex } from './careers.js';
 
-export const CODE_VERSION = 1;
+export const CODE_VERSION = 2;
 
 /** A cheap fingerprint of the player pool: count plus a rolling hash of the ids. */
 export function poolFingerprint(players) {
@@ -86,6 +87,15 @@ export function snapshot(league, players) {
       st: t.strategy,
     })),
     contracts: Object.fromEntries(Object.entries(league.contracts || {}).map(([id, c]) => [slotRef(id), c]).filter(([k]) => k !== -1)),
+    // Careers have to travel. They are deterministic from the seed and the
+    // player, but only for players who were signed, and when, so they cannot be
+    // replayed from the snapshot alone — and without them a friend's league
+    // would start at prime ratings while ours is three seasons older.
+    dev: Object.fromEntries(Object.entries(league.dev || {}).map(([id, c]) => [slotRef(id), c]).filter(([k]) => k !== -1)),
+    retired: (league.retired || []).map(slotRef).filter((i) => i !== -1),
+    tenure: (league.tenure || []).map ? league.tenure : Object.fromEntries(
+      Object.entries(league.tenure || {}).map(([ti, held]) => [ti, Object.fromEntries(Object.entries(held).map(([id, n]) => [slotRef(id), n]).filter(([k]) => k !== -1))]),
+    ),
   };
 }
 
@@ -124,11 +134,18 @@ export function leagueFromSnapshot(snap, players, byId) {
     t.ir = (st.ir || []).map(idAt).filter(Boolean);
   });
   league.contracts = Object.fromEntries(Object.entries(snap.contracts || {}).map(([k, c]) => [idAt(Number(k)), c]).filter(([id]) => id));
+  league.dev = Object.fromEntries(Object.entries(snap.dev || {}).map(([k, c]) => [idAt(Number(k)), { ...c, d: { ...c.d } }]).filter(([id]) => id));
+  league.retired = (snap.retired || []).map((k) => idAt(Number(k))).filter(Boolean);
   // The market is over: the auction or draft is complete by definition.
   const held = (t, ti) => [...Object.values(t.slots).filter(Boolean), ...(t.ir || [])].map((id) => [id, ti]);
   if (league.auction) { league.auction.complete = true; league.auction.taken = Object.fromEntries(league.teams.flatMap(held)); }
   if (league.draft) { league.draft.complete = true; league.draft.taken = Object.fromEntries(league.teams.flatMap(held)); }
   league.shared = true;
-  startSeason(league, leagueIndex(league, byId));
+  // Depth charts sort on current ratings, so the index has to know the ages.
+  startSeason(league, careerIndex(league, leagueIndex(league, byId)));
+  // After startSeason, not before: it runs syncTenure, which would count every
+  // player's current season twice on top of a restored ledger.
+  league.tenure = Object.fromEntries(Object.entries(snap.tenure || {}).map(([ti, heldBy]) => [ti,
+    Object.fromEntries(Object.entries(heldBy).map(([k, n]) => [idAt(Number(k)), n]).filter(([id]) => id))]));
   return league;
 }

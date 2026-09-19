@@ -45,7 +45,7 @@ export function ownerMap(league) {
 
 export function freeAgents(league, pool) {
   const owned = ownerMap(league);
-  return pool.filter((p) => !owned.has(p.id));
+  return pool.filter((p) => !owned.has(p.id) && !p.retired);
 }
 
 export function slotOf(team, playerId) {

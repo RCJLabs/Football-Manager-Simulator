@@ -58,7 +58,7 @@ export function overallPickNumber(draft) {
 
 /** Players still available (from a pool array). */
 export function availablePlayers(draft, pool) {
-  return pool.filter((p) => draft.taken[p.id] == null);
+  return pool.filter((p) => draft.taken[p.id] == null && !p.retired);
 }
 
 /** League-wide open demand per position. */

@@ -79,7 +79,7 @@ export function canRoster(team, pos) {
 }
 
 export function availablePlayers(auction, pool) {
-  return pool.filter((p) => auction.taken[p.id] == null);
+  return pool.filter((p) => auction.taken[p.id] == null && !p.retired);
 }
 
 /** League-wide unfilled slots per position. */

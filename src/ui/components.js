@@ -4,6 +4,7 @@ import { overall } from '../engine/ratings.js';
 import { getState, update } from '../store.js';
 import { setOverride } from '../data/tuning.js';
 import { POSITIONS, eraOf } from '../data/positions.js';
+import { careerPhase } from '../engine/careers.js';
 
 export function ovrClass(o) {
   return o >= 95 ? 'o95' : o >= 90 ? 'o90' : o >= 85 ? 'o85' : o >= 80 ? 'o80' : 'o0';
@@ -27,6 +28,14 @@ export function outBadge(inj) {
 /** Generated players carry their class instead of a decade. */
 export function rookieBadge(p) {
   return p && p.generated ? raw(`<span class="badge rookie">rookie</span>`) : raw('');
+}
+
+/** A player with a career shows his age; a retired one says so instead. */
+export function ageBadge(p) {
+  if (!p) return raw('');
+  if (p.retired) return raw(`<span class="badge retired">retired</span>`);
+  if (p.age == null) return raw('');
+  return raw(`<span class="badge age" title="${careerPhase(p.pos, p.age)}">${p.age}</span>`);
 }
 
 export function eraBadge(season) {
@@ -67,7 +76,7 @@ export function playerItem(p, { action = '', meta = '', cls = '', attrs = true, 
     <span class="ovr ${ovrClass(o)}">${o}</span>
     <div class="who">
       <div class="nm"><span class="tap" data-show="${esc(p.id)}">${esc(p.name)}</span>${posBadge(p.pos).__raw}</div>
-      <div class="meta">${p.generated ? `class of ${p.season}` : `${p.season} ${esc(p.team)}`}${p.generated ? rookieBadge(p).__raw : era ? eraBadge(p.season).__raw : ''}${meta}</div>
+      <div class="meta">${p.generated ? `class of ${p.season}` : `${p.season} ${esc(p.team)}`}${p.generated ? rookieBadge(p).__raw : era ? eraBadge(p.season).__raw : ''}${ageBadge(p).__raw}${meta}</div>
     </div>
     <div class="act">${action}</div>
     ${attrs ? `<div class="attrs">${attrList(p).__raw}</div>` : ''}
@@ -108,6 +117,8 @@ export function playerModal(p, extra = '') {
   const m = modal(html`
     <div class="row between"><h2 style="margin:0">${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
     <p class="muted">${def.name} · ${p.generated ? `generated rookie, class of ${p.season}` : `${p.season} ${p.team} · ${eraOf(p.season)}`} · Overall <span id="ovrNow">${ovrBadge(p)}</span></p>
+    ${p.retired ? html`<p class="muted" style="margin:-.3rem 0 0">Retired at ${p.age}. He stays in the record books; he cannot be signed.</p>`
+      : p.age != null ? html`<p class="muted" style="margin:-.3rem 0 0">Age ${p.age}, ${careerPhase(p.pos, p.age)}${p.base && overall(p) !== overall(p.base) ? ` · ${overall(p) > overall(p.base) ? 'up' : 'down'} ${Math.abs(overall(p) - overall(p.base))} from the ${p.base.season} version you signed` : ''}.</p>` : ''}
     ${raw(rows)}
     ${editing ? html`<small class="muted">Rating editor is on (settings). Edits apply everywhere at once and export as a diff.</small>` : ''}
     ${raw(extra)}

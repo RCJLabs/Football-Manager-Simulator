@@ -18,6 +18,7 @@ import { ROSTER_SLOTS } from '../data/positions.js';
 import { createGame, simulateGame } from './game.js';
 import { INJURY_LEVELS, DEFAULT_INJURY_LEVEL, recordGameInjuries, tickInjuries, returnFromIr, clearIr, irList } from './injuries.js';
 import { closeSeasonBooks } from './awards.js';
+import { chemistryBonuses } from './chemistry.js';
 
 export const LEAGUE_VERSION = 3;
 export const FANTASY_SIZES = [8, 10, 12];
@@ -83,7 +84,7 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
     injuries: {},
     contracts: {},
     offseason: null,
-    settings: { coachMode: false, coachDefense: false, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode) },
+    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode) },
   };
   assignGms(league, rng);
   if (draftType === 'auction') league.auction = createAuction(league, rng, budget ? { budget } : {});
@@ -150,14 +151,27 @@ export function injuryLevel(league) {
 }
 
 /** createGame options for a schedule entry: seed, playoff flag, home edge, injury dial. */
-export function gameOptions(league, entry) {
+export function gameOptions(league, entry, byId) {
   return {
     seed: gameSeed(league, weekNumber(league), entry.home, entry.away),
     playoff: league.phase === 'playoffs',
     homeAdvantage: !entry.neutral,
     injuryLevel: injuryLevel(league),
     penalties: league.settings?.penalties !== false,
+    chem: byId ? bonusesFor(league, byId, entry) : [0, 0],
   };
+}
+
+/**
+ * Both sides' chemistry bonus. Cached per league object and season because it
+ * is a league-wide calculation and every game in a week asks for it.
+ */
+let chemCache = null;
+function bonusesFor(league, byId, entry) {
+  if (!chemCache || chemCache.league !== league || chemCache.tenure !== league.tenure || chemCache.byId !== byId) {
+    chemCache = { league, tenure: league.tenure, byId, all: chemistryBonuses(league, byId) };
+  }
+  return [chemCache.all[entry.home] || 0, chemCache.all[entry.away] || 0];
 }
 
 export function isPro(league) {
@@ -383,7 +397,29 @@ export function startSeason(league, byId) {
   league.offseason = null;
   league.rngState = rng.state;
   syncContracts(league);
+  syncTenure(league);
   return league;
+}
+
+/**
+ * How many seasons each club has held each of its players, counted in seasons
+ * rather than contracts. A fantasy club re-buys most of its roster at auction
+ * every year, so a contract's age says almost nothing about whether the same
+ * eleven men have been playing together — which is the thing chemistry is
+ * actually about. This counts the man, not the paperwork.
+ */
+export function syncTenure(league) {
+  const prev = league.tenure || {};
+  const next = {};
+  league.teams.forEach((t, i) => {
+    const held = {};
+    const before = prev[i] || {};
+    for (const s of ROSTER_SLOTS) { const id = t.slots[s.id]; if (id) held[id] = (before[id] || 0) + 1; }
+    for (const id of t.ir || []) held[id] = (before[id] || 0) + 1;
+    next[i] = held;
+  });
+  league.tenure = next;
+  return next;
 }
 
 export function gameSeed(league, week, home, away) {
@@ -464,7 +500,7 @@ export function simulateWeekAi(league, byId, { includeUser = false } = {}) {
     if (entry.result || entry.bye) continue;
     const isUserGame = entry.home === u || entry.away === u;
     if (isUserGame && !includeUser) continue;
-    const g = createGame(teamForGame(league, entry.home, byId), teamForGame(league, entry.away, byId), gameOptions(league, entry));
+    const g = createGame(teamForGame(league, entry.home, byId), teamForGame(league, entry.away, byId), gameOptions(league, entry, byId));
     simulateGame(g);
     recordResult(league, weekNumber(league), entry, g, { keepLog: isUserGame, keepPlayers: isUserGame || playoff });
   }

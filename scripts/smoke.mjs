@@ -369,8 +369,25 @@ try {
   if (badged === 0) errors.push('no rookie badge appears in the player pool');
   await checkOverflow('player pool with rookies');
   await shot('11c-rookies');
+  // A year passed: the offseason reports who aged, and careers are running.
   await page.goto(`http://localhost:${port}/#/offseason`);
   await page.waitForSelector('#offseason-view');
+  const yearOlder = await page.$eval('#offseason-view', (e) => e.textContent);
+  if (!/A year older/.test(yearOlder)) errors.push('the offseason did not report the ageing');
+  await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return false; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return Object.keys(slot?.league?.dev || {}).length > 20; }, { timeout: 4000 }).catch(() => {});
+  const careers = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return 0; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return Object.keys(slot?.league?.dev || {}).length; });
+  if (careers < 20) errors.push(`only ${careers} careers started after a season`);
+  // Chemistry is on the team screen with its inputs, not hidden in the engine.
+  await page.click('#nav a[href^="#/team/"]');
+  await page.waitForSelector('#team-view');
+  const teamText = await page.$eval('#team-view', (e) => e.textContent);
+  if (!/Chemistry/.test(teamText)) errors.push('no chemistry card on the team screen');
+  if (!/Era spread/.test(teamText)) errors.push('the chemistry card does not show what it is made of');
+  await checkOverflow('team screen with chemistry');
+  await shot('11d-chemistry');
+  await page.goto(`http://localhost:${port}/#/offseason`);
+  await page.waitForSelector('#offseason-view');
+  await page.waitForSelector('button[data-keep]');
   await page.click('button[data-keep]');
   await page.waitForSelector('button[data-keep].primary');
   await page.click('#autoKeep');

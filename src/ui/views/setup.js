@@ -69,6 +69,12 @@ export function view(root, params, ctx) {
           <small class="muted">Each offseason a club keeps this many players (a keeper costs last year's price plus 15% or $3; three years running at most) and the rest go back to the pool. Fantasy leagues default to 6, the pro league to 18.</small>
         </div>
         <div>
+          <label>Careers</label>
+          <label class="check"><input type="checkbox" name="careers" checked> Players age: rostered men get a year older each offseason, rookies develop, the old retire</label>
+          <label class="check"><input type="checkbox" name="chemistry" checked> Chemistry: a settled squad from a tight era band plays a little better</label>
+          <small class="muted">The pool stays frozen at its prime until you sign a man — the auction is the same puzzle either way. It is what happens after that changes: a keeper's third year is not his first, and a 63-overall rookie can become an 80 if you are patient.</small>
+        </div>
+        <div>
           <label>Game control</label>
           <label class="check"><input type="checkbox" name="coach"> Coach mode: I call the offensive plays in my games</label>
           <label class="check"><input type="checkbox" name="coachDef"> …and the defensive calls too</label>
@@ -140,6 +146,8 @@ export function view(root, params, ctx) {
     });
     league.settings.coachMode = f.get('coach') === 'on';
     league.settings.coachDefense = f.get('coachDef') === 'on';
+    league.settings.careers = f.get('careers') === 'on';
+    league.settings.chemistry = f.get('chemistry') === 'on';
     const auto = f.get('draft') === 'auto';
     if (auto) {
       const rng = new RNG(league.rngState);

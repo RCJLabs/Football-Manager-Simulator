@@ -33,10 +33,24 @@ export function classSize(league) {
  * occasional jump, which is closer to how a draft class actually looks.
  */
 export const PROSPECT_RATE = 0.07;
+/**
+ * The ceiling on a rookie's *target* rating. It is not a hard cap on his
+ * overall: each attribute then scatters around the target, so a lucky draw on
+ * the heavily weighted attributes can carry him a few points past it. Measured
+ * over 4,000 rookies the realised ceiling is 94, with 0.9% at 87 or better and
+ * 0.2% at 90 or better.
+ *
+ * It exists because nobody should enter the league already an all-time great.
+ * The top of a class is a very good starter; the ones who become more than that
+ * do it over seasons, through the career curves in careers.js. Uncapped, the
+ * generator occasionally produced a 99 at twenty-two who then had a decade of
+ * development still ahead of him.
+ */
+export const ROOKIE_CEILING = 87;
 export function rollOverall(rng) {
   let t = rng.normal(62, 6.5);
   if (rng.chance(PROSPECT_RATE)) t += Math.abs(rng.normal(16, 7));
-  return clamp(Math.round(t), 40, 99);
+  return clamp(Math.round(t), 40, ROOKIE_CEILING);
 }
 
 /** Positions for a class, in roster proportions so every group gets somebody. */

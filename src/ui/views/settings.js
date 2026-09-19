@@ -19,6 +19,9 @@ export function view(root, params, ctx) {
           <label class="check"><input type="checkbox" id="coach" ${league.settings.coachMode ? 'checked' : ''}> Coach mode — call offensive plays in my games</label>
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="coachDef" ${league.settings.coachDefense ? 'checked' : ''}> Call defensive plays too</label>
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="penalties" ${league.settings.penalties !== false ? 'checked' : ''}> Penalties — flags for false starts, holding, interference and the rest</label>
+          <label class="check" style="margin-top:.4rem"><input type="checkbox" id="careers" ${league.settings.careers ? 'checked' : ''}> Careers — rostered players age each offseason, rookies develop, the old retire</label>
+          <label class="check" style="margin-top:.4rem"><input type="checkbox" id="chemistry" ${league.settings.chemistry ? 'checked' : ''}> Chemistry — a settled squad from a tight era band plays a little better</label>
+          ${league.settings.careers && league.settings.chemistry ? '' : html`<small class="muted">A league started before these existed keeps its old rules until you switch them on here.</small>`}
           <div class="row" style="margin-top:.8rem;gap:.5rem;align-items:center">
             <label style="margin:0">Injuries</label>
             <select id="injuries" style="max-width:10rem">${Object.entries(INJURY_LEVEL_LABELS).map(([k, label]) => html`<option value="${k}" ${(league.settings.injuries || 'normal') === k ? 'selected' : ''}>${label}</option>`)}</select>
@@ -79,6 +82,8 @@ export function view(root, params, ctx) {
     root.querySelector('#coachDef').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.coachDefense = e.target.checked; }));
     root.querySelector('#injuries').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.injuries = e.target.value; }, { silent: true }));
     root.querySelector('#penalties').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.penalties = e.target.checked; }, { silent: true }));
+    root.querySelector('#careers').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.careers = e.target.checked; }, { silent: true }));
+    root.querySelector('#chemistry').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.chemistry = e.target.checked; }));
     root.querySelector('#keepers').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.keepers = Number(e.target.value); }, { silent: true }));
   }
   root.querySelector('#fictional').addEventListener('change', (e) => {

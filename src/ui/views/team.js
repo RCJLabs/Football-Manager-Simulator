@@ -5,6 +5,7 @@ import { buildLineup, teamPower, overall } from '../../engine/ratings.js';
 import { playerItem, playerModal, teamChip, esc, outBadge, toast, modal } from '../components.js';
 import { fillLineup, fmtWeeks, irList, irReady, canPlaceOnIr, placeOnIr, activateFromIr, releaseFromIr, irCapacity, IR_MIN_WEEKS } from '../../engine/injuries.js';
 import { fantasyPoints } from '../../engine/stats.js';
+import { chemistryFor, describeChemistry, MAX_BONUS } from '../../engine/chemistry.js';
 
 const STRATEGY_FIELDS = [
   { key: 'passRate', label: 'Pass / run balance', lo: 'Run heavy', hi: 'Pass heavy', min: 0.35, max: 0.7 },
@@ -59,6 +60,24 @@ export function view(root, params, ctx) {
     });
   })).join('');
 
+  // Chemistry: the score is absolute so it does not jump around when another
+  // club signs somebody, but what it is worth is measured against the league,
+  // because an edge everyone has is not an edge.
+  const chem = league.settings?.chemistry ? chemistryFor(league, idx, ctx.byId) : null;
+  const chemCard = chem ? html`<div class="card tight">
+    <h3>Chemistry <small class="muted" style="text-transform:none;letter-spacing:0">· ${chem.rank} of ${league.teams.length}</small></h3>
+    <div class="row between" style="align-items:baseline">
+      <b style="font-size:1.6rem">${chem.score}</b>
+      <span class="muted" style="font-size:.85rem">league average ${chem.leagueMean} · worth ${chem.bonus >= 0 ? '+' : ''}${chem.bonus.toFixed(2)} on the field</span>
+    </div>
+    <p class="muted" style="font-size:.85rem;margin:.3rem 0 .4rem">${describeChemistry(chem)}</p>
+    <table style="font-size:.85rem"><tbody>
+      <tr><td>Together</td><td class="num">${chem.together} season${chem.together === 1 ? '' : 's'} on average</td></tr>
+      <tr><td>Era spread</td><td class="num">±${chem.spread} years</td></tr>
+    </tbody></table>
+    <small class="muted">Worth at most ${MAX_BONUS.toFixed(1)} points either way, on blocking, coverage and a quarterback's timing — never on speed. A tight era band gels at once; a wide one stops mattering once the squad has played together.</small>
+  </div>` : '';
+
   render(root, html`<div id="team-view">
     <div class="card">
       <h1 style="margin:0">${teamChip(team)}</h1>
@@ -74,6 +93,7 @@ export function view(root, params, ctx) {
         <ul class="plist">${raw(depthRows)}</ul>
       </div>
       <div class="stack">
+        ${chemCard}
         ${onIr.length || (canEdit && league.phase === 'season' && hurt.some(({ inj }) => inj.weeks >= IR_MIN_WEEKS)) ? html`<div class="card tight">
           <h3>Injured reserve <small class="muted" style="text-transform:none;letter-spacing:0">· ${onIr.length} of ${irCapacity(league)}</small></h3>
           ${onIr.length ? raw(`<ul class="plist">${onIr.map((p) => {

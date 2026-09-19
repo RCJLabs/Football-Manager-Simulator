@@ -14,6 +14,7 @@ import { enterOffseason, aiKeepers, confirmKeepers } from './offseason.js';
 import { autoCompleteAll } from './auction.js';
 import { autoDraftAll } from './draft.js';
 import { leaguePool, leagueIndex } from './rookies.js';
+import { applyCareers, careerIndex } from './careers.js';
 
 export const TARGETS = ['halfway', 'playoffs', 'offseason', 'nextSeason'];
 
@@ -82,10 +83,11 @@ export function simulateAhead(league, byId, pool, rng, target, { maxWeeks = 200 
     enterOffseason(league, pool, byId);
     decided.push('the offseason opened');
   }
-  // A rookie class arrives with the offseason, so the market and everything
-  // after it work from the fuller pool rather than the one passed in.
-  pool = leaguePool(league, pool);
-  byId = leagueIndex(league, byId);
+  // A rookie class arrives with the offseason and everybody under contract just
+  // got a year older, so the market and everything after it work from the
+  // rebuilt pool rather than the one passed in.
+  pool = applyCareers(league, leaguePool(league, pool));
+  byId = careerIndex(league, leagueIndex(league, byId));
   if (league.phase === 'offseason') {
     const u = league.teams.findIndex((t) => t.isUser);
     const keep = aiKeepers(league, u, pool, byId, null);
