@@ -20,15 +20,15 @@ export function view(root, params, ctx) {
   render(root, html`
     <div class="card" style="max-width:640px;margin:0 auto">
       <h1>New league</h1>
-      ${existing ? html`<div class="notice">Starting a new league replaces your current one (${existing.name}). Export it from Settings first if you want to keep it.</div>` : ''}
+      ${existing ? html`<p class="muted" style="margin:.25rem 0 0">Your current league, ${existing.name}, stays saved in its own slot. This one opens in a new slot, and you can switch between them from the home screen.</p>` : ''}
       <form id="setup" class="stack" style="margin-top:1rem">
         <div>
           <label>League</label>
           <label class="check"><input type="radio" name="mode" value="fantasy" checked> <span><b>Fantasy league</b> — 8, 10 or 12 clubs, 13 to 14 games, a short bracket.</span></label>
           <label class="check"><input type="radio" name="mode" value="pro"> <span><b>Pro league</b> — the full 32 teams in two conferences of four divisions, a 17-game season, seven playoff seeds per conference with a bye for the top seed.</span></label>
         </div>
+        <div><label>League name</label><input type="text" name="league" value="All-Time League" maxlength="40"></div>
         <div id="fantasyOpts" class="form-row">
-          <div><label>League name</label><input type="text" name="league" value="All-Time League" maxlength="40"></div>
           <div><label>Teams</label>
             <select name="teams">${raw(FANTASY_SIZES.map((n) => `<option value="${n}" ${n === 8 ? 'selected' : ''}>${n} teams · ${n === 8 ? 14 : 13} games${n === 12 ? ', 6 make the playoffs' : ''}</option>`).join(''))}</select>
             <small class="muted">More teams means thinner rosters. In a 12-team league the bottom of the pool starts every week.</small></div>
@@ -77,7 +77,6 @@ export function view(root, params, ctx) {
           <button class="btn primary lg" type="submit">Create league</button>
           <a class="btn ghost" href="#/">Cancel</a>
         </div>
-        ${hasLeague ? html`<small class="muted" style="display:block;margin-top:.5rem">Your current league stays saved in its own slot; this one gets a new slot.</small>` : ''}
       </form>
     </div>
     <details class="card" style="margin-top:.75rem"><summary style="cursor:pointer"><b>Have a league code?</b> <span class="muted">Open a friend's league with the same rosters.</span></summary>
@@ -110,6 +109,7 @@ export function view(root, params, ctx) {
     if (pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="snake"]').checked = true;
     if (!form.dataset.touchedKeepers) form.keepers.value = String(defaultKeepers(pro ? 'pro' : 'fantasy'));
     if (!pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="auction"]').checked = true;
+    if (!form.dataset.touchedLeague) form.league.value = pro ? 'Pro League' : 'All-Time League';
     if (pro) { form.name.value = form.name.value === 'Time Travelers' ? '' : form.name.value; form.abbr.value = form.abbr.value === 'TTV' ? '' : form.abbr.value; }
     else { if (!form.name.value) form.name.value = 'Time Travelers'; if (!form.abbr.value) form.abbr.value = 'TTV'; }
   };
@@ -117,6 +117,7 @@ export function view(root, params, ctx) {
   form.querySelectorAll('input[name="type"]').forEach((i) => i.addEventListener('change', () => { form.dataset.touchedType = '1'; }));
 
   form.keepers.addEventListener('change', () => { form.dataset.touchedKeepers = '1'; });
+  form.league.addEventListener('input', () => { form.dataset.touchedLeague = '1'; });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = new FormData(form);
@@ -128,7 +129,7 @@ export function view(root, params, ctx) {
       ? { name: name || undefined, abbr: abbr || undefined, color: form.dataset.touchedColor ? f.get('color') : undefined }
       : { name: name || 'My Team', abbr: abbr || 'ME', color: f.get('color') };
     const league = createLeague({
-      name: mode === 'pro' ? 'Pro League' : ((f.get('league') || '').trim() || 'All-Time League'),
+      name: (f.get('league') || '').trim() || (mode === 'pro' ? 'Pro League' : 'All-Time League'),
       mode,
       numTeams: Number(f.get('teams')),
       franchise: Number(f.get('franchise')),

@@ -424,6 +424,13 @@ try {
   await page.goto(`http://localhost:${port}/#/new`);
   await page.waitForSelector('#setup');
   await page.check('input[name="mode"][value="pro"]');
+  // The fantasy-only options must actually disappear, not just be marked hidden.
+  const fantasyShown = await page.$eval('#fantasyOpts', (e) => e.getBoundingClientRect().height > 0);
+  if (fantasyShown) errors.push('pro mode still shows the fantasy team-count options');
+  const proShown = await page.$eval('#proOpts', (e) => e.getBoundingClientRect().height > 0);
+  if (!proShown) errors.push('pro mode does not show the franchise picker');
+  await checkOverflow('setup in pro mode');
+  await shot('01b-setup-pro');
   await page.selectOption('select[name="franchise"]', '12');
   await page.check('input[name="draft"][value="auto"]');
   await page.click('button[type="submit"]');
