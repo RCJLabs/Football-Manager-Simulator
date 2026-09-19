@@ -1,4 +1,6 @@
 import { test } from 'node:test';
+import { syntheticTeam } from '../scripts/synthetic.mjs';
+import { buildLineup, teamPower } from '../src/engine/ratings.js';
 import assert from 'node:assert/strict';
 import { positionValue, TRUE_LEVERAGE, GLAMOUR, MATTERS_AT } from '../src/engine/auction.js';
 import { POSITIONS, ROSTER_SLOTS } from '../src/data/positions.js';
@@ -94,4 +96,38 @@ test('the mispricing the whole auction rests on is actually there', () => {
     `best value ${real[0].ratio.toFixed(2)} vs worst ${real[real.length - 1].ratio.toFixed(2)} is too flat to be a strategy`);
   assert.ok(rows.some((r) => r.verdict === 'underpaid'), 'nothing is a bargain');
   assert.ok(rows.some((r) => r.verdict.includes('overpaid')), 'nothing is a trap');
+});
+
+test('team power is weighted by what a position is actually worth', () => {
+  // The weights used to be a guess and measured like one: r = 0.34 against
+  // point differential from a full round robin, while feeding priorMargin and
+  // so the live win-probability model. Weighting by the table this game already
+  // measured takes it to r = 0.56.
+  const a = syntheticTeam('pw-a', 80, 0, 1);
+  const lineupOf = (t) => buildLineup(t.slots, t.byId);
+  const base = teamPower(lineupOf(a));
+
+  // Lifting the position the game says matters most must move power more than
+  // lifting the one it says matters least, by roughly the ratio in the table.
+  const lift = (pos, by) => {
+    const byId = new Map(a.byId);
+    for (const s of ROSTER_SLOTS) {
+      if (s.pos !== pos || !s.starter) continue;
+      const p = byId.get(a.slots[s.id]);
+      const r = {};
+      for (const k of Object.keys(p.r)) r[k] = Math.min(99, p.r[k] + by);
+      byId.set(p.id, { ...p, id: `${p.id}-up${pos}`, r });
+      // A new id, because `overall` caches by it.
+      byId.delete(p.id);
+      byId.set(`${p.id}-up${pos}`, { ...p, id: `${p.id}-up${pos}`, r });
+    }
+    const slots = { ...a.slots };
+    for (const s of ROSTER_SLOTS) if (s.pos === pos && s.starter) slots[s.id] = `${a.slots[s.id]}-up${pos}`;
+    return teamPower(buildLineup(slots, byId)) - base;
+  };
+
+  const qb = lift('QB', 10), k = lift('K', 10);
+  assert.ok(qb > 0 && k > 0, 'lifting anybody should raise power');
+  assert.ok(qb > k * 4, `a quarterback should outweigh a kicker by far more than ${(qb / k).toFixed(1)}x`);
+  assert.equal(TRUE_LEVERAGE.QB > TRUE_LEVERAGE.K * 4, true, 'and the table is what says so');
 });

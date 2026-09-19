@@ -64,12 +64,15 @@ export const EVEN_ENOUGH = 3;
  * than a flat dial: it had been measured against a mirror of itself, where both
  * sides are equal by construction and extra possessions can favour neither.
  *
- * It still gets no read, because the gaps it needs do not exist here. Measured
- * across four seeds, the best and worst rosters in a league are 0.78 power
- * apart in an eight-club snake league, 1.35 in an auction and 2.50 in a 32-club
- * pro league — against a home-field edge of 1.1 and a chemistry swing of 1.8.
- * A read built on a one-point edge measured +1.15 ± 0.83, which is not a
- * recommendation, it is a coin flip with a sentence attached.
+ * It still gets no read, and the reason has been re-measured since it was first
+ * written here. The original argument was that clubs are only 0.78 `teamPower`
+ * apart in an eight-club league, which turned out to lean on a number that
+ * explains r = 0.34 of results; clubs actually differ by 5.5 to 6.4 points a
+ * game. What survives is the direct measurement: a tempo read built on the
+ * power gaps a real league produces came out at +1.15 ± 0.83 over 273 paired
+ * games, which is not a recommendation, it is a coin flip with a sentence
+ * attached. If it is ever worth revisiting, do it on a gap measured in points
+ * rather than in power.
  */
 
 

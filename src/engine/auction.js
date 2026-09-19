@@ -15,7 +15,7 @@ import { ROSTER_SLOTS, SLOT_COUNTS } from '../data/positions.js';
 import { GM_PERSONALITIES } from '../data/teams.js';
 import { savvyFor, bidBoldness } from './difficulty.js';
 import { marketView, scoutReport } from './scouting.js';
-import { overall } from './ratings.js';
+import { overall, TRUE_LEVERAGE } from './ratings.js';
 import { clamp } from './rng.js';
 
 export const DEFAULT_BUDGET = 200;
@@ -61,7 +61,10 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * back and the defensive line. The strategy table in DESIGN.md agrees — a
  * trenches-first buyer finished worst of every strategy measured.
  */
-export const TRUE_LEVERAGE = { QB: 17.99, RB: 6.01, TE: 5.78, CB: 4.69, WR: 3.30, S: 2.95, LB: 2.92, DL: 2.48, OL: 2.10, P: 1.52, K: 0.79 };
+// Lives in ratings.js so `teamPower` can weight a lineup by it without this
+// file and that one importing each other; re-exported here because this is
+// where it is documented and where everything that uses it looks for it.
+export { TRUE_LEVERAGE } from './ratings.js';
 export const GLAMOUR = { QB: 2.3, RB: 1.6, WR: 1.5, TE: 0.95, DL: 0.95, LB: 0.75, CB: 0.7, S: 0.6, OL: 0.5, K: 0.22, P: 0.14 };
 const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) => [k, Math.pow(v, 0.72)]));
 

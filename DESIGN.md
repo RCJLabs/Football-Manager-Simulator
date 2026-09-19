@@ -32,7 +32,7 @@ That seam was already there. Across four hundred lines of play resolution the on
 
 **It stops there deliberately.** What remains is `applyOutcome`, `changePossession`, `doKickoff` and `endOfQuarter`, which call each other and share the whole game object. Splitting mutually recursive state machinery across files makes it harder to follow, not easier; 836 lines against `season.js`'s 791 is no longer an outlier, which was the actual problem.
 
-**How it was verified.** The engine is seeded, so the same rosters and seed must produce the same game down to the last word of play-by-play — which makes a hash of the output a far stronger check than the test suite, because a test asserts the properties somebody thought of and a fingerprint asserts everything. `scripts/game-fingerprint.mjs` (`npm run fingerprint`) simulates 232 games across the paths that diverge — five roster gaps, penalties off, every injury rate, neutral sites, playoff rules, chemistry, and twelve coach-mode games driving `step()` by hand — and prints one hash over 43,269 log lines, plus a per-game hash so a divergence names itself. Before and after the split: `a9480bd47f40cac9`, identical.
+**How it was verified.** The engine is seeded, so the same rosters and seed must produce the same game down to the last word of play-by-play — which makes a hash of the output a far stronger check than the test suite, because a test asserts the properties somebody thought of and a fingerprint asserts everything. `scripts/game-fingerprint.mjs` (`npm run fingerprint`) simulates 232 games across the paths that diverge — five roster gaps, penalties off, every injury rate, neutral sites, playoff rules, chemistry, and twelve coach-mode games driving `step()` by hand — and prints one hash over 43,269 log lines, plus a per-game hash so a divergence names itself. Before and after the split: `a9480bd47f40cac9`, identical. It reads `e27d59dbc5d3340e` since the `teamPower` reweight, which moves the win-probability annotation on every line and no play.
 
 It is a tool, not a test. Pinning that hash in the suite would fire on every legitimate retune — and retuning constants is normal work here — so it stays something you run either side of a refactor. The property that *is* tested, in `tests/game.test.js`, is that a seed replays identically, which no tuning change can break.
 
@@ -469,7 +469,7 @@ Four buttons on the season hub: to the halfway point, to the playoffs, through t
 
 ## Live game presentation (`winprob.js`, `ui/charts.js`)
 
-Every step of a game leaves a win probability on the event it produced, computed once the state has settled (possession changes included), so a saved log carries the whole curve. The model is a normal one fitted to this simulation rather than the real league: the final margin is the current margin, plus what the possession in hand is worth (expected points from field position, down and distance), plus what the stronger roster and the home crowd still expect to add over the time left, with a spread that shrinks with the clock. Fitted on synthetic games with penalties on: final margins spread about 12.5 points between equal rosters, a point of team power is worth about 3.3 points of margin (measured by moving a synthetic roster's mean rating), and the home edge is about two points. A calibration test bins predictions and checks the home side really won about that often in each bin.
+Every step of a game leaves a win probability on the event it produced, computed once the state has settled (possession changes included), so a saved log carries the whole curve. The model is a normal one fitted to this simulation rather than the real league: the final margin is the current margin, plus what the possession in hand is worth (expected points from field position, down and distance), plus what the stronger roster and the home crowd still expect to add over the time left, with a spread that shrinks with the clock. Fitted on synthetic games with penalties on: final margins spread about 12.5 points between equal rosters, a point of team power is worth about 3.3 points of margin (measured by moving a synthetic roster's mean rating, and confirmed at 3.25 by regressing differential on power across six drafted leagues), and the home edge is about two points. The prior is only as good as `teamPower`, which is why that was reweighted — see below. A calibration test bins predictions and checks the home side really won about that often in each bin.
 
 The live screen shows the current probability in the scoreboard and a filled band over the game with quarter markers, the home side's colour above the 50% line and the away side's below; a drive chart (one row per drive on a 100-yard field, scoring drives in full colour) folds out beneath it. When the game ends a story card gives the result, the three plays that moved the probability most, each side's stars from the box score, and the injuries. Box scores of games that kept their log (your games) show the same charts and story. Charts are inline SVG scaled to the card, so they are as legible on a phone as on a desktop. Not built: a highlight reel or animated field; the drive chart is the highlight reel.
 
@@ -487,24 +487,24 @@ Three things an AI club does that a preset never did.
 
 **A game plan.** At kickoff each AI side reads the matchup from the two clubs' composites and adjusts its sliders for this game only: quick throws and screens when the other rush beats its line, more runs at a soft front, more passing when its quarterback beats their coverage, deep shots at a slow secondary; on defence, pressure at a weak line (and a heavy blitz at a replacement-level fill-in), a stacked box against a strong run game, a shell over a great passer. The human's sliders are the human's own; the matchup card tells you what the other side plans, which is the invitation to answer it.
 
-### The league is too even for tactics to matter
+### How even is the league, really
 
-This is the finding the whole strategy investigation kept running into, and it explains every flat measurement in the section below. Across four seeds:
+This section used to say the league was too even for tactics to matter, and that was measured on the wrong number. It rested on `teamPower` spread — 0.78 between the best and worst roster in an eight-club league, against a home edge of 1.1 — and `teamPower` turned out to explain **r = 0.34** of who actually beats whom. About a tenth. Every conclusion drawn from it was drawn from a weak proxy.
 
-| league | best roster to worst | sd |
-| --- | --- | --- |
-| 8-club snake | **0.78 power** | 0.23 |
-| 8-club auction | 1.35 | 0.42 |
-| 12-club auction | 1.45 | 0.41 |
-| 32-club pro snake | 2.50 | 0.64 |
+Measured properly, by point differential from a round robin of every club against every other, 20 games a pairing across three leagues:
 
-For scale: home advantage is 1.1 composite points and chemistry swings 1.8. **In an eight-club snake league the gap between the best and worst roster is smaller than home-field advantage.** That is not a bug in any one system, it is what an eight-club league drafting 208 of 1,269 all-time greats produces, with the snake order deliberately equalising on top.
+| league | best club to worst |
+| --- | --- |
+| 8-club snake | **5.5 points a game** |
+| 8-club auction | **6.4 points a game** |
 
-Everything tactical is measured against that number, and it is why so little of it registers. The AI game plan needs composite gaps over 5 and 8 points to fire, so it fires in 16 of 1,500 even matchups. The pass/run read is worth 6.4 points a game across rosters built to order and +0.98 on the ones the draft actually produces. Tempo is a genuinely strong lever — +3.81 ± 0.65 for a club six power points better than its opponent — and gets no read at all, because no club here is ever six points better than anyone.
+That is not a flat league. The pass/run read is worth about a point, so tactics come to roughly a sixth of the roster gap, which is a defensible ratio rather than a broken one. The premise was wrong; there is no structural problem here to fix.
 
-Whether to change it is a real design question and not a small one: parity is defensible for a fantasy game, and the alternatives (a thinner pool per league, scarcer talent at the top, deeper rosters so depth tells) all change how the game feels. It is recorded here because any future tactical feature will measure as noise until it is answered.
+What is true, and was never the point being argued: the draft distributes talent evenly *relative to what the pool allows*. An eight-club league could produce a 6.40 power spread and produces 0.88 — 12% of the available range, and the same 12% at every league size, because the snake order hands out equal draft capital and the roster template forbids concentrating it. The pool is not the constraint: at eight clubs every drafted player is 88 or better.
 
-### What the strategy dials are actually worth
+If more variety is ever wanted, the one lever that measured worth having is **unequal auction budgets**: ±20% takes the best-to-worst differential from 6.4 to **10.1 points a game**, ±40% adds nothing further (10.2), and widening the spread of GM savvy is worth under a point. It belongs as a setup option rather than a default, and it is not built.
+
+### What the strategy dials are actually worth### What the strategy dials are actually worth
 
 Five dials were presented as five decisions. Driven end to end on identical rosters, 700 to 1,500 paired games per cell, only one of them is:
 
@@ -520,7 +520,7 @@ Tempo's first reading was a false negative twice over. A dial with a symmetric t
 
 Blitz and the deep shell were then given their own pass, and the answer was no. The trade-offs are real and measurable in the play matrix — across the dial a blitz buys +0.42 ± 0.08 sacks and concedes +0.26 ± 0.07 yards an attempt — but they net out, and three rounds of retuning the constants (a bigger rush bonus, a sack bonus, coverage cost scaled by how exposed the secondary is, pressure scaled by who is rushing) never made the answer flip with the roster. Two things came out of the attempt. The first was that the test rosters confounded their own axis: moving the front and the secondary together meant a poor defence liked the blitz more than an elite one did, simply because a poor defence gains more from any gamble. The second, once the axis was isolated, was that a *good* secondary loses by blitzing and a poor one gains — economically coherent, since abandoning good coverage costs more than abandoning bad, but the opposite of the conventional read and not a shape worth shipping. Sweeping the whole dial at five settings produced flat noise at every one.
 
-The conclusion is that `chooseDefense` already adjusts for down, distance, score and clock, and the slider is a small global bias on top of logic that is doing the real work. The retune was reverted in full; the game fingerprint is unchanged at `a9480bd47f40cac9`. `scripts/defense-tune.mjs` is the harness, kept so the next person does not have to rediscover any of it. A note on method: the first three rounds of that tuning were run against game margin, which carries a standard deviation of 13 points and leaves ±0.55 at 500 games — wider than the effect being tuned. They were three rounds of chasing noise. Points and yards allowed, taken paired and per play, land inside ±0.1 and are what the harness reports.
+The conclusion is that `chooseDefense` already adjusts for down, distance, score and clock, and the slider is a small global bias on top of logic that is doing the real work. The retune was reverted in full; the game fingerprint was unchanged at `a9480bd47f40cac9` (it has since moved to `e27d59dbc5d3340e` for the `teamPower` reweight below, which changes win-probability annotations and no play). `scripts/defense-tune.mjs` is the harness, kept so the next person does not have to rediscover any of it. A note on method: the first three rounds of that tuning were run against game margin, which carries a standard deviation of 13 points and leaves ±0.55 at 500 games — wider than the effect being tuned. They were three rounds of chasing noise. Points and yards allowed, taken paired and per play, land inside ±0.1 and are what the harness reports.
 
 Also measured and not built: the per-opponent game plan the audit proposed. `makeGameplan` already exists and every AI club gets one; it nudges the dials by ±0.06 to ±0.15 and fires in **16 of 1,500** even matchups because its thresholds need a composite gap over 5 or 8 points. Where it does fire it is worth +0.39 ± 0.41 points. The `planForUser` option that would extend it to the human has never been passed by anything, which is deliberate (see the game plan note above) and costs the player nothing measurable.
 
@@ -580,6 +580,16 @@ Layout is phone-first and the page must never scroll sideways. Two rules keep it
 `teamChip(team, { responsive: true })` renders the abbreviation on a phone and the full club name from 560px, so scoreboards and matchup rows stay legible instead of ellipsised. The smoke test asserts no horizontal overflow on every screen at 360, 768 and 1280px and names the offending element when it finds one.
 
 3. A screen re-rendered by a state change keeps its scroll position. `mount()` in `main.js` compares the view and its route params against the last mount and only jumps to the top when the screen actually changed. Every state change re-renders the open view through the same path a route change takes, so before this, moving one player down the depth chart threw you back to the top of a page four and a half screens long.
+
+### What "Power" means (`teamPower` in `ratings.js`)
+
+The weights were a guess — QB 3, everything else between 0.2 and 1.2 — and they measured like one. Against point differential from a full round robin across six leagues, `teamPower` came out at **r = 0.34**, while being printed on the team page as "Power", used to rank clubs in the pulse, used to set what an owner expects of you in `jobs.js`, and — the part that actually mattered — fed into `priorMargin`, which is the prior the live win-probability model starts every game from.
+
+It is weighted by `TRUE_LEVERAGE` now, the table this game already measured for exactly this question by boosting a position on an otherwise equal roster and taking the extra win rate. That takes it to **r = 0.56**. The same regression put a point of power at 3.25 points of margin against the 3.3 `winprob.js` was already using, so that constant did not move and the calibration test still passes.
+
+The table lives in `ratings.js` and is re-exported from `auction.js`, where it is documented: `auction.js` imports `overall` from `ratings.js`, so the other direction would have been a cycle.
+
+Two things worth being clear about. It is still only r = 0.56 — one number over a whole roster cannot capture a matchup, and the rest is the simulation's own variance; the claim on the team page is "this squad is stronger", not "this squad wins". And the reweight changes no game: 120 seeded games across four roster gaps hash identically on scores and play-by-play before and after, with only the win-probability annotations moving, which is why the fingerprint went from `a9480bd47f40cac9` to `e27d59dbc5d3340e`.
 
 ### The draft board (`ui/draft-board.js`)
 

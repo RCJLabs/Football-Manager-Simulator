@@ -106,6 +106,34 @@ export function composites(lineup) {
 }
 
 /** A single number summarizing team strength, for standings/AI flavor. */
+/**
+ * What a position is actually worth, measured by boosting it on an otherwise
+ * equal roster and taking the extra win rate. Documented in auction.js, which
+ * is where it is used to price players and where it is re-exported from; it
+ * lives here so `teamPower` can weight by it without the two files importing
+ * each other.
+ */
+export const TRUE_LEVERAGE = { QB: 17.99, RB: 6.01, TE: 5.78, CB: 4.69, WR: 3.30, S: 2.95, LB: 2.92, DL: 2.48, OL: 2.10, P: 1.52, K: 0.79 };
+
+/**
+ * How strong a lineup is, on the 40..99 rating scale.
+ *
+ * The weights used to be a guess — QB 3, everyone else between 0.2 and 1.2 —
+ * and a guess is what it measured like. Against the point differential from a
+ * full round robin across six leagues it came out at r = 0.34, which is to say
+ * it explained about a tenth of who actually beat whom, while being printed on
+ * the team page as "Power" and, worse, feeding `priorMargin` and the live
+ * win-probability model.
+ *
+ * Weighting by TRUE_LEVERAGE instead — the table this game already measured for
+ * exactly this question — takes it to r = 0.56. Measured at the same time: a
+ * point of power is worth 3.25 points of margin, against the 3.3 winprob.js
+ * was already using, so that constant did not have to move.
+ *
+ * It is still only r = 0.56. One number over a whole roster cannot capture a
+ * matchup, and the rest is the simulation's own variance. The claim on the team
+ * page is "this squad is stronger", not "this squad wins".
+ */
 export function teamPower(lineup) {
   const starters = [];
   for (const slot of ROSTER_SLOTS) {
@@ -116,8 +144,10 @@ export function teamPower(lineup) {
     if (arr[idx]) starters.push(arr[idx]);
   }
   if (!starters.length) return 0;
-  const weight = { QB: 3, RB: 1.2, WR: 1.1, TE: 0.9, OL: 0.8, DL: 1, LB: 0.9, CB: 1, S: 0.9, K: 0.4, P: 0.2 };
   let s = 0, w = 0;
-  for (const p of starters) { s += overall(p) * weight[p.pos]; w += weight[p.pos]; }
+  for (const p of starters) {
+    const k = TRUE_LEVERAGE[p.pos] ?? 1;
+    s += overall(p) * k; w += k;
+  }
   return Math.round((s / w) * 10) / 10;
 }
