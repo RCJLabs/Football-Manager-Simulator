@@ -12,6 +12,7 @@ import { scoutingHits, scoutingOn } from '../../engine/scouting.js';
 import { takeJob } from '../../engine/offseason.js';
 import { jobsOn, yourCoach, careerSummary, coachOf } from '../../engine/jobs.js';
 import { RNG } from '../../engine/rng.js';
+import { keeperBoard, keeperAdvice } from '../../engine/market.js';
 
 const ui = { picked: null, leagueId: null, season: null };
 
@@ -40,17 +41,28 @@ export function view(root, params, ctx) {
   const table = standings(league);
   const ord = (n) => { const s = ['th', 'st', 'nd', 'rd'], k = n % 100; return n + (s[(k - 20) % 10] || s[k] || s[0]); };
 
-  const groups = POSITION_ORDER.map((pos) => ({
-    pos,
-    rows: ROSTER_SLOTS.filter((s) => s.pos === pos).map((s) => me.slots[s.id]).filter(Boolean).map((id) => ({ p: ctx.byId.get(id), c: league.contracts[id] || {} })),
-  })).filter((g) => g.rows.length);
+  // Keeping a man has always shown its price and never its value. The auction's
+  // own guide knows what the room would pay to buy him back, and the difference
+  // is the entire decision — it is the number `aiKeepers` has always ranked on.
+  const board = keeperBoard(league, ctx.players || PLAYERS, ctx.byId, u);
+  const kb = new Map(board.rows.map((r) => [r.id, r]));
+  // Best value first, so the bargains are the rows you read. Sorting by
+  // position put a kicker you must not keep above a quarterback you must.
+  const groups = [{
+    pos: 'Best value first',
+    rows: board.rows.map((r) => ({ p: ctx.byId.get(r.id), c: league.contracts[r.id] || {} })).filter((x) => x.p),
+  }];
 
   const rowFor = ({ p, c }) => {
     const on = ui.picked.has(p.id);
     const eligible = keeperEligible(c);
     const cost = keeperCost(c);
+    const r = kb.get(p.id);
+    const verdict = r && r.surplus != null && eligible
+      ? ` <span class="badge ${r.surplus >= 3 ? 'bargain' : r.surplus > -3 ? '' : 'overpay'}" title="${esc(keeperAdvice(r))}">${r.surplus > 0 ? `saves $${r.surplus}` : r.surplus === 0 ? 'market price' : `$${-r.surplus} over`}</span>`
+      : '';
     const meta = auction
-      ? ` · last <b>$${c.salary ?? 1}</b>${eligible ? ` → keep at <b>$${cost}</b>` : ''}${c.kept ? ` · kept ${c.kept}×` : ''}`
+      ? ` · last <b>$${c.salary ?? 1}</b>${eligible ? ` → keep at <b>$${cost}</b> <span class="muted">(market $${r?.market ?? '?'})</span>` : ''}${verdict}${c.kept ? ` · kept ${c.kept}×` : ''}`
       : ` · round ${c.round ?? '—'}${c.kept ? ` · kept ${c.kept}×` : ''}`;
     const action = eligible
       ? `<button class="btn sm ${on ? 'primary' : ''}" data-keep="${esc(p.id)}">${on ? 'Keeping' : 'Keep'}</button>`
@@ -104,6 +116,7 @@ export function view(root, params, ctx) {
     <div class="grid grid-2" style="margin-top:.75rem">
       <div class="card tight">
         <h3>Your keepers <small class="muted" style="text-transform:none;letter-spacing:0">· ${picked.length} of ${limit}</small></h3>
+        ${auction ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">A keeper is worth having when he costs less than the room would pay to buy him back. Green saves you money; red is an overpay you should let the auction settle.</p>` : ''}
         ${raw(groups.map((g) => `<div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;margin:.5rem 0 .2rem">${g.pos}</div><ul class="plist">${g.rows.map(rowFor).join('')}</ul>`).join(''))}
       </div>
       <div class="stack">

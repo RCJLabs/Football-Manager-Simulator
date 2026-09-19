@@ -25,7 +25,8 @@
     "offers": "node scripts/offer-sim.mjs",
     "ir": "node scripts/ir-sim.mjs",
     "trades": "node scripts/trade-sim.mjs",
-    "picks": "node scripts/draft-sim.mjs"
+    "picks": "node scripts/draft-sim.mjs",
+    "market": "node scripts/market-sim.mjs"
   },
   "engines": { "node": ">=20" },
   "license": "MIT"

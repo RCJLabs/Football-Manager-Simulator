@@ -22,7 +22,7 @@ for (const s of ROSTER_SLOTS) SLOTS_AT[s.pos] = (SLOTS_AT[s.pos] || 0) + 1;
 const BENCH_WEIGHT = 0.25;
 
 /** What one position group is worth, on the same yardstick as `lineupStrength`. */
-function groupValue(overalls, pos) {
+export function groupValue(overalls, pos) {
   const lev = TRUE_LEVERAGE[pos] ?? 1;
   const starters = STARTERS[pos] || 1;
   return overalls.slice().sort((a, b) => b - a)
@@ -30,7 +30,7 @@ function groupValue(overalls, pos) {
 }
 
 /** A club's players at one position, as ids, in roster order. */
-function roomIds(team, pos) {
+export function roomIds(team, pos) {
   return ROSTER_SLOTS.filter((s) => s.pos === pos).map((s) => team.slots[s.id]).filter(Boolean);
 }
 

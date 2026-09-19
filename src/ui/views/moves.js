@@ -9,6 +9,7 @@ import {
   slotsAfterTrade, MAX_TRADE_IMBALANCE, MAX_TRADE_SIDE,
 } from '../../engine/transactions.js';
 import { openBlock, teamNeeds, bestAvailable, partingCost, findPlayers } from '../../engine/tradeblock.js';
+import { faBoard, keeperAdvice } from '../../engine/market.js';
 import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge, outBadge } from '../components.js';
 import { emptySlotAt } from '../../engine/transactions.js';
 import { shownOverall } from '../../engine/scouting.js';
@@ -50,23 +51,41 @@ export function view(root, params, ctx) {
 
   let body;
   if (ui.tab === 'fa') {
-    const q = ui.q.trim().toLowerCase();
-    const rows = fa
-      .filter((p) => (ui.pos === 'ALL' || p.pos === ui.pos) && (ui.era === 'ALL' || `${Math.floor(p.season / 10) * 10}s` === ui.era) && (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase() === q))
-      .sort((a, b) => scoutRank(b) - scoutRank(a));
-    const shown = rows.slice(0, ui.limit);
+    // Ranked by what each man would add to *this* lineup rather than by his
+    // rating. The best free agent in the pool is often a kicker.
+    const board = faBoard(league, ctx.players, ctx.byId, u, {
+      q: ui.q, pos: ui.pos === 'ALL' ? '' : ui.pos, era: ui.era === 'ALL' ? '' : ui.era, limit: ui.limit,
+    });
+    const byIdRow = new Map(board.players.map((r) => [r.id, r]));
+    const rows = board.players.map((r) => ctx.byId.get(r.id)).filter(Boolean);
+    const shown = rows;
+    // A badge only where there is something to say. Right after an auction the
+    // honest answer for the whole pool is "none of these help", and printing
+    // that sixty times is worse than printing it once above the list.
+    const bestGain = board.players.length ? board.players[0].gain : 0;
+    const faMeta = (p) => {
+      const r = byIdRow.get(p.id);
+      if (!r || r.gain <= 0) return inj(p);
+      const g = `<span class="badge gain" title="Lineup points he adds, replacing the weakest man in that room — the same yardstick a trade is judged on">+${r.gain}</span>`;
+      const rivals = r.rivals > 0
+        ? ` <span class="badge rivals" title="AI clubs whose own bar he clears — they file for the same man, and waiver order decides it">${r.rivals} rival${r.rivals === 1 ? '' : 's'}</span>`
+        : '';
+      const drop = r.drop ? ` <span class="muted">over ${esc(ctx.byId.get(r.drop)?.name || '')}</span>` : '';
+      return ` · ${g}${rivals}${drop}${inj(p)}`;
+    };
     body = html`
-      <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${open ? `Claims resolve when the week advances. You are ${ordinalOf(myPriority)} of ${order.length} in the waiver order${isPro(league) ? ' (reverse standings)' : ' (a successful claim sends you to the back)'}.` : 'The wire is closed until next season.'}</p>
+      <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${open ? `Ranked by what each man adds to your lineup, not by rating. Claims resolve when the week advances; you get ${limit} a week and are ${ordinalOf(myPriority)} of ${order.length} in the waiver order${isPro(league) ? ' (reverse standings)' : ' (a successful claim sends you to the back)'}.` : 'The wire is closed until next season.'}</p>
+      ${open && bestGain <= 0 ? html`<p class="notice" style="margin:0 0 .5rem;font-size:.85rem">Nobody left in the pool would improve this lineup${ui.pos === 'ALL' ? '' : ` at ${ui.pos}`}. That changes the moment somebody gets hurt — the wire is an injury market first.</p>` : ''}
       <div class="tabs" id="posTabs">${raw(['ALL', ...POSITION_ORDER].map((p) => `<button class="tab ${ui.pos === p ? 'active' : ''}" data-pos="${p}">${p}</button>`).join(''))}</div>
       <div class="tabs" id="eraTabs">${raw(['ALL', ...[...new Set(ctx.players.map((p) => `${Math.floor(p.season / 10) * 10}s`))].sort()].map((e) => `<button class="tab ${ui.era === e ? 'active' : ''}" data-era="${e}">${e}</button>`).join(''))}</div>
       <input type="search" id="q" placeholder="Search player or team…" value="${ui.q}">
       <ul class="plist" style="margin-top:.5rem">${raw(shown.map((p) => playerItem(p, {
-        meta: inj(p),
+        meta: faMeta(p),
         cls: injuries[p.id] ? 'dim' : '',
         action: open ? `<button class="btn sm primary" data-claim="${esc(p.id)}" ${mine.length >= limit || mine.some((c) => c.add === p.id) ? 'disabled' : ''}>${mine.some((c) => c.add === p.id) ? 'Claimed' : 'Claim'}</button>` : '',
       })).join(''))}</ul>
       ${shown.length === 0 ? html`<p class="empty">Nobody matches those filters.</p>` : ''}
-      ${rows.length > shown.length ? html`<button class="btn block" id="more">Show more (${rows.length - shown.length} left)</button>` : ''}`;
+      ${board.total > shown.length ? html`<button class="btn block" id="more">Show more (${board.total - shown.length} left)</button>` : ''}`;
   } else if (ui.tab === 'claims') {
     body = html`
       ${last.length ? html`<div class="notice" style="margin-bottom:.6rem"><b>Last week's wire:</b> ${raw(last.map((r) => `${r.ok ? '✔' : '✘'} ${esc(ctx.byId.get(r.add)?.name)}${r.ok ? ' joined, ' + esc(ctx.byId.get(r.drop)?.name) + ' released' : ' — ' + esc(r.reason)}`).join('<br>'))}</div>` : ''}
