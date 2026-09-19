@@ -9,10 +9,16 @@
 // schedule's results, the injury ledger, the transaction log — so nothing new
 // is stored and an old save produces a pulse for its own past weeks.
 //
-// One real limit shapes what can be said. AI regular-season box scores keep
-// team totals only; individual lines exist for the human's games and the
-// playoffs and nowhere else. So a computer club's week is told through team
-// numbers, and a named-player story only appears where the game kept one.
+// One real limit shapes what can be said. Per-game box scores are stored only
+// for the human's games and the playoffs; an AI regular-season game keeps its
+// team totals and drops the individual lines. Measured, one box score costs
+// 14.9 KB, and keeping all 272 of a 32-club season would raise a save's
+// permanent floor from about 2.4 MB to about 6.2 MB — past the point where a
+// browser will write it at all. Season totals are a different thing and do
+// accumulate for every player on every club, so nobody is missing from the
+// leaders or the record book. But a pulse is told game by game, so a computer
+// club's week here is told through team numbers, and a named-player story only
+// appears where the game kept one.
 //
 // No randomness. The same week always reads the same way, which matters
 // because a league code and a season card have to agree about what happened.

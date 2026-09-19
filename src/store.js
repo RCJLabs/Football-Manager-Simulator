@@ -11,11 +11,41 @@ let state = { league: null, game: null, prefs: { ...DEFAULT_PREFS } };
 let registry = null;
 let dirty = false;
 let saveTimer = null;
+// Why the last write did not reach the browser, or null while saves land.
+//
+// A full origin is the realistic failure and it is closer than it looks: a
+// 32-club pro save measures about 2.4 MB and a browser gives an origin roughly
+// 5 MB, so a second pro dynasty in the same browser is already at the edge.
+// This used to be swallowed into a console warning, which meant the game
+// carried on accepting moves it was no longer writing down and threw the whole
+// session away at the next reload — a save system failing silently is worse
+// than one failing loudly.
+let lastSaveError = null;
 
 const storage = typeof localStorage !== 'undefined' ? localStorage : null;
 
 export function getState() {
   return state;
+}
+
+/**
+ * Whether the browser is still accepting saves. Null when it is; otherwise
+ * `{ quota, message, at }`, with `quota` true when the origin is out of room,
+ * which is the case worth telling the player about because they can act on it.
+ */
+export function saveError() {
+  return lastSaveError;
+}
+
+/**
+ * Browsers disagree about how a full origin is reported: a modern one throws a
+ * DOMException named QuotaExceededError, Firefox has used
+ * NS_ERROR_DOM_QUOTA_REACHED (1014) and Safari in private mode code 22.
+ */
+function isQuotaError(e) {
+  if (!e) return false;
+  return e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || e.code === 22 || e.code === 1014;
 }
 
 function loadPrefs() {
@@ -38,15 +68,23 @@ export function load() {
 
 export function saveNow() {
   if (!storage) return;
+  const wasFailing = !!lastSaveError;
   try {
     storage.setItem(PREFS_KEY, JSON.stringify(state.prefs));
     if (!registry) registry = loadRegistry(storage);
     if (!registry.active && state.league) createSlot(storage, registry, state.league.name);
     if (registry.active) writeSlot(storage, registry, registry.active, state);
     dirty = false;
+    lastSaveError = null;
   } catch (e) {
     console.warn('Could not save state', e);
+    // `dirty` is deliberately left set, so the next change tries again and a
+    // save that starts working clears the warning without a reload.
+    lastSaveError = { quota: isQuotaError(e), message: String((e && e.message) || e), at: Date.now() };
   }
+  // Only on a change of answer. saveNow runs behind a 250ms debounce on every
+  // move, and notifying each time would re-render the screen under the player.
+  if (wasFailing !== !!lastSaveError) notify();
 }
 
 function scheduleSave() {

@@ -269,6 +269,12 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .stat-compare { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.25rem 0.5rem; font-variant-numeric: tabular-nums; font-size: 0.88rem; }
 .stat-compare .l { text-align: right; } .stat-compare .m { color: var(--muted); text-align: center; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
 
+/* Saving has stopped working. Loud on purpose, and it stays until it is fixed. */
+.savewarn { background: #5c1a1a; color: #ffe9e9; border-bottom: 2px solid #ff6b6b; padding: 0.6rem 1rem; font-size: 0.9rem; line-height: 1.45; }
+.savewarn[hidden] { display: none; }
+.savewarn strong { color: #fff; }
+.savewarn a { color: #ffd8d8; text-decoration: underline; white-space: nowrap; }
+
 .toast { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #1a1a1a; color: #fff; padding: 0.6rem 1rem; border-radius: 999px; box-shadow: var(--shadow); z-index: 50; font-size: 0.9rem; max-width: 92vw; text-align: center; }
 .toast[hidden] { display: none; }
 

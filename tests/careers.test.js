@@ -4,8 +4,9 @@ import { PLAYERS, PLAYERS_BY_ID } from '../src/data/db.js';
 import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
 import { overall } from '../src/engine/ratings.js';
-import { createLeague, startSeason, registerPlayers } from '../src/engine/season.js';
+import { createLeague, startSeason, registerPlayers, userTeamIndex } from '../src/engine/season.js';
 import { autoCompleteAll } from '../src/engine/auction.js';
+import { autoDraftAll } from '../src/engine/draft.js';
 import { simulateAhead } from '../src/engine/autosim.js';
 import { leaguePool, leagueIndex } from '../src/engine/rookies.js';
 import { freeAgents, rostersValid } from '../src/engine/transactions.js';
@@ -184,4 +185,41 @@ test('careerPhase reads where a player is rather than just his age', () => {
   assert.equal(careerPhase('RB', 25), 'in his prime');
   assert.equal(careerPhase('RB', 32), 'declining');
   assert.equal(careerPhase('QB', 32), 'holding on', 'a quarterback at 32 is not a back at 32');
+});
+
+test('generated players reach the record books even from a stale index', () => {
+  // The bug this guards: season.js keeps a module-level player index, set by
+  // registerPlayers, and writes the record books from it. A caller that
+  // registered the shipped pool once — every script and test here does — left
+  // it without the league's own rookies, and players missing from it were
+  // skipped in silence. Awards, the record book and the hall of fame simply had
+  // no generated players in them, with nothing to say so.
+  registerPlayers(PLAYERS_BY_ID);
+  const lg = createLeague({ name: 'R', mode: 'pro', numTeams: 32, franchise: 12, seed: 41, draftType: 'snake', user: {} });
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(41));
+  startSeason(lg, PLAYERS_BY_ID);
+  for (let i = 0; i < 3; i++) simulateAhead(lg, index(lg), pool(lg), new RNG(700 + i), 'nextSeason');
+
+  const rostered = new Set(lg.teams.flatMap((t) => ROSTER_SLOTS.map((s) => t.slots[s.id]).filter(Boolean)));
+  const generated = [...rostered].filter((id) => String(id).startsWith('rk-'));
+  assert.ok(generated.length > 10, `only ${generated.length} rookies were ever signed`);
+  const played = generated.filter((id) => lg.careers?.[id]?.games > 0);
+  assert.ok(played.length > 5, `${played.length} of ${generated.length} rostered rookies have a career record`);
+  // And they are real records, not empty shells.
+  const c = lg.careers[played[0]];
+  assert.ok(c.games >= 1 && c.seasons >= 1, JSON.stringify(c));
+});
+
+test('a club fields the same number of players whoever they are', () => {
+  // Generated players used to be absent from stat accumulation entirely, which
+  // is the shape a dropped-index bug takes: not an error, a gap.
+  const lg = createLeague({ name: 'F', mode: 'pro', numTeams: 32, franchise: 12, seed: 5, draftType: 'snake', user: {} });
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(5));
+  startSeason(lg, PLAYERS_BY_ID);
+  simulateAhead(lg, index(lg), pool(lg), new RNG(1), 'offseason');
+  const counts = lg.teams.map((t) => Object.values(t.seasonStats.players).filter((s) => s.games > 0).length);
+  assert.ok(Math.min(...counts) > 20, `a club fielded only ${Math.min(...counts)} players with a stat line`);
+  // The human's club is not special: computer clubs keep full season lines too.
+  const u = userTeamIndex(lg);
+  assert.ok(Math.abs(counts[u] - counts[(u + 1) % 32]) < 12, `your club ${counts[u]} vs an AI club ${counts[(u + 1) % 32]}`);
 });

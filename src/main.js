@@ -1,4 +1,4 @@
-import { load, getState, subscribe, update } from './store.js';
+import { load, getState, subscribe, update, saveError } from './store.js';
 import { route, startRouter, navigate, currentRoute } from './router.js';
 import { PLAYERS, PLAYERS_BY_ID } from './data/db.js';
 import { registerPlayers } from './engine/season.js';
@@ -7,6 +7,7 @@ import { applyOverrides } from './data/tuning.js';
 import { leaguePool, leagueIndex } from './engine/rookies.js';
 import { applyCareers, careerIndex } from './engine/careers.js';
 import { toast } from './ui/components.js';
+import { esc } from './util.js';
 import * as home from './ui/views/home.js';
 import * as setup from './ui/views/setup.js';
 import * as draft from './ui/views/draft.js';
@@ -25,6 +26,7 @@ import * as guide from './ui/views/guide.js';
 
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
+const saveWarnEl = document.getElementById('savewarn');
 // The pool the app plays with is the shipped file plus the open league's own
 // generated rookies. Rebuilt only when that array is replaced, which the
 // rookie and career code both replace their state rather than mutating it.
@@ -66,7 +68,29 @@ function mount(view, params) {
     app.innerHTML = `<div class="card"><h2>Something broke</h2><p class="muted">${String(e.message || e)}</p><a class="btn" href="#/">Home</a></div>`;
   }
   renderNav();
+  renderSaveWarning();
   window.scrollTo(0, 0);
+}
+
+/**
+ * The one message the player has to see whatever screen they are on: the
+ * browser has stopped accepting saves. It sits above the view rather than in a
+ * toast because a toast that disappears is exactly wrong here — every move made
+ * after this point is being lost, and they need the notice to still be there
+ * when they decide what to do about it. Exporting still works when storage is
+ * full, since it reads the league out of memory, so that is what it offers.
+ */
+function renderSaveWarning() {
+  if (!saveWarnEl) return;
+  const err = saveError();
+  if (!err) { saveWarnEl.hidden = true; saveWarnEl.innerHTML = ''; return; }
+  const why = err.quota
+    ? 'This browser is out of storage room, so nothing since then has been written down.'
+    : `The browser refused the write (${esc(err.message)}), so nothing since then has been written down.`;
+  saveWarnEl.innerHTML = `<strong>Your progress is not being saved.</strong> ${why} `
+    + 'Export this league to a file now — that still works — then delete a league you have finished with to free up room. '
+    + '<a href="#/settings">Settings</a> · <a href="#/">Your leagues</a>';
+  saveWarnEl.hidden = false;
 }
 
 function renderNav() {
@@ -118,7 +142,7 @@ load();
   applyOverrides(PLAYERS, PLAYERS_BY_ID, prefs.ratingOverrides || {});
   applyNameMode(PLAYERS, prefs.nameMode || 'real');
 }
-subscribe(() => { if (activeView && !activeView.selfRendering) mount(activeView, activeParams); else renderNav(); });
+subscribe(() => { if (activeView && !activeView.selfRendering) mount(activeView, activeParams); else { renderNav(); renderSaveWarning(); } });
 startRouter();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

@@ -62,14 +62,23 @@ export function scoutingOn(league) {
  *
  * The marker is his career entry in `league.dev`, which careers.js creates for
  * everyone under contract at the offseason — so having one means he has played
- * a season for somebody. The obvious alternative, a line in the statistical
- * record, does not work: AI regular-season box scores keep team totals only, so
- * a rookie can start three years for a computer club and still have no games to
- * his name. Measured on a 32-club dynasty, 50 rookies were on rosters and not
- * one of them had a recorded game.
+ * a season for somebody. Statistics count as well, and they count for every
+ * club: season totals accumulate for every player in every game, computer sides
+ * included. Only per-game box scores are dropped for AI regular-season games,
+ * and a season total is the thing this wants anyway.
  *
- * Statistics still count when they exist, since a human who watched him play
- * has certainly seen him.
+ * This comment used to claim the reverse — that a rookie could start three
+ * years for a computer club with no games to his name, measured at 50 rookies
+ * on rosters and not one with a recorded game. The measurement was real and the
+ * reading of it was wrong. The zeroes came from the record books being written
+ * through a stale module-level player index that had no generated players in
+ * it, so rookies were skipped in silence; `bookIndex` in season.js fixes that,
+ * and the same league now shows about half its rookies with a career record
+ * after one season, the rest being the ones who genuinely did not play.
+ *
+ * The career entry stays the marker regardless, because it is the honest test
+ * of "has been somewhere for a season" — a rookie who sat all year has still
+ * been watched in practice for twelve months.
  */
 export function isScouted(league, p) {
   const src = (p && p.base) || p;

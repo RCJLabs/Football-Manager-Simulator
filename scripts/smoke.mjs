@@ -598,6 +598,29 @@ try {
   await page.waitForSelector('.stat-compare');
   await checkOverflow('pro box score');
 
+  // A browser that has stopped accepting saves has to say so, on whatever screen
+  // the player is on, and the band must not push the page sideways on a phone.
+  await page.goto(`http://localhost:${port}/#/season`);
+  await page.waitForSelector('#nav a');
+  if (!(await page.$eval('#savewarn', (el) => el.hidden))) errors.push('the save warning is showing when saving works');
+  await page.evaluate(() => {
+    const real = localStorage.setItem.bind(localStorage);
+    localStorage.setItem = (k, v) => {
+      if (k.startsWith('gridiron-eras:slot:')) { const e = new Error('full'); e.name = 'QuotaExceededError'; throw e; }
+      return real(k, v);
+    };
+  });
+  // The band appears on the first save that is actually refused, so make a real
+  // change: toggling a setting goes through the same store as any other move.
+  await page.goto(`http://localhost:${port}/#/settings`);
+  await page.waitForSelector('#penalties');
+  await page.click('#penalties');
+  await sleep(700);
+  const warned = await page.$eval('#savewarn', (el) => !el.hidden && el.textContent.includes('not being saved'));
+  if (!warned) errors.push('a browser that refuses saves did not warn the player');
+  await checkOverflow('save warning at 360px');
+  await shot('14-savewarn');
+
   // Tablet and desktop widths must stay clean too.
   for (const [w, h, label] of [[768, 1024, 'tablet'], [1280, 900, 'desktop']]) {
     await page.setViewportSize({ width: w, height: h });

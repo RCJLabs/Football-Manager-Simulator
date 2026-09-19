@@ -20,6 +20,8 @@ import { INJURY_LEVELS, DEFAULT_INJURY_LEVEL, recordGameInjuries, tickInjuries, 
 import { closeSeasonBooks } from './awards.js';
 import { chemistryBonuses } from './chemistry.js';
 import { jobsOn, initJobs } from './jobs.js';
+import { leagueIndex } from './rookies.js';
+import { careerIndex } from './careers.js';
 import { DEFAULT_DIFFICULTY } from './difficulty.js';
 
 export const LEAGUE_VERSION = 3;
@@ -790,11 +792,12 @@ function crown(league, idx) {
       record: { ...league.teams[u].record },
       playoff: playoffRun(league, u).text,
       club: { name: league.teams[u].name, abbr: league.teams[u].abbr, color: league.teams[u].color },
-      best: bestOf(league.teams[u], playerIndex),
+      best: bestOf(league.teams[u], bookIndex(league)),
     },
     divRanks: isPro(league) ? Object.fromEntries(proStandings(league).flatMap((conf) => conf.divisions.flatMap((dv) => dv.rows.map((r, i) => [r.idx, i + 1])))) : null,
   });
-  if (playerIndex) closeSeasonBooks(league, playerIndex);
+  const books = bookIndex(league);
+  if (books) closeSeasonBooks(league, books);
 }
 
 /** A club's three biggest fantasy seasons, for the history entry. */
@@ -810,6 +813,23 @@ function bestOf(team, byId) {
 // so the final can hand out awards and update the record book.
 let playerIndex = null;
 export function registerPlayers(byId) { playerIndex = byId; }
+
+/**
+ * The index the record books should be written from: whatever was registered,
+ * plus this league's own generated players and their current ages.
+ *
+ * `registerPlayers` hands season.js a module-level index, and a module-level
+ * anything that has to be kept in sync will eventually be out of sync. When it
+ * was, players missing from it were skipped silently — no error, just an
+ * absence — and generated rookies vanished from awards, the record book and the
+ * hall of fame. It cost an afternoon and a wrong claim written into a comment
+ * as fact. Rebuilding here makes the books right regardless of what the caller
+ * last registered.
+ */
+function bookIndex(league) {
+  if (!playerIndex) return null;
+  return careerIndex(league, leagueIndex(league, playerIndex));
+}
 
 export function powerRankings(league, byId) {
   return league.teams.map((t, i) => ({ idx: i, team: t, power: teamPower(buildLineup(t.slots, byId, league.injuries)) })).sort((a, b) => b.power - a.power);
