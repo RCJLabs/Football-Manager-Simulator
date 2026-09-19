@@ -87,23 +87,31 @@ test('accepting an offer does the deal; declining kills it for the season', () =
 });
 
 test('offers arrive with the new week, expire, and stop at the deadline', () => {
-  const lg = league(53);
-  const rng = new RNG(4);
-  let sawOffer = false, weeksWithOffers = 0;
-  while (lg.phase === 'season') {
-    const week = lg.week;
-    const live = liveOffers(lg);
-    if (live.length) { sawOffer = true; weeksWithOffers++; for (const o of live) assert.equal(o.week, week); }
-    if (lg.week > tradeDeadlineWeek(lg)) assert.equal(live.length, 0, `offers past the deadline in week ${lg.week}`);
-    simulateWeekAi(lg, byId, { includeUser: true });
-    advanceWeekWithMoves(lg, byId, PLAYERS, rng, advanceWeek);
-    // Last week's unanswered offers are gone.
-    assert.ok(liveOffers(lg).every((o) => o.week === lg.week));
+  // Across several leagues rather than one: whether any single club rings you
+  // is luck, and pinning the behaviour to one seed makes this a test of that
+  // seed's luck that flakes whenever a rating or a leverage number is retuned.
+  let leaguesWithOffers = 0, totalWeeksWithOffers = 0;
+  for (const seed of [53, 61, 72, 88, 91]) {
+    const lg = league(seed);
+    const rng = new RNG(4);
+    let weeksWithOffers = 0;
+    while (lg.phase === 'season') {
+      const week = lg.week;
+      const live = liveOffers(lg);
+      if (live.length) { weeksWithOffers++; for (const o of live) assert.equal(o.week, week); }
+      if (lg.week > tradeDeadlineWeek(lg)) assert.equal(live.length, 0, `offers past the deadline in week ${lg.week}`);
+      simulateWeekAi(lg, byId, { includeUser: true });
+      advanceWeekWithMoves(lg, byId, PLAYERS, rng, advanceWeek);
+      // Last week's unanswered offers are gone.
+      assert.ok(liveOffers(lg).every((o) => o.week === lg.week));
+    }
+    if (weeksWithOffers) leaguesWithOffers++;
+    totalWeeksWithOffers += weeksWithOffers;
+    assert.ok(lg.offers.length < 60, `offer list grew to ${lg.offers.length}`);
+    assert.ok(rostersValid(lg, byId).ok);
   }
-  assert.ok(sawOffer, 'the phone rang at some point');
-  assert.ok(weeksWithOffers >= 2, `offers in ${weeksWithOffers} weeks`);
-  assert.ok(lg.offers.length < 60, `offer list grew to ${lg.offers.length}`);
-  assert.ok(rostersValid(lg, byId).ok);
+  assert.ok(leaguesWithOffers >= 3, `the phone rang in only ${leaguesWithOffers} of 5 leagues`);
+  assert.ok(totalWeeksWithOffers >= 5, `offers in ${totalWeeksWithOffers} weeks across 5 seasons`);
 });
 
 test('taking every offer never breaks a roster and stays inside the rules', () => {

@@ -84,17 +84,39 @@ Each AI GM sees a blend of the two according to a `SAVVY` rating, so the
 Analytics GM chases value while the Air Raid GM chases names, and the market is
 beatable without being free money.
 
-**Which positions are actually the bargains** is not the intuitive answer, and it is now computed rather than asserted. `positionValue()` normalises both tables to a share of their own total, which makes them comparable per player of equal rating, and divides:
+### Re-measuring the table (2026 audit)
 
-| | TE | QB | CB | S | OL | LB | RB | WR | DL | K | P |
+`TRUE_LEVERAGE` was re-measured from scratch by `scripts/leverage-sim.mjs` (`npm run leverage`), 10,000 games per reading, because the tight end at 9.3 — second only to the quarterback and nearly double the back — never looked right.
+
+Two things had to be fixed in the *method* before any number could be trusted. Building the two sides from different random seeds left one roster simply better, so two supposedly equal teams split 59/41 and that bias sat inside every reading; the fix is a mirrored opponent, identical player for player, which puts the baseline at zero by construction (measured: margin 0.016 ± 0.116 over 10,000 games). And win rate is one bit per game, far too noisy to separate positions a point apart, so the headline is point margin with its standard error.
+
+The result was narrower than expected. **The table was sound and one number in it was not.**
+
+| | QB | RB | TE | CB | WR | S | LB | DL | OL | P | K |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Wins share | 18.6% | 33.1% | 8.4% | 6.0% | 3.8% | 5.4% | 10.0% | 8.8% | 4.9% | 0.7% | 0.4% |
-| Price share | 9.3% | 22.5% | 6.9% | 5.9% | 4.9% | 7.3% | 15.7% | 14.7% | 9.3% | 2.2% | 1.4% |
-| Value | 2.00× | 1.47× | 1.22× | 1.02× | 0.77× | 0.73× | 0.64× | 0.60× | 0.53× | 0.32× | 0.29× |
+| Measured margin, per starter | 6.17 | 2.06 | 1.98 | 1.61 | 1.13 | 1.01 | 1.00 | 0.85 | 0.72 | 0.52 | 0.27 |
+| Was | 16.6 | 5.0 | **9.3** | 4.2 | 4.4 | 3.0 | 2.7 | 2.45 | 1.9 | 0.2 | 0.35 |
+| Now | 17.99 | 6.01 | **5.78** | 4.69 | 3.30 | 2.95 | 2.92 | 2.48 | 2.10 | 1.52 | 0.79 |
 
-Cheap is not the same as underpriced, which is where the intuition goes wrong: linemen have low glamour and low leverage together and come out *overpaid*. The underpaid positions are the tight end, the quarterback and the corner. The strategy table below agrees independently — the trenches-first buyer finished worst of every strategy measured.
+Everything but the tight end came back within about a tenth of where it was. He is not double a running back; he is a shade below one. The earlier suspicion that this was an artifact of the coverage model — the simulation covers a tight end with a linebacker or safety on a coin flip, never a corner — turns out not to explain it: that advantage is real and already priced into the measured 1.98. The 9.3 was simply a bad measurement.
 
-One caveat carried openly: the tight end leads this table partly because he is the only starter at his position, so the per-starter normalisation concentrates his value, and partly because the simulation covers him with a linebacker or safety on a coin flip rather than a corner (pool-wide mean coverage 73.3 and 77.4 against a corner's 80.1). Whether that is the intended game is an open question; the board is derived from the tables at render time, so retuning it moves the board with it.
+Two things the re-measurement exposed that were not about the tight end at all:
+
+**The absolute scale is not free.** The price guide normalises the table away, so only ratios were thought to matter. But `lineupStrength` in transactions.js sums `overall × leverage` raw and `aiGreed` compares the result against fixed thresholds of 2 to 8, so shrinking the table made AI clubs stop offering trades entirely. The offers test caught it. The corrected ratios are therefore scaled so the starter-weighted total is unchanged at 86.45, which leaves trade behaviour exactly as it was.
+
+**A value ratio is meaningless when the stake is trivial.** Re-measured, the punter came out at better value-for-money than the quarterback — arithmetically true, and it had the value board telling a new manager that punters are the best buy in the game. `positionValue()` now carries each position's whole-squad stake and calls anything under 5% "barely matters" however good its ratio, measured on the group so five cheap linemen are not mistaken for a specialist.
+
+**Which positions are actually the bargains**, after the correction:
+
+| | QB | CB | TE | S | OL | LB | RB | DL | WR |
+|---|---|---|---|---|---|---|---|---|---|
+| Wins share | 35.6% | 9.3% | 11.4% | 5.8% | 4.2% | 5.8% | 11.9% | 4.9% | 6.5% |
+| Price share | 22.5% | 6.9% | 9.3% | 5.9% | 4.9% | 7.3% | 15.7% | 9.3% | 14.7% |
+| Value | 1.58× | 1.35× | 1.23× | 0.99× | 0.85× | 0.79× | 0.76× | 0.53× | 0.44× |
+
+Cheap is not the same as underpriced, which is where the intuition goes wrong: linemen have low glamour and low leverage together and come out overpaid. The underpaid positions are the quarterback and the corner; receivers and the defensive line are the traps. The strategy table below agrees independently — the trenches-first buyer has never beaten the value shopper.
+
+One limitation to carry openly: this is an average across a position's starters, and where a position has several the first is worth appreciably more than the average. Measured solo, a number one receiver is worth 1.90 against the positional average of 1.13 — about two-thirds again. The value panel says so.
 
 Measured over twenty-four 8-team leagues with the human team following fixed
 strategies, on the current 1,269-player pool with the 27-slot roster, injuries
@@ -102,10 +124,14 @@ at the default setting and penalties on:
 
 | Strategy | Wins of 14 | Point differential | Average finish of 8 | Titles of 24 |
 |---|---|---|---|---|
-| Value shopper (bid 1.15× true worth) | 7.7 | +21 | 3.5 | 6 |
-| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 6.8 | −6 | 5.0 | 1 |
-| Skill players first (1.5× asking at QB/RB/WR/TE) | 6.1 | −32 | 5.2 | 3 |
-| Trenches first (1.7× worth on the lines) | 5.6 | −42 | 5.7 | 0 |
+| Value shopper (bid 1.15× true worth) | 8.5 | +39 | 3.0 | 10 |
+| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.3 | +10 | 4.0 | 6 |
+| Trenches first (1.7× worth on the lines) | 5.6 | −50 | 6.2 | 0 |
+| Skill players first (1.5× asking at QB/RB/WR/TE) | 5.3 | −43 | 5.7 | 2 |
+| Spread it evenly | 4.5 | −69 | 6.8 | 1 |
+| Market follower (pay the asking price) | 4.4 | −87 | 7.0 | 0 |
+
+Re-run after the 2026 leverage correction. Value shopping got *better*, not worse — 7.7 wins before, 8.5 after — which is what a more accurate worth table should do to a strategy that bids off it. The spread between reading the market and following it is four wins a season. Twenty-four leagues is a small sample and the ordering is stable across runs while the individual numbers move by a few tenths.
 | Market follower (pay the asking price) | 5.0 | −60 | 6.4 | 0 |
 | Spread the budget evenly | 4.5 | −83 | 6.8 | 0 |
 

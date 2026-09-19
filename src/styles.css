@@ -134,6 +134,7 @@ ul.log .muted { font-family: var(--mono); font-size: .78rem; margin-right: .35re
 .verdict.fair { background: var(--bg-3); color: var(--muted); }
 .verdict.poor { background: #4a3f26; color: #e6d3a3; }
 .verdict.bad { background: #4a2626; color: #ffb3b0; }
+.verdict.nil { background: var(--bg-3); color: var(--muted); opacity: .8; }
 .clinch { display: inline-block; min-width: 1.1rem; margin-right: .3rem; font-family: var(--mono); font-size: .75rem; font-weight: 700; text-align: center; border-radius: 4px; padding: 0 .2rem; background: var(--bg-3); color: var(--muted); }
 .clinch.x, .clinch.y, .clinch.z { background: #2c4a37; color: #cfe6d6; }
 .clinch.e { background: #4a2626; color: #ffb3b0; }

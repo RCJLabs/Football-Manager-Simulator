@@ -6,8 +6,8 @@ Draft real football players from every era at their prime season — Otto Graham
 
 ## What's in the box
 
-- **It tells you where games are won.** The auction is deliberately mispriced — asking prices follow reputation, real value follows win impact — and a panel in the draft and auction rooms shows the gap per position, with a standalone page you can read before you start. Positional only: it will tell you the room overpays for running backs, never what a particular back is worth.
-- **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…) who game-plan each opponent, drift their strategy with the season and trade among themselves. $200 buys 27 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about two to three wins a season over paying sticker price. A plain snake draft is still an option.
+- **It tells you where games are won.** The auction is deliberately mispriced — asking prices follow reputation, real value follows win impact — and a panel in the draft and auction rooms shows the gap per position, with a standalone page you can read before you start. Positional only: it will tell you the room overpays for receivers, never what a particular receiver is worth. The numbers behind it were re-measured from scratch in an audit that found the tight end had been valued at nearly double what he is worth.
+- **Salary-cap auction** against AI general managers with personalities (Air Raid, Ground & Pound, Defense Wins, Old School, Analytics…) who game-plan each opponent, drift their strategy with the season and trade among themselves. $200 buys 27 players, so you cannot have everything. Asking prices follow reputation rather than real win impact, which leaves bargains on the board: bidding well is worth about four wins a season over paying sticker price. A plain snake draft is still an option.
 - **Play-by-play simulation** driven by ratings: pass rush vs. protection, coverage vs. separation, tackling vs. run-after-catch, kicker range, punter placement, clock management, timeouts, two-minute drill, overtime, and flags: false starts, holding, interference, roughing and the rest, at rates tied to the players on the field.
 - **Manager or coach.** Set strategy sliders and watch, or turn on coach mode and call every play (and defensive call) yourself. A live win-probability curve, a drive chart and a game story (turning points, stars, injuries) come with every game you play.
 - **1,269 real players** from the 1940s to 2025, one prime season each, on a real talent curve: the top tenth are stars, the median is a solid starter, the bottom quarter should not be starting. A 32-team league drafts 864 of them, so somebody does. A rating editor with a diff export lets you argue with any number, and a fictional-name toggle swaps every real name for a stable made-up one.
@@ -54,6 +54,7 @@ npm run ir           # injured-reserve usage by injury setting
 npm run injuries     # injury rates by dial setting, weeks lost per club, and what a missing QB costs
 npm run dynasty      # keeper counts, cap committed and roster turnover over four-season runs
 npm run careers      # ageing curves: decline from a prime signing, rookie development, career lengths
+npm run leverage     # re-measure what each position is worth, the table the auction economy rests on
 npm run report       # top and bottom of every position, multi-season players, era balance
 node scripts/apply-overrides.mjs edits.json [--write]   # bake exported rating edits into the data file
 npm run icons        # re-rasterize icons/icon.svg to PNG (needs Playwright)

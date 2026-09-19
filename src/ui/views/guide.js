@@ -22,7 +22,7 @@ export function view(root, params, ctx) {
         A market that priced players on what they are really worth would be efficient, and an efficient market with equal budgets hands every club the same quality of roster. That is the parity problem an auction is supposed to solve, not cause. So the asking prices follow reputation instead: quarterbacks, backs and receivers carry the headlines, and guards and safeties do not.
       </p>
       <p class="muted" style="font-size:.92rem;margin:.2rem 0">
-        The AI general managers are not all equally fooled. Each one blends the asking price with real value in his own proportion, so the shrewd ones chase value and the rest chase names. Bidding well against them is worth about two to three wins a season over paying sticker price.
+        The AI general managers are not all equally fooled. Each one blends the asking price with real value in his own proportion, so the shrewd ones chase value and the rest chase names. Bidding well against them is worth about four wins a season over paying sticker price.
       </p>
       <p class="muted" style="font-size:.92rem;margin:.2rem 0">
         <b>$${DEFAULT_BUDGET} buys ${TOTAL_SLOTS} players</b>, and every open slot needs at least a dollar, so committing heavily early leaves you buying the bottom of the pool later. A club that spends nothing has ${TOTAL_SLOTS} men at a dollar each and no starters worth the name.

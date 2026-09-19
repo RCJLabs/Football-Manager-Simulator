@@ -25,9 +25,25 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * Two different numbers drive this auction, and the gap between them is the
  * whole game.
  *
- * TRUE_LEVERAGE is measured: boost one position group by 8 points on an
- * otherwise equal synthetic team, take the extra win rate, divide by the number
- * of starters at that position. It is what a player is actually worth.
+ * TRUE_LEVERAGE is measured by `scripts/leverage-sim.mjs`: boost one position
+ * group by 8 points on an otherwise equal synthetic team, take the extra point
+ * margin, divide by the number of starters at that position. It is what a
+ * player is actually worth, and only the ratios matter — the price guide
+ * normalises by the sum, so the scale is pinned to the quarterback.
+ *
+ * Re-measured over 10,000 games per reading against a mirrored opponent. The
+ * first version of these numbers had the tight end second only to the
+ * quarterback and nearly double the back; he measures a shade *below* the back.
+ * Everything else came back within about a tenth of where it was, so the table
+ * was sound and one number in it was not.
+ *
+ * The absolute scale is not free, even though the price guide normalises it
+ * away. `lineupStrength` in transactions.js sums overall × leverage raw, and
+ * `aiGreed` compares the result against fixed thresholds, so shrinking this
+ * table quietly makes AI clubs stop trading — which is exactly what happened
+ * on the first pass, and the offers test caught it. The measured ratios are
+ * therefore scaled so the starter-weighted total matches what it was before
+ * (86.45), which leaves trade behaviour untouched and every ratio corrected.
  *
  * GLAMOUR is what the room pays. Quarterbacks, backs and receivers carry the
  * headlines; guards and safeties do not. A market priced purely on true value
@@ -44,7 +60,7 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * back and the defensive line. The strategy table in DESIGN.md agrees — a
  * trenches-first buyer finished worst of every strategy measured.
  */
-export const TRUE_LEVERAGE = { QB: 16.6, TE: 9.3, RB: 5.0, WR: 4.4, CB: 4.2, S: 3.0, LB: 2.7, DL: 2.45, OL: 1.9, K: 0.35, P: 0.2 };
+export const TRUE_LEVERAGE = { QB: 17.99, RB: 6.01, TE: 5.78, CB: 4.69, WR: 3.30, S: 2.95, LB: 2.92, DL: 2.48, OL: 2.10, P: 1.52, K: 0.79 };
 export const GLAMOUR = { QB: 2.3, RB: 1.6, WR: 1.5, TE: 0.95, DL: 0.95, LB: 0.75, CB: 0.7, S: 0.6, OL: 0.5, K: 0.22, P: 0.14 };
 const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) => [k, Math.pow(v, 0.72)]));
 
@@ -61,6 +77,16 @@ const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) =
  * when bidding on one man and the wrong one when deciding where a budget goes:
  * a lineman is worth a fifth of a tight end and you have to buy five of him.
  */
+/**
+ * Below this share of a club's total win impact, a position cannot decide a
+ * season whatever it costs, and calling it a bargain is bad advice. The
+ * re-measured punter came out at better value-for-money than the quarterback,
+ * which is arithmetically true and would have had the value board telling a new
+ * manager to go and buy punters. Measured on the whole position rather than per
+ * player, so five cheap linemen are not mistaken for a specialist.
+ */
+export const MATTERS_AT = 0.05;
+
 export function positionValue() {
   const levSum = Object.values(TRUE_LEVERAGE).reduce((a, b) => a + b, 0);
   const glamSum = Object.values(GLAMOUR).reduce((a, b) => a + b, 0);
@@ -76,9 +102,17 @@ export function positionValue() {
       price,
       ratio,
       group: TRUE_LEVERAGE[pos] * (STARTERS_AT[pos] || 0),
-      verdict: ratio >= 1.35 ? 'underpaid' : ratio >= 0.95 ? 'about right' : ratio >= 0.7 ? 'overpaid' : 'badly overpaid',
+      // What the whole position is worth to a club, which is what decides
+      // whether its value-for-money is worth acting on at all.
+      stake: wins * (STARTERS_AT[pos] || 0),
+      verdict: wins * (STARTERS_AT[pos] || 0) < MATTERS_AT ? 'barely matters'
+        : ratio >= 1.35 ? 'underpaid' : ratio >= 0.95 ? 'about right' : ratio >= 0.7 ? 'overpaid' : 'badly overpaid',
     };
-  }).sort((a, b) => b.ratio - a.ratio);
+  }).sort((a, b) => {
+    // A position nobody can win with sorts to the bottom however cheap it is.
+    const trivial = (r) => (r.verdict === 'barely matters' ? 1 : 0);
+    return trivial(a) - trivial(b) || b.ratio - a.ratio;
+  });
 }
 
 /** How much of a GM's valuation comes from real win impact rather than hype. */

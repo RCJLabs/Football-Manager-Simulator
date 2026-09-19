@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { positionValue, TRUE_LEVERAGE, GLAMOUR } from '../src/engine/auction.js';
+import { positionValue, TRUE_LEVERAGE, GLAMOUR, MATTERS_AT } from '../src/engine/auction.js';
 import { POSITIONS, ROSTER_SLOTS } from '../src/data/positions.js';
 
 test('every position the game has is on the board', () => {
@@ -41,28 +41,57 @@ test('starter counts match the roster template, because the per-player unit need
   assert.ok(ol.group > te.group, 'but the line as a group is worth more');
 });
 
-test('the board is ranked by value and the verdicts follow the ratio', () => {
+test('the board is ranked by value, with what cannot matter sorted to the bottom', () => {
   const rows = positionValue();
-  for (let i = 1; i < rows.length; i++) {
-    assert.ok(rows[i - 1].ratio >= rows[i].ratio, 'the board should read best value first');
+  const real = rows.filter((r) => r.verdict !== 'barely matters');
+  const trivial = rows.filter((r) => r.verdict === 'barely matters');
+  for (let i = 1; i < real.length; i++) {
+    assert.ok(real[i - 1].ratio >= real[i].ratio, 'the board should read best value first');
   }
+  assert.deepEqual(rows.slice(real.length), trivial, 'the trivial positions belong at the end');
   for (const r of rows) {
-    if (r.ratio >= 1.35) assert.equal(r.verdict, 'underpaid');
+    if (r.stake < MATTERS_AT) assert.equal(r.verdict, 'barely matters');
+    else if (r.ratio >= 1.35) assert.equal(r.verdict, 'underpaid');
     else if (r.ratio >= 0.95) assert.equal(r.verdict, 'about right');
     else if (r.ratio >= 0.7) assert.equal(r.verdict, 'overpaid');
     else assert.equal(r.verdict, 'badly overpaid');
   }
 });
 
+test('a good ratio on a position nobody can win with is not called a bargain', () => {
+  const rows = positionValue();
+  const by = Object.fromEntries(rows.map((r) => [r.pos, r]));
+  // The punter came out of the re-measurement at better value-for-money than
+  // the quarterback, which is true and useless: he is 3% of a club's win
+  // impact. Whatever the ratio says, the board must not call that a bargain.
+  for (const pos of ['K', 'P']) {
+    assert.ok(by[pos].stake < MATTERS_AT, `${pos} stake ${by[pos].stake}`);
+    assert.equal(by[pos].verdict, 'barely matters');
+  }
+  // Linemen are cheap per man and there are five of them, so they are not
+  // trivial and must not be swept up by the same rule.
+  for (const pos of ['OL', 'DL']) {
+    assert.ok(by[pos].stake >= MATTERS_AT, `${pos} should matter as a group`);
+    assert.notEqual(by[pos].verdict, 'barely matters');
+  }
+});
+
 test('the mispricing the whole auction rests on is actually there', () => {
   const rows = positionValue();
   const by = Object.fromEntries(rows.map((r) => [r.pos, r]));
-  // Specialists are the clearest case and the one a new manager gets wrong.
-  assert.ok(by.K.ratio < 0.5 && by.P.ratio < 0.5, 'kickers and punters should be plainly bad value');
-  assert.ok(by.K.wins < 0.02 && by.P.wins < 0.02, 'and worth almost nothing');
-  // There is a real spread to exploit, or the panel is teaching nothing.
-  assert.ok(rows[0].ratio / rows[rows.length - 1].ratio > 3,
-    `best value ${rows[0].ratio.toFixed(2)} vs worst ${rows[rows.length - 1].ratio.toFixed(2)} is too flat to be a strategy`);
+  // Specialists are the clearest case and the one a new manager gets wrong —
+  // but the measure that matters for them is the stake, not the ratio. The
+  // re-measurement left the punter at better value-for-money than the
+  // quarterback while still being a twentieth of his win impact, and an
+  // earlier version of this test asserted his ratio instead, which is the
+  // mistake the board itself now avoids.
+  assert.ok(by.K.stake < 0.03 && by.P.stake < 0.05, 'kickers and punters cannot decide a season');
+  assert.ok(by.QB.stake > by.K.stake * 10 && by.QB.stake > by.P.stake * 5, 'and a quarterback plainly can');
+  // There is a real spread to exploit among the positions that matter, or the
+  // panel is teaching nothing.
+  const real = rows.filter((r) => r.verdict !== 'barely matters');
+  assert.ok(real[0].ratio / real[real.length - 1].ratio > 3,
+    `best value ${real[0].ratio.toFixed(2)} vs worst ${real[real.length - 1].ratio.toFixed(2)} is too flat to be a strategy`);
   assert.ok(rows.some((r) => r.verdict === 'underpaid'), 'nothing is a bargain');
   assert.ok(rows.some((r) => r.verdict.includes('overpaid')), 'nothing is a trap');
 });

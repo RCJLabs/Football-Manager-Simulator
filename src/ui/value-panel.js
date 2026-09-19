@@ -20,7 +20,7 @@ import { html, raw } from '../util.js';
 import { positionValue } from '../engine/auction.js';
 import { POSITIONS } from '../data/positions.js';
 
-const VERDICT_CLASS = { underpaid: 'good', 'about right': 'fair', overpaid: 'poor', 'badly overpaid': 'bad' };
+const VERDICT_CLASS = { underpaid: 'good', 'about right': 'fair', overpaid: 'poor', 'badly overpaid': 'bad', 'barely matters': 'nil' };
 
 /**
  * The panel. `compact` drops the explanation for the in-auction version, where
@@ -34,7 +34,7 @@ export function valuePanel({ compact = false } = {}) {
     <td><b>${r.pos}</b> <span class="muted hide-sm">${POSITIONS[r.pos].name}</span></td>
     <td class="vcell">${bar(r.wins, 'wins')}<span class="vnum">${(r.wins * 100).toFixed(1)}%</span></td>
     <td class="vcell">${bar(r.price, 'price')}<span class="vnum">${(r.price * 100).toFixed(1)}%</span></td>
-    <td class="num"><span class="verdict ${VERDICT_CLASS[r.verdict]}">${r.ratio.toFixed(2)}×</span></td>
+    <td class="num"><span class="verdict ${VERDICT_CLASS[r.verdict]}" title="${r.verdict}">${r.ratio.toFixed(2)}×</span></td>
     <td class="num hide-sm">${r.starters}</td>
   </tr>`).join('');
 
@@ -46,7 +46,7 @@ export function valuePanel({ compact = false } = {}) {
       <thead><tr><th>Position</th><th>Wins</th><th>Price</th><th class="num">Value</th><th class="num hide-sm">Starters</th></tr></thead>
       <tbody>${raw(body)}</tbody>
     </table></div>
-    <small class="muted">Per player of equal rating, so it is the right unit when bidding on one man and the wrong one for a whole budget: a lineman is worth a fifth of a tight end and you have to buy five of him. These are measured against this simulation, not received football wisdom.</small>
+    <small class="muted">Per player of equal rating, so it is the right unit when bidding on one man and the wrong one for a whole budget: a lineman is worth a fifth of a quarterback and you have to buy five of him. Two caveats worth knowing. It is an average across a position's starters, and where there are several the first is worth appreciably more than the average — a number one receiver is worth about two-thirds again what the figure here says. And a good ratio on a position worth almost nothing is still worth almost nothing, which is what <span class="verdict nil">barely matters</span> means. All measured against this simulation, not received football wisdom.</small>
   </div>`;
 }
 
