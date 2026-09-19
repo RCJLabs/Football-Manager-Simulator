@@ -1,21 +1,22 @@
-// What the two markets look like once the screen prints the decision.
+// What the three markets look like once the screen prints the decision.
 //
-// Every number here is cited in DESIGN.md under "What a free agent is worth"
-// and "What a keeper is worth". Run it after touching lineupStrength,
-// TRUE_LEVERAGE, aiFileClaims or the keeper raise.
+// Every number here is cited in DESIGN.md under "What a free agent is worth",
+// "What a keeper is worth" and "What losing a lot costs you". Run it after
+// touching lineupStrength, TRUE_LEVERAGE, aiFileClaims, the keeper raise or
+// the auction price guide.
 //
-//   node scripts/market-sim.mjs          both sections
-//   node scripts/market-sim.mjs wire     just one
+//   node scripts/market-sim.mjs            all three
+//   node scripts/market-sim.mjs wire       just one (wire | keepers | auction)
 
 import { PLAYERS, PLAYERS_BY_ID as byId } from '../src/data/db.js';
 import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, registerPlayers, simulateWeekAi, advanceWeek } from '../src/engine/season.js';
-import { autoCompleteAll } from '../src/engine/auction.js';
 import { overall } from '../src/engine/ratings.js';
 import { aiFileClaims, advanceWeekWithMoves, freeAgents } from '../src/engine/transactions.js';
 import { enterOffseason } from '../src/engine/offseason.js';
-import { faBoard, keeperBoard } from '../src/engine/market.js';
+import { faBoard, keeperBoard, positionScarcity, lotAdvice } from '../src/engine/market.js';
+import { autoCompleteAll, priceGuide, availablePlayers, createAuction } from '../src/engine/auction.js';
 
 registerPlayers(byId);
 const only = process.argv[2] || '';
@@ -112,6 +113,46 @@ if (want('keepers')) {
   console.log(`  men actually worth keeping: ${mean(worthKeeping).toFixed(1)} against a limit of ${limits[0]}`);
   console.log('  That gap is the point: the raise is set so that keeping everybody is wrong.');
   console.log(`  board build: ${(ms / boards).toFixed(1)} ms · ${ROSTER_SLOTS.length} slots`);
+}
+
+// ---------------------------------------------------------------------------
+if (want('auction')) {
+  console.log('\n== The auction room ==');
+  console.log('Why scarcity is measured by quality and not by headcount, and how often');
+  console.log('paying over the odds for a particular man is the right call.\n');
+  // A league whose auction has not been run: mk() finishes it.
+  const lg = createLeague({ name: 'A', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 12, seed: 5, draftType: 'auction' });
+  const a = lg.auction;
+  const u = user(lg);
+  void createAuction;
+  const stage = (label) => {
+    const guide = priceGuide(a, lg, PLAYERS);
+    const sc = positionScarcity(a, lg, PLAYERS, guide);
+    const entries = Object.entries(sc).sort((x, y) => y[1].drop - x[1].drop);
+    console.log(`  ${label}`);
+    console.log('    by headcount:  ' + entries.map(([pos, x]) => `${pos} ${x.ratio.toFixed(1)}x`).join('  '));
+    console.log('    by quality:    ' + entries.map(([pos, x]) => `${pos} ${x.drop}${x.tight ? '*' : ' '}`).join(' '));
+    const tight = entries.filter(([, x]) => x.tight).length;
+    console.log(`    tight: ${tight} of ${entries.length}   (a fixed threshold flags all of them or none)`);
+    // How often the next man at the position is as good.
+    const avail = availablePlayers(a, PLAYERS).sort((x, y) => guide.prices.get(y.id) - guide.prices.get(x.id));
+    let close = 0, real = 0, n = 0;
+    for (const p of avail.slice(0, 60)) {
+      const adv = lotAdvice(a, lg, PLAYERS, byId, u, p, guide, { currentBid: 1 });
+      if (adv.dropOff == null) continue;
+      n++;
+      if (adv.dropOff <= 1) close++;
+      if (adv.dropOff >= 4) real++;
+    }
+    console.log(`    of the 60 dearest lots: ${close} have somebody within a point behind them, ${real} a drop of four or more`);
+    void real;
+  };
+  stage('at the opening:');
+  autoCompleteAll(a, lg, PLAYERS, new RNG(5), byId, { maxSteps: 240 });
+  stage(`after ${a.sold.length} lots:`);
+  console.log('\n  The lesson the room teaches: with a pool this deep, the man on the block');
+  console.log('  is almost never worth a premium — somebody a point worse is a few dollars');
+  console.log('  cheaper. Where the money goes is which *position* you spend it on.');
 }
 
 console.log('');

@@ -1,4 +1,4 @@
-// The two markets where the screen showed everything except the answer.
+// The three markets where the screen showed everything except the answer.
 //
 // **Free agency** had filters, an era tab and a search box, and the one number
 // a claim turns on was missing: what this man would actually add to your
@@ -16,8 +16,19 @@
 // in offseason.js, through a GM's taste and a bird-in-hand premium); the human
 // was shown the price and left to guess at the value.
 //
-// Both are pure reads of the league. No random numbers, so a redraw never moves
-// a number under the cursor.
+// **The auction room** was the best-equipped of the three — it already had a
+// price guide, a search, position tabs and an affordability cap — and it still
+// left out the question an auction actually turns on, which is not "what is he
+// worth" but "what happens if I lose him". `lotAdvice` answers that: the next
+// man at his position, the gap down to him, and how many clubs are still in the
+// market for one. Paying over the odds for a scarce position is correct; paying
+// it for a deep one is how a budget disappears by round three.
+//
+// All three are pure reads of the league. No random numbers, so a redraw never
+// moves a number under the cursor. In particular the auction advice never
+// reports what a rival would actually bid — `aiMaxBid` is stochastic, and a
+// screen that printed it would turn every lot into a snipe at their maximum
+// plus one.
 
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall, TRUE_LEVERAGE } from './ratings.js';
@@ -25,6 +36,9 @@ import { freeAgents, waiverLimit } from './transactions.js';
 import { groupValue } from './tradeblock.js';
 import { availability, weeksLeft, SEASON_ENDING } from './injuries.js';
 import { keeperCost, keeperEligible, keeperLimit, freshGuide } from './offseason.js';
+import {
+  availablePlayers, openSlotsByPos, slotsLeft, canRoster, maxAffordable, MIN_BID,
+} from './auction.js';
 
 // ---------------------------------------------------------------------------
 // Free agency
@@ -39,7 +53,7 @@ export const AI_CLAIM_GAIN = 6;
 export const AI_CLAIM_EDGE = 2;
 
 /** A club's rooms as plain rating arrays, built once and reused across the pool. */
-function roomsOf(league, team, byId) {
+export function roomsOf(league, team, byId) {
   const rooms = {};
   for (const s of ROSTER_SLOTS) {
     const id = team.slots[s.id];
@@ -51,21 +65,35 @@ function roomsOf(league, team, byId) {
   return rooms;
 }
 
+/** How many slots a roster has at each position. */
+const SLOTS_AT = {};
+for (const s of ROSTER_SLOTS) SLOTS_AT[s.pos] = (SLOTS_AT[s.pos] || 0) + 1;
+
 /**
- * What a free agent adds to a roster: his rating replaces the weakest man in
- * his room, and the room is re-valued. The difference is in lineup points —
- * the same currency a trade is judged in, so the two screens agree.
+ * What a player adds to a roster.
+ *
+ * If the room is full he replaces the weakest man in it, which is the free
+ * agency case — a claim always costs a release. If the room has space he is
+ * simply added, which is the auction and draft case. Getting that wrong is not
+ * cosmetic: replacing into a room with an empty slot scored a perfectly good
+ * backup quarterback at minus fifty-four, because it charged the roster for a
+ * man it was not actually losing.
+ *
+ * The answer is in lineup points, the same currency a trade is judged in, so
+ * every screen in the game agrees about what a player is worth.
  */
 export function joinValue(rooms, player) {
   const room = rooms[player.pos] || [];
   const before = room.map((x) => x.ovr);
-  const after = before.slice(0, Math.max(0, before.length - 1)).concat(overall(player));
+  const full = before.length >= (SLOTS_AT[player.pos] || 1);
+  const after = (full ? before.slice(0, Math.max(0, before.length - 1)) : before).concat(overall(player));
   return Math.round((groupValue(after, player.pos) - groupValue(before, player.pos)) * 10) / 10;
 }
 
-/** Who he would replace, which is the name the claim dialog has to put up. */
+/** Who he would replace — nobody, when the room still has a slot free. */
 export function wouldReplace(rooms, player) {
   const room = rooms[player.pos] || [];
+  if (room.length < (SLOTS_AT[player.pos] || 1)) return null;
   return room.length ? room[room.length - 1].id : null;
 }
 
@@ -181,4 +209,133 @@ export function keeperAdvice(row) {
   if (row.surplus >= 3) return `Worth keeping — roughly $${row.surplus} cheaper than buying him back.`;
   if (row.surplus > -3) return 'About what he would cost at auction. Keeping him is neither here nor there.';
   return `Let him go: the market would price him about $${-row.surplus} under his keeper price.`;
+}
+
+// ---------------------------------------------------------------------------
+// The auction room
+// ---------------------------------------------------------------------------
+
+/**
+ * How tight each position is.
+ *
+ * Headcount was the obvious measure and it is the wrong one here. The pool is
+ * over a thousand all-time greats for a few hundred slots, so *every* position
+ * is deep by count — measured at between three and six available for every slot
+ * needed, at every position, at the start of a twelve-club auction. A threshold
+ * on that ratio never fires and tells nobody anything.
+ *
+ * What is actually scarce is quality. `drop` is the gap from the best man left
+ * at that position down to replacement level — the rating of the last man who
+ * would still find a roster if demand were filled purely by rating, which the
+ * price guide already works out. A big gap means the top of that position is
+ * genuinely worth paying for; a small one means wait, somebody almost as good
+ * is coming round again.
+ */
+export function positionScarcity(auction, league, pool, guide = null) {
+  const left = {}, needed = {}, best = {};
+  for (const p of availablePlayers(auction, pool)) {
+    left[p.pos] = (left[p.pos] || 0) + 1;
+    const o = overall(p);
+    if (!best[p.pos] || o > best[p.pos]) best[p.pos] = o;
+  }
+  for (const t of league.teams) for (const [pos, n] of Object.entries(openSlotsByPos(t))) needed[pos] = (needed[pos] || 0) + n;
+  const out = {};
+  for (const pos of new Set([...Object.keys(left), ...Object.keys(needed)])) {
+    const l = left[pos] || 0, n = needed[pos] || 0;
+    const repl = guide?.repl?.[pos];
+    const drop = repl != null && best[pos] != null ? Math.round((best[pos] - repl) * 10) / 10 : null;
+    out[pos] = { left: l, needed: n, ratio: n ? l / n : Infinity, best: best[pos] ?? null, repl: repl ?? null, drop, tight: false };
+  }
+  // Tight against the rest of the board, not against a fixed number. At the
+  // opening every position drops seven to twelve points to replacement, so an
+  // absolute threshold flags all eleven and says nothing; by the closing rounds
+  // it flags none. What a bidder can use is which positions are tighter than
+  // the others *right now*.
+  const drops = Object.values(out).map((x) => x.drop).filter((d) => d != null).sort((a, b) => a - b);
+  if (drops.length) {
+    const median = drops[Math.floor(drops.length / 2)];
+    for (const x of Object.values(out)) x.tight = x.drop != null && x.drop > median;
+  }
+  return out;
+}
+
+/**
+ * What it would mean to lose this lot.
+ *
+ * The drop-off is the whole thing: the next man at that position, and the
+ * rating gap down to him. A three-point gap at a position nine clubs still need
+ * is worth paying for; a nought-point gap at one where eleven are left is not,
+ * whatever the asking price says.
+ *
+ * `rivals` counts the clubs that could still roster the position and afford to
+ * raise the current bid. It is deliberately a count and not a number of
+ * dollars: what a club would actually go to is `aiMaxBid`, which carries a
+ * thirteen per cent random factor, and printing an estimate of it would invite
+ * bidding exactly one dollar over.
+ *
+ * There is no lineup-points-per-dollar figure here, and that is on purpose. It
+ * was built, measured and thrown away: it is a ratio with a denominator that
+ * can be one, so it ranks the cheapest man at the most valuable unfilled
+ * position above everybody else. Sorting the room by it put a 72-overall
+ * quarterback at $1 top of the board at 1,295 points to the dollar, ahead of
+ * every star in the pool. A number that is only sane in the middle of its range
+ * is not a number to put on a screen.
+ */
+export function lotAdvice(auction, league, pool, byId, teamIdx, player, guide, { currentBid = MIN_BID } = {}) {
+  const team = league.teams[teamIdx];
+  const rooms = roomsOf(league, team, byId);
+  const avail = availablePlayers(auction, pool)
+    .filter((p) => p.pos === player.pos && p.id !== player.id)
+    .sort((a, b) => overall(b) - overall(a));
+  const next = avail[0] || null;
+  const scarcity = positionScarcity(auction, league, pool, guide)[player.pos] || { left: 0, needed: 0, ratio: Infinity, drop: null, tight: false };
+  let rivals = 0;
+  league.teams.forEach((t, i) => {
+    if (i === teamIdx || t.isUser) return;
+    if (!canRoster(t, player.pos)) return;
+    if (maxAffordable(auction, i, league) <= currentBid) return;
+    rivals++;
+  });
+  const openHere = openSlotsByPos(team)[player.pos] || 0;
+  const ask = guide.prices.get(player.id) ?? MIN_BID;
+  const gain = joinValue(rooms, player);
+  return {
+    pos: player.pos,
+    ask,
+    worth: guide.worth.get(player.id) ?? MIN_BID,
+    gain,
+    cap: maxAffordable(auction, teamIdx, league),
+    next: next ? { id: next.id, ovr: overall(next), ask: guide.prices.get(next.id) ?? MIN_BID } : null,
+    dropOff: next ? overall(player) - overall(next) : null,
+    scarcity,
+    rivals,
+    // Down to the wire at a position still unfilled: the room stops being a
+    // market and becomes a queue, and the price stops mattering.
+    mustFill: openHere > 0 && openHere >= slotsLeft(team),
+  };
+}
+
+/**
+ * The advice as a sentence, because a number without its reason is a number.
+ *
+ * There is no branch here for "a real drop", and there used to be. Measured
+ * across three whole twelve-club auctions — 1,320 snapshots of every position
+ * still on the board — the gap from the best man left to the next was **never**
+ * four points or more. It was zero on half of them and one on another third.
+ * A pool of over a thousand all-time greats simply does not produce a scarce
+ * individual, and a branch that cannot fire is worse than no branch: it implies
+ * a situation the game never reaches.
+ */
+export function lotNote(a, nextName) {
+  const bits = [];
+  if (a.mustFill) bits.push('You have to fill this slot — there are no rounds left to wait.');
+  else if (a.dropOff == null) bits.push('He is the last one in the pool at this position.');
+  else if (a.dropOff >= 1) bits.push(`${nextName ? nextName : 'The next one'} is ${a.dropOff} point${a.dropOff === 1 ? '' : 's'} behind at $${a.next.ask}. Losing him is not a disaster.`);
+  else bits.push(`${nextName ? nextName : 'The next one'} is just as good at $${a.next.ask}. Let this go.`);
+  if (a.scarcity.drop != null) {
+    bits.push(a.scarcity.tight
+      ? `${a.pos} is one of the tighter positions on the board right now: ${a.scarcity.drop} points from the best left down to replacement.`
+      : `${a.pos} is one of the deeper positions right now, ${a.scarcity.drop} points down to replacement. It will stay cheap.`);
+  }
+  return bits.join(' ');
 }

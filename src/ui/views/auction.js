@@ -9,6 +9,7 @@ import {
   advanceToUser, nominate, settle, priceGuide, maxAffordable, slotsLeft, openSlotsByPos,
   currentNominator, nominatable, autoCompleteAll, autoUserMax, canRoster, MIN_BID, TOTAL_SLOTS,
 } from '../../engine/auction.js';
+import { lotAdvice, lotNote, positionScarcity } from '../../engine/market.js';
 import { playerItem, playerModal, teamChip, toast, ovrBadge, esc, posBadge } from '../components.js';
 import { draftBoard, boardOverlay, auctionRows, scrollToPick, lastName } from '../draft-board.js';
 import { SPEEDS, DEFAULT_SPEED } from './draft.js';
@@ -65,6 +66,7 @@ export function view(root, params, ctx) {
 
   const guide = priceGuide(a, league, ctx.players);
   const cap = maxAffordable(a, u, league);
+  const scarcity = positionScarcity(a, league, ctx.players, guide);
   const left = slotsLeft(me);
   const open = openSlotsByPos(me);
   const sold = a.sold.length;
@@ -139,7 +141,13 @@ export function view(root, params, ctx) {
       <div class="card tight stack">
         <h2 style="margin:0">Your nomination</h2>
         <p class="muted" style="margin:0;font-size:.85rem">Pick anyone at a position you still need. Nominating opens the bidding at $1 from you, so you can win him cheap if the room stays quiet.</p>
-        <div class="tabs" id="posTabs">${raw(['ALL', ...posOpen].map((p) => `<button class="tab ${ui.pos === p ? 'active' : ''}" data-pos="${p}">${p}</button>`).join(''))}</div>
+        <div class="tabs" id="posTabs">${raw(['ALL', ...posOpen].map((p) => {
+          const sc = p === 'ALL' ? null : scarcity[p];
+          const mark = sc && sc.tight ? ' ●' : '';
+          const title = sc ? ` title="${sc.drop} points from the best ${p} left down to replacement${sc.tight ? ' — tighter than most of the board right now' : ''}"` : '';
+          return `<button class="tab ${ui.pos === p ? 'active' : ''}"${title} data-pos="${p}">${p}${mark}</button>`;
+        }).join(''))}</div>
+        <p class="muted" style="margin:.3rem 0 0;font-size:.78rem">A dot marks a position where the gap from the best man left down to replacement is bigger than most — the top of it is worth paying for. The rest will stay cheap.</p>
         <div class="tabs" id="eraTabs">${raw(['ALL', ...ERAS].map((e) => `<button class="tab ${ui.era === e ? 'active' : ''}" data-era="${e}">${e}</button>`).join(''))}</div>
         <input type="search" id="q" placeholder="Search player or team…" value="${ui.q}">
         <ul class="plist">${raw(shown.map((p) => playerItem(p, {
@@ -166,6 +174,7 @@ export function view(root, params, ctx) {
           </div>
         </div>
         <div class="attrs row" style="gap:.1rem .6rem">${raw(attrRow(p))}</div>
+        ${raw(lotPanel(a, league, ctx, u, p, guide))}
         ${mine ? html`<p class="muted" style="margin:0;font-size:.82rem">You opened at $1. Set your maximum, or pass and hope nobody else bids.</p>` : ''}
         <div class="slider-row">
           <div class="lbl"><span>Your maximum</span><b id="bidLbl">$${ui.bid}</b></div>
@@ -274,6 +283,36 @@ function attrRow(p) {
 function priceNote(guide, id) {
   const ask = guide.prices.get(id);
   return ask ? `<p class="muted">Asking price $${ask}.</p>` : '';
+}
+
+/**
+ * What losing this lot would mean. An auction does not turn on what a man is
+ * worth — the price guide has said that all along — but on what you get instead
+ * if somebody outbids you, and whether anybody still can.
+ */
+function lotPanel(a, league, ctx, u, p, guide) {
+  const adv = lotAdvice(a, league, ctx.players, ctx.byId, u, p, guide, { currentBid: a.current?.bid ?? MIN_BID });
+  const next = adv.next ? ctx.byId.get(adv.next.id) : null;
+  // Red only where it matters: a slot you are forced to fill at any price. The
+  // gap to the next man is never big enough here to warrant a colour of its own.
+  const gapClass = adv.mustFill ? 'overpay' : '';
+  const chips = [
+    adv.next
+      ? `<span class="badge ${gapClass}" title="The best man left at this position if you lose him">next: ${esc(lastNameOf(next.name))} ${adv.next.ovr} · $${adv.next.ask}</span>`
+      : '<span class="badge overpay">last one at this position</span>',
+    `<span class="badge ${adv.scarcity.tight ? 'bargain' : ''}" title="Gap from the best ${p.pos} left down to replacement level, against the rest of the board">${p.pos} ${adv.scarcity.tight ? 'tight' : 'deep'}</span>`,
+    `<span class="badge rivals" title="Clubs that still have a slot for a ${p.pos} and can afford to raise the bid. Not what they would pay — that is theirs to decide.">${adv.rivals} can still bid</span>`,
+  ].join(' ');
+  return `<div class="lot-advice">
+    <div class="row" style="gap:.3rem;flex-wrap:wrap">${chips}</div>
+    <p class="muted" style="margin:.3rem 0 0;font-size:.8rem">${esc(lotNote(adv, next ? lastNameOf(next.name) : null))}</p>
+  </div>`;
+}
+
+/** Boards and chips are narrow; a surname carries the man. */
+function lastNameOf(name) {
+  const bits = String(name).trim().split(/\s+/);
+  return bits.length > 1 ? bits[bits.length - 1] : name;
 }
 
 /** Live unit grades, so you can see the holes you are leaving as you spend. */
