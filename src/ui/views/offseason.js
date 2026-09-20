@@ -12,6 +12,7 @@ import { scoutingHits, scoutingOn } from '../../engine/scouting.js';
 import { takeJob } from '../../engine/offseason.js';
 import { jobsOn, yourCoach, careerSummary, coachOf } from '../../engine/jobs.js';
 import { RNG } from '../../engine/rng.js';
+import { capOn, PRO_CAP } from '../../engine/cap.js';
 import { keeperBoard, keeperAdvice } from '../../engine/market.js';
 
 const ui = { picked: null, leagueId: null, season: null };
@@ -32,11 +33,13 @@ export function view(root, params, ctx) {
   const u = userTeamIndex(league);
   const me = league.teams[u];
   const auction = league.draftType === 'auction';
+  const capped = capOn(league);
+  const money = capped ? (league.cap ?? PRO_CAP) : 200;
   const limit = keeperLimit(league);
   if (ui.leagueId !== league.id || ui.season !== league.season || !ui.picked) { ui.leagueId = league.id; ui.season = league.season; ui.picked = new Set(); }
   const picked = [...ui.picked].filter((id) => ROSTER_SLOTS.some((s) => me.slots[s.id] === id));
   ui.picked = new Set(picked);
-  const v = validateKeepers(league, u, picked);
+  const v = validateKeepers(league, u, picked, ctx.byId);
   const summary = seasonSummary(league);
   const table = standings(league);
   const ord = (n) => { const s = ['th', 'st', 'nd', 'rd'], k = n % 100; return n + (s[(k - 20) % 10] || s[k] || s[0]); };
@@ -55,15 +58,20 @@ export function view(root, params, ctx) {
 
   const rowFor = ({ p, c }) => {
     const on = ui.picked.has(p.id);
-    const eligible = keeperEligible(c);
-    const cost = keeperCost(c);
+    const eligible = keeperEligible(c, league);
+    const cost = keeperCost(c, p, league);
     const r = kb.get(p.id);
     const verdict = r && r.surplus != null && eligible
       ? ` <span class="badge ${r.surplus >= 3 ? 'bargain' : r.surplus > -3 ? '' : 'overpay'}" title="${esc(keeperAdvice(r))}">${r.surplus > 0 ? `saves $${r.surplus}` : r.surplus === 0 ? 'market price' : `$${-r.surplus} over`}</span>`
       : '';
     const meta = auction
       ? ` · last <b>$${c.salary ?? 1}</b>${eligible ? ` → keep at <b>$${cost}</b> <span class="muted">(market $${r?.market ?? '?'})</span>` : ''}${verdict}${c.kept ? ` · kept ${c.kept}×` : ''}`
-      : ` · round ${c.round ?? '—'}${c.kept ? ` · kept ${c.kept}×` : ''}`;
+      : capped
+        // A deal that has run out is the whole decision on this screen: he is
+        // still yours, and he now costs what he is worth rather than what he
+        // was paid on a rookie contract.
+        ? ` · <b>$${c.salary ?? 1}</b>${c.expiring ? ` · <span class="badge out">deal up</span> re-sign at <b>$${cost}</b>` : ` · ${c.years ?? '?'}y left`}`
+        : ` · round ${c.round ?? '—'}${c.kept ? ` · kept ${c.kept}×` : ''}`;
     const action = eligible
       ? `<button class="btn sm ${on ? 'primary' : ''}" data-keep="${esc(p.id)}">${on ? 'Keeping' : 'Keep'}</button>`
       : `<span class="badge out" title="kept ${MAX_KEEPS} years running">must return</span>`;
@@ -73,8 +81,8 @@ export function view(root, params, ctx) {
   const aiTable = league.teams.map((t, i) => {
     if (t.isUser) return '';
     const ids = league.offseason.keepers[i] || [];
-    const cost = auction ? ids.reduce((s, id) => s + keeperCost(league.contracts[id]), 0) : 0;
-    return `<tr><td>${teamChip(t, { responsive: true }).__raw}</td><td class="num">${ids.length}</td>${auction ? `<td class="num">$${cost}</td><td class="num muted">$${200 - cost}</td>` : ''}<td class="hide-sm muted" style="font-size:.8rem">${ids.map((id) => esc(ctx.byId.get(id)?.name)).join(', ') || '—'}</td></tr>`;
+    const cost = (auction || capped) ? ids.reduce((s, id) => s + keeperCost(league.contracts[id], ctx.byId.get(id), league), 0) : 0;
+    return `<tr><td>${teamChip(t, { responsive: true }).__raw}</td><td class="num">${ids.length}</td>${auction || capped ? `<td class="num">$${cost}</td><td class="num muted">$${money - cost}</td>` : ''}<td class="hide-sm muted" style="font-size:.8rem">${ids.map((id) => esc(ctx.byId.get(id)?.name)).join(', ') || '—'}</td></tr>`;
   }).join('');
 
   // A year passed: who grew into something, who is going, who is gone.
@@ -117,17 +125,18 @@ export function view(root, params, ctx) {
       <div class="card tight">
         <h3>Your keepers <small class="muted" style="text-transform:none;letter-spacing:0">· ${picked.length} of ${limit}</small></h3>
         ${auction ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">A keeper is worth having when he costs less than the room would pay to buy him back. Green saves you money; red is an overpay you should let the auction settle.</p>` : ''}
+        ${capped ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">Men still under contract cost what they are being paid. A deal that has run out is marked, and re-signing him costs what he is now worth — which is where a cap actually hurts.</p>` : ''}
         ${raw(groups.map((g) => `<div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;margin:.5rem 0 .2rem">${g.pos}</div><ul class="plist">${g.rows.map(rowFor).join('')}</ul>`).join(''))}
       </div>
       <div class="stack">
         <div class="card tight" style="position:sticky;top:.5rem;z-index:5">
-          <h3>${auction ? 'Cap' : 'Summary'}</h3>
-          ${auction ? html`
+          <h3>${auction || capped ? 'Cap' : 'Summary'}</h3>
+          ${auction || capped ? html`
             <div class="kv">
-              <dt>Keepers</dt><dd><b>$${v.committed ?? 0}</b> for ${picked.length}</dd>
-              <dt>For the auction</dt><dd><b>$${v.ok ? v.budget : Math.max(0, 200 - (v.committed ?? 0))}</b> across ${ROSTER_SLOTS.length - picked.length} slots</dd>
+              <dt>${capped ? 'On the books' : 'Keepers'}</dt><dd><b>$${v.committed ?? 0}</b> for ${picked.length}</dd>
+              <dt>${capped ? 'Left under the cap' : 'For the auction'}</dt><dd><b>$${v.ok ? v.budget : Math.max(0, money - (v.committed ?? 0))}</b> across ${ROSTER_SLOTS.length - picked.length} slots</dd>
             </div>
-            <div class="bar" style="margin:.4rem 0"><i style="width:${Math.min(100, ((v.committed ?? 0) / 200) * 100)}%"></i></div>` : html`<p class="muted" style="margin:0">${picked.length} kept, ${ROSTER_SLOTS.length - picked.length} to draft.</p>`}
+            <div class="bar" style="margin:.4rem 0"><i style="width:${Math.min(100, ((v.committed ?? 0) / money) * 100)}%"></i></div>` : html`<p class="muted" style="margin:0">${picked.length} kept, ${ROSTER_SLOTS.length - picked.length} to draft.</p>`}
           ${v.ok ? '' : html`<p class="notice" style="margin:.4rem 0">${v.reason}</p>`}
           <div class="btn-group" style="margin-top:.5rem">
             <button class="btn primary lg" id="confirm" ${v.ok ? '' : 'disabled'}>Confirm keepers and open the ${auction ? 'auction' : 'draft'}</button>

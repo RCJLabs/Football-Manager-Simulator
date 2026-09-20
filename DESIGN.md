@@ -314,6 +314,65 @@ User games keep the full log and every player line. Playoff games keep player li
 
 At season start every position group is ordered by overall. Slots fill in the order players were bought, so an auction could otherwise leave a 92 back at RB2 behind a 75. AI clubs are re-sorted each season; the user's club only the first time.
 
+## Money in the pro league (`cap.js`)
+
+The fantasy league has had an economy since the auction shipped. The pro league
+had none: `contracts[id]` stored a draft *round* and no money, `keeperCost` fell
+through to the minimum bid, and clubs kept eighteen of twenty-seven men a year
+for free. A good pro roster therefore stayed good forever, because nothing ever
+made you choose. The cap is that missing constraint, in the same $200 over 27
+slots the auction already speaks, so the price guide's units carry over.
+
+**A rookie scale by draft slot.** The first pick costs $20 — a tenth of
+everything a club has — round four costs $10, and from round fifteen on it is
+the minimum. The curve runs over the *fraction* of the draft rather than the
+pick number, so it holds at 8, 12 and 32 clubs. It was tuned against one
+requirement: a roster drafted top to bottom costs about 101 of 200, near enough
+half, leaving room to re-sign anybody. Every steeper curve tried makes the first
+pick worth about as much as the fourth, which is not a decision; every
+shallower one spends the whole cap on rookies. This gives the uneven pick trades
+above a second currency — moving up costs cap space as well as picks.
+
+**Market money is charged in exactly one place.** `keeperCost` for a man whose
+deal has run out. Everything else is cheap: a drafted player is on his slot
+price for four years, and anyone arriving by waiver claim or signed to fill a
+hole is on the minimum for one. That is deliberate, and it is the whole
+mechanism — a cheap rookie deal runs out and the bill arrives at what the player
+is now worth. `marketSalary` is leverage times rating over a replacement level,
+calibrated so a roster priced entirely at market costs 104% to 114% of the cap.
+Just over, on purpose: no club can field a side of men all paid what they are
+worth, so every roster is part bargain and part rookie deal.
+
+**Three things were wrong before it worked, and all three are the same mistake
+in different clothes — the money kept being thrown away:**
+
+- `confirmKeepers` rebuilds `league.contracts` wholesale each offseason and its
+  non-auction branch wrote `{ round, kept, since }`, dropping `salary` and
+  `years` on the floor. A whole league read a cap hit of 27 of 200 by its second
+  season, and nothing ever expired, because the countdown reset every year
+  before it could reach zero.
+- Expiry released the player. That made the cap decoration: a star whose deal
+  was up went back in the pool and was re-drafted at rookie money, so keeping
+  good players never cost anything. He is now *marked* expiring and stays
+  yours — at what he is worth.
+- Every founding contract ran the same four years, so the entire league expired
+  in the same offseason. 27 of 27 gone from every club in season five, then
+  four years of nothing. Founding deals are now staggered by a hash of the
+  player and the league seed; after the first season a rookie gets the full term
+  and the spread maintains itself.
+
+**The cap binds at kickoff and nowhere else**, which is the one place it is
+checked. A club over it sheds what it is paying most for per point of lineup,
+and the slot that opens is filled off the board at the minimum — which is what
+makes shedding converge. `cutToCap` has to judge on `projectedHit`, not the
+current hit, because it is cutting men into empty slots that `fillOpenSlots` is
+about to fill: judging on the hit alone let a club cut its way to exactly the
+cap and then go over when the replacements signed.
+
+Measured over eight seasons of a 32-club league: cap hits run 142 to 200 against
+a cap of 200, **no club is ever over at kickoff**, and 14 to 22 of 27 men are
+kept a year. Before the cap it was 27 of 27, forever.
+
 ## Trading picks unevenly, and filling what is left
 
 The draft used to insist on n picks for n picks, because rosters are 27 slots

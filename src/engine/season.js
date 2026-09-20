@@ -23,6 +23,7 @@ import { jobsOn, initJobs } from './jobs.js';
 import { leagueIndex } from './rookies.js';
 import { careerIndex } from './careers.js';
 import { DEFAULT_DIFFICULTY } from './difficulty.js';
+import { capOn, cutToCap, rookieSalary, draftSize, MIN_SALARY, ROOKIE_YEARS, VET_YEARS } from './cap.js';
 import { strategyRead } from './strategy.js';
 
 export const LEAGUE_VERSION = 3;
@@ -173,6 +174,14 @@ export function fillOpenSlots(league, pool, byId, { log = true } = {}) {
       if (!list || !list.length) continue;
       const man = list.shift();
       team.slots[sl.id] = man.id;
+      // A man signed off what the draft left over is on the minimum for a
+      // year — the veteran minimum, in other words. It has to be the minimum
+      // or `cutToCap` cannot converge: shedding a salary only helps if what
+      // replaces it is cheap.
+      if (capOn(league)) {
+        league.contracts ??= {};
+        league.contracts[man.id] ??= { salary: MIN_SALARY, years: 1, round: ROSTER_SLOTS.length, kept: 0, since: league.season };
+      }
       signed.push({ team: ti, add: man.id, slot: sl.id, pos: sl.pos });
       // The projection runs this against a sandbox whose `transactions` array
       // is shared with the real league by reference, so it must not write.
@@ -186,10 +195,12 @@ export function fillOpenSlots(league, pool, byId, { log = true } = {}) {
   return signed;
 }
 
-export function syncContracts(league) {
+export function syncContracts(league, byId = null) {
   league.contracts ??= {};
   const soldPrice = new Map((league.auction?.sold || []).map((s) => [s.playerId, s.price]));
   const draftRound = new Map((league.draft?.picks || []).map((p) => [p.playerId, p.round]));
+  const draftPick = new Map((league.draft?.picks || []).map((p) => [p.playerId, p]));
+  const totalPicks = draftSize(league);
   const owned = new Set();
   for (const t of league.teams) {
     // Injured reserve keeps a player's contract; he is still on the books.
@@ -198,7 +209,32 @@ export function syncContracts(league) {
       owned.add(id);
       if (league.contracts[id]) continue;
       if (league.draftType === 'auction') league.contracts[id] = { salary: soldPrice.get(id) ?? 1, kept: 0, since: league.season };
-      else league.contracts[id] = { round: draftRound.get(id) ?? ROSTER_SLOTS.length, kept: 0, since: league.season };
+      else if (capOn(league)) {
+        // A drafted man is cheap for four years; anyone signed off the street
+        // costs the minimum, which is exactly what an undrafted free agent is
+        // worth and falls out of having no pick behind him.
+        const pick = draftPick.get(id);
+        league.contracts[id] = {
+          // Drafted: cheap for four years, priced by where he went. Arrived
+          // any other way — a waiver claim, a body signed to fill a hole — and
+          // he is on the minimum. Market money is charged in exactly one
+          // place, `keeperCost`, when a club re-signs a man whose deal is up,
+          // and that is deliberate: it is the only moment a cap should hurt.
+          salary: pick ? rookieSalary(pick.overall, totalPicks) : MIN_SALARY,
+          // The founding intake is staggered, because a league whose every
+          // contract was signed on the same day has every contract expire on
+          // the same day. Unstaggered, the whole league turned over at once in
+          // season five — 27 of 27 gone from every club — and then stood still
+          // for another four years. After the first season a new rookie gets
+          // the full term and the spread maintains itself.
+          years: pick
+            ? (league.season <= 1 ? 1 + (hashSeed(`${league.seed}:${id}`) % ROOKIE_YEARS) : ROOKIE_YEARS)
+            : VET_YEARS,
+          round: pick?.round ?? ROSTER_SLOTS.length,
+          kept: 0,
+          since: league.season,
+        };
+      } else league.contracts[id] = { round: draftRound.get(id) ?? ROSTER_SLOTS.length, kept: 0, since: league.season };
     }
   }
   for (const id of Object.keys(league.contracts)) if (!owned.has(id)) delete league.contracts[id];
@@ -485,6 +521,15 @@ export function startSeason(league, byId, pool = null) {
   // auction, a share code, a simulated year.
   const board = pool || (byId ? [...byId.values()] : null);
   if (board) fillOpenSlots(league, board, byId);
+  // The cap binds at kickoff and nowhere else, so this is the one place it is
+  // checked. A club over it sheds what it is paying most for per point of
+  // lineup, and the slot that opens is filled off the board at the minimum —
+  // which is what makes shedding converge.
+  if (capOn(league)) {
+    syncContracts(league, byId);
+    for (let i = 0; i < league.teams.length; i++) cutToCap(league, i, byId);
+    if (board) fillOpenSlots(league, board, byId);
+  }
   if (byId) sortDepthCharts(league, byId);
   if (byId) fitUserStrategy(league, byId);
   const rng = new RNG(league.rngState);
@@ -493,7 +538,7 @@ export function startSeason(league, byId, pool = null) {
   league.phase = 'season';
   league.offseason = null;
   league.rngState = rng.state;
-  syncContracts(league);
+  syncContracts(league, byId);
   syncTenure(league);
   // The carousel stands itself up the first time a season starts, so a league
   // opened from a code gets one too without the code having to carry it.

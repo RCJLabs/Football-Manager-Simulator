@@ -16,6 +16,7 @@ import { overall } from './ratings.js';
 import { RNG } from './rng.js';
 import { emptyTeamStats } from './stats.js';
 import { createAuction, priceGuide, DEFAULT_BUDGET, MIN_BID } from './auction.js';
+import { capOn, expireContracts, marketSalary, VET_YEARS, PRO_CAP, MIN_SALARY, SLOT_RESERVE } from './cap.js';
 import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex } from './season.js';
 import { clearIr } from './injuries.js';
@@ -30,16 +31,31 @@ export const KEEPER_RAISE_PCT = 0.15;
 export const BIRD_IN_HAND = 1.15;
 
 /** What keeping a player costs next season. */
-export function keeperCost(contract) {
+export function keeperCost(contract, player = null, league = null) {
+  // Under a cap, a man still under contract costs what he is being paid, and a
+  // man whose deal is up costs what he is worth. That second half is the whole
+  // squeeze: a cheap rookie deal runs out and the bill arrives at market rate.
+  if (league && capOn(league)) {
+    if (contract?.expiring) return marketSalary(player);
+    return contract?.salary ?? MIN_SALARY;
+  }
   const salary = contract?.salary ?? MIN_BID;
   return Math.max(salary + KEEPER_RAISE_MIN, Math.ceil(salary * (1 + KEEPER_RAISE_PCT)));
 }
 
 export function keeperLimit(league) {
+  // Under a cap the contract decides, not a quota. Two mechanisms of attrition
+  // would double-count: four-year rookie deals already turn over about a
+  // quarter of a roster a year, which is close to what the eighteen-of-
+  // twenty-seven quota was doing on its own.
+  if (capOn(league)) return ROSTER_SLOTS.length;
   return league.settings?.keepers ?? (league.mode === 'pro' ? 18 : 6);
 }
 
-export function keeperEligible(contract) {
+export function keeperEligible(contract, league = null) {
+  // Same reason: a capped league lets a man be re-signed as often as it can
+  // afford him, because the affording is the limit.
+  if (league && capOn(league)) return true;
   return (contract?.kept ?? 0) < MAX_KEEPS;
 }
 
@@ -47,7 +63,7 @@ export function keeperEligible(contract) {
  * Check a keeper list for one club: count, eligibility, ownership, and in an
  * auction league the cap (keepers plus $1 for every open slot must fit).
  */
-export function validateKeepers(league, teamIdx, ids) {
+export function validateKeepers(league, teamIdx, ids, byId = null) {
   const team = league.teams[teamIdx];
   const limit = keeperLimit(league);
   if (new Set(ids).size !== ids.length) return { ok: false, reason: 'A player is listed twice' };
@@ -55,14 +71,15 @@ export function validateKeepers(league, teamIdx, ids) {
   const owned = new Set(ROSTER_SLOTS.map((s) => team.slots[s.id]).filter(Boolean));
   for (const id of ids) {
     if (!owned.has(id)) return { ok: false, reason: `${id} is not on the roster` };
-    if (!keeperEligible(league.contracts[id])) return { ok: false, reason: `${id} has been kept ${MAX_KEEPS} years and must return to the pool` };
+    if (!keeperEligible(league.contracts[id], league)) return { ok: false, reason: `${id} has been kept ${MAX_KEEPS} years and must return to the pool` };
   }
-  if (league.draftType === 'auction') {
-    const cap = league.auction?.budget ?? DEFAULT_BUDGET;
-    const committed = ids.reduce((s, id) => s + keeperCost(league.contracts[id]), 0);
+  if (league.draftType === 'auction' || capOn(league)) {
+    const money = capOn(league) ? (league.cap ?? PRO_CAP) : (league.auction?.budget ?? DEFAULT_BUDGET);
+    const floor = capOn(league) ? SLOT_RESERVE : MIN_BID;
+    const committed = ids.reduce((s, id) => s + keeperCost(league.contracts[id], byId?.get(id) || null, league), 0);
     const open = ROSTER_SLOTS.length - ids.length;
-    if (committed + open * MIN_BID > cap) return { ok: false, reason: `Keepers cost $${committed}; that leaves less than $1 a slot for the other ${open}`, committed };
-    return { ok: true, committed, budget: cap - committed };
+    if (committed + open * floor > money) return { ok: false, reason: `Keeping these costs $${committed}; that leaves less than $${floor} a slot for the other ${open}`, committed };
+    return { ok: true, committed, budget: money - committed };
   }
   return { ok: true, committed: 0 };
 }
@@ -76,7 +93,10 @@ export function enterOffseason(league, pool, byId) {
   if (league.phase !== 'complete') throw new Error('The season is not over');
   // Injured reserve empties: anyone whose slot was filled behind him is let go.
   const released = clearIr(league, byId);
-  syncContracts(league);
+  syncContracts(league, byId);
+  // Contracts run down a year and whoever's deal is up leaves. In a capped
+  // league this *is* the attrition — see `keeperLimit`.
+  const expired = expireContracts(league);
   const rng = new RNG(league.rngState);
   // Careers run first, so the keeper round is decided on who a player is now
   // rather than who he was when you signed him. Retired men leave their slots
@@ -99,6 +119,7 @@ export function enterOffseason(league, pool, byId) {
     season: league.season, step: carousel && carousel.offers ? 'jobs' : 'keepers',
     keepers: {}, user: null, releasedFromIr: released,
     rookies: intake.arrived.length, washedOut: intake.washed.length,
+    expired: expired.length,
     aged: careers.aged,
     retired: careers.retired.filter((r) => r.owned).map((r) => ({ name: r.name, pos: r.pos, age: r.age })),
     risers: careers.risers.slice(0, 5),
@@ -179,16 +200,17 @@ export function aiKeepers(league, teamIdx, pool, byId, rng = null) {
   const team = league.teams[teamIdx];
   const gm = GM_PERSONALITIES.find((g) => g.id === team.gm) || GM_PERSONALITIES[0];
   const limit = keeperLimit(league);
-  const roster = ROSTER_SLOTS.map((s) => team.slots[s.id]).filter((id) => id && keeperEligible(league.contracts[id])).map((id) => byId.get(id)).filter(Boolean);
+  const roster = ROSTER_SLOTS.map((s) => team.slots[s.id]).filter((id) => id && keeperEligible(league.contracts[id], league)).map((id) => byId.get(id)).filter(Boolean);
   const taste = (p) => (gm.pos[p.pos] ?? 1) * (gm.era ? gm.era(p.season) : 1);
-  if (league.draftType !== 'auction') {
+  if (league.draftType !== 'auction' && !capOn(league)) {
     return roster.map((p) => ({ p, v: overall(p) * taste(p) + (rng ? rng.normal(0, 1) : 0) })).sort((a, b) => b.v - a.v).slice(0, limit).map((x) => x.p.id);
   }
   const guide = freshGuide(league, pool);
   const savvy = { modern: 0.7, trenches: 0.62, defense: 0.5, balanced: 0.34, gambler: 0.26, ground: 0.16, oldschool: 0.18, airraid: 0.1 }[team.gm] ?? 0.3;
-  const cap = league.auction?.budget ?? DEFAULT_BUDGET;
+  const cap = capOn(league) ? (league.cap ?? PRO_CAP) : (league.auction?.budget ?? DEFAULT_BUDGET);
+  const floor = capOn(league) ? SLOT_RESERVE : MIN_BID;
   const scored = roster.map((p) => {
-    const cost = keeperCost(league.contracts[p.id]);
+    const cost = keeperCost(league.contracts[p.id], p, league);
     const market = (guide.worth.get(p.id) ?? 1) * savvy + (guide.prices.get(p.id) ?? 1) * (1 - savvy);
     // A bird in hand: a club pays a little over market to skip the auction's risk.
     const surplus = market * taste(p) * BIRD_IN_HAND - cost + (rng ? rng.normal(0, 1.5) : 0);
@@ -199,7 +221,7 @@ export function aiKeepers(league, teamIdx, pool, byId, rng = null) {
   for (const x of scored) {
     if (keep.length >= limit) break;
     const open = ROSTER_SLOTS.length - keep.length - 1;
-    if (committed + x.cost + open * MIN_BID > cap) continue;
+    if (committed + x.cost + open * floor > cap) continue;
     keep.push(x.id);
     committed += x.cost;
   }
@@ -217,7 +239,7 @@ export function aiKeepers(league, teamIdx, pool, byId, rng = null) {
 export function confirmKeepers(league, userIds, pool, byId) {
   if (league.phase !== 'offseason' || !league.offseason) throw new Error('Not in the offseason');
   const u = userTeamIndex(league);
-  const v = validateKeepers(league, u, userIds);
+  const v = validateKeepers(league, u, userIds, byId);
   if (!v.ok) throw new Error(v.reason);
   const keepers = { ...league.offseason.keepers, [u]: userIds.slice() };
   const table = standings(league).map((r) => r.idx);
@@ -239,6 +261,22 @@ export function confirmKeepers(league, userIds, pool, byId) {
         const cost = keeperCost(c);
         committed += cost;
         contracts[id] = { salary: cost, kept: (c.kept ?? 0) + 1, since: c.since ?? league.season };
+      } else if (capOn(league)) {
+        // Carry the deal forward, or write a new one at market for a man whose
+        // old one is up. Rebuilding this table used to drop `salary` and
+        // `years` on the floor, which quietly turned every contract into a
+        // minimum one — a whole league read 27 of 200 by its second season and
+        // nothing ever expired, because the countdown reset every offseason
+        // before it could reach zero.
+        const cost = keeperCost(c, byId.get(id), league);
+        committed += cost;
+        contracts[id] = {
+          salary: cost,
+          years: c.expiring ? VET_YEARS : (c.years ?? VET_YEARS),
+          round: c.round ?? ROSTER_SLOTS.length,
+          kept: (c.kept ?? 0) + 1,
+          since: c.since ?? league.season,
+        };
       } else {
         contracts[id] = { round: c.round ?? ROSTER_SLOTS.length, kept: (c.kept ?? 0) + 1, since: c.since ?? league.season };
       }
