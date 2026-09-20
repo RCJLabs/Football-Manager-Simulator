@@ -17,6 +17,7 @@ import { RNG } from './rng.js';
 import { emptyTeamStats } from './stats.js';
 import { createAuction, priceGuide, DEFAULT_BUDGET, MIN_BID } from './auction.js';
 import { capOn, expireContracts, marketSalary, VET_YEARS, PRO_CAP, MIN_SALARY, SLOT_RESERVE } from './cap.js';
+import { openFreeAgency, resolveFreeAgency } from './freeagency.js';
 import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex } from './season.js';
 import { clearIr } from './injuries.js';
@@ -298,9 +299,46 @@ export function confirmKeepers(league, userIds, pool, byId) {
   league.lapsedClaims = [];
   league.week = 1;
 
-  const rng = new RNG(league.rngState);
   // Worst club nominates or picks first.
   const order = table.slice().reverse();
+  // A capped league shops before it drafts, because that is the decision: the
+  // men in free agency are the same men who will be in the draft, so paying
+  // market for one now is buying certainty — and it costs a pick, since a club
+  // that has no open slot left never makes one.
+  if (capOn(league)) {
+    league.offseason = { ...league.offseason, step: 'freeagency', order, taken, budgets };
+    const rngFa = new RNG(league.rngState);
+    openFreeAgency(league, pool, byId, rngFa);
+    league.rngState = rngFa.state;
+    return league;
+  }
+  return openMarket(league, order, taken, budgets);
+}
+
+/**
+ * Settle free agency and hand what is left to the draft.
+ *
+ * Separate from `confirmKeepers` because a capped league stops in between, and
+ * the draft has to be built from whoever is still unsigned rather than from
+ * whoever was unsigned an hour ago.
+ */
+export function closeFreeAgency(league, pool, byId, rng = null) {
+  if (!league.freeAgency || league.freeAgency.closed) {
+    if (league.phase === 'draft') return league;
+  }
+  const faRng = rng || new RNG(league.rngState);
+  const signed = resolveFreeAgency(league, pool, byId, faRng);
+  league.rngState = faRng.state;
+  const off = league.offseason || {};
+  const taken = { ...(off.taken || {}) };
+  for (const s of signed) taken[s.id] = s.team;
+  league.offseason = { ...off, step: 'market', signed };
+  return openMarket(league, off.order || league.teams.map((_, i) => i), taken, off.budgets || []);
+}
+
+/** Open whichever market this league drafts through, and hand the league over to it. */
+function openMarket(league, order, taken, budgets) {
+  const rng = new RNG(league.rngState);
   if (league.draftType === 'auction') {
     league.auction = createAuction(league, rng, { budget: league.auction?.budget ?? DEFAULT_BUDGET, budgets, order, taken });
     league.draft = null;

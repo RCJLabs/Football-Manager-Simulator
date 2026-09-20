@@ -10,7 +10,7 @@
 
 import { simulateWeekAi, advanceWeek, startSeason, weekComplete } from './season.js';
 import { advanceWeekWithMoves } from './transactions.js';
-import { enterOffseason, aiKeepers, confirmKeepers, takeJob } from './offseason.js';
+import { enterOffseason, aiKeepers, confirmKeepers, takeJob, closeFreeAgency } from './offseason.js';
 import { makeOffers } from './jobs.js';
 import { autoCompleteAll } from './auction.js';
 import { autoDraftAll } from './draft.js';
@@ -103,6 +103,12 @@ export function simulateAhead(league, byId, pool, rng, target, { maxWeeks = 200 
     const keep = aiKeepers(league, u, pool, byId, null);
     confirmKeepers(league, keep, pool, byId);
     decided.push(keep.length ? `${keep.length} keeper${keep.length === 1 ? '' : 's'} chosen on value` : 'no keeper was worth its price, so none was kept');
+  }
+  // A capped league shops before it drafts. Simulating through it means letting
+  // the market settle on the bids the AI already put in; the human's own bids
+  // stand if the screen was visited, and are simply none if it was not.
+  if (league.phase === 'offseason' && league.offseason && league.offseason.step === 'freeagency') {
+    closeFreeAgency(league, pool, byId);
   }
   if (league.phase === 'draft') {
     if (league.draftType === 'auction') autoCompleteAll(league.auction, league, pool, rng, byId);

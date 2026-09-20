@@ -373,6 +373,48 @@ Measured over eight seasons of a 32-club league: cap hits run 142 to 200 against
 a cap of 200, **no club is ever over at kickoff**, and 14 to 22 of 27 men are
 kept a year. Before the cap it was 27 of 27, forever.
 
+## The free-agent market (`freeagency.js`)
+
+Between the keeper round and the draft, and only in a capped league. What makes
+it a decision rather than a shopping list is that the men on offer are the *same
+men who will be in the draft an hour later*. A bid does not win you a player you
+could not otherwise have; it wins you the **certainty** of him, at market price
+instead of rookie money. And it costs a pick — a club's picks are its open
+slots and `settlePointer` skips anybody already full, so a club that signs four
+free agents simply never makes four of its picks. Nothing had to be written to
+make that true; it falls out of slots-for-slots.
+
+**Bids are sealed, and the asking price is a floor.** A player will not sign for
+less than `marketSalary` says he is worth, because without that floor an
+uncontested star goes for a dollar, which is not a market but an oversight. A
+club is held to every bid landing at once — anything looser lets it bid the same
+dollar on six men and field whichever it wins — and the slots it has not filled
+are reserved at `SLOT_RESERVE` off the top.
+
+**It settles in waves, and that is not a detail.** One pass is a lottery, not a
+market: every club ranks the board by what a man adds to *its* lineup, and since
+an empty quarterback slot is worth six times an empty punter to anybody, they
+all crowd the same dozen names. Measured, a single pass drew about fourteen
+bidders a player and produced **13 signings across 32 clubs** — most clubs got
+nothing and fell back to the draft having wasted the round. Four waves, with the
+losers turning to whoever is left, produce **42 to 50**. The human's outstanding
+offers stand across waves; they are only spent when they win.
+
+Within a wave the dearest man settles first, which matters because a club that
+wins a bidding war is poorer for the next one — that cascade is most of what
+makes overpaying for a star a real choice. Ties go to the worse record, the same
+priority the waiver wire uses, and the screen says so rather than reporting "you
+bid $24, he went for $24" and looking like a bug.
+
+**Losing bids are recorded when they lose.** The first version worked the report
+out afterwards from leftover offers, but a signing tears up every other offer for
+that player — so a club that had been outbid four times was told it had lost
+nothing. Each signing now carries who was underbid and for how much.
+
+Measured over three offseasons of a 32-club league: 42 to 50 signings a year,
+every one at or above the asking price, no club over the cap at kickoff and
+every roster full. A fantasy league never sees any of it.
+
 ## Trading picks unevenly, and filling what is left
 
 The draft used to insist on n picks for n picks, because rosters are 27 slots

@@ -4,7 +4,7 @@ import { overall } from '../../engine/ratings.js';
 import { userTeamIndex, newSeasonSameRosters, standings } from '../../engine/season.js';
 import { PLAYERS } from '../../data/db.js';
 import {
-  keeperCost, keeperEligible, keeperLimit, validateKeepers, enterOffseason, aiKeepers, confirmKeepers, seasonSummary, MAX_KEEPS,
+  keeperCost, keeperEligible, keeperLimit, validateKeepers, enterOffseason, aiKeepers, confirmKeepers, closeFreeAgency, seasonSummary, MAX_KEEPS,
 } from '../../engine/offseason.js';
 import { playerItem, playerModal, teamChip, toast, esc, modal } from '../components.js';
 import { simulateAhead, describeRun } from '../../engine/autosim.js';
@@ -12,10 +12,14 @@ import { scoutingHits, scoutingOn } from '../../engine/scouting.js';
 import { takeJob } from '../../engine/offseason.js';
 import { jobsOn, yourCoach, careerSummary, coachOf } from '../../engine/jobs.js';
 import { RNG } from '../../engine/rng.js';
-import { capOn, PRO_CAP } from '../../engine/cap.js';
+import { capOn, capHit, PRO_CAP } from '../../engine/cap.js';
 import { keeperBoard, keeperAdvice } from '../../engine/market.js';
+import {
+  askingBoard, biddingRoom, openCount, submitOffer, freeAgencyReport, AI_FA_SHARE,
+} from '../../engine/freeagency.js';
 
 const ui = { picked: null, leagueId: null, season: null };
+const faUi = { pos: 'ALL', limit: 40 };
 
 export function view(root, params, ctx) {
   const { league } = ctx.getState();
@@ -28,6 +32,8 @@ export function view(root, params, ctx) {
   // Sacked: the owners have moved, and nothing else in the offseason happens
   // until you have somewhere to work.
   if (league.phase === 'offseason' && league.offseason.step === 'jobs') { jobMarket(root, league, ctx); return; }
+  // The market before the draft: the same men, but certainty costs money.
+  if (league.phase === 'offseason' && league.offseason.step === 'freeagency') { freeAgency(root, league, ctx); return; }
   if (jobsOn(league) && league.jobs.status === 'retired') { careerOver(root, league, ctx); return; }
 
   const u = userTeamIndex(league);
@@ -209,6 +215,121 @@ export function view(root, params, ctx) {
 }
 
 /** The offer screen: who wants you, what they expect, and how long you get. */
+/**
+ * Free agency: sealed bids, then the draft.
+ *
+ * The screen has one job beyond taking offers, which is to make the trade-off
+ * legible. Every man here will also be in the draft, so a bid buys certainty
+ * rather than a player — and because a club's picks are its open slots, each
+ * signing quietly costs a pick. Both of those are said out loud, because
+ * neither is guessable from a list of names and prices.
+ */
+function freeAgency(root, league, ctx) {
+  const u = userTeamIndex(league);
+  const me = league.teams[u];
+  const cap = league.cap ?? PRO_CAP;
+  const offers = league.freeAgency?.offers?.[u] || {};
+  const mine = Object.entries(offers);
+  const room = biddingRoom(league, u);
+  const open = openCount(me);
+  const board = askingBoard(league, ctx.players || PLAYERS, { limit: 400 })
+    .filter((r) => faUi.pos === 'ALL' || r.pos === faUi.pos)
+    .filter((r) => ROSTER_SLOTS.some((sl) => sl.pos === r.pos && !me.slots[sl.id]));
+  const shown = board.slice(0, faUi.limit);
+
+  const row = (r) => {
+    const p = ctx.byId.get(r.id);
+    if (!p) return '';
+    const bid = offers[r.id];
+    const meta = ` · asking <b>$${r.ask}</b>${bid ? ` · <span class="badge bargain">you bid $${bid}</span>` : ''}`;
+    const action = `<button class="btn sm ${bid ? 'primary' : ''}" data-bid="${esc(r.id)}">${bid ? 'Raise' : 'Bid'}</button>`;
+    return playerItem(p, { attrs: false, meta, action, cls: bid ? 'me' : '' });
+  };
+
+  render(root, html`<div id="fa-view">
+    <div class="card tight">
+      <h2 style="margin:.1rem 0">Free agency</h2>
+      <details class="tight" style="margin:.2rem 0 .5rem">
+        <summary style="cursor:pointer;font-size:.85rem" class="muted"><b>What bidding actually buys</b> · certainty, and it costs a pick</summary>
+        <p class="muted" style="margin:.3rem 0 0;font-size:.85rem">
+          Everybody here goes into the draft if nobody signs them, so a bid does not win you a player you could not otherwise have — it wins you the <b>certainty</b> of him, at market price instead of rookie money. And it costs a pick: a club drafts as many times as it has slots left, so sign four and you draft four times fewer.
+        </p>
+      </details>
+      <div class="kv">
+        <dt>On the books</dt><dd><b>$${capHit(league, u)}</b> of $${cap}</dd>
+        <dt>Left to bid</dt><dd><b>$${room}</b></dd>
+        <dt>Slots open</dt><dd><b>${open}</b> · ${mine.length} bid on</dd>
+      </div>
+      <div class="bar" style="margin:.4rem 0"><i style="width:${Math.min(100, Math.max(0, (1 - room / cap) * 100))}%"></i></div>
+      <button class="btn primary block" id="faDone">Close the market and draft</button>
+    </div>
+
+    ${mine.length ? html`<div class="card tight" style="margin-top:.5rem">
+      <h3>Your offers <small class="muted" style="text-transform:none;letter-spacing:0">· $${mine.reduce((a, [, v]) => a + v, 0)} committed if they all land</small></h3>
+      <ul class="plist">${raw(mine.map(([id, v]) => {
+        const p = ctx.byId.get(id);
+        // playerItem returns a string, not an html`` object — asking it for
+        // `.__raw` got undefined and drew an empty list.
+        return p ? playerItem(p, { attrs: false, meta: ` · <b>$${v}</b>`, action: `<button class="btn sm" data-drop="${esc(id)}">Pull out</button>` }) : '';
+      }).join(''))}</ul>
+    </div>` : ''}
+
+    <div class="card tight" style="margin-top:.5rem">
+      <h3>On the market <small class="muted" style="text-transform:none;letter-spacing:0">· ${board.length} you have room for</small></h3>
+      <div class="tabs" id="faPos">${raw(['ALL', ...POSITION_ORDER].map((pp) => `<button class="tab ${faUi.pos === pp ? 'active' : ''}" data-pos="${pp}">${pp}</button>`).join(''))}</div>
+      ${board.length ? html`<ul class="plist">${raw(shown.map(row).join(''))}</ul>` : html`<p class="empty">No open slots left to fill.</p>`}
+      ${board.length > shown.length ? html`<button class="btn sm block" id="faMore">Show more</button>` : ''}
+    </div>
+  </div>`);
+
+  const el = root.querySelector('#fa-view');
+  el.querySelector('#faPos').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pos]');
+    if (b) { faUi.pos = b.dataset.pos; faUi.limit = 40; freeAgency(root, league, ctx); }
+  });
+  el.querySelector('#faMore')?.addEventListener('click', () => { faUi.limit += 40; freeAgency(root, league, ctx); });
+  el.addEventListener('click', (e) => {
+    const drop = e.target.closest('[data-drop]');
+    if (drop) {
+      ctx.update((st) => { submitOffer(st.league, u, drop.dataset.drop, 0, ctx.byId); }, { silent: true });
+      freeAgency(root, ctx.getState().league, ctx);
+      return;
+    }
+    const bidBtn = e.target.closest('[data-bid]');
+    if (!bidBtn) return;
+    const id = bidBtn.dataset.bid;
+    const p = ctx.byId.get(id);
+    const entry = league.freeAgency.offers[u]?.[id];
+    const ask = askingBoard(league, ctx.players || PLAYERS, { limit: 400 }).find((r) => r.id === id)?.ask ?? 1;
+    const start = entry || ask;
+    const m = modal(`<h3 style="margin:.1rem 0">${esc(p.name)}</h3>
+      <p class="muted" style="margin:.2rem 0 .5rem;font-size:.85rem">Asking <b>$${ask}</b>. You have <b>$${room}</b> to bid. Other clubs are bidding too, and the best offer wins — ties go to the worse record.</p>
+      <input type="number" id="faAmt" value="${start}" min="${ask}" max="${Math.max(ask, room)}" style="width:100%;font-size:1.1rem;padding:.5rem">
+      <div class="row" style="gap:.4rem;margin-top:.6rem"><button class="btn primary" id="faOk">Offer</button><button class="btn" data-close>Cancel</button></div>`);
+    m.el.querySelector('#faOk').addEventListener('click', () => {
+      const amt = Number(m.el.querySelector('#faAmt').value);
+      let res;
+      ctx.update((st) => { res = submitOffer(st.league, u, id, amt, ctx.byId); }, { silent: true });
+      if (!res.ok) { toast(res.reason); return; }
+      m.close();
+      freeAgency(root, ctx.getState().league, ctx);
+    });
+  });
+  el.querySelector('#faDone').addEventListener('click', () => {
+    ctx.update((st) => { closeFreeAgency(st.league, ctx.players || PLAYERS, ctx.byId); }, { silent: true });
+    const after = ctx.getState().league;
+    const rep = freeAgencyReport(after, u);
+    const name = (id) => esc(ctx.byId.get(id)?.name || id);
+    modal(`<h3 style="margin:.1rem 0">The market has closed</h3>
+      ${rep.won.length ? `<p style="margin:.3rem 0"><b>Signed:</b> ${rep.won.map((w) => `${name(w.id)} <span class="muted">$${w.salary}</span>`).join(', ')}</p>` : '<p class="muted" style="margin:.3rem 0">You signed nobody.</p>'}
+      ${rep.lost.length ? `<p style="margin:.3rem 0"><b>Missed out on:</b> ${rep.lost.map((l) => `${name(l.id)} <span class="muted">${l.bid === l.at ? `you both bid $${l.bid} — ties go to the worse record` : `your $${l.bid}, he took $${l.at}`}</span>`).join(', ')}</p>` : ''}
+      <p class="muted" style="margin:.4rem 0 0;font-size:.85rem">${(after.offseason.signed || []).length} signings across the league. Whoever is left is in the draft.</p>
+      <div class="row" style="gap:.4rem;margin-top:.6rem"><button class="btn primary" data-close>To the draft</button></div>`, {
+      onClose: () => ctx.navigate(after.draftType === 'auction' ? '#/auction' : '#/draft'),
+    });
+  });
+}
+
 function jobMarket(root, league, ctx) {
   const car = league.offseason.carousel || {};
   const offers = car.offers || [];

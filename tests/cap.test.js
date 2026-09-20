@@ -5,7 +5,7 @@ import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, registerPlayers, simulateWeekAi, advanceWeek, userTeamIndex } from '../src/engine/season.js';
 import { autoDraftAll } from '../src/engine/draft.js';
-import { enterOffseason, confirmKeepers, aiKeepers, takeJob, keeperCost } from '../src/engine/offseason.js';
+import { enterOffseason, confirmKeepers, aiKeepers, takeJob, keeperCost, closeFreeAgency } from '../src/engine/offseason.js';
 import {
   capOn, capHit, capSpace, overCap, rookieSalary, marketSalary, expireContracts,
   PRO_CAP, MIN_SALARY, ROOKIE_TOP, draftSize,
@@ -83,6 +83,9 @@ test('nobody is over the cap at kickoff, season after season', () => {
     const off = enterOffseason(lg, PLAYERS, byId);
     if (off.step === 'jobs') takeJob(lg, off.carousel.offers[0].team, PLAYERS, byId);
     confirmKeepers(lg, aiKeepers(lg, userTeamIndex(lg), PLAYERS, byId, new RNG(year + 1)), PLAYERS, byId);
+    // A capped league shops before it drafts, so the market has to settle
+    // before there is a draft to run.
+    closeFreeAgency(lg, PLAYERS, byId);
     autoDraftAll(lg, lg.draft, PLAYERS, new RNG(100 + year));
     startSeason(lg, byId);
     for (let i = 0; i < lg.teams.length; i++) {
