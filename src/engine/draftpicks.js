@@ -213,10 +213,9 @@ export function projectPickTrade(league, draft, pool, byId, aIdx, bIdx, aGives, 
  * it, so each further question costs one draft instead of two. It also exposes
  * `slotValue`, which is what the free half buys: the before-world knows which
  * player every pick slot actually produced, so a club's own board prices a
- * swap without simulating anything. Treat that as a hint and nothing more —
- * measured against the real projection where it is used it correlates r =
- * -0.05, and it earns its place only by ordering candidates slightly better
- * than not ordering them at all (see `makePickOffers`).
+ * swap without simulating anything. Measured against the real projection where
+ * it is used it correlates about 0.7, which is enough to sort candidates and
+ * nowhere near enough to price one — the projection still decides.
  */
 export function pickTradeProjector(league, draft, pool, byId) {
   const before = sandbox(league, draft);
@@ -426,14 +425,17 @@ export function pickOfferCandidates(league, draft, pool, byId, rng, { projector 
   //
   // How much this is worth was measured over ninety-eight turns, at a budget
   // of four: ordering by the club's gain finds an offer on 30% of turns
-  // against 22% for leaving the candidates in the order they were built. It is
-  // a weak signal and it is honest to say so — a plausible-looking alternative,
-  // ordering by the worse of the two sides on the theory that only near-even
-  // swaps can pass both bars, measured 7%, and ordering by the player's side
-  // 14%. So this is the best of the four tried and not much better than none.
-  // What it is not is a substitute for the projection: paired against the real
-  // answer at the point this actually runs, the board estimate of the club's
-  // gain correlates r = -0.05. It sorts; it does not decide.
+  // against 22% for leaving the candidates in the order they were built. Two
+  // plausible-looking alternatives are worse — ordering by the worse of the two
+  // sides, on the theory that only near-even swaps can pass both bars, managed
+  // 7%, and ordering by the player's side 14%.
+  //
+  // An earlier version of this comment claimed the estimate correlates r =
+  // -0.05 with the real projection, and that was wrong. It came from one
+  // narrow slice — three twelve-club leagues against five opponents — and does
+  // not survive contact with any other sample: the same measurement reads 0.66
+  // to 0.73 at six seeds, at eleven opponents, and at thirty-two clubs. It is a
+  // decent ranker. It still does not decide anything; the projection does.
   for (const c of candidates) c.guess = proj.slotValue(c.a, c.tp, c.mp);
   candidates.sort((x, y) => y.guess - x.guess);
   return { user: u, round: draft.round, projector: proj, candidates };

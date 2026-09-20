@@ -546,16 +546,22 @@ Four changes, in order of how much they bought:
 17.8 seconds to a worst single block of 0.82. The remaining block is one
 simulated draft, which is the floor without making `rollForward` resumable.
 
-**The ranking heuristic is weak and the code says so.** The before-world knows
-which player each pick slot produced, so a club's own board prices a swap for
-free. Measured over ninety-eight turns at a budget of four it finds an offer on
-30% of turns against 22% for no ranking at all — and against the real
-projection at the point it runs it correlates r = −0.05. An earlier measurement
-of the same idea gave r = 0.84 and was wrong: it pooled candidates from a fresh
-draft where pick numbers span the whole board, so it measured "trading pick 3
-for pick 50 is bad", which is not the question. Two plausible alternatives were
-tried and are worse (ordering by the worse of the two sides, 7%; by the
-player's side, 14%).
+**The ranking heuristic, and two wrong numbers published about it.** The
+before-world knows which player each pick slot produced, so a club's own board
+prices a swap for free. Measured over ninety-eight turns at a budget of four it
+finds an offer on 30% of turns against 22% for no ranking at all, and two
+plausible alternatives are worse (ordering by the worse of the two sides, 7%;
+by the player's side, 14%).
+
+Its correlation with the real projection was published twice and wrong both
+times. First as r = 0.84, from candidates pooled on a *fresh* draft where pick
+numbers span the whole board — that measured "trading pick 3 for pick 50 is
+bad", which is not the question. Then, correcting it, as r = −0.05, which came
+from a single narrow slice: three twelve-club leagues against five opponents.
+That slice is reproducible and unrepresentative. The same measurement reads
+0.66 at six seeds and eleven opponents, 0.71 at thirty-two clubs, 0.73 on the
+original slice's league size. **It correlates about 0.7.** It sorts well enough
+and prices nothing; the projection decides.
 
 **Everything else on a render path was measured and is fine**: the auction's
 price guide 2–5 ms, position scarcity and lot advice under 1 ms, the free-agent
