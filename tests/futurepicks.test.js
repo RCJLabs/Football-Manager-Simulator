@@ -63,7 +63,7 @@ test('once a season is played a club holds its own three rounds', () => {
   assert.equal(s, lg.season + 1);
   const hand = futureHand(lg, 0);
   assert.equal(hand.length, FUTURE_ROUNDS);
-  assert.deepEqual(hand.map((p) => p.round), [1, 2, 3]);
+  assert.deepEqual(hand.map((p) => p.round), [1, 2]);
   for (const p of hand) { assert.equal(p.from, 0); assert.equal(p.season, s); }
   // Nobody owes anybody anything yet, so the table is empty.
   assert.equal((lg.owedPicks || []).length, 0);
@@ -119,9 +119,8 @@ test('a weak club’s future first is worth more than a strong club’s', () => 
   assert.ok(hi > lo * 1.5, `first pick ${hi.toFixed(0)} is not clearly worth more than last ${lo.toFixed(0)}`);
   // And a later round is worth less than an earlier one from the same club.
   assert.ok(futurePickValue(lg, byId, mk(first, 2), slots) < hi);
-  assert.ok(futurePickValue(lg, byId, mk(first, 3), slots) < futurePickValue(lg, byId, mk(first, 2), slots));
   // The discount and the odds of the pick never being made are both in there.
-  assert.ok(madeOdds(lg, 1) === 1 && madeOdds(lg, 3) < 1);
+  assert.ok(madeOdds(lg, 1) === 1 && madeOdds(lg, 2) < 1);
   assert.ok(FUTURE_DISCOUNT > 0 && FUTURE_DISCOUNT <= 1);
 });
 

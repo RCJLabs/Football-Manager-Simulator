@@ -607,6 +607,65 @@ stronger, is guessed to finish higher, and so its own future pick falls later
 and is worth less. That falls out of the arithmetic rather than being written
 in, and it is the right answer.
 
+### Picks in player trades
+
+Once a pick is priced in lineup points, the in-season trade room can carry one,
+and the natural deal — a player for a pick — becomes available. What it is
+*not* is a way to buy a star.
+
+**A pick closes a gap; it does not buy a player.** Measured at the deadline,
+buying somebody outright for next year's first cleared both bars **0 of 564
+times**, and the two sides' gains summed to −44.5. That is not the pick's
+fault. A roster is twenty-seven slots and always full, so the selling club
+loses a starter and signs a replacement off the street — the full cost — while
+the buying club must release its own worst man at that position and gains only
+the difference. A nought-for-one is structurally lossy whatever the price.
+
+Where a pick does work is as the balancing item on a deal that nearly happened.
+Over 10,527 one-for-one pairings at matching positions, **13 cleared both bars
+on their own and a pick tipped 35 more over** — roughly tripling what a club
+will sign. In **28 of those 35 it was the club paying**, which is the shape a
+general manager recognises: you want the player, so you add a pick. That is why
+`makeAiOffers` tries a pick only against its best near miss rather than against
+every candidate: a deal that was never close stays not close, and the pass
+costs one comparison instead of tripling a loop that already runs 162
+validations a club.
+
+**A pick is worth more at the deadline than in the spring, and measurably so.**
+`projectedSlots` now blends the roster with the season's record. Over 6,912
+club-weeks:
+
+| | ranks clubs against their finish |
+| --- | --- |
+| roster strength, any week | r = 0.59 |
+| record alone, week 5 | r = 0.59 |
+| record alone, final week | r = 0.96 |
+| the blend, week 12 (the deadline) | r = 0.86 |
+
+The record overtakes the roster around week five and the blend beats either at
+every single week. The weight is `played / (played + 4)`, fitted to that table:
+it averages r = 0.799 across the season against a per-week optimum barely above
+it. With no games played the record term weighs nothing, which is exactly the
+offseason case — so the draft room's valuation is untouched by any of this.
+
+**Two rounds, not three.** A keeper draft's value collapses inside the first
+round: at thirty-two clubs a round-1 pick is worth 14.7 points to its holder, a
+round-2 pick 0.1, and a round-3 pick 0.0. Across those 10,527 deals a first
+closed 32 and a second closed 3; a third closed none. Two keeps the throw-in
+that occasionally matters and stops both rooms listing rows worth nothing.
+
+**`owedpicks.js` exists because of an import cycle, and the split is real.**
+`transactions.js` has to move a pick when a deal goes through, and
+`futurepicks.js` needs `lineupStrength` from `transactions.js` to guess where a
+club will finish. One module holding both puts a cycle between them — which
+does resolve, over hoisted function declarations, by luck; turn
+`lineupStrength` into a `const` one day and the app stops loading. So the
+bookkeeping half (who owns what, and moving it) sits in `owedpicks.js`, which
+imports nothing that can come back around, and the valuation half stays in
+`futurepicks.js` and re-exports it. For the same reason `evaluateTrade` takes
+`pickDelta` as a number and `makeAiOffers` takes a `picks` handle: both are
+valued by the caller, because this file cannot value them itself.
+
 ## Why the interface froze (performance)
 
 A report that pressing a button locked the game for a moment — starting a

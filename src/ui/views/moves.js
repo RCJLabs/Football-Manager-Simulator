@@ -9,6 +9,10 @@ import {
   slotsAfterTrade, MAX_TRADE_IMBALANCE, MAX_TRADE_SIDE,
 } from '../../engine/transactions.js';
 import { openBlock, teamNeeds, bestAvailable, partingCost, findPlayers } from '../../engine/tradeblock.js';
+import {
+  futureHand, futurePicksOpen, futureLabel, futureSeason, futurePickValue, pickTradeDelta,
+  projectedSlots, slotBand, FUTURE_ROUNDS,
+} from '../../engine/futurepicks.js';
 import { faBoard, keeperAdvice } from '../../engine/market.js';
 import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge, outBadge } from '../components.js';
 import { emptySlotAt } from '../../engine/transactions.js';
@@ -16,6 +20,10 @@ import { shownOverall } from '../../engine/scouting.js';
 
 const ui = {
   tab: 'fa', pos: 'ALL', era: 'ALL', q: '', limit: 60, partner: null, give: new Set(), get: new Set(),
+  // Next year's picks, kept apart from the players because they travel as a
+  // separate argument all the way down: a pick is not a roster slot, so it
+  // never squares or unbalances a position count.
+  givePicks: new Set(), getPicks: new Set(),
   // The trade finder keeps its own filters: it searches every club's roster,
   // not the free-agent pool the first tab is looking at.
   findQ: '', findPos: '', blockOnly: true, findLimit: 10,
@@ -93,12 +101,14 @@ export function view(root, params, ctx) {
   } else if (ui.tab === 'offers') {
     const card = (o) => {
       const them = league.teams[o.from];
-      const side = (ids, label) => `<div><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${label}</div><ul class="plist">${ids.map((id) => playerItem(ctx.byId.get(id), { attrs: false, meta: inj(ctx.byId.get(id)) })).join('')}</ul></div>`;
+      // An offer can carry next year's picks on either side, so each column
+      // lists the players and then whatever picks come with them.
+      const side = (ids, picks, label) => `<div><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${label}</div><ul class="plist">${ids.map((id) => playerItem(ctx.byId.get(id), { attrs: false, meta: inj(ctx.byId.get(id)) })).join('')}${(picks || []).map((p) => `<li class="prow pick-row"><div class="who"><div class="nm">${esc(futureLabel(league, p))}</div><div class="meta"><span class="muted">${esc(slotBand(league, ctx.byId, p.from, null))}</span></div></div></li>`).join('')}</ul></div>`;
       const verdict = o.userDelta > 4 ? ['Helps your lineup', 'var(--good)'] : o.userDelta >= -1 ? ['About even', 'var(--muted)'] : ['Costs your lineup', 'var(--bad)'];
       return `<div class="card tight" style="margin-bottom:.6rem">
         <div class="row between"><b>${teamChip(them).__raw} are calling</b><small class="muted">week ${o.week}</small></div>
         <p class="muted" style="margin:.2rem 0 .4rem;font-size:.85rem">${esc(o.note)}</p>
-        <div class="grid grid-2">${side(o.gives, 'You get')}${side(o.wants, 'You give')}</div>
+        <div class="grid grid-2">${side(o.gives, o.givesNext, 'You get')}${side(o.wants, o.wantsNext, 'You give')}</div>
         ${o.fills && (o.fills.signs.length || o.fills.releases.length) ? `<p class="notice" style="margin:.4rem 0 0;font-size:.8rem"><b>Uneven.</b> Taking it means you ${[
           o.fills.signs.length ? `sign ${o.fills.signs.map((id) => `<b>${esc(ctx.byId.get(id)?.name)}</b>`).join(' and ')}` : '',
           o.fills.releases.length ? `release ${o.fills.releases.map((id) => `<b>${esc(ctx.byId.get(id)?.name)}</b>`).join(' and ')}` : '',
@@ -165,11 +175,35 @@ export function view(root, params, ctx) {
       });
     }).join('')}</ul>`;
 
+    // --- Next year's picks, on both sides.
+    const picksOpen = futurePicksOpen(league);
+    const slots = picksOpen ? projectedSlots(league, ctx.byId) : null;
+    const myHand = picksOpen ? futureHand(league, u) : [];
+    const theirHand = picksOpen ? futureHand(league, ui.partner) : [];
+    const givePicks = myHand.filter((p) => ui.givePicks.has(p.key));
+    const getPicks = theirHand.filter((p) => ui.getPicks.has(p.key));
+    const pickRow = (p, side, chosen, owner) => `
+      <li class="prow pick-row ${chosen ? 'me' : ''}">
+        <div class="who"><div class="nm">${esc(futureLabel(league, p))}</div>
+          <div class="meta"><span class="muted">${esc(slotBand(league, ctx.byId, p.from, slots))} · worth ${futurePickValue(league, ctx.byId, p, slots, owner).toFixed(1)}</span></div>
+        </div>
+        <div class="act"><button class="btn sm ${chosen ? 'primary' : ''}" data-${side}="${esc(p.key)}">${chosen ? 'In' : 'Add'}</button></div>
+      </li>`;
+    const pickList = (hand, side, chosen, owner) => (hand.length
+      ? `<ul class="plist pick-list" style="margin-top:.35rem">${hand.map((p) => pickRow(p, side, chosen.has(p.key), owner)).join('')}</ul>`
+      : '<p class="muted" style="margin:.35rem 0 0;font-size:.8rem">No picks left to trade.</p>');
+
     // --- Squaring up, and what the deal does to your own lineup.
-    const v = give.length && get.length ? validateTrade(league, u, ui.partner, give, get, ctx.byId, ctx.players) : null;
+    const hasSomething = (give.length || givePicks.length) && (get.length || getPicks.length);
+    const v = hasSomething
+      ? validateTrade(league, u, ui.partner, give, get, ctx.byId, ctx.players, { aPicks: givePicks, bPicks: getPicks })
+      : null;
     const strengthNow = lineupStrength(me.slots, ctx.byId, league);
     const mineAfter = v && v.ok ? slotsAfterTrade(league, u, give, get, ctx.players, ctx.byId) : null;
-    const myDelta = mineAfter ? Math.round((lineupStrength(mineAfter.slots, ctx.byId, league) - strengthNow) * 10) / 10 : null;
+    const myPickDelta = picksOpen ? pickTradeDelta(league, ctx.byId, u, givePicks, getPicks, slots) : 0;
+    const myDelta = mineAfter
+      ? Math.round((lineupStrength(mineAfter.slots, ctx.byId, league) - strengthNow + myPickDelta) * 10) / 10
+      : null;
     const nameOf = (id) => esc(ctx.byId.get(id)?.name || id);
     const paperwork = (fill, who) => {
       if (!fill || (!fill.signs.length && !fill.releases.length)) return '';
@@ -211,17 +245,18 @@ export function view(root, params, ctx) {
         <select id="partner" style="max-width:18rem">${league.teams.map((t, i) => (t.isUser ? '' : html`<option value="${i}" ${i === ui.partner ? 'selected' : ''}>${t.abbr} · ${t.name} (${t.record.w}-${t.record.l})</option>`))}</select>
       </div>
       <div class="grid grid-2" style="margin-top:.6rem">
-        <div class="card tight"><h3>You give <small class="muted">(${teamChip(me, { abbr: true })} · strength ${strengthNow})</small></h3>${raw(giveList)}</div>
-        <div class="card tight"><h3>You get <small class="muted">(${teamChip(partner, { abbr: true })})</small></h3>${raw(getList)}</div>
+        <div class="card tight"><h3>You give <small class="muted">(${teamChip(me, { abbr: true })} · strength ${strengthNow})</small></h3>${raw(giveList)}${picksOpen ? html`<h4 style="margin:.6rem 0 0">${futureSeason(league)} picks</h4>${raw(pickList(myHand, 'givepick', ui.givePicks, u))}` : ''}</div>
+        <div class="card tight"><h3>You get <small class="muted">(${teamChip(partner, { abbr: true })})</small></h3>${raw(getList)}${picksOpen ? html`<h4 style="margin:.6rem 0 0">${futureSeason(league)} picks</h4>${raw(pickList(theirHand, 'getpick', ui.getPicks, u))}` : ''}</div>
       </div>
+      ${picksOpen ? html`<p class="muted" style="margin:.5rem 0 0;font-size:.78rem">Next year's first two rounds. Where a pick falls is a guess, made from each club's roster <b>and how its season is going</b> — by the deadline that ranks clubs against their finish about as well as the standings do, which is why a pick is worth more here than in the spring. A pick <b>closes a gap</b> rather than buying a star: measured, a first is worth about fifteen points of lineup and a second under one.</p>` : ''}
       ${raw(squaring)}
       <div class="card tight" style="margin-top:.6rem;position:sticky;bottom:.5rem;z-index:5">
         <div class="row between">
-          <div class="muted" style="font-size:.85rem">${give.length && get.length
+          <div class="muted" style="font-size:.85rem">${hasSomething
             ? (v.ok
-              ? html`<b style="color:${myDelta > 0 ? 'var(--good)' : myDelta < 0 ? 'var(--bad)' : 'var(--muted)'}">${myDelta > 0 ? '+' : ''}${myDelta}</b> to your lineup · ${give.length} for ${get.length}${v.uneven ? ' · uneven' : ''}`
+              ? html`<b style="color:${myDelta > 0 ? 'var(--good)' : myDelta < 0 ? 'var(--bad)' : 'var(--muted)'}">${myDelta > 0 ? '+' : ''}${myDelta}</b> to your lineup${myPickDelta ? html` <span class="muted">(${myPickDelta > 0 ? '+' : ''}${Math.round(myPickDelta * 10) / 10} of it picks)</span>` : ''} · ${give.length + givePicks.length} for ${get.length + getPicks.length}${v.uneven ? ' · uneven' : ''}`
               : html`<span style="color:var(--bad)">${v.reason}</span>`)
-            : 'Select players on both sides.'}</div>
+            : 'Select something on both sides.'}</div>
           <div class="btn-group"><button class="btn ghost sm" id="clearTrade">Clear</button><button class="btn primary" id="propose" ${v && v.ok && tradesOpen(league) ? '' : 'disabled'}>Propose</button></div>
         </div>
       </div>`;
@@ -245,7 +280,9 @@ export function view(root, params, ctx) {
           return bits.length ? `${esc(club.abbr)} ${bits.join(', ')}` : '';
         }).filter(Boolean).join('; ')}</small>`
         : '';
-      return `<li class="${team.isUser || other.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} sent <b>${t.gives.map((id) => esc(ctx.byId.get(id)?.name)).join(', ')}</b> to ${teamChip(other, { abbr: true }).__raw} for <b>${t.gets.map((id) => esc(ctx.byId.get(id)?.name)).join(', ')}</b>${tail}</li>`;
+      // A deal can be all picks and no players, so both halves are named.
+      const side = (ids, picks) => [...ids.map((id) => esc(ctx.byId.get(id)?.name)), ...(picks || []).map(esc)].join(', ') || 'nothing';
+      return `<li class="${team.isUser || other.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} sent <b>${side(t.gives, t.givesNext)}</b> to ${teamChip(other, { abbr: true }).__raw} for <b>${side(t.gets, t.getsNext)}</b>${tail}</li>`;
     }).join('')}</ul>`) : html`<p class="empty">No transactions yet.</p>`;
   }
 
@@ -271,7 +308,7 @@ export function view(root, params, ctx) {
     const pos = e.target.selectionStart; redraw();
     const input = root.querySelector('#q'); input.focus(); input.setSelectionRange(pos, pos);
   });
-  el.querySelector('#partner')?.addEventListener('change', (e) => { ui.partner = Number(e.target.value); ui.get.clear(); redraw(); });
+  el.querySelector('#partner')?.addEventListener('change', (e) => { ui.partner = Number(e.target.value); ui.get.clear(); ui.getPicks.clear(); redraw(); });
   el.querySelector('#findPos')?.addEventListener('click', (e) => { const b = e.target.closest('[data-fpos]'); if (b) { ui.findPos = b.dataset.fpos; ui.findLimit = 10; redraw(); } });
   el.querySelector('#blockOnly')?.addEventListener('change', (e) => { ui.blockOnly = e.target.checked; ui.findLimit = 10; redraw(); });
   el.querySelector('#findMore')?.addEventListener('click', () => { ui.findLimit += 15; redraw(); });
@@ -280,23 +317,40 @@ export function view(root, params, ctx) {
     const caret = e.target.selectionStart; redraw();
     const input = root.querySelector('#findQ'); input.focus(); input.setSelectionRange(caret, caret);
   });
-  el.querySelector('#clearTrade')?.addEventListener('click', () => { ui.give.clear(); ui.get.clear(); redraw(); });
+  el.querySelector('#clearTrade')?.addEventListener('click', () => { ui.give.clear(); ui.get.clear(); ui.givePicks.clear(); ui.getPicks.clear(); redraw(); });
   el.querySelector('#propose')?.addEventListener('click', () => {
     const give = [...ui.give], get = [...ui.get];
+    const openNow = futurePicksOpen(league);
+    const mine = openNow ? futureHand(league, u).filter((p) => ui.givePicks.has(p.key)) : [];
+    const theirs = openNow ? futureHand(league, ui.partner).filter((p) => ui.getPicks.has(p.key)) : [];
     let r;
-    ctx.update((s) => { r = proposeTrade(s.league, u, ui.partner, give, get, ctx.byId, ctx.players); }, { silent: true });
+    ctx.update((s) => {
+      // The club's own side of the picks, on the club's own books — a
+      // contender and a rebuilding side put different numbers on the same
+      // pair, which is the whole reason shopping one around is worth doing.
+      const theirDelta = openNow
+        ? pickTradeDelta(s.league, ctx.byId, ui.partner, theirs, mine, projectedSlots(s.league, ctx.byId))
+        : 0;
+      r = proposeTrade(s.league, u, ui.partner, give, get, ctx.byId, ctx.players, {
+        userPicks: mine, aiPicks: theirs, pickDelta: theirDelta,
+      });
+    }, { silent: true });
     const partner = league.teams[ui.partner];
     const m = modal(html`<h2>${r.accepted ? 'Deal' : 'No deal'}</h2>
       <p>${r.reason}</p>
-      ${r.accepted ? html`<p class="muted">${give.map((id) => ctx.byId.get(id).name).join(', ')} to ${partner.name}; ${get.map((id) => ctx.byId.get(id).name).join(', ')} join you.${r.fills?.a?.signs?.length ? ` You signed ${r.fills.a.signs.map((id) => ctx.byId.get(id).name).join(' and ')}.` : ''}${r.fills?.a?.releases?.length ? ` ${r.fills.a.releases.map((id) => ctx.byId.get(id).name).join(' and ')} released.` : ''} Check your depth chart.</p>` : ''}
+      ${r.accepted ? html`${[...give.map((id) => ctx.byId.get(id).name), ...mine.map((p) => futureLabel(league, p))].join(', ')} to ${partner.name}; ${[...get.map((id) => ctx.byId.get(id).name), ...theirs.map((p) => futureLabel(league, p))].join(', ')} join you.${r.fills?.a?.signs?.length ? ` You signed ${r.fills.a.signs.map((id) => ctx.byId.get(id).name).join(' and ')}.` : ''}${r.fills?.a?.releases?.length ? ` ${r.fills.a.releases.map((id) => ctx.byId.get(id).name).join(' and ')} released.` : ''} Check your depth chart.</p>` : ''}
       <div class="row"><button class="btn primary" data-close>OK</button>${r.accepted ? html`<a class="btn" href="#/team/${u}/depth">Depth chart</a>` : ''}</div>`);
     void m;
-    if (r.accepted) { ui.give.clear(); ui.get.clear(); ui.tab = 'log'; }
+    if (r.accepted) { ui.give.clear(); ui.get.clear(); ui.givePicks.clear(); ui.getPicks.clear(); ui.tab = 'log'; }
     redraw();
   });
   el.addEventListener('click', (e) => {
     const show = e.target.closest('[data-show]');
     if (show) { playerModal(ctx.byId.get(show.dataset.show)); return; }
+    const gp = e.target.closest('[data-givepick]');
+    if (gp) { const k = gp.dataset.givepick; ui.givePicks.has(k) ? ui.givePicks.delete(k) : ui.givePicks.add(k); redraw(); return; }
+    const tp = e.target.closest('[data-getpick]');
+    if (tp) { const k = tp.dataset.getpick; ui.getPicks.has(k) ? ui.getPicks.delete(k) : ui.getPicks.add(k); redraw(); return; }
     const g = e.target.closest('[data-give]');
     if (g) { const id = g.dataset.give; if (ui.give.has(id)) ui.give.delete(id); else if (ui.give.size < MAX_TRADE_SIDE) ui.give.add(id); else toast(`${MAX_TRADE_SIDE} players a side at most`); redraw(); return; }
     const tgt = e.target.closest('[data-target]');

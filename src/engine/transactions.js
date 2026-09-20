@@ -23,6 +23,10 @@ import { standings, isPro, sortDepthCharts, playoffFieldSize } from './season.js
 import { availability, weeksLeft, SEASON_ENDING, irList, aiManageIr, irCapacity } from './injuries.js';
 import { aiAdjustStrategies } from './gm.js';
 
+import {
+  futureOwner, applyFutureTrade, validateFuturePicks, futureLabel,
+} from './owedpicks.js';
+
 export const DEFAULT_WAIVER_LIMIT = 2;
 export const MAX_TRADE_SIDE = 3;
 /**
@@ -371,11 +375,20 @@ export function slotsAfterTrade(league, teamIdx, gives, gets, pool, byId) {
 }
 
 /** Structural checks only. Returns { ok, reason }. */
-export function validateTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = null) {
+export function validateTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = null, { aPicks = [], bPicks = [] } = {}) {
   if (!tradesOpen(league)) return { ok: false, reason: league.phase === 'season' ? `The trade deadline passed after week ${tradeDeadlineWeek(league)}` : 'Trades are open during the regular season only' };
   if (aIdx === bIdx) return { ok: false, reason: 'Pick another club' };
-  if (!aGives.length || !bGives.length) return { ok: false, reason: 'Both sides have to give something' };
+  // A pick counts as something given, which is the point of having them here:
+  // a club can buy a player outright for next year's first and send nobody
+  // back. That is the deal the deadline is actually for.
+  if (!aGives.length && !aPicks.length) return { ok: false, reason: 'Both sides have to give something' };
+  if (!bGives.length && !bPicks.length) return { ok: false, reason: 'Both sides have to give something' };
   if (aGives.length > MAX_TRADE_SIDE || bGives.length > MAX_TRADE_SIDE) return { ok: false, reason: `At most ${MAX_TRADE_SIDE} players a side` };
+  for (const [idx, picks] of [[aIdx, aPicks], [bIdx, bPicks]]) {
+    if (picks.length > MAX_TRADE_SIDE) return { ok: false, reason: `At most ${MAX_TRADE_SIDE} picks a side` };
+    const pv = validateFuturePicks(league, idx, picks);
+    if (!pv.ok) return pv;
+  }
   if (new Set(aGives).size !== aGives.length || new Set(bGives).size !== bGives.length) return { ok: false, reason: 'A player is listed twice' };
   const a = league.teams[aIdx], b = league.teams[bIdx];
   for (const id of aGives) if (!slotOf(a, id)) return { ok: false, reason: `${byId.get(id)?.name || id} is not on ${a.abbr}` };
@@ -383,7 +396,10 @@ export function validateTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = n
   const ca = posCounts(aGives, byId), cb = posCounts(bGives, byId);
   const keys = new Set([...Object.keys(ca), ...Object.keys(cb)]);
   const even = [...keys].every((k) => (ca[k] || 0) === (cb[k] || 0));
-  if (even) return { ok: true, fills: { a: { signs: [], releases: [] }, b: { signs: [], releases: [] } } };
+  // Picks are not players, so they never leave a roster crooked: the position
+  // count is decided by the player halves alone, and a picks-for-picks swap is
+  // as even as a like-for-like one.
+  if (even) return { ok: true, picks: !!(aPicks.length || bPicks.length), fills: { a: { signs: [], releases: [] }, b: { signs: [], releases: [] } } };
   // Uneven. Legal only if both clubs can square their own roster afterwards,
   // which is a question about the free-agent pool, so it needs one.
   if (!pool) return { ok: false, reason: `Positions must match: ${a.abbr} offers ${fmtCounts(ca)}, ${b.abbr} offers ${fmtCounts(cb)}` };
@@ -397,7 +413,7 @@ export function validateTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = n
   if (clash) return { ok: false, reason: `Both clubs would need to sign ${byId.get(clash)?.name || clash}` };
   if (!slotsAfterTrade(league, aIdx, aGives, bGives, pool, byId)) return { ok: false, reason: `${a.abbr} cannot field a roster after that` };
   if (!slotsAfterTrade(league, bIdx, bGives, aGives, pool, byId)) return { ok: false, reason: `${b.abbr} cannot field a roster after that` };
-  return { ok: true, uneven: true, fills: { a: fa, b: fb } };
+  return { ok: true, uneven: true, picks: !!(aPicks.length || bPicks.length), fills: { a: fa, b: fb } };
 }
 
 function fmtCounts(c) {
@@ -423,7 +439,7 @@ function slotsAfter(team, gives, gets, byId) {
  * famous name at a position it is already strong at is worth less to it than
  * a plain starter where it is thin. Sharper GMs want more out of a deal.
  */
-export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null) {
+export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null, { pickDelta = 0 } = {}) {
   const team = league.teams[aiIdx];
   const before = lineupStrength(team.slots, byId, league);
   // On an uneven deal the club judges the roster it would actually field —
@@ -434,7 +450,10 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null)
   const outcome = uneven ? slotsAfterTrade(league, aiIdx, aiGives, aiGets, pool, byId) : { slots: slotsAfter(team, aiGives, aiGets, byId) };
   if (!outcome) return { accept: false, delta: 0, before, after: before, reason: `${team.abbr} could not field a roster after that.` };
   const after = lineupStrength(outcome.slots, byId, league);
-  const delta = Math.round((after - before) * 10) / 10;
+  // `pickDelta` arrives already valued, in the same lineup points the rest of
+  // this is in, because working it out needs the finish estimator and that
+  // needs `lineupStrength` from this file. See owedpicks.js on the cycle.
+  const delta = Math.round((after - before + pickDelta) * 10) / 10;
   const premium = Math.round(leveragePremium(aiGives, aiGets, byId) * 10) / 10;
   const greed = aiGreed(team, league) + premium;
   const accept = delta >= greed;
@@ -525,8 +544,8 @@ export function aiTrades(league, byId, rng, { pairs = 4, pool = null } = {}) {
   return done;
 }
 
-export function executeTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = null) {
-  const v = validateTrade(league, aIdx, bIdx, aGives, bGives, byId, pool);
+export function executeTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = null, { aPicks = [], bPicks = [] } = {}) {
+  const v = validateTrade(league, aIdx, bIdx, aGives, bGives, byId, pool, { aPicks, bPicks });
   if (!v.ok) throw new Error(v.reason);
   const a = league.teams[aIdx], b = league.teams[bIdx];
   const fa = v.fills.a, fb = v.fills.b;
@@ -536,7 +555,12 @@ export function executeTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = nu
   a.slots = outA.slots;
   b.slots = outB.slots;
   initWaivers(league);
+  applyFutureTrade(league, aIdx, bIdx, aPicks, bPicks);
   const tx = { week: league.week, season: league.season, type: 'trade', team: aIdx, other: bIdx, gives: aGives.slice(), gets: bGives.slice() };
+  if (aPicks.length || bPicks.length) {
+    tx.givesNext = aPicks.map((p) => futureLabel(league, p));
+    tx.getsNext = bPicks.map((p) => futureLabel(league, p));
+  }
   // An uneven deal carries its own paperwork, so the log reads as one move.
   if (v.uneven) {
     tx.signs = [fa.signs.slice(), fb.signs.slice()];
@@ -570,12 +594,14 @@ export function executeTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = nu
 }
 
 /** Ask an AI club and, if it agrees, do the deal. */
-export function proposeTrade(league, userIdx, aiIdx, userGives, aiGives, byId, pool = null) {
-  const v = validateTrade(league, userIdx, aiIdx, userGives, aiGives, byId, pool);
+export function proposeTrade(league, userIdx, aiIdx, userGives, aiGives, byId, pool = null, { userPicks = [], aiPicks = [], pickDelta = 0 } = {}) {
+  const v = validateTrade(league, userIdx, aiIdx, userGives, aiGives, byId, pool, { aPicks: userPicks, bPicks: aiPicks });
   if (!v.ok) return { ok: false, accepted: false, reason: v.reason };
-  const ev = evaluateTrade(league, aiIdx, aiGives, userGives, byId, pool);
+  // `pickDelta` is the club's side of the picks, which the caller values —
+  // this file cannot, without importing the thing that imports it.
+  const ev = evaluateTrade(league, aiIdx, aiGives, userGives, byId, pool, { pickDelta });
   if (!ev.accept) return { ok: true, accepted: false, reason: ev.reason, delta: ev.delta };
-  const tx = executeTrade(league, userIdx, aiIdx, userGives, aiGives, byId, pool);
+  const tx = executeTrade(league, userIdx, aiIdx, userGives, aiGives, byId, pool, { aPicks: userPicks, bPicks: aiPicks });
   return { ok: true, accepted: true, reason: ev.reason, delta: ev.delta, tx, fills: v.fills };
 }
 
@@ -604,7 +630,24 @@ const offerSignature = (from, gives, wants) => `${from}:${gives.slice().sort().j
  * knows an insulting offer is a wasted call. The human decides; nothing is
  * executed here. An offer the human turns down is not made again this season.
  */
-export function makeAiOffers(league, byId, rng, { max = 2, pool = null } = {}) {
+/**
+ * Clubs ringing the human, and — when `picks` is supplied — closing the gap
+ * with next year's.
+ *
+ * `picks` is handed in rather than imported, because valuing one needs the
+ * finish estimator and that needs `lineupStrength` from this file. It is
+ * `{ hand(teamIdx), value(pick, holderIdx) }`; without it this behaves exactly
+ * as it did before picks existed.
+ *
+ * A pick only ever rescues a deal that already nearly worked. Measured over
+ * 10,527 one-for-one pairings that failed a bar, a pick tipped 35 of them
+ * over — and in 28 of those it was the *club* paying, which is the shape a
+ * general manager recognises: you want the player, so you add a pick. Trying
+ * picks on every candidate rather than on the near miss would triple the work
+ * on a path that already runs 162 validations a club, for deals that were
+ * never close.
+ */
+export function makeAiOffers(league, byId, rng, { max = 2, pool = null, picks = null } = {}) {
   initOffers(league);
   if (!tradesOpen(league)) return [];
   const u = league.teams.findIndex((t) => t.isUser);
@@ -626,7 +669,7 @@ export function makeAiOffers(league, byId, rng, { max = 2, pool = null } = {}) {
     const activity = ACTIVITY[A.gm] ?? 0.5;
     if (rng && !rng.chance(activity * 0.8)) continue;
     const baseA = lineupStrength(A.slots, byId, league);
-    let best = null;
+    let best = null, nearMiss = null;
     for (const P of positions) for (const Q of positions) {
       if (P === Q) continue;
       const aP = bestBench(A, P) || worstStarter(A, P), aQ = worstStarter(A, Q);
@@ -643,22 +686,55 @@ export function makeAiOffers(league, byId, rng, { max = 2, pool = null } = {}) {
         if (!outA || !outU) continue;
         const gainA = lineupStrength(outA.slots, byId, league) - baseA - leveragePremium(gives, wants, byId);
         const gainU = lineupStrength(outU.slots, byId, league) - baseU;
-        if (gainA < aiGreed(A, league) || gainU < -OFFER_FAIR_MARGIN) continue;
+        const greed = aiGreed(A, league);
+        if (gainA < greed || gainU < -OFFER_FAIR_MARGIN) {
+          // Keep the closest thing to a deal, for the pick pass below.
+          if (picks && gainA + gainU > (nearMiss?.total ?? -Infinity)) {
+            nearMiss = { gives, wants, gainA, gainU, need: Q, surplus: P, uneven: !!v.uneven, fills: v.fills, total: gainA + gainU };
+          }
+          continue;
+        }
         if (!best || gainA > best.aiGain) best = { gives, wants, aiGain: Math.round(gainA * 10) / 10, userDelta: Math.round(gainU * 10) / 10, need: Q, surplus: P, uneven: !!v.uneven, fills: v.fills };
       }
     }
+    if (!best && picks && nearMiss) best = sweetenWithPick(league, a, u, nearMiss, picks, aiGreed(A, league));
     if (!best) continue;
     made.push({
       id: `${league.season}-${league.week}-${a}-${league.offers.length + made.length}`,
       season: league.season, week: league.week, from: a,
       gives: best.gives, wants: best.wants, aiGain: best.aiGain, userDelta: best.userDelta, uneven: best.uneven,
+      givesNext: best.givesNext || [], wantsNext: best.wantsNext || [],
       // What accepting would cost the human in paperwork, so the card can say so.
       fills: best.uneven ? { signs: best.fills.b.signs.slice(), releases: best.fills.b.releases.slice() } : null,
-      note: `${A.abbr} are thin at ${best.need} and deep at ${best.surplus}.`,
+      note: `${A.abbr} are thin at ${best.need} and deep at ${best.surplus}.${best.givesNext?.length ? ` They will add ${best.givesNext.map((p) => futureLabel(league, p)).join(' and ')} to get it done.` : ''}${best.wantsNext?.length ? ` They want ${best.wantsNext.map((p) => futureLabel(league, p)).join(' and ')} on top.` : ''}`,
     });
   }
   league.offers.push(...made);
   return made;
+}
+
+/**
+ * One pick, on whichever side is behind, tried against a deal that nearly
+ * worked. Returns an offer shape or null.
+ */
+function sweetenWithPick(league, a, u, near, picks, greed) {
+  const tryOne = (pick, from) => {
+    // The club pays: it loses the pick's worth on its own books and the human
+    // gains it on theirs. The other way round when the human pays.
+    const worth = { a: picks.value(pick, a), u: picks.value(pick, u) };
+    const gainA = from === a ? near.gainA - worth.a : near.gainA + worth.a;
+    const gainU = from === a ? near.gainU + worth.u : near.gainU - worth.u;
+    if (gainA < greed || gainU < -OFFER_FAIR_MARGIN) return null;
+    return {
+      gives: near.gives, wants: near.wants, need: near.need, surplus: near.surplus,
+      uneven: near.uneven, fills: near.fills,
+      givesNext: from === a ? [pick] : [], wantsNext: from === a ? [] : [pick],
+      aiGain: Math.round(gainA * 10) / 10, userDelta: Math.round(gainU * 10) / 10,
+    };
+  };
+  for (const pick of picks.hand(a)) { const r = tryOne(pick, a); if (r) return r; }
+  for (const pick of picks.hand(u)) { const r = tryOne(pick, u); if (r) return r; }
+  return null;
 }
 
 /** Take a deal. Throws with a readable reason if it no longer stands. */
@@ -672,9 +748,10 @@ export function acceptOffer(league, offerId, byId, pool = null) {
   // without it. Say so plainly rather than let validateTrade report a position
   // mismatch on a deal the game proposed itself.
   if (o.uneven && !pool) throw new Error('That offer is uneven; accepting it needs the free-agent pool');
-  const v = validateTrade(league, u, o.from, o.wants, o.gives, byId, pool);
+  const sides = { aPicks: o.wantsNext || [], bPicks: o.givesNext || [] };
+  const v = validateTrade(league, u, o.from, o.wants, o.gives, byId, pool, sides);
   if (!v.ok) throw new Error(v.reason);
-  const tx = executeTrade(league, u, o.from, o.wants, o.gives, byId, pool);
+  const tx = executeTrade(league, u, o.from, o.wants, o.gives, byId, pool, sides);
   o.answered = 'accepted';
   // Anything else that named a traded player is off.
   const moved = new Set([...o.gives, ...o.wants]);
@@ -734,7 +811,7 @@ export function rostersValid(league, byId) {
  * file their claims, the wire resolves, then the calendar moves. Rosters are
  * frozen in the playoffs, so this is a plain advance there.
  */
-export function advanceWeekWithMoves(league, byId, pool, rng, advance) {
+export function advanceWeekWithMoves(league, byId, pool, rng, advance, { picks = null } = {}) {
   if (league.phase === 'season' && weekIsComplete(league)) {
     // The AI's week: read the table and drift the sliders, deal among themselves, then work the wire.
     const field = new Set(standings(league).slice(0, playoffFieldSize(league.teams.length)).map((r) => r.idx));
@@ -748,7 +825,7 @@ export function advanceWeekWithMoves(league, byId, pool, rng, advance) {
   // The new week's post: offers are waiting when the human opens the hub.
   if (moved && league.phase === 'season') {
     pruneOffers(league);
-    makeAiOffers(league, byId, rng, { pool });
+    makeAiOffers(league, byId, rng, { pool, picks });
   }
   return moved;
 }

@@ -4,7 +4,7 @@ import { GM_PERSONALITIES } from '../data/teams.js';
 import { overall } from './ratings.js';
 import { RNG } from './rng.js';
 import { scoutedOverall } from './scouting.js';
-import { applyOwedPicks } from './futurepicks.js';
+import { applyOwedPicks } from './owedpicks.js';
 
 export const TOTAL_ROUNDS = ROSTER_SLOTS.length;
 

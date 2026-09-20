@@ -59,16 +59,16 @@
 //     miserable thing to have traded for. A fantasy league keeps six and so
 //     drafts twenty-one rounds every year, and never voids one at all.
 
-import { ROSTER_SLOTS } from '../data/positions.js';
 import { keeperPickValue, usableRounds } from './pickvalue.js';
 import { lineupStrength } from './transactions.js';
 import { capOn } from './cap.js';
+import {
+  FUTURE_ROUNDS, futureSeason, futureHand, futureOwner, futurePicksOpen, snakeOverall,
+} from './owedpicks.js';
 
-/** How far ahead a pick may be traded. */
-export const FUTURE_YEARS = 1;
-
-/** How deep into next year's draft a pick is worth owning. */
-export const FUTURE_ROUNDS = 3;
+// The bookkeeping half lives in owedpicks.js, which imports nothing that could
+// come back around. Re-exported so nobody outside has to know there are two.
+export * from './owedpicks.js';
 
 /**
  * How much of next year a club will trade for this year — and why it has to
@@ -121,98 +121,42 @@ export function madeOdds(league, round) {
   return VOID_ODDS[round - 1] ?? 0.75;
 }
 
+export const RECORD_WEIGHT = 4;
+
 /**
- * Whether next year's picks may be traded yet.
+ * Where every club is guessed to pick next, worst first. Slot 1 is the first
+ * pick of a round.
  *
- * Not in a league's first draft, and the reason is the measurement above: the
- * estimate runs off the roster a club is about to field, and during the
- * opening draft nobody has one. Every club is a blank sheet with the same
- * twenty-seven empty slots, so every future pick would price identically and
- * the whole market would be a coin toss. One season played is the entry fee.
- */
-export function futurePicksOpen(league) {
-  return !!league && (league.history?.length || 0) > 0 && (league.teams?.length || 0) > 1;
-}
-
-/** The season a future pick belongs to. */
-export function futureSeason(league) {
-  return (league?.season ?? 1) + FUTURE_YEARS;
-}
-
-/** The owed-picks table, created on demand. Empty in every league where nobody has traded. */
-function table(league) {
-  league.owedPicks ??= [];
-  return league.owedPicks;
-}
-
-/** Who owns the pick club `from` would naturally make in this round. */
-export function futureOwner(league, season, round, from) {
-  const row = (league.owedPicks || []).find((p) => p.season === season && p.round === round && p.from === from);
-  return row ? row.to : from;
-}
-
-/**
- * Hand ownership over, collapsing the row when a pick finds its way home.
- *
- * Chains matter here: a pick can be traded on, and on again, and the club it
- * started with never sees it. Rewriting `to` in place rather than appending
- * means a pick that comes back to its original club leaves no trace, which is
- * what `futureOwner` falling through to `from` already assumes.
- */
-function setFutureOwner(league, season, round, from, to) {
-  const rows = table(league);
-  const i = rows.findIndex((p) => p.season === season && p.round === round && p.from === from);
-  if (to === from) { if (i >= 0) rows.splice(i, 1); return; }
-  if (i >= 0) rows[i].to = to;
-  else rows.push({ season, round, from, to });
-}
-
-/**
- * Every future pick a club holds: its own, minus what it has sent, plus what
- * it has been sent. Sorted by round and then by whose pick it is, so a club's
- * own comes before one it acquired.
- */
-export function futureHand(league, teamIdx, { season = null } = {}) {
-  if (!futurePicksOpen(league)) return [];
-  const s = season ?? futureSeason(league);
-  const out = [];
-  for (let round = 1; round <= FUTURE_ROUNDS; round++) {
-    for (let from = 0; from < league.teams.length; from++) {
-      if (futureOwner(league, s, round, from) !== teamIdx) continue;
-      out.push({ future: true, season: s, round, from, to: teamIdx, key: `f${s}:${round}:${from}` });
-    }
-  }
-  return out.sort((a, b) => a.round - b.round || (a.from === teamIdx ? -1 : b.from === teamIdx ? 1 : a.from - b.from));
-}
-
-/**
- * Where every club is guessed to pick next year, worst first.
- *
- * Reverse standings by the roster each club is about to field — the one
- * predictor that measured worth anything. Returns slot numbers, 1 being the
- * first pick of the round.
+ * Reverse standings by whatever there is to go on: the roster a club fields,
+ * and — once a season is under way — how that season has actually gone. With
+ * no games played the record term weighs nothing, which is exactly the
+ * offseason case, so a draft-room valuation is unchanged by any of this.
  */
 export function projectedSlots(league, byId) {
   const n = league.teams.length;
-  const ranked = league.teams
-    .map((t, i) => ({ i, s: lineupStrength(t.slots, byId, null) }))
-    .sort((a, b) => b.s - a.s || a.i - b.i);
+  const rankOf = (vals) => {
+    const order = vals.map((v, i) => ({ i, v })).sort((a, b) => b.v - a.v || a.i - b.i);
+    const out = new Array(n);
+    order.forEach((e, k) => { out[e.i] = k; });   // 0 = strongest
+    return out;
+  };
+  const byRoster = rankOf(league.teams.map((t) => lineupStrength(t.slots, byId, null)));
+  const played = Math.max(0, ...league.teams.map((t) => (t.record?.w || 0) + (t.record?.l || 0) + (t.record?.t || 0)));
+  const w = played / (played + RECORD_WEIGHT);
+  let blended = byRoster;
+  if (w > 0) {
+    const byRecord = rankOf(league.teams.map((t) => {
+      const r = t.record || {};
+      const g = (r.w || 0) + (r.l || 0) + (r.t || 0);
+      return g ? ((r.w || 0) + 0.5 * (r.t || 0)) / g : 0.5;
+    }));
+    blended = rankOf(league.teams.map((_, i) => -(w * byRecord[i] + (1 - w) * byRoster[i])));
+  }
   const slots = new Array(n);
-  ranked.forEach((e, k) => { slots[e.i] = n - k; });   // strongest picks last
+  for (let i = 0; i < n; i++) slots[i] = n - blended[i];   // strongest picks last
   return slots;
 }
 
-/** Where a slot lands in a snake's round. */
-export function snakeOverall(round, slot, teams) {
-  const within = round % 2 === 1 ? slot : teams + 1 - slot;
-  return (round - 1) * teams + within;
-}
-
-/**
- * What a future pick is worth, in the same lineup points every other trade
- * here is judged in: the curve at the guessed slot, docked for the odds the
- * pick is never made and for it being a year away.
- */
 export function futurePickValue(league, byId, pick, slots = null, holder = null) {
   const n = league.teams.length;
   const s = slots || projectedSlots(league, byId);
@@ -261,67 +205,42 @@ export function slotBand(league, byId, teamIdx, slots = null) {
   return 'projected late';
 }
 
-/** Structural checks on a future-pick side. Returns { ok, reason }. */
-export function validateFuturePicks(league, teamIdx, picks) {
-  if (!picks?.length) return { ok: true };
-  if (!futurePicksOpen(league)) {
-    return { ok: false, reason: 'Next year’s picks cannot be traded until a season has been played' };
-  }
-  const s = futureSeason(league);
-  const seen = new Set();
-  for (const p of picks) {
-    if (p.season !== s) return { ok: false, reason: `Only ${s} picks are on the table` };
-    if (p.round < 1 || p.round > FUTURE_ROUNDS) return { ok: false, reason: `Only the first ${FUTURE_ROUNDS} rounds of ${s} can be traded` };
-    if (futureOwner(league, p.season, p.round, p.from) !== teamIdx) {
-      return { ok: false, reason: `That ${s} pick is not ${league.teams[teamIdx].abbr}’s to trade` };
-    }
-    if (seen.has(p.key)) return { ok: false, reason: 'A pick is listed twice' };
-    seen.add(p.key);
-  }
-  return { ok: true };
-}
-
-/** Move future picks across. Assumes both sides have already been validated. */
-export function applyFutureTrade(league, aIdx, bIdx, aGives, bGives) {
-  for (const p of aGives || []) setFutureOwner(league, p.season, p.round, p.from, bIdx);
-  for (const p of bGives || []) setFutureOwner(league, p.season, p.round, p.from, aIdx);
+/**
+ * What a swap of future picks is worth to one club, on its own books.
+ *
+ * The number `evaluateTrade` needs and cannot work out for itself. `holder` is
+ * the club doing the judging: it gains what it receives and loses what it
+ * sends, both priced at its own time preference, so a contender and a
+ * rebuilding club put different numbers on the same pair of picks.
+ *
+ * In-season this is a better estimate than the same call in the draft room,
+ * and by a lot. The slot it prices off comes from `projectedSlots`, which
+ * blends the roster with the season's record; by the trade deadline — week 12
+ * of a pro season, ten games in — that ranks clubs against their eventual
+ * finish at about r = 0.86 where the offseason estimate manages 0.59. A pick
+ * is simply worth more precisely at the deadline than in the spring, which is
+ * also true of the real thing.
+ */
+export function pickTradeDelta(league, byId, holder, gives, gets, slots = null) {
+  if (!gives?.length && !gets?.length) return 0;
+  const s = slots || projectedSlots(league, byId);
+  return futureHandValue(league, byId, gets, s, holder) - futureHandValue(league, byId, gives, s, holder);
 }
 
 /**
- * Fold what is owed into a freshly built draft.
+ * The handle `makeAiOffers` takes so it can price a pick without importing
+ * this file — which it cannot, because this file imports it.
  *
- * Called once, from `createDraft`, because that is the first moment the order
- * exists and so the first moment a round and a club can be turned into an
- * overall pick number. Rows for the season being drafted are consumed;
- * anything further out is left alone.
+ * Built once a week rather than once a deal: `projectedSlots` costs one
+ * lineup valuation a club, and the answer does not change between two offers
+ * made in the same week. Null when the league has no picks to trade yet, which
+ * is the signal to behave exactly as before they existed.
  */
-export function applyOwedPicks(league, draft) {
-  const rows = league?.owedPicks;
-  if (!rows?.length || !draft) return draft;
-  const n = draft.order.length;
-  const season = league.season;
-  draft.traded ??= {};
-  for (const row of rows) {
-    if (row.season !== season) continue;
-    const j = draft.order.indexOf(row.from);
-    if (j < 0) continue;
-    const i = row.round % 2 === 1 ? j : n - 1 - j;
-    const overall = (row.round - 1) * n + i + 1;
-    if (row.round > ROSTER_SLOTS.length) continue;
-    draft.traded[overall] = row.to;
-  }
-  league.owedPicks = rows.filter((r) => r.season !== season);
-  return draft;
-}
-
-/**
- * "S3 R1 · via BUF" — what a drafter calls a future pick.
- *
- * A season here is a count, not a year: leagues start at season 1. Printing it
- * bare read as "3 R1" on the screen, which is a pick number and a round to
- * anybody who drafts, so it carries the S.
- */
-export function futureLabel(league, pick) {
-  const own = pick.from === pick.to;
-  return `S${pick.season} R${pick.round}${own ? '' : ` · via ${league.teams[pick.from]?.abbr ?? '?'}`}`;
+export function pickBroker(league, byId) {
+  if (!futurePicksOpen(league)) return null;
+  const slots = projectedSlots(league, byId);
+  return {
+    hand: (idx) => futureHand(league, idx).filter((p) => p.from === idx),
+    value: (pick, holder) => futurePickValue(league, byId, pick, slots, holder),
+  };
 }

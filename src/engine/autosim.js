@@ -9,6 +9,7 @@
 // warn before using it, and the result reports what was decided.
 
 import { simulateWeekAi, advanceWeek, startSeason, weekComplete } from './season.js';
+import { pickBroker } from './futurepicks.js';
 import { advanceWeekWithMoves } from './transactions.js';
 import { enterOffseason, aiKeepers, confirmKeepers, takeJob, closeFreeAgency } from './offseason.js';
 import { makeOffers } from './jobs.js';
@@ -67,7 +68,7 @@ export function simulateAhead(league, byId, pool, rng, target, { maxWeeks = 200 
     while (!stop() && guard++ < maxWeeks) {
       if (league.phase !== 'season' && league.phase !== 'playoffs') break;
       if (!weekComplete(league)) simulateWeekAi(league, byId, { includeUser: true });
-      const moved = advanceWeekWithMoves(league, byId, pool, rng, advanceWeek);
+      const moved = advanceWeekWithMoves(league, byId, pool, rng, advanceWeek, { picks: pickBroker(league, byId) });
       if (!moved) break;
       weeks++;
     }

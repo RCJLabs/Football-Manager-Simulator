@@ -14,6 +14,7 @@ import { fantasyPoints } from '../../engine/stats.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { DIVISIONS } from '../../data/pro.js';
 import { teamChip, toast, modal } from '../components.js';
+import { pickBroker } from '../../engine/futurepicks.js';
 import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tradesOpen, liveOffers } from '../../engine/transactions.js';
 import { RNG } from '../../engine/rng.js';
 
@@ -296,7 +297,7 @@ export function view(root, params, ctx) {
   el.querySelector('#advance')?.addEventListener('click', () => {
     ctx.update((s) => {
       const rng = new RNG(s.league.rngState);
-      advanceWeekWithMoves(s.league, ctx.byId, ctx.players, rng, advanceWeek);
+      advanceWeekWithMoves(s.league, ctx.byId, ctx.players, rng, advanceWeek, { picks: pickBroker(s.league, ctx.byId) });
       s.league.rngState = rng.state;
     });
     const after = ctx.getState().league;
