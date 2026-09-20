@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { syntheticTeam } from '../scripts/synthetic.mjs';
 import { buildLineup } from '../src/engine/ratings.js';
-import { createGame, simulateGame, step, decisionNeeded } from '../src/engine/game.js';
+import { createGame, simulateGame, step, decisionNeeded, callTimeout, timeoutLegal, takeClock, setTempo } from '../src/engine/game.js';
+import { wantsTimeout, isHurryUp, isClockKill } from '../src/engine/playcall.js';
 
 const A = syntheticTeam('alpha', 86, 3, 1);
 const B = syntheticTeam('bravo', 84, 3, 2);
@@ -229,4 +230,130 @@ test('every scrimmage play logs where it was snapped from and by whom', () => {
   assert.ok(flags > 100, `only ${flags} penalties sampled`);
   assert.ok(kicks > 300, `only ${kicks} kicks sampled`);
   assert.ok(ordinary > 3000, `only ${ordinary} spot-checkable plays sampled`);
+});
+
+test('a coach can spend their own timeouts, and only at a legal moment', () => {
+  const g = mk(77);
+  step(g); // kickoff
+  // Nothing to buy while the clock is stopped: a timeout cannot be banked.
+  g.clockRunning = false;
+  assert.equal(timeoutLegal(g, 0), false);
+  assert.equal(callTimeout(g, 0), false);
+  assert.deepEqual(g.timeouts, [3, 3]);
+
+  g.clockRunning = true;
+  assert.equal(timeoutLegal(g, 0), true);
+  const logged = g.log.length;
+  assert.equal(callTimeout(g, 0), true);
+  assert.equal(g.timeouts[0], 2);
+  assert.equal(g.clockRunning, false, 'a timeout stops the clock');
+  assert.equal(g.log.at(-1).type, 'timeout');
+  assert.equal(g.log.length, logged + 1);
+  assert.equal(typeof g.log.at(-1).wp, 'number', 'the curve should show what it bought');
+
+  g.timeouts[0] = 0;
+  g.clockRunning = true;
+  assert.equal(timeoutLegal(g, 0), false, 'none left');
+  assert.equal(callTimeout(g, 0), false);
+
+  g.timeouts[0] = 3;
+  g.final = true;
+  assert.equal(timeoutLegal(g, 0), false, 'the game is over');
+});
+
+test('a timeout buys back the play clock the next snap would burn', () => {
+  // Same seed either side, so the only difference is the timeout.
+  const spend = (take) => {
+    const g = mk(78);
+    while (!g.final && !(g.phase === 'play' && g.clockRunning && g.clock > 0)) step(g);
+    if (g.final) return null;
+    const before = g.clock;
+    if (take) callTimeout(g, g.possession);
+    step(g);
+    return before - g.clock;
+  };
+  const burned = spend(false);
+  const saved = spend(true);
+  assert.ok(burned != null && saved != null);
+  assert.ok(saved < burned, `timeout burned ${saved}s, no timeout ${burned}s`);
+});
+
+test('holding the clock stops the AI spending that club', () => {
+  assert.equal(wantsTimeout(takeClock(mk(79), 0), 0), false, 'never, whatever the situation');
+  // Whether the AI would have spent any in a given game is a coin flip, so
+  // count over seeds. Stepped by hand, because every skip-ahead path delegates.
+  let heldSpent = 0, autoSpent = 0, heldOpp = 0, autoOpp = 0;
+  for (let seed = 79; seed < 99; seed++) {
+    const held = takeClock(mk(seed), 0);
+    const auto = mk(seed);
+    for (let i = 0; i < 300 && !held.final && !auto.final; i++) {
+      // Stop at halftime, which hands everybody three fresh ones.
+      if (held.quarter > 2) break;
+      step(held); step(auto);
+      heldSpent += held.timeouts[0] < 3 ? 1 : 0;
+      autoSpent += auto.timeouts[0] < 3 ? 1 : 0;
+      // Counted inside the loop too: halftime hands back three fresh ones, so
+      // reading the total afterwards reads zero however many were spent.
+      heldOpp += held.timeouts[1] < 3 ? 1 : 0;
+      autoOpp += auto.timeouts[1] < 3 ? 1 : 0;
+    }
+  }
+  assert.equal(heldSpent, 0, 'the AI left the coach\'s timeouts alone in every game');
+  assert.ok(autoSpent > 0, `and would otherwise have spent some (${autoSpent})`);
+  assert.ok(heldOpp > 0 && autoOpp > 0, 'the other club stays the AI\'s to manage');
+});
+
+test('skipping ahead hands the clock back, and takes it again afterwards', () => {
+  // A sim with the clock held must come out exactly as one without it: the
+  // point of delegating is that Sim to end is managed as it always was.
+  let held = 0, auto = 0;
+  for (let seed = 79; seed < 99; seed++) {
+    const h = takeClock(mk(seed), 0);
+    simulateGame(h);
+    assert.equal(h.userClock, 0, 'the clock comes back after the skip');
+    const a = mk(seed);
+    simulateGame(a);
+    assert.deepEqual(h.score, a.score, `seed ${seed} diverged`);
+    held += 3 - h.timeouts[0];
+    auto += 3 - a.timeouts[0];
+  }
+  assert.equal(held, auto, 'the AI managed the sim either way');
+});
+
+test('a forced tempo overrides what the situation would have chosen', () => {
+  const late = (tempo) => {
+    const g = mk(81);
+    g.quarter = 4; g.clock = 120; g.phase = 'play'; g.possession = 0;
+    g.ballOn = 25; g.down = 1; g.toGo = 10; g.score = [17, 21];
+    g.clockRunning = false; g.timeouts = [3, 3]; g.drive = null; g.drives = [];
+    takeClock(g, 0);
+    if (tempo) setTempo(g, 0, tempo);
+    return g;
+  };
+  // Trailing by four with two minutes left is the textbook hurry-up, and the
+  // heuristic reads it that way on its own.
+  assert.equal(isHurryUp(late(null), 0), true);
+  assert.equal(isClockKill(late(null), 0), false);
+  assert.equal(isHurryUp(late('kill'), 0), false, 'a coach may bleed the clock anyway');
+  assert.equal(isClockKill(late('kill'), 0), true);
+  assert.equal(isHurryUp(late('normal'), 0), false, 'normal forces both off');
+  assert.equal(isClockKill(late('normal'), 0), false);
+  // And clearing it reads the situation again.
+  const g = late('kill');
+  setTempo(g, 0, null);
+  assert.equal(isHurryUp(g, 0), true);
+  // The other club is never touched by one club's choice.
+  assert.equal(isHurryUp(late('kill'), 1), false);
+
+  // Bleeding the clock really does run it out: the whole point of handing the
+  // lever over is that it can be pulled the wrong way. Counted over a fixed
+  // number of snaps, because running to the end of the quarter leaves both at
+  // zero and compares nothing.
+  const burn = (tempo) => {
+    const x = late(tempo);
+    x.clock = 600; x.clockRunning = true;
+    for (let i = 0; i < 8 && !x.final && x.quarter === 4 && x.clock > 0; i++) step(x);
+    return 600 - x.clock;
+  };
+  assert.ok(burn('kill') > burn('hurry'), `kill burned ${burn('kill')}s, hurry ${burn('hurry')}s`);
 });

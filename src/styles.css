@@ -343,6 +343,15 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .skipahead > summary::before { content: '▸ '; }
 .skipahead[open] > summary::before { content: '▾ '; }
 
+/* The clock controls, shown only in the last five minutes of a half. The
+   timeout sits on its own row because it is the urgent one and wants a thumb;
+   the four tempo pills share the row below it and only appear with the ball. */
+.clockbar { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.5rem; }
+.clockbar #timeout { width: 100%; min-height: 38px; font-size: 0.9rem; }
+.clockbar #timeout:not(:disabled) { border-width: 2px; }
+.clockbar .tempo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.3rem; }
+.clockbar .tempo .btn { padding: 0.3rem 0.2rem; font-size: 0.78rem; min-height: 32px; }
+
 .playcalls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
 @media (min-width: 620px) { .playcalls { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .playcalls .btn { flex-direction: column; gap: 0.1rem; padding: 0.5rem 0.35rem; text-align: center; min-height: 52px; }

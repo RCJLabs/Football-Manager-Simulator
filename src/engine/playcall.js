@@ -65,9 +65,24 @@ export function fgRange(kicker) {
 }
 
 /**
+ * The three tempos a club can be in. `g.tempo[team]` holds one of them when a
+ * human has taken the clock for that side, and is unset otherwise, in which
+ * case the two predicates below read the situation as they always have.
+ *
+ * The override goes here rather than in `tempoSeconds` because tempo is not
+ * only seconds: `chooseOffense` leans on the same two predicates to bias
+ * toward the pass in a hurry-up and toward the run when bleeding the clock. A
+ * user who sets the tempo and then lets the AI call it should get plays that
+ * match the tempo, not only a different play clock.
+ */
+export const TEMPOS = ['hurry', 'normal', 'kill'];
+
+/**
  * Is the offense in hurry-up mode? Trailing (or tied) late in a half.
  */
 export function isHurryUp(g, team) {
+  const forced = g.tempo?.[team];
+  if (forced) return forced === 'hurry';
   const left = halfSecondsLeft(g);
   const diff = scoreDiff(g, team);
   if (g.quarter === 2 && left <= 120 && diff <= 7) return true;
@@ -78,6 +93,8 @@ export function isHurryUp(g, team) {
 
 /** Leading late: bleed the clock. */
 export function isClockKill(g, team) {
+  const forced = g.tempo?.[team];
+  if (forced) return forced === 'kill';
   const left = halfSecondsLeft(g);
   const diff = scoreDiff(g, team);
   return g.quarter >= 4 && left <= 420 && diff > 0;
@@ -317,6 +334,11 @@ export function tempoSeconds(g, team, rng) {
  * Called after a play that left the clock running.
  */
 export function wantsTimeout(g, team) {
+  // A human running the clock spends their own. Set only while someone is
+  // actually watching and calling; skipping ahead and simming hand it back,
+  // because a drill with three timeouts left unspent is worse management than
+  // the heuristic, not better.
+  if (g.userClock === team) return false;
   if (g.timeouts[team] <= 0) return false;
   const diff = scoreDiff(g, team);
   const left = halfSecondsLeft(g);

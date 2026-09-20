@@ -1319,6 +1319,66 @@ Two engine fields make it possible, added to every scrimmage play and every pena
 
 Two things about the plumbing are worth knowing, because both were wrong first. The bar reads the last entry in the log that carries `from`, not `g.lastEvent`: a play that changes hands calls `changePossession` inside the same step, and that logs the new drive's header on top of it, so punts, interceptions, fumbles, missed field goals and turnovers on downs all had their bar overwritten before it could draw. And the phase is no authority either — a touchdown flips to `pat` and a made field goal to `kickoff` the moment they score, so gating on `phase === 'play'` hid the bar for exactly the plays most worth seeing. Nothing but a snap logs `from`, so the bar clears itself at the next kickoff or quarter break. A test pins all of it: every scrimmage type carries the fields, nothing else claims them, the drawn span stays on the field, and on a clean snap `from + yards` still equals the entry's own `ballOn`.
 
+### The clock, when a coach is running it
+
+Coach mode let you call plays and nothing else. The clock was entirely the
+engine's: `wantsTimeout` fired for *both* clubs, so the game spent the user's
+timeouts for them, and `isHurryUp`/`isClockKill` read the situation with no way
+to disagree. A coach in a two-minute drill was a passenger.
+
+Two levers now. **`callTimeout(g, team)`** spends one, legal only with one left
+and the clock running — a timeout buys back the play clock the next snap would
+burn, so with the clock already stopped there is nothing to buy, and they cannot
+be banked. **`setTempo(g, team, tempo)`** forces hurry-up, normal or bleed-clock
+for that club. The override lives inside `isHurryUp`/`isClockKill` rather than
+in `tempoSeconds`, because tempo is not only seconds: `chooseOffense` leans on
+the same two predicates to bias toward the pass in a hurry-up and the run when
+killing the clock, so a coach who sets the tempo and then lets the AI call it
+gets plays that match, not just a different play clock.
+
+`takeClock(g, team)` is what arms both, and it is set only while somebody is
+actually watching and calling. Every skip-ahead path — `stepDrive`,
+`stepQuarter`, `simulateGame` — hands it back for its own duration through one
+`delegated` helper, so a **Sim to end** is managed exactly as it always was and a
+simmed season is bit-for-bit unchanged. A test pins that: twenty games simmed
+with the clock held come out with identical scores and identical timeout
+spending to twenty simmed without it. The game fingerprint is unchanged at
+`fff8872cea59867e`, because with nothing set the overrides are inert.
+
+What the levers are worth, over 400 seeds per arm, as the coaching club's win
+rate:
+
+| situation | AI manages | coach spends all | coach hoards |
+|---|---|---|---|
+| Trailing 4, 2:00 Q4, own 25, ball | 34.6% | 34.6% | 28.0% |
+| Trailing 7, 2:30 Q4, on defence | 7.9% | 7.9% | 2.6% |
+| Leading 7, 0:50 Q2, opponent 40, ball | 86.6% | **91.1%** | 86.6% |
+| Trailing 21, 4:00 Q4, on defence | 0.0% | 0.0% | 0.0% |
+
+Read that honestly: timeouts are worth five to seven points of win rate, and in
+the classic late-game spots **the heuristic already spends them as well as a
+coach would**. This is not a win-rate upgrade, it is agency — with one
+exception. `wantsTimeout` requires `diff <= 3` in the second quarter, so a club
+leading by more than a field goal never stops the clock before half, and
+spending them there is worth 4.5 points. That is a gap in the AI's rule, not
+only a missing button; it is left alone deliberately, because changing it moves
+every simulated game in every league.
+
+Tempo cuts both ways, which is the point of a manual control. Forced `kill` in
+that trailing drill leaves 1.0% against auto's 28.0%, and a tempo set while
+leading and forgotten costs 2.5 points when the score flips, because the
+override is sticky where the heuristic adapts. So the control defaults to
+**Auto** and says so, and Auto is a first-class button rather than a hidden
+state you have to guess your way back to.
+
+On screen it is a row that appears only in the last five minutes of a half, in
+every branch: the timeout on its own line because it is the urgent one and wants
+a thumb, and four tempo pills below it, shown only with the ball because you
+cannot set the other club's. It costs 23px in the watching controls and 57px
+in the coach-call panel, and nothing for the other fifty minutes. The scoreboard
+already drew both clubs' timeouts as dots, so the count has somewhere to agree
+with.
+
 ### One action, not five
 
 The controls under the strip were five equal buttons — next play, next drive, end of quarter, sim to end, autoplay — measuring 179px of an 844px phone, a fifth of the screen for the least interesting thing on it, and pushing the play-by-play under the fold. Watching a game is one action. It is now two big buttons, **Next play** and **Autoplay**, with the three skip-ahead buttons folded into a disclosure: things you want occasionally and never by accident. 121px instead of 179px, the play-by-play starts at 513px instead of 572px, and the page is 1088px instead of 1147px. The coach-mode panels are unchanged, and `Sim to end` still stands on its own there.

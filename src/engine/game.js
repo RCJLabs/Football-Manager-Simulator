@@ -10,7 +10,7 @@ import { winProbability, priorMargin } from './winprob.js';
 import { makeGameplan } from './gm.js';
 import {
   chooseOffense, chooseDefense, goForTwo, onsideKick, tempoSeconds, wantsTimeout,
-  fgDistance, fgProbability, halfSecondsLeft, scoreDiff, OFFENSE_CALLS,
+  fgDistance, fgProbability, halfSecondsLeft, scoreDiff, OFFENSE_CALLS, TEMPOS,
 } from './playcall.js';
 import { emptyTeamStats, statFor, shortName, fmtClock, fmtQuarter } from './stats.js';
 import { pickReturner } from './game/picks.js';
@@ -304,31 +304,108 @@ function stampWp(g, from) {
   for (let i = from; i < g.log.length; i++) g.log[i].wp = wp;
 }
 
+// ---------------------------------------------------------------------------
+// The clock, when a human is running it
+// ---------------------------------------------------------------------------
+
+/**
+ * Hand the clock back to the AI for the duration of `fn`.
+ *
+ * Skipping ahead is delegating. A player who asks for the next drive is not
+ * going to be prompted about a timeout halfway through it, and a two-minute
+ * drill that ends with three timeouts unspent is worse management than the
+ * heuristic, not better. Every skip-ahead entry point goes through here, so
+ * the rule lives in one place rather than in each caller.
+ */
+function delegated(g, fn) {
+  const held = g.userClock;
+  if (held == null) return fn();
+  g.userClock = null;
+  try { return fn(); } finally { g.userClock = held; }
+}
+
+/**
+ * Can `team` call a timeout right now?
+ *
+ * Only with one left and the clock running: a timeout buys back the play clock
+ * that the next snap would otherwise burn, so with the clock already stopped
+ * there is nothing to buy. They cannot be banked, which is why a stopped clock
+ * makes the button dead rather than merely pointless.
+ */
+export function timeoutLegal(g, team) {
+  if (!g || g.final || team == null) return false;
+  if ((g.timeouts?.[team] ?? 0) <= 0) return false;
+  if (g.phase !== 'play' && g.phase !== 'pat') return false;
+  return !!g.clockRunning && g.clock > 0;
+}
+
+/**
+ * Spend one of `team`'s timeouts. Returns false and changes nothing if it is
+ * not a legal moment. The event is stamped with a win probability of its own,
+ * the same as any event a step produces, so the curve shows what it bought.
+ */
+export function callTimeout(g, team) {
+  if (!timeoutLegal(g, team)) return false;
+  const from = g.log.length;
+  g.timeouts[team]--;
+  g.clockRunning = false;
+  logEvent(g, { type: 'timeout', text: `Timeout, ${g.teams[team].name} (${g.timeouts[team]} left).` });
+  stampWp(g, from);
+  return true;
+}
+
+/**
+ * Take (or hand back) the clock for `team`: their timeouts stop being spent by
+ * `wantsTimeout`, and `g.tempo[team]` starts being honoured. `null` gives it
+ * back. Kept off `createGame` on purpose — a game the user is only simming
+ * should manage itself exactly as it always did.
+ */
+export function takeClock(g, team) {
+  g.userClock = team == null ? null : team;
+  if (team == null) g.tempo = null;
+  else if (!Array.isArray(g.tempo)) g.tempo = [null, null];
+  return g;
+}
+
+/** Set a club's tempo, or `null` to read the situation as before. */
+export function setTempo(g, team, tempo) {
+  if (team == null) return g;
+  if (!Array.isArray(g.tempo)) g.tempo = [null, null];
+  g.tempo[team] = TEMPOS.includes(tempo) ? tempo : null;
+  return g;
+}
+
 /** Run plays until the possession changes or a score / end of period. */
 export function stepDrive(g, calls) {
-  const team = g.possession;
-  const startDrives = g.drives.length;
-  let guard = 0;
-  while (!g.final && guard++ < 60) {
-    step(g, calls);
-    if (g.drives.length > startDrives) break;
-    if (g.phase === 'kickoff' && g.possession !== team) break;
-  }
-  return g;
+  return delegated(g, () => {
+    const team = g.possession;
+    const startDrives = g.drives.length;
+    let guard = 0;
+    while (!g.final && guard++ < 60) {
+      step(g, calls);
+      if (g.drives.length > startDrives) break;
+      if (g.phase === 'kickoff' && g.possession !== team) break;
+    }
+    return g;
+  });
 }
 
 export function stepQuarter(g) {
-  const q = g.quarter;
-  let guard = 0;
-  while (!g.final && g.quarter === q && guard++ < 400) step(g);
-  return g;
+  return delegated(g, () => {
+    const q = g.quarter;
+    let guard = 0;
+    while (!g.final && g.quarter === q && guard++ < 400) step(g);
+    return g;
+  });
 }
 
 export function simulateGame(g) {
-  let guard = 0;
-  while (!g.final && guard++ < 2000) step(g);
-  if (!g.final) { g.final = true; logEvent(g, { type: 'final', text: 'Game ended (guard).' }); }
-  return g;
+  return delegated(g, () => {
+    let guard = 0;
+    while (!g.final && guard++ < 2000) step(g);
+    if (!g.final) { g.final = true; logEvent(g, { type: 'final', text: 'Game ended (guard).' }); }
+    return g;
+  });
 }
 
 // ---------------------------------------------------------------------------
