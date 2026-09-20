@@ -22,6 +22,7 @@ import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall } from './ratings.js';
 import { TRUE_LEVERAGE } from './auction.js';
 import { irList } from './injuries.js';
+import { squadList } from './squad.js';
 
 /** The cap, in the same dollars the auction's price guide speaks. */
 export const PRO_CAP = 200;
@@ -198,7 +199,7 @@ export function tickDead(league) {
 export function teamContractIds(league, teamIdx) {
   const t = league.teams[teamIdx];
   if (!t) return [];
-  return [...ROSTER_SLOTS.map((s) => t.slots[s.id]), ...irList(t)].filter(Boolean);
+  return [...ROSTER_SLOTS.map((s) => t.slots[s.id]), ...irList(t), ...squadList(t)].filter(Boolean);
 }
 
 /** What a club is spending. A man on IR is still on the books. */
@@ -206,7 +207,14 @@ export function capHit(league, teamIdx) {
   if (!capOn(league)) return 0;
   const c = league.contracts || {};
   let total = 0;
-  for (const id of teamContractIds(league, teamIdx)) total += c[id]?.salary ?? MIN_SALARY;
+  // A man on the practice squad is paid the minimum while he is down there,
+  // whatever his deal says. That is what makes stashing a first-round pick
+  // affordable rather than a second way of paying him not to play — and his
+  // contract is untouched, so it costs what it says again the day he comes up.
+  const down = new Set(squadList(league.teams?.[teamIdx]));
+  for (const id of teamContractIds(league, teamIdx)) {
+    total += down.has(id) ? MIN_SALARY : (c[id]?.salary ?? MIN_SALARY);
+  }
   // Men a club is no longer playing but is still paying count against it, which
   // is the whole point of them.
   return total + deadHit(league, teamIdx);

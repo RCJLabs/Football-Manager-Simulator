@@ -129,6 +129,7 @@ function ownedIds(league) {
   for (const t of league.teams) {
     for (const s of ROSTER_SLOTS) if (t.slots[s.id]) set.add(t.slots[s.id]);
     for (const id of t.ir || []) set.add(id);
+    for (const id of t.squad || []) set.add(id);
   }
   return set;
 }
@@ -274,6 +275,7 @@ export function releaseRetired(league, retiredIds) {
       if (t.slots[s.id] && gone.has(t.slots[s.id])) { t.slots[s.id] = null; n++; }
     }
     if (t.ir && t.ir.length) t.ir = t.ir.filter((id) => !gone.has(id));
+    if (t.squad && t.squad.length) t.squad = t.squad.filter((id) => !gone.has(id));
   }
   for (const id of gone) if (league.contracts) delete league.contracts[id];
   return n;

@@ -197,6 +197,7 @@ function ownedIds(league) {
   for (const t of league.teams) {
     for (const s of ROSTER_SLOTS) if (t.slots[s.id]) set.add(t.slots[s.id]);
     for (const id of t.ir || []) set.add(id);
+    for (const id of t.squad || []) set.add(id);
   }
   return set;
 }

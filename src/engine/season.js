@@ -12,6 +12,7 @@ import { DEFAULT_STRATEGY } from './playcall.js';
 import { RNG, hashSeed } from './rng.js';
 import { createDraft, assignGms } from './draft.js';
 import { signablePool, scheduleDrain } from './proleague.js';
+import { squadList, agedOutOfSquad } from './squad.js';
 import { createAuction, TRUE_LEVERAGE } from './auction.js';
 import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats, fantasyPoints } from './stats.js';
 import { buildLineup, teamPower, overall } from './ratings.js';
@@ -152,7 +153,7 @@ function spreadFoundingContracts(league) {
  */
 export function migrateLeague(league) {
   if (!league || (league.version || 1) >= LEAGUE_VERSION) return league;
-  for (const t of league.teams) { for (const s of ROSTER_SLOTS) if (!(s.id in t.slots)) t.slots[s.id] = null; t.ir ??= []; }
+  for (const t of league.teams) { for (const s of ROSTER_SLOTS) if (!(s.id in t.slots)) t.slots[s.id] = null; t.ir ??= []; t.squad ??= []; }
   league.injuries ??= {};
   league.contracts ??= {};
   league.offseason ??= null;
@@ -203,7 +204,7 @@ export function fillOpenSlots(league, pool, byId, { log = true } = {}) {
   pool = signablePool(league, pool);
   if (!pool.length) return [];
   const owned = new Set();
-  for (const t of league.teams) for (const id of [...ROSTER_SLOTS.map((sl) => t.slots[sl.id]), ...irList(t)]) if (id) owned.add(id);
+  for (const t of league.teams) for (const id of [...ROSTER_SLOTS.map((sl) => t.slots[sl.id]), ...irList(t), ...squadList(t)]) if (id) owned.add(id);
   const byPos = new Map();
   for (const p of pool) {
     if (owned.has(p.id) || p.retired) continue;
@@ -256,7 +257,7 @@ export function syncContracts(league, byId = null) {
   const owned = new Set();
   for (const t of league.teams) {
     // Injured reserve keeps a player's contract; he is still on the books.
-    for (const id of [...ROSTER_SLOTS.map((s) => t.slots[s.id]), ...irList(t)]) {
+    for (const id of [...ROSTER_SLOTS.map((s) => t.slots[s.id]), ...irList(t), ...squadList(t)]) {
       if (!id) continue;
       owned.add(id);
       if (league.contracts[id]) continue;
@@ -580,6 +581,9 @@ export function startSeason(league, byId, pool = null) {
     for (const t of league.teams) for (const s of ROSTER_SLOTS) if (t.slots[s.id]) rostered.add(t.slots[s.id]);
     scheduleDrain(league, board, rostered);
   }
+  // Whoever has outgrown the practice squad leaves it first, so a man coming
+  // up is in his slot before the fill goes looking for somebody to put there.
+  if (byId) agedOutOfSquad(league, byId);
   if (board) fillOpenSlots(league, board, byId);
   // The cap binds at kickoff and nowhere else, so this is the one place it is
   // checked. A club over it sheds what it is paying most for per point of

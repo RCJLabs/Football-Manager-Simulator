@@ -28,6 +28,7 @@ import {
 } from './owedpicks.js';
 import { signablePool } from './proleague.js';
 import { bookDead } from './cap.js';
+import { squadList, canStash, stash, aiManageSquad } from './squad.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
 export const MAX_TRADE_SIDE = 3;
@@ -55,6 +56,7 @@ export function ownerMap(league) {
   league.teams.forEach((t, i) => {
     for (const s of ROSTER_SLOTS) if (t.slots[s.id]) m.set(t.slots[s.id], i);
     for (const id of irList(t)) m.set(id, i);
+    for (const id of squadList(t)) m.set(id, i);
   });
   return m;
 }
@@ -249,11 +251,18 @@ export function processWaivers(league, byId) {
     else if (owned.has(c.add)) reason = `${add.name} went to ${league.teams[owned.get(c.add)].abbr} on priority`;
     else if (!slotId) reason = c.drop ? `${drop.name} was no longer on the roster` : `no open ${add.pos} slot was left`;
     else {
-      // Dropping a man still under contract does not end what he is owed.
-      // This is the one that matters: the wire is where most of the churn is.
-      if (c.drop) bookDead(league, c.team, c.drop, league.contracts?.[c.drop]);
+      // A young player beaten out for his slot goes down rather than out, if
+      // his club has a place for him. This is the whole point of the squad:
+      // the wire is where a draft class was being stripped, and losing a slot
+      // is no longer the same thing as losing the player.
+      if (c.drop && canStash(league, c.team, c.drop, byId)) {
+        stash(league, c.team, c.drop, byId);
+      } else if (c.drop) {
+        // Out for good, and still owed what he is owed.
+        bookDead(league, c.team, c.drop, league.contracts?.[c.drop]);
+        owned.delete(c.drop);
+      }
       team.slots[slotId] = c.add;
-      if (c.drop) owned.delete(c.drop);
       owned.set(c.add, c.team);
       ok = true;
       league.transactions.push({ week: league.week, season: league.season, type: 'waiver', team: c.team, add: c.add, drop: c.drop });
@@ -830,6 +839,7 @@ export function advanceWeekWithMoves(league, byId, pool, rng, advance, { picks =
     const field = new Set(standings(league).slice(0, playoffFieldSize(league.teams.length)).map((r) => r.idx));
     aiAdjustStrategies(league, { inField: (i) => field.has(i) });
     aiManageIr(league, byId);
+    aiManageSquad(league, byId);
     aiTrades(league, byId, rng, { pool });
     aiFileClaims(league, pool, byId, rng);
     processWaivers(league, byId);

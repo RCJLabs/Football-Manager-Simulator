@@ -4,6 +4,7 @@ import { GM_PERSONALITIES } from '../../data/teams.js';
 import { buildLineup, teamPower, overall } from '../../engine/ratings.js';
 import { playerItem, playerModal, teamChip, esc, outBadge, toast, modal } from '../components.js';
 import { fillLineup, fmtWeeks, irList, irReady, canPlaceOnIr, placeOnIr, activateFromIr, releaseFromIr, irCapacity, IR_MIN_WEEKS } from '../../engine/injuries.js';
+import { squadList, squadCapacity, squadOn, canStash, stash, promote, releaseFromSquad, SQUAD_SEASONS } from '../../engine/squad.js';
 import { fantasyPoints } from '../../engine/stats.js';
 import { chemistryFor, describeChemistry, MAX_BONUS } from '../../engine/chemistry.js';
 import { strategyRead } from '../../engine/strategy.js';
@@ -50,11 +51,16 @@ export function view(root, params, ctx) {
   const hurt = ROSTER_SLOTS.map((s) => team.slots[s.id]).filter((id) => id && injuries[id]).map((id) => ({ p: ctx.byId.get(id), inj: injuries[id] }));
   const fillIns = Object.values(lineup).flat().filter((p) => p.replacement);
   const onIr = irList(team).map((id) => ctx.byId.get(id)).filter(Boolean);
+  const onSquad = squadList(team).map((id) => ctx.byId.get(id)).filter(Boolean);
+  const squadOpen = squadCapacity(league) - onSquad.length;
   const ready = new Set(irReady(league, team));
   const irOpen = irCapacity(league) - onIr.length;
   const gm = GM_PERSONALITIES.find((g) => g.id === team.gm);
   const canEdit = team.isUser;
   const stats = team.seasonStats.players;
+
+  // A young player can be sent down instead of being beaten out of the league.
+  const downable = (p) => canEdit && canStash(league, idx, p.id, ctx.byId);
 
   const groups = POSITION_ORDER.map((pos) => {
     const slots = ROSTER_SLOTS.filter((s) => s.pos === pos);
@@ -83,7 +89,7 @@ export function view(root, params, ctx) {
     return playerItem(p, {
       cls: inj ? 'dim' : slot.starter || stepsUp ? '' : 'dim',
       meta: `<span class="badge slot">${slot.id}</span>${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge" style="background:#2c4a37;color:#cfe6d6">starts</span>' : '<span class="badge">bench</span>'}${deal}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
-      action: `${irable ? `<button class="btn sm" data-ir="${esc(p.id)}" title="${esc(`Free his slot; he stays yours and keeps healing. ${irOpen} place${irOpen === 1 ? '' : 's'} left.`)}">To IR</button>` : ''}${arrows}`,
+      action: `${irable ? `<button class="btn sm" data-ir="${esc(p.id)}" title="${esc(`Free his slot; he stays yours and keeps healing. ${irOpen} place${irOpen === 1 ? '' : 's'} left.`)}">To IR</button>` : ''}${downable(p) ? `<button class="btn sm" data-down="${esc(p.id)}" title="${esc(`Free his slot; he stays yours, keeps developing and costs the minimum. ${squadOpen} place${squadOpen === 1 ? '' : 's'} left.`)}">Send down</button>` : ''}${arrows}`,
       era: false,
       attrs: showAttrs,
       // The group header says the position and the slot badge says which one he
@@ -149,6 +155,15 @@ export function view(root, params, ctx) {
     }).join('')}</ul>`) : html`<p class="muted" style="margin:0;font-size:.85rem">Empty. A player out ${IR_MIN_WEEKS} weeks or more can be parked here, which frees his roster slot to sign cover. He keeps healing and keeps his contract, but he cannot play or be traded until you activate him, which costs a roster spot in turn.</p>`}
   </div>` : '';
 
+  const psCard = squadOn(league) && (onSquad.length || canEdit) ? html`<div class="card tight">
+    <h3>Practice squad <small class="muted" style="text-transform:none;letter-spacing:0">· ${onSquad.length} of ${squadCapacity(league)}</small></h3>
+    ${onSquad.length ? raw(`<ul class="plist">${onSquad.map((p) => playerItem(p, {
+      attrs: false,
+      meta: ` · <span class="badge">class of ${esc(String(p.draftClass ?? ''))}</span>`,
+      action: canEdit ? `<button class="btn sm primary" data-up="${esc(p.id)}">Bring up</button><button class="btn sm danger" data-cut="${esc(p.id)}">Release</button>` : '',
+    })).join('')}</ul>`) : html`<p class="muted" style="margin:0;font-size:.85rem">Empty. A player within ${SQUAD_SEASONS} seasons of his draft class can be sent down here, which frees his roster slot. He stays yours, keeps developing, and costs the minimum while he is down — but he cannot play until you bring him up, which costs a roster spot in turn.</p>`}
+  </div>` : '';
+
   const reportCard = hurt.length || fillIns.length ? html`<div class="card tight">
     <h3>Injury report</h3>
     ${hurt.length ? raw(`<ul class="plain ticker" style="max-height:none">${hurt.map(({ p, inj }) => `<li><b>${esc(p.name)}</b> <small class="muted">${p.pos}</small> — ${esc(inj.kind)}, <b>${fmtWeeks(inj.weeks)}</b></li>`).join('')}</ul>`) : ''}
@@ -165,7 +180,7 @@ export function view(root, params, ctx) {
   const hurtCount = hurt.length + onIr.length;
 
   const sections = {
-    depth: html`<div class="card tight">
+    depth: html`<div class="stack"><div class="card tight">
       <div class="row between" style="align-items:baseline">
         <h3 style="margin:0">Depth chart</h3>
         <button type="button" class="btn sm ghost" id="density" aria-pressed="${showAttrs ? 'false' : 'true'}">${showAttrs ? 'Compact' : 'Show ratings'}</button>
@@ -173,7 +188,7 @@ export function view(root, params, ctx) {
       ${raw(jumpBar)}
       ${canEdit ? html`<p class="muted" style="font-size:.78rem;margin:.1rem 0 .4rem">▲▼ reorders players within a position.</p>` : ''}
       ${raw(depthChart)}
-    </div>`,
+    </div>${psCard}</div>`,
     squad: html`<div class="grid grid-2">
       ${chemCard || nothing('Chemistry is switched off for this league.')}
       <div class="card tight"><h3>Unit ratings</h3>${raw(unitTable(lineup))}</div>
@@ -251,6 +266,37 @@ export function view(root, params, ctx) {
       });
       return;
     }
+    const down = e.target.closest('[data-down]');
+    if (down && canEdit) {
+      const p = ctx.byId.get(down.dataset.down);
+      const m = modal(html`<h2>Send ${p.name} down?</h2>
+        <p class="muted">His slot opens so you can fill it. He stays yours, keeps developing, and costs only the minimum while he is on the practice squad — but he cannot play until you bring him up, and bringing him up will cost a roster spot.</p>
+        <div class="row"><button class="btn primary" id="yes">To the practice squad</button><button class="btn" data-close>Cancel</button></div>`);
+      m.el.querySelector('#yes').addEventListener('click', () => {
+        m.close();
+        try {
+          ctx.update((s) => { stash(s.league, idx, p.id, ctx.byId); });
+          toast(`${p.name} to the practice squad`);
+          ctx.navigate(`#/team/${idx}/injuries`);
+        } catch (err) { toast(err.message); }
+      });
+      return;
+    }
+    const up = e.target.closest('[data-up]');
+    if (up && canEdit) { openPromote(ctx.byId.get(up.dataset.up)); return; }
+    const cut = e.target.closest('[data-cut]');
+    if (cut && canEdit) {
+      const p = ctx.byId.get(cut.dataset.cut);
+      const m = modal(html`<h2>Release ${p.name}?</h2>
+        <p class="muted">He leaves the club for good and goes back on the market, where anybody can sign him.</p>
+        <div class="row"><button class="btn danger" id="yes">Release</button><button class="btn" data-close>Cancel</button></div>`);
+      m.el.querySelector('#yes').addEventListener('click', () => {
+        m.close();
+        ctx.update((s) => { releaseFromSquad(s.league, idx, p.id); });
+        toast(`${p.name} released`);
+      });
+      return;
+    }
     const act = e.target.closest('[data-activate]');
     if (act && canEdit) { openActivate(ctx.byId.get(act.dataset.activate)); return; }
     const rel = e.target.closest('[data-release]');
@@ -290,6 +336,25 @@ export function view(root, params, ctx) {
       try {
         ctx.update((s) => { activateFromIr(s.league, idx, p.id, b.dataset.take || null, ctx.byId); });
         toast(`${p.name} activated`);
+        m.close();
+      } catch (err) { toast(err.message); }
+    });
+  }
+
+  function openPromote(p) {
+    const open = ROSTER_SLOTS.find((s) => s.pos === p.pos && !team.slots[s.id]);
+    const options = ROSTER_SLOTS.filter((s) => s.pos === p.pos && team.slots[s.id]).map((s) => ({ s, q: ctx.byId.get(team.slots[s.id]) })).filter((x) => x.q);
+    const m = modal(html`
+      <div class="row between"><h2 style="margin:0">Bring up ${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
+      <p class="muted">${open ? `The ${open.id} slot is open, so nobody has to go.` : 'Your roster is full at his position. Who makes way?'}</p>
+      ${open ? html`<button class="btn primary block" data-take="" style="margin-bottom:.5rem">Into the open ${open.id} slot</button>` : ''}
+      <ul class="plist">${raw(options.map(({ s, q }) => playerItem(q, { attrs: false, meta: ` · <span class="badge slot">${s.id}</span>`, action: `<button class="btn sm danger" data-take="${esc(q.id)}">Release</button>` })).join(''))}</ul>`);
+    m.el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-take]');
+      if (!b) return;
+      try {
+        ctx.update((s) => { promote(s.league, idx, p.id, b.dataset.take || null, ctx.byId); });
+        toast(`${p.name} brought up`);
         m.close();
       } catch (err) { toast(err.message); }
     });

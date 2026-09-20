@@ -84,6 +84,7 @@ export function snapshot(league, players) {
       n: t.name, a: t.abbr, c: t.color, g: t.gm, u: t.isUser ? 1 : 0,
       s: ROSTER_SLOTS.map((sl) => slotRef(t.slots[sl.id])),
       ir: (t.ir || []).map((id) => slotRef(id)).filter((i) => i !== -1),
+      sq: (t.squad || []).map((id) => slotRef(id)).filter((i) => i !== -1),
       st: t.strategy,
     })),
     contracts: Object.fromEntries(Object.entries(league.contracts || {}).map(([id, c]) => [slotRef(id), c]).filter(([k]) => k !== -1)),
@@ -147,6 +148,7 @@ export function leagueFromSnapshot(snap, players, byId) {
     ROSTER_SLOTS.forEach((sl, k) => { slots[sl.id] = idAt(st.s[k]); });
     t.slots = slots;
     t.ir = (st.ir || []).map(idAt).filter(Boolean);
+    t.squad = (st.sq || []).map(idAt).filter(Boolean);
   });
   league.contracts = Object.fromEntries(Object.entries(snap.contracts || {}).map(([k, c]) => [idAt(Number(k)), c]).filter(([id]) => id));
   league.dev = Object.fromEntries(Object.entries(snap.dev || {}).map(([k, c]) => [idAt(Number(k)), { ...c, d: { ...c.d } }]).filter(([id]) => id));
@@ -165,7 +167,7 @@ export function leagueFromSnapshot(snap, players, byId) {
       .map(([k, when]) => [idAt(Number(k)), when]).filter(([id]) => id));
   }
   // The market is over: the auction or draft is complete by definition.
-  const held = (t, ti) => [...Object.values(t.slots).filter(Boolean), ...(t.ir || [])].map((id) => [id, ti]);
+  const held = (t, ti) => [...Object.values(t.slots).filter(Boolean), ...(t.ir || []), ...(t.squad || [])].map((id) => [id, ti]);
   if (league.auction) { league.auction.complete = true; league.auction.taken = Object.fromEntries(league.teams.flatMap(held)); }
   if (league.draft) { league.draft.complete = true; league.draft.taken = Object.fromEntries(league.teams.flatMap(held)); }
   league.shared = true;
