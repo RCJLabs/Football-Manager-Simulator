@@ -11,6 +11,7 @@ import { PRO_TEAMS, CONFERENCES, DIVISIONS } from '../data/pro.js';
 import { DEFAULT_STRATEGY } from './playcall.js';
 import { RNG, hashSeed } from './rng.js';
 import { createDraft, assignGms } from './draft.js';
+import { signablePool, scheduleDrain } from './proleague.js';
 import { createAuction, TRUE_LEVERAGE } from './auction.js';
 import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats, fantasyPoints } from './stats.js';
 import { buildLineup, teamPower, overall } from './ratings.js';
@@ -197,6 +198,10 @@ export function defaultKeepers(mode) {
  */
 export function fillOpenSlots(league, pool, byId, { log = true } = {}) {
   if (!pool || !pool.length) return [];
+  // The same narrowing free agency uses: a club filling a hole at kickoff is
+  // signing off the veteran market, not reaching into the draft class.
+  pool = signablePool(league, pool);
+  if (!pool.length) return [];
   const owned = new Set();
   for (const t of league.teams) for (const id of [...ROSTER_SLOTS.map((sl) => t.slots[sl.id]), ...irList(t)]) if (id) owned.add(id);
   const byPos = new Map();
@@ -567,6 +572,14 @@ export function startSeason(league, byId, pool = null) {
   // draft means it holds however the league got to a season: a fresh draft, an
   // auction, a share code, a simulated year.
   const board = pool || (byId ? [...byId.values()] : null);
+  // The opening draft is how a pro league is populated, and whoever it left on
+  // the board is the market for the first few years and then gone. Seeded here
+  // because this is the moment that draft is over however it was run.
+  if (board && (league.season ?? 1) <= 1) {
+    const rostered = new Set();
+    for (const t of league.teams) for (const s of ROSTER_SLOTS) if (t.slots[s.id]) rostered.add(t.slots[s.id]);
+    scheduleDrain(league, board, rostered);
+  }
   if (board) fillOpenSlots(league, board, byId);
   // The cap binds at kickoff and nowhere else, so this is the one place it is
   // checked. A club over it sheds what it is paying most for per point of

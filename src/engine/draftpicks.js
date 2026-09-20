@@ -40,7 +40,7 @@ import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall } from './ratings.js';
 import { lineupStrength, aiGreed } from './transactions.js';
 import {
-  TOTAL_ROUNDS, openSlots, currentPicker, settlePointer, availablePlayers,
+  TOTAL_ROUNDS, draftRounds, openSlots, currentPicker, settlePointer, availablePlayers,
   rankForTeam, aiChoose, makePick,
 } from './draft.js';
 import { RNG } from './rng.js';
@@ -89,7 +89,7 @@ export function remainingPicks(draft, teamIdx) {
   const n = draft.order.length;
   const out = [];
   if (draft.complete) return out;
-  for (let r = draft.round; r <= TOTAL_ROUNDS; r++) {
+  for (let r = draft.round; r <= draftRounds(draft); r++) {
     for (let i = 0; i < n; i++) {
       if (r === draft.round && i < draft.pickInRound) continue;
       if (pickOwner(draft, r, i) !== teamIdx) continue;
@@ -152,7 +152,7 @@ function sandbox(league, draft) {
 /** Run the AI's draft forward to a pick number, or to the end. */
 function rollForward(lg, d, pool, rng, untilOverall, landed = null) {
   let guard = 0;
-  while (!d.complete && guard++ < TOTAL_ROUNDS * d.order.length + 5) {
+  while (!d.complete && guard++ < draftRounds(d) * d.order.length + 5) {
     if (untilOverall != null && overallOf(d, d.round, d.pickInRound) > untilOverall) break;
     const t = pickOwner(d, d.round, d.pickInRound);
     if (t == null) break;
@@ -661,7 +661,7 @@ export function aiPickTrades(league, draft, pool, byId, rng, { pairs = 2 } = {})
 export function pickGrid(draft) {
   const n = draft.order.length;
   const rows = [];
-  for (let r = 1; r <= TOTAL_ROUNDS; r++) {
+  for (let r = 1; r <= draftRounds(draft); r++) {
     const row = [];
     for (let i = 0; i < n; i++) {
       const owner = pickOwner(draft, r, i), from = originalOwner(draft, r, i);

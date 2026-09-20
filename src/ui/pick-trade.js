@@ -15,7 +15,7 @@ import {
   futureHand, futurePicksOpen, futureSeason, futureLabel, slotBand, projectedSlots,
   FUTURE_ROUNDS,
 } from '../engine/futurepicks.js';
-import { TOTAL_ROUNDS } from '../engine/draft.js';
+import { draftRounds } from '../engine/draft.js';
 
 const POS_ORDER = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K', 'P'];
 
@@ -54,7 +54,7 @@ export function openPickTrade({ league, draft, pool, byId, userIdx, onDone }) {
       ? `<span class="muted">${esc(slotBand(league, byId, draftPick.from, slots))}${draftPick.round > 1 ? ` · round ${draftPick.round}` : ''}</span>`
       : draftPick.from !== owner
         ? `<span class="badge block">from ${esc(league.teams[draftPick.from].abbr)}</span>`
-        : `<span class="muted">round ${draftPick.round} of ${TOTAL_ROUNDS}</span>`;
+        : `<span class="muted">round ${draftPick.round} of ${draftRounds(draft)}</span>`;
     return `
     <li class="prow pick-row ${chosen ? 'me' : ''}">
       <div class="who"><div class="nm">${esc(pickLabel(league, draft, draftPick))}</div>

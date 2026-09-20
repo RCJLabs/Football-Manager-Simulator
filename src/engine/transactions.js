@@ -26,6 +26,7 @@ import { aiAdjustStrategies } from './gm.js';
 import {
   futureOwner, applyFutureTrade, validateFuturePicks, futureLabel,
 } from './owedpicks.js';
+import { signablePool } from './proleague.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
 export const MAX_TRADE_SIDE = 3;
@@ -57,9 +58,17 @@ export function ownerMap(league) {
   return m;
 }
 
+/**
+ * Who is out there to be signed.
+ *
+ * `signablePool` is where the pro league narrows: this year's rookies belong
+ * to the draft, and the all-time players nobody ever signed are on their way
+ * out. Every path that hands somebody a contract comes through here, so the
+ * wire, the market and the kickoff fill cannot disagree about who exists.
+ */
 export function freeAgents(league, pool) {
   const owned = ownerMap(league);
-  return pool.filter((p) => !owned.has(p.id) && !p.retired);
+  return signablePool(league, pool).filter((p) => !owned.has(p.id) && !p.retired);
 }
 
 export function slotOf(team, playerId) {

@@ -6,10 +6,12 @@ import { RNG } from '../src/engine/rng.js';
 import { overall } from '../src/engine/ratings.js';
 import { createLeague, startSeason, registerPlayers, userTeamIndex } from '../src/engine/season.js';
 import { autoCompleteAll } from '../src/engine/auction.js';
-import { autoDraftAll } from '../src/engine/draft.js';
+import { autoDraftAll, TOTAL_ROUNDS } from '../src/engine/draft.js';
 import { simulateAhead } from '../src/engine/autosim.js';
 import { enterOffseason, aiKeepers, confirmKeepers } from '../src/engine/offseason.js';
 import { rostersValid, ownerMap, freeAgents } from '../src/engine/transactions.js';
+import { applyCareers, careerIndex } from '../src/engine/careers.js';
+import { rookieClass, proDraftRounds } from '../src/engine/proleague.js';
 import { encodeLeagueCode, decodeLeagueCode, leagueFromSnapshot, poolFingerprint } from '../src/engine/share.js';
 import {
   addRookieClass, generateRookies, classSize, classPositions, rollOverall, leaguePool, leagueIndex,
@@ -149,23 +151,89 @@ test('a dynasty runs through several offseasons with classes arriving and roster
   void enterOffseason; void aiKeepers; void confirmKeepers; void ROSTER_SLOTS;
 });
 
-test('how much rookies matter follows how thin the pool is, which is the honest outcome', () => {
-  // An eight-club league buys the top 216 of 1,269 players, so the bar is a
-  // high one and only a standout rookie clears it. A thirty-two-club league
-  // needs 864, so the bar falls to where a class genuinely competes.
-  const shipped = PLAYERS.map(overall).sort((a, b) => b - a);
-  assert.ok(shipped[8 * ROSTER_SLOTS.length - 1] > shipped[32 * ROSTER_SLOTS.length - 1] + 8, 'the bar really is much higher in a small league');
+test('a pro draft is the rookie class and nothing else, and free agency is everyone else', () => {
+  // This used to measure the opposite thing, and it was right for the league
+  // it was written against: a pro draft ran over the whole all-time pool, so a
+  // rookie had to beat Rod Woodson to be picked and only a standout ever was.
+  // Measured then, the second-season draft made 102 picks and nine of them
+  // were rookies. Now the draft is the class and the market is everybody else.
+  const pro = createLeague({ name: 'P', mode: 'pro', franchise: 1, seed: 22, draftType: 'snake', injuries: 'normal' });
+  autoDraftAll(pro, pro.draft, PLAYERS, new RNG(22));
+  // The founding draft is the all-time pool: that is how a pro league is populated.
+  assert.ok(pro.draft.picks.every((p) => !String(p.playerId).startsWith('rk-')), 'season one drafted a rookie');
+  assert.equal(pro.draft.eligible, null, 'the founding draft has no eligibility list');
+  startSeason(pro, byId);
+  simulateAhead(pro, careerIndex(pro, leagueIndex(pro, byId)), applyCareers(pro, leaguePool(pro, PLAYERS)), new RNG(40), 'nextSeason');
 
+  const cls = rookieClass(pro);
+  const clsIds = new Set(cls.map((p) => p.id));
+  assert.ok(cls.length > 100, `the class is ${cls.length}`);
+  // Every pick, without exception, is a member of this year's class.
+  assert.ok(pro.draft.picks.length > 0, 'the draft made no picks');
+  for (const pick of pro.draft.picks) assert.ok(clsIds.has(pick.playerId), `${pick.playerId} was drafted but is not in the class`);
+  assert.equal(pro.draft.rounds, proDraftRounds(pro));
+  assert.ok(pro.draft.rounds < TOTAL_ROUNDS, 'a rookie draft is shorter than a roster');
+
+  // And the market is the other half of the split: veterans, never a draftee.
+  const pool = applyCareers(pro, leaguePool(pro, PLAYERS));
+  const fa = freeAgents(pro, pool);
+  assert.equal(fa.filter((p) => clsIds.has(p.id)).length, 0, 'this year\u2019s rookies are on the market as well as in the draft');
+  assert.ok(fa.some((p) => !p.generated), 'no veterans on the market at all');
+  assert.ok(rostersValid(pro, careerIndex(pro, leagueIndex(pro, byId))).ok);
+});
+
+test('a shared pro league keeps the men it has shown the door', async () => {
+  // Without this the code hands a friend four hundred all-time players back on
+  // the free-agent market and restarts the drain, which is a different league
+  // from the one being shared.
   const pro = createLeague({ name: 'P', mode: 'pro', franchise: 1, seed: 22, draftType: 'snake', injuries: 'normal' });
   autoDraftAll(pro, pro.draft, PLAYERS, new RNG(22));
   startSeason(pro, byId);
-  for (let i = 0; i < 3; i++) simulateAhead(pro, leagueIndex(pro, byId), leaguePool(pro, PLAYERS), new RNG(40 + i), 'nextSeason');
-  const owned = ownerMap(pro);
-  const signed = pro.rookies.filter((p) => owned.has(p.id));
-  assert.ok(signed.length >= 5, `only ${signed.length} rookies signed in a 32-club league after three offseasons`);
-  assert.ok(rostersValid(pro, leagueIndex(pro, byId)).ok);
-  // The ones who get signed are the good ones, not a random draw.
-  const signedMean = signed.reduce((n, p) => n + overall(p), 0) / signed.length;
-  const allMean = pro.rookies.reduce((n, p) => n + overall(p), 0) / pro.rookies.length;
-  assert.ok(signedMean > allMean + 8, `signed rookies average ${signedMean.toFixed(1)} against a class average of ${allMean.toFixed(1)}`);
+  for (let i = 0; i < 3; i++) {
+    simulateAhead(pro, careerIndex(pro, leagueIndex(pro, byId)), applyCareers(pro, leaguePool(pro, PLAYERS)), new RNG(40 + i), 'nextSeason');
+  }
+  assert.ok((pro.departed || []).length > 50, `only ${(pro.departed || []).length} have left`);
+  assert.ok(Object.keys(pro.drain || {}).length > 0, 'nobody is on the clock to leave');
+
+  const code = await encodeLeagueCode(pro, leaguePool(pro, PLAYERS));
+  const copy = leagueFromSnapshot(await decodeLeagueCode(code), PLAYERS, byId);
+  assert.deepEqual(new Set(copy.departed), new Set(pro.departed), 'the departed did not travel');
+  assert.deepEqual(copy.drain, pro.drain, 'the drain schedule did not travel');
+  // And the restored league agrees about who can be signed.
+  const mine = freeAgents(pro, applyCareers(pro, leaguePool(pro, PLAYERS))).map((p) => p.id).sort();
+  const theirs = freeAgents(copy, applyCareers(copy, leaguePool(copy, PLAYERS))).map((p) => p.id).sort();
+  assert.deepEqual(theirs, mine, 'the two leagues disagree about who is a free agent');
+  assert.ok(rostersValid(copy, careerIndex(copy, leagueIndex(copy, byId))).ok);
+});
+
+test('the undrafted all-timers leave, and the draft becomes the best talent in the league', () => {
+  // The point of the split. While four hundred all-time players sit unsigned,
+  // a draft pick is worth less than a phone call, so they have to go. Measured
+  // over this run the all-time share of the market falls 496, 445, 356, 279,
+  // 150, 109, 75 — and from about there the class outrates what is left.
+  const pro = createLeague({ name: 'P', mode: 'pro', franchise: 1, seed: 22, draftType: 'snake', injuries: 'normal' });
+  autoDraftAll(pro, pro.draft, PLAYERS, new RNG(22));
+  startSeason(pro, byId);
+  const ovr = (list) => list.map((p) => overall(p)).sort((a, b) => b - a);
+  let first = null, last = null;
+  for (let i = 0; i < 7; i++) {
+    simulateAhead(pro, careerIndex(pro, leagueIndex(pro, byId)), applyCareers(pro, leaguePool(pro, PLAYERS)), new RNG(40 + i), 'nextSeason');
+    const idx = careerIndex(pro, leagueIndex(pro, byId));
+    const pool = applyCareers(pro, leaguePool(pro, PLAYERS));
+    // Nobody ever starts a season a man short. This is the invariant the drain
+    // is most likely to break, so it is checked every year rather than at the end.
+    const v = rostersValid(pro, idx);
+    assert.ok(v.ok, `season ${pro.season}: ${v.reason}`);
+    const fa = freeAgents(pro, pool);
+    const allTime = fa.filter((p) => !p.generated).length;
+    if (first == null) first = allTime;
+    last = { allTime, best: ovr(fa)[0], classBest: ovr(rookieClass(pro).map((p) => idx.get(p.id) || p))[0] };
+  }
+  assert.ok(last.allTime < first * 0.3, `all-time free agents went ${first} to ${last.allTime}`);
+  assert.ok(last.classBest > last.best,
+    `the best free agent is ${last.best} and the best rookie ${last.classBest}: the draft is not the way to get better`);
+  // Nobody signs a man who has retired.
+  const retired = new Set(pro.retired || []);
+  const onRosters = [...ownerMap(pro).keys()].filter((id) => retired.has(id));
+  assert.equal(onRosters.length, 0, `${onRosters.length} retired players are on rosters`);
 });

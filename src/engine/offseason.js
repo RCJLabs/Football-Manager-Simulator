@@ -20,6 +20,7 @@ import { capOn, expireContracts, marketSalary, VET_YEARS, PRO_CAP, MIN_SALARY, S
 import { openFreeAgency, resolveFreeAgency } from './freeagency.js';
 import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex, thinCompletedLogs } from './season.js';
+import { drainVeterans } from './proleague.js';
 import { clearIr } from './injuries.js';
 import { addRookieClass } from './rookies.js';
 import { advanceCareers, releaseRetired } from './careers.js';
@@ -96,6 +97,14 @@ export function enterOffseason(league, pool, byId) {
   // comes down to the story. This is the single biggest thing in a pro save —
   // see `thinCompletedLogs`.
   thinCompletedLogs(league);
+  // The undrafted all-timers clear out a quarter at a time. Done before the
+  // keeper round so the market a club shops in is the one it will actually
+  // find, rather than one that shrinks under it between screens.
+  const left = drainVeterans(
+    league,
+    new Set(league.teams.flatMap((t) => ROSTER_SLOTS.map((s) => t.slots[s.id]).filter(Boolean))),
+    pool,
+  );
   // Injured reserve empties: anyone whose slot was filled behind him is let go.
   const released = clearIr(league, byId);
   syncContracts(league, byId);
@@ -114,7 +123,7 @@ export function enterOffseason(league, pool, byId) {
     : { retired: [], risers: [], fallers: [], aged: 0 };
   releaseRetired(league, careers.retired.map((r) => r.id));
   // A new intake arrives before the market opens, and old unsigned rookies wash out.
-  const intake = addRookieClass(league, rng);
+  const intake = addRookieClass(league, rng, { pool });
   // The owners have their say before anybody picks a keeper, because a coach
   // who has just been sacked should not be choosing who his old club keeps, and
   // a coach who has just been hired should be choosing for his new one.
@@ -123,7 +132,7 @@ export function enterOffseason(league, pool, byId) {
   league.offseason = {
     season: league.season, step: carousel && carousel.offers ? 'jobs' : 'keepers',
     keepers: {}, user: null, releasedFromIr: released,
-    rookies: intake.arrived.length, washedOut: intake.washed.length,
+    rookies: intake.arrived.length, washedOut: intake.washed.length, leftTheLeague: left.length,
     expired: expired.length,
     aged: careers.aged,
     retired: careers.retired.filter((r) => r.owned).map((r) => ({ name: r.name, pos: r.pos, age: r.age })),

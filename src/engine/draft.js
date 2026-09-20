@@ -5,6 +5,7 @@ import { overall } from './ratings.js';
 import { RNG } from './rng.js';
 import { scoutedOverall } from './scouting.js';
 import { applyOwedPicks } from './owedpicks.js';
+import { proPools, proDraftRounds, rookieClass } from './proleague.js';
 
 export const TOTAL_ROUNDS = ROSTER_SLOTS.length;
 
@@ -23,6 +24,11 @@ export function openSlotsByPos(team) {
 
 export function createDraft(league, rng, { order = null, taken = {} } = {}) {
   const n = league.teams.length;
+  // A pro league past its first season drafts its rookie class and nothing
+  // else, over as many rounds as the class needs. Everything else — the
+  // fantasy league, and the opening draft that populates a pro one — drafts
+  // the whole pool over a round per roster slot, as it always did.
+  const rookiesOnly = proPools(league);
   const draft = {
     order: order ? order.slice() : rng.shuffle([...Array(n).keys()]),
     round: 1,
@@ -30,6 +36,10 @@ export function createDraft(league, rng, { order = null, taken = {} } = {}) {
     picks: [],
     taken: { ...taken },
     complete: false,
+    rounds: rookiesOnly ? proDraftRounds(league) : TOTAL_ROUNDS,
+    // Held as ids rather than a flag, so the board, the AI and the trade
+    // projection all read the same list without needing the league.
+    eligible: rookiesOnly ? rookieClass(league).map((p) => p.id) : null,
   };
   // Picks promised in last year's draft come due here, and here is the first
   // moment they can: a future pick is a round and a club, and it takes an
@@ -42,9 +52,14 @@ export function createDraft(league, rng, { order = null, taken = {} } = {}) {
 
 /** Move the pointer off any club whose roster is already full; end the draft when everyone's is. */
 export function settlePointer(league, draft) {
+  // A rookie draft can run out of players before it runs out of rounds — the
+  // class does not divide evenly by the number of clubs. Checked off the
+  // draft's own two lists so this needs no pool, and so a board with nobody
+  // left on it ends rather than sitting on the clock forever.
+  if (draft.eligible && !draft.eligible.some((id) => draft.taken[id] == null)) { draft.complete = true; return; }
   let guard = 0;
-  while (!draft.complete && guard++ < TOTAL_ROUNDS * draft.order.length + 1) {
-    if (league.teams.every((t) => openSlots(t).length === 0) || draft.round > TOTAL_ROUNDS) { draft.complete = true; return; }
+  while (!draft.complete && guard++ < draftRounds(draft) * draft.order.length + 1) {
+    if (league.teams.every((t) => openSlots(t).length === 0) || draft.round > draftRounds(draft)) { draft.complete = true; return; }
     if (openSlots(league.teams[currentPicker(draft)]).length > 0) return;
     draft.pickInRound++;
     if (draft.pickInRound >= draft.order.length) { draft.pickInRound = 0; draft.round++; }
@@ -70,7 +85,13 @@ export function overallPickNumber(draft) {
 
 /** Players still available (from a pool array). */
 export function availablePlayers(draft, pool) {
-  return pool.filter((p) => draft.taken[p.id] == null && !p.retired);
+  const only = draft.eligible ? new Set(draft.eligible) : null;
+  return pool.filter((p) => draft.taken[p.id] == null && !p.retired && (!only || only.has(p.id)));
+}
+
+/** How many rounds this particular draft runs. Older saves carry none and ran the full twenty-seven. */
+export function draftRounds(draft) {
+  return draft?.rounds ?? TOTAL_ROUNDS;
 }
 
 /** League-wide open demand per position. */
@@ -112,7 +133,7 @@ export function rankForTeam(league, draft, pool, teamIdx, rng, { bestOnly = fals
   const demand = demandByPos(league);
   const repl = replacementLevels(available, demand);
   const gm = GM_PERSONALITIES.find((g) => g.id === team.gm) || GM_PERSONALITIES[0];
-  const roundsLeft = TOTAL_ROUNDS - draft.round + 1;
+  const roundsLeft = draftRounds(draft) - draft.round + 1;
   const openCount = openSlots(team).length;
   const ranked = [];
   let best = null;
@@ -124,7 +145,7 @@ export function rankForTeam(league, draft, pool, teamIdx, rng, { bestOnly = fals
     if (gm.era) value *= gm.era(p.season);
     value += (ovr - 80) * 0.15; // slight preference for raw talent
     // Kickers/punters: wait until the last rounds unless forced.
-    if ((p.pos === 'K' || p.pos === 'P') && draft.round <= TOTAL_ROUNDS - 3) value -= 15;
+    if ((p.pos === 'K' || p.pos === 'P') && draft.round <= draftRounds(draft) - 3) value -= 15;
     // Forced needs: if a position's open slots equal rounds left, must fill.
     if (open[p.pos] >= roundsLeft) value += 100;
     // Don't hoard: second RB / fourth WR lower priority early.
@@ -132,7 +153,7 @@ export function rankForTeam(league, draft, pool, teamIdx, rng, { bestOnly = fals
     if (p.pos === 'RB' && filled >= 1 && draft.round < 12) value -= 4;
     if (p.pos === 'WR' && filled >= 3 && draft.round < 16) value -= 5;
     // A backup quarterback is insurance, not a starter: last few rounds.
-    if (p.pos === 'QB' && filled >= 1 && draft.round <= TOTAL_ROUNDS - 4) value -= 14;
+    if (p.pos === 'QB' && filled >= 1 && draft.round <= draftRounds(draft) - 4) value -= 14;
     if (rng) value += rng.normal(0, 1.6);
     if (bestOnly) {
       // Strictly greater, so a tie keeps the earlier player — which is what a
@@ -167,10 +188,36 @@ export function makePick(league, draft, player) {
   if (draft.pickInRound >= draft.order.length) {
     draft.pickInRound = 0;
     draft.round++;
-    if (draft.round > TOTAL_ROUNDS) draft.complete = true;
+    if (draft.round > draftRounds(draft)) draft.complete = true;
   }
   settlePointer(league, draft);
   return teamIdx;
+}
+
+/**
+ * Give up a turn nobody can use.
+ *
+ * A rookie draft can reach a club whose only open slot is at a position the
+ * class has run out of — thirty-two clubs and seven punters between them is
+ * enough for it to happen. An all-time draft never could, because the board
+ * held every player who ever lived, so the loop simply stopped when the AI had
+ * nothing to take. Measured on a second-season pro draft that cost 83 of 160
+ * picks: the draft halted at pick 77 with 99 rookies still on the board and
+ * six clubs still short of a full roster, and a club that had been promised
+ * five picks made four.
+ *
+ * So a club that cannot use its turn passes it, exactly as the real thing
+ * does, and the draft carries on to the clubs behind it.
+ */
+export function passPick(league, draft) {
+  if (draft.complete) return;
+  draft.pickInRound++;
+  if (draft.pickInRound >= draft.order.length) {
+    draft.pickInRound = 0;
+    draft.round++;
+    if (draft.round > draftRounds(draft)) { draft.complete = true; return; }
+  }
+  settlePointer(league, draft);
 }
 
 /**
@@ -184,7 +231,7 @@ export function stepAiPick(league, draft, pool, rng) {
   const t = currentPicker(draft);
   if (t == null || league.teams[t].isUser) return null;
   const p = aiChoose(league, draft, pool, t, rng);
-  if (!p) return null;
+  if (!p) { passPick(league, draft); return null; }
   makePick(league, draft, p);
   return draft.picks[draft.picks.length - 1];
 }
@@ -192,11 +239,13 @@ export function stepAiPick(league, draft, pool, rng) {
 /** Run AI picks until it is the user's turn (or the draft ends). */
 export function runAiPicks(league, draft, pool, rng, { stopAtUser = true } = {}) {
   let guard = 0;
-  while (!draft.complete && guard++ < TOTAL_ROUNDS * draft.order.length + 5) {
+  while (!draft.complete && guard++ < draftRounds(draft) * draft.order.length + 5) {
     const t = currentPicker(draft);
     if (stopAtUser && league.teams[t].isUser) break;
     const p = aiChoose(league, draft, pool, t, rng);
-    if (!p) break;
+    // Every turn of this loop moves the pointer on by exactly one, pick or
+    // pass, so the guard above still bounds it at the number of picks there are.
+    if (!p) { passPick(league, draft); continue; }
     makePick(league, draft, p);
   }
   return draft;

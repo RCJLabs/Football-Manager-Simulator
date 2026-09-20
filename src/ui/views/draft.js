@@ -16,7 +16,7 @@ import { valuePanel, valueHint } from '../value-panel.js';
 import { POSITION_ORDER, ROSTER_SLOTS } from '../../data/positions.js';
 import { ERAS } from '../../data/db.js';
 import { overall } from '../../engine/ratings.js';
-import { currentPicker, overallPickNumber, availablePlayers, openSlotsByPos, makePick, runAiPicks, stepAiPick, aiChoose, autoDraftAll, TOTAL_ROUNDS, RNG } from '../../engine/draft.js';
+import { currentPicker, overallPickNumber, availablePlayers, openSlotsByPos, makePick, runAiPicks, stepAiPick, aiChoose, autoDraftAll, draftRounds, passPick, RNG } from '../../engine/draft.js';
 import { startSeason } from '../../engine/season.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { ovrBadge, playerItem, playerModal, teamChip, toast, esc, withBusy } from '../components.js';
@@ -240,7 +240,7 @@ export function view(root, params, ctx) {
     render(root, html`<div id="draft-view">
       <div class="card tight draft-head ${mine ? 'mine' : ''}">
         <div class="row between" style="align-items:baseline;gap:.5rem;flex-wrap:wrap">
-          <div class="clock">Round ${draft.round} of ${TOTAL_ROUNDS} · Pick ${pickNo}</div>
+          <div class="clock">Round ${draft.round} of ${draftRounds(draft)} · Pick ${pickNo}</div>
           <div class="speed">${raw(SPEEDS.map(([n]) => `<button class="tab ${speedName() === n ? 'active' : ''}" data-speed="${n}">${n}</button>`).join(''))}</div>
         </div>
         <div class="whoson">${mine
@@ -249,7 +249,7 @@ export function view(root, params, ctx) {
         <div class="ticker-line">${raw(announce)}</div>
         <div class="needs" style="margin-top:.45rem">${raw(POSITION_ORDER.map((pos) => `<span class="need ${open[pos] ? 'open' : ''}" data-filter="${pos}">${pos} ${open[pos] ? `×${open[pos]}` : '✓'}</span>`).join(''))}</div>
         <div class="btn-group" style="margin-top:.6rem">
-          <button class="btn sm primary" id="openBoard">Draft board <span class="muted">${draft.picks.length}/${TOTAL_ROUNDS * league.teams.length}</span></button>
+          <button class="btn sm primary" id="openBoard">Draft board <span class="muted">${draft.picks.length}/${draftRounds(draft) * league.teams.length}</span></button>
           <button class="btn sm" id="tradePicks">Trade picks <span class="muted">${usablePicks(league, draft, u).length} left</span></button>
           ${mine ? html`<button class="btn sm" id="autoOne">Auto-pick for me</button>` : html`<button class="btn sm" id="skip">Skip to my pick</button>`}
           <button class="btn sm" id="autoAll">Auto-draft the rest</button>
@@ -260,7 +260,7 @@ export function view(root, params, ctx) {
         labels: rows.labels,
         onClock: { row: rows.roundRow[draft.round - 1] ?? draft.round - 1, team: onClock },
         freshKey: fresh, byId: ctx.byId, observer: u, order: draft.order,
-      }), { title: 'Draft board', sub: `${draft.picks.length} of ${TOTAL_ROUNDS * league.teams.length} picks` })) : ''}
+      }), { title: 'Draft board', sub: `${draft.picks.length} of ${draftRounds(draft) * league.teams.length} picks` })) : ''}
       <details class="card tight" id="valueGuide" style="margin-top:.5rem">
         <summary style="cursor:pointer"><b>Where money wins games</b> <span class="muted">${valueHint()}</span></summary>
         ${valuePanel()}
@@ -269,7 +269,7 @@ export function view(root, params, ctx) {
         ${raw(listHtml)}
         <div class="stack">
           <div class="card tight">
-            <h3>My roster (${ROSTER_SLOTS.filter((s) => me.slots[s.id]).length}/${TOTAL_ROUNDS})</h3>
+            <h3>My roster (${ROSTER_SLOTS.filter((s) => me.slots[s.id]).length}/${ROSTER_SLOTS.length})</h3>
             ${raw(ROSTER_SLOTS.map((s) => (me.slots[s.id] ? playerItem(ctx.byId.get(me.slots[s.id]), { attrs: false, pos: false, meta: ` <span class="badge slot">${s.id}</span>` }) : '')).join('') || '<p class="muted" style="font-size:.85rem">No picks yet.</p>')}
           </div>
           <div class="card tight">
@@ -374,7 +374,12 @@ export function view(root, params, ctx) {
     el.querySelector('#autoOne')?.addEventListener('click', () => {
       const rng = new RNG(league.rngState);
       const p = aiChoose(league, draft, ctx.players, u, rng);
-      if (p) pick(p);
+      if (p) { pick(p); return; }
+      // Nobody the club can use. In an all-time draft that cannot happen; in a
+      // rookie draft the class can run out at the one position you have a slot
+      // for, and without this the clock sits on you with no way to move it on.
+      ctx.update((s) => { passPick(s.league, s.league.draft); });
+      toast('Nobody left you can use at an open slot — your pick passes.');
     });
     el.querySelector('#autoAll')?.addEventListener('click', (e) => {
       stop();

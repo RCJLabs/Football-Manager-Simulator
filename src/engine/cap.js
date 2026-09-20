@@ -94,9 +94,23 @@ export function capOn(league) {
   return league?.mode === 'pro';
 }
 
-/** Total picks in a draft, which is what the scale is measured against. */
+/**
+ * Total picks in the draft the scale is measured against.
+ *
+ * It has to be the draft actually being held, not the roster. A founding draft
+ * stocks every slot and runs the full twenty-seven rounds, but a pro league's
+ * rookie draft is a handful of rounds over one class, and pricing those picks
+ * as though they were the first few of 864 put the whole class in the
+ * expensive top eleventh of the curve. Measured on a second-season draft: a
+ * 49-rated punter taken in the last round was paid 12 of a 200 cap against a
+ * market value of 1, and the class cost its clubs 1,040 against the 151 it was
+ * worth — near enough seven times over. Measured against its own draft the
+ * same punter costs the minimum and the class costs 324 against 165, which is
+ * the premium a pick is supposed to carry rather than a penalty for having one.
+ */
 export function draftSize(league) {
-  return ROSTER_SLOTS.length * (league?.teams?.length || 1);
+  const rounds = league?.draft?.rounds ?? ROSTER_SLOTS.length;
+  return Math.max(2, rounds * (league?.teams?.length || 1));
 }
 
 /** What a player drafted at `overallPick` costs on his rookie deal. */

@@ -93,6 +93,15 @@ export function snapshot(league, players) {
     // would start at prime ratings while ours is three seasons older.
     dev: Object.fromEntries(Object.entries(league.dev || {}).map(([id, c]) => [slotRef(id), c]).filter(([k]) => k !== -1)),
     retired: (league.retired || []).map(slotRef).filter((i) => i !== -1),
+    // Who the pro league has shown the door, and who is on the clock to follow
+    // them. Without these a shared league hands the recipient four hundred
+    // all-time players back on the free-agent market and restarts the drain
+    // from scratch, which is a different league from the one being shared.
+    // Left out entirely for a fantasy league, where neither exists.
+    departed: league.departed?.length ? league.departed.map(slotRef).filter((i) => i !== -1) : undefined,
+    drain: league.drain && Object.keys(league.drain).length
+      ? Object.fromEntries(Object.entries(league.drain).map(([id, when]) => [slotRef(id), when]).filter(([k]) => k !== -1))
+      : undefined,
     tenure: (league.tenure || []).map ? league.tenure : Object.fromEntries(
       Object.entries(league.tenure || {}).map(([ti, held]) => [ti, Object.fromEntries(Object.entries(held).map(([id, n]) => [slotRef(id), n]).filter(([k]) => k !== -1))]),
     ),
@@ -136,6 +145,15 @@ export function leagueFromSnapshot(snap, players, byId) {
   league.contracts = Object.fromEntries(Object.entries(snap.contracts || {}).map(([k, c]) => [idAt(Number(k)), c]).filter(([id]) => id));
   league.dev = Object.fromEntries(Object.entries(snap.dev || {}).map(([k, c]) => [idAt(Number(k)), { ...c, d: { ...c.d } }]).filter(([id]) => id));
   league.retired = (snap.retired || []).map((k) => idAt(Number(k))).filter(Boolean);
+  // Before `startSeason` below, which fills open slots off the market: a
+  // departed player must already be off it by then. A code written before
+  // these existed carries neither, and the league picks the drain up from
+  // scratch at its next offseason rather than breaking.
+  if (snap.departed) league.departed = snap.departed.map((k) => idAt(Number(k))).filter(Boolean);
+  if (snap.drain) {
+    league.drain = Object.fromEntries(Object.entries(snap.drain)
+      .map(([k, when]) => [idAt(Number(k)), when]).filter(([id]) => id));
+  }
   // The market is over: the auction or draft is complete by definition.
   const held = (t, ti) => [...Object.values(t.slots).filter(Boolean), ...(t.ir || [])].map((id) => [id, ti]);
   if (league.auction) { league.auction.complete = true; league.auction.taken = Object.fromEntries(league.teams.flatMap(held)); }
