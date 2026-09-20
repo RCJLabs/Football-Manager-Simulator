@@ -373,6 +373,51 @@ Measured over eight seasons of a 32-club league: cap hits run 142 to 200 against
 a cap of 200, **no club is ever over at kickoff**, and 14 to 22 of 27 men are
 kept a year. Before the cap it was 27 of 27, forever.
 
+### Repairing a league signed all on one day
+
+A pro league saved before `syncContracts` learned to stagger has every founding
+contract on the full rookie term. The damage is not the one chaotic year I
+expected, and the measurement is what settled the design. Three leagues, eight
+seasons, against a staggered league run the same way:
+
+| season | pre-fix expiring / roster kept | staggered |
+| --- | --- | --- |
+| 1 | 0 / 95% | 219 / 83% |
+| 2 | 0 / 92% | 219 / 68% |
+| 3 | 0 / 90% | 232 / 57% |
+| 4 | **758** / 48% | 312 / 55% |
+| 5 | 6 / 68% | 120 / 60% |
+
+The bad year is survivable — by season five the two are back in step. **The
+three dead years before it are the real cost**: nothing expires, ninety per
+cent of every roster stays put, the lineup moves by 11 to 19 points against 58
+to 97, and the cap sits at 122 of 200 without ever binding. Three seasons of a
+dynasty with no decision in them.
+
+`spreadFoundingContracts` runs once, from `migrateLeague` at version 4, and
+adds `hash % ROOKIE_YEARS` years to each founding deal. Measured on a pre-fix
+save loaded in season two or three, the season-four cliff of 758 expiries at
+48% retention becomes **191 at 77%**, and the years after settle at about 200 a
+year — the staggered league's own profile.
+
+Three things about it are deliberate:
+
+- **It never shortens a contract.** The keeper screen prints "3y left" and
+  somebody may have been counting on it. Every deal keeps what it has and some
+  get up to three years more, so the cohort fans out instead of landing
+  together and nobody loses a man they were promised.
+- **It only touches a flat cohort.** The shipped stagger guarantees a spread,
+  so two distinct terms among the founding intake is enough to leave a league
+  alone. A fantasy league and a first season are skipped outright.
+- **It cannot undo the dead years.** Seasons already played stay played; there
+  is no retroactively expiring a contract that did not. The migration fixes the
+  future of such a save and says so.
+
+It also says so on screen, once, in the banner a save problem uses, with a
+button to dismiss it. Clearing the note during the render was the first attempt
+and it is wrong: clearing fires `update`, which re-renders the banner, so the
+message appeared and vanished inside one tick.
+
 ## The free-agent market (`freeagency.js`)
 
 Between the keeper round and the draft, and only in a capped league. What makes

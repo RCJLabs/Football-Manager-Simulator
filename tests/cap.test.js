@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { PLAYERS, PLAYERS_BY_ID as byId } from '../src/data/db.js';
 import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
-import { createLeague, startSeason, registerPlayers, simulateWeekAi, advanceWeek, userTeamIndex } from '../src/engine/season.js';
+import { createLeague, startSeason, registerPlayers, simulateWeekAi, advanceWeek, userTeamIndex, migrateLeague, LEAGUE_VERSION } from '../src/engine/season.js';
 import { autoDraftAll } from '../src/engine/draft.js';
 import { enterOffseason, confirmKeepers, aiKeepers, takeJob, keeperCost, closeFreeAgency } from '../src/engine/offseason.js';
 import {
   capOn, capHit, capSpace, overCap, rookieSalary, marketSalary, expireContracts,
-  PRO_CAP, MIN_SALARY, ROOKIE_TOP, draftSize,
+  PRO_CAP, MIN_SALARY, ROOKIE_TOP, ROOKIE_YEARS, draftSize,
 } from '../src/engine/cap.js';
 
 registerPlayers(byId);
@@ -105,4 +105,57 @@ test('the draft scale is measured against the whole draft, whatever the league s
     assert.equal(draftSize(lg), ROSTER_SLOTS.length * lg.teams.length);
     assert.equal(rookieSalary(1, draftSize(lg)), ROOKIE_TOP);
   }
+});
+
+test('a founding intake signed on one day is fanned out on load', () => {
+  const lg = drafted(21);
+  // A save from before syncContracts learned to stagger, two seasons in: every
+  // founding deal was written on the full rookie term and has run down by the
+  // same two years, so the whole league comes due in one offseason.
+  lg.season = 3;
+  for (const c of Object.values(lg.contracts)) if (c.round != null) c.years = ROOKIE_YEARS - 2;
+  lg.version = 3;
+  const before = Object.fromEntries(Object.entries(lg.contracts).map(([id, c]) => [id, c.years]));
+  assert.equal(new Set(Object.values(before).filter((y) => y > 0)).size, 1, 'the fixture was not flat');
+
+  migrateLeague(lg);
+  assert.equal(lg.version, LEAGUE_VERSION);
+  assert.ok(lg.migrationNote, 'the player was not told anything changed');
+
+  const after = Object.entries(lg.contracts).filter(([, c]) => c.since === 1 && c.round != null);
+  assert.ok(new Set(after.map(([, c]) => c.years)).size >= 3, 'the cohort still lands in one year');
+  // Never shortens: the keeper screen prints "3y left" and somebody may have
+  // been counting on it.
+  for (const [id, c] of after) assert.ok(c.years >= before[id], `${id} lost a year it had been promised`);
+  // And the spread is bounded — a contract cannot run away.
+  for (const [id, c] of after) assert.ok(c.years <= before[id] + ROOKIE_YEARS - 1);
+});
+
+test('a league that was already staggered is left alone', () => {
+  const lg = drafted(22);
+  lg.season = 3;
+  lg.version = 3;
+  const before = JSON.stringify(lg.contracts);
+  migrateLeague(lg);
+  assert.equal(JSON.stringify(lg.contracts), before, 'a healthy league was rewritten');
+  assert.equal(lg.migrationNote, undefined);
+});
+
+test('the spread never touches a fantasy league or a first season', () => {
+  const fantasy = createLeague({ name: 'F', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 4, draftType: 'auction' });
+  fantasy.version = 3;
+  const fBefore = JSON.stringify(fantasy.contracts);
+  migrateLeague(fantasy);
+  assert.equal(JSON.stringify(fantasy.contracts), fBefore);
+
+  // Season one is where the stagger is written in the first place; there is
+  // nothing to repair and no elapsed time to repair it against.
+  const fresh = drafted(23);
+  for (const c of Object.values(fresh.contracts)) if (c.round != null) c.years = ROOKIE_YEARS;
+  fresh.season = 1;
+  fresh.version = 3;
+  const sBefore = JSON.stringify(fresh.contracts);
+  migrateLeague(fresh);
+  assert.equal(JSON.stringify(fresh.contracts), sBefore);
+  assert.equal(fresh.migrationNote, undefined);
 });

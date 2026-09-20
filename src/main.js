@@ -127,6 +127,18 @@ function mount(view, params) {
 function renderSaveWarning() {
   if (!saveWarnEl) return;
   const err = saveError();
+  // A migration that quietly rewrote somebody's contracts is a migration that
+  // looks like a bug the next time they open the keeper screen. It is said in
+  // the same place a save problem is said, and it stays until it is read:
+  // clearing it here would fire `update`, which re-renders this banner, so the
+  // message would appear and vanish inside one tick.
+  const note = getState().league?.migrationNote;
+  if (!err && note) {
+    saveWarnEl.innerHTML = `<strong>This league was brought up to date.</strong> ${esc(note)} `
+      + '<button class="btn sm ghost" data-clearnote>Got it</button>';
+    saveWarnEl.hidden = false;
+    return;
+  }
   if (!err) { saveWarnEl.hidden = true; saveWarnEl.innerHTML = ''; return; }
   const why = err.quota
     ? 'This browser is out of storage room, so nothing since then has been written down.'
@@ -326,6 +338,11 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNavMe
 // keeps items in the menu that would now fit on it.
 let navFitTimer = null;
 window.addEventListener('resize', () => { clearTimeout(navFitTimer); navFitTimer = setTimeout(fitNav, 120); });
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-clearnote]')) return;
+  update((st) => { if (st.league) delete st.league.migrationNote; });
+});
 
 subscribe(() => { if (activeView && !activeView.selfRendering) mount(activeView, activeParams); else { renderNav(); renderSaveWarning(); } });
 startRouter();

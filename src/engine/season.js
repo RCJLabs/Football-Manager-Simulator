@@ -26,7 +26,7 @@ import { DEFAULT_DIFFICULTY } from './difficulty.js';
 import { capOn, cutToCap, rookieSalary, draftSize, MIN_SALARY, ROOKIE_YEARS, VET_YEARS } from './cap.js';
 import { strategyRead } from './strategy.js';
 
-export const LEAGUE_VERSION = 3;
+export const LEAGUE_VERSION = 4;
 export const FANTASY_SIZES = [8, 10, 12];
 export const PRO_SIZE = 32;
 
@@ -100,9 +100,54 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
 }
 
 /**
+ * Spread a founding intake that was all signed on the same day.
+ *
+ * A pro league saved before `syncContracts` learned to stagger has every
+ * founding contract on the full rookie term, and the damage is not the one
+ * chaotic year I expected. Measured against a staggered league over eight
+ * seasons, three clubs each:
+ *
+ * | season | pre-fix expiring / kept | staggered expiring / kept |
+ * | --- | --- | --- |
+ * | 1 | 0 / 95% | 219 / 83% |
+ * | 2 | 0 / 92% | 219 / 68% |
+ * | 3 | 0 / 90% | 232 / 57% |
+ * | 4 | **758** / 48% | 312 / 55% |
+ * | 5 | 6 / 68% | 120 / 60% |
+ *
+ * The bad year is survivable — by season five the two are back in step. The
+ * three *dead* years before it are the real cost: nothing expires, ninety
+ * per cent of every roster stays put, the lineup moves by 11 to 19 points
+ * against 58 to 97, and the cap sits at 122 of 200 without ever binding.
+ * Three seasons of a dynasty with no decision in them.
+ *
+ * So the remaining term is spread rather than rebuilt. **It never shortens a
+ * contract**, which matters because the keeper screen prints "3y left" and a
+ * player may have been counting on it: each deal keeps what it has and some
+ * get up to three years more, so the cohort fans out over four seasons
+ * instead of landing together. Nobody loses a man they were promised.
+ *
+ * Only the founding intake of a capped league, and only when it really is
+ * flat — the shipped stagger guarantees a spread, so a league that has one is
+ * left alone.
+ */
+function spreadFoundingContracts(league) {
+  if (!capOn(league) || (league.season ?? 1) <= 1) return 0;
+  const founding = Object.entries(league.contracts || {})
+    .filter(([, c]) => c && c.since === 1 && c.round != null && (c.years ?? 0) > 0);
+  if (founding.length < ROSTER_SLOTS.length) return 0;
+  // A staggered league already has a spread; one signed on a single day does
+  // not. Two distinct terms is enough to say it was never flat.
+  if (new Set(founding.map(([, c]) => c.years)).size > 1) return 0;
+  for (const [id, c] of founding) c.years += hashSeed(`${league.seed}:${id}`) % ROOKIE_YEARS;
+  return founding.length;
+}
+
+/**
  * Bring a saved league up to the current shape. Version 3 added the QB2 bench
  * slot and the injury ledger; an older roster gets an empty slot, which the
- * waiver wire can fill.
+ * waiver wire can fill. Version 4 fans out a founding intake that was signed
+ * all on one day — see `spreadFoundingContracts`.
  */
 export function migrateLeague(league) {
   if (!league || (league.version || 1) >= LEAGUE_VERSION) return league;
@@ -113,6 +158,8 @@ export function migrateLeague(league) {
   league.settings ??= {};
   league.settings.injuries ??= DEFAULT_INJURY_LEVEL;
   league.settings.keepers ??= defaultKeepers(league.mode);
+  const spread = spreadFoundingContracts(league);
+  if (spread) league.migrationNote = `${spread} founding contracts were signed on the same day and have been spread over four seasons, so the league does not turn over all at once.`;
   league.version = LEAGUE_VERSION;
   return league;
 }
