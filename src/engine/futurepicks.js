@@ -63,7 +63,7 @@ import { keeperPickValue, usableRounds } from './pickvalue.js';
 import { lineupStrength } from './transactions.js';
 import { capOn } from './cap.js';
 import {
-  FUTURE_ROUNDS, futureSeason, futureHand, futureOwner, futurePicksOpen, snakeOverall,
+  FUTURE_ROUNDS, futureSeason, futureHand, futureOwner, futurePicksOpen, snakeOverall, nextDraftSnakes,
 } from './owedpicks.js';
 
 // The bookkeeping half lives in owedpicks.js, which imports nothing that could
@@ -161,7 +161,7 @@ export function futurePickValue(league, byId, pick, slots = null, holder = null)
   const n = league.teams.length;
   const s = slots || projectedSlots(league, byId);
   const slot = s[pick.from] ?? Math.ceil(n / 2);
-  const overall = snakeOverall(pick.round, slot, n);
+  const overall = snakeOverall(pick.round, slot, n, nextDraftSnakes(league));
   const disc = holder == null ? FUTURE_DISCOUNT : futureDiscount(league, holder, s);
   return keeperPickValue(overall, futureDepth(league), n) * madeOdds(league, pick.round) * disc;
 }

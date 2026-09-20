@@ -40,7 +40,7 @@ import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall } from './ratings.js';
 import { lineupStrength, aiGreed } from './transactions.js';
 import {
-  TOTAL_ROUNDS, draftRounds, openSlots, currentPicker, settlePointer, availablePlayers,
+  TOTAL_ROUNDS, draftRounds, seatAt, openSlots, currentPicker, settlePointer, availablePlayers,
   rankForTeam, aiChoose, makePick,
 } from './draft.js';
 import { RNG } from './rng.js';
@@ -56,19 +56,16 @@ export function overallOf(draft, round, pickInRound) {
   return (round - 1) * draft.order.length + pickInRound + 1;
 }
 
-/** Whose pick this is: the snake, unless it has been traded away. */
+/** Whose pick this is, unless it has been traded away. */
 export function pickOwner(draft, round, pickInRound) {
-  const n = draft.order.length;
-  const idx = round % 2 === 1 ? pickInRound : n - 1 - pickInRound;
-  const base = draft.order[idx];
+  const base = draft.order[seatAt(draft, round, pickInRound)];
   const t = draft.traded?.[overallOf(draft, round, pickInRound)];
   return t == null ? base : t;
 }
 
-/** The club the snake would have given this pick to, before any trade. */
+/** The club the order would have given this pick to, before any trade. */
 export function originalOwner(draft, round, pickInRound) {
-  const n = draft.order.length;
-  return draft.order[round % 2 === 1 ? pickInRound : n - 1 - pickInRound];
+  return draft.order[seatAt(draft, round, pickInRound)];
 }
 
 /**

@@ -5,9 +5,11 @@ import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, simulateWeekAi, advanceWeek, standings, userTeamIndex, newSeasonSameRosters, syncContracts } from '../src/engine/season.js';
 import { autoCompleteAll } from '../src/engine/auction.js';
-import { autoDraftAll, currentPicker, settlePointer, createDraft } from '../src/engine/draft.js';
+import { autoDraftAll, currentPicker, settlePointer, createDraft, snakes, seatAt } from '../src/engine/draft.js';
+import { pickOwner } from '../src/engine/draftpicks.js';
+import { snakeOverall, nextDraftSnakes } from '../src/engine/owedpicks.js';
 import { overall } from '../src/engine/ratings.js';
-import { keeperCost, keeperEligible, validateKeepers, enterOffseason, aiKeepers, confirmKeepers, keeperLimit, MAX_KEEPS, seasonSummary } from '../src/engine/offseason.js';
+import { keeperCost, keeperEligible, validateKeepers, enterOffseason, aiKeepers, confirmKeepers, closeFreeAgency, keeperLimit, MAX_KEEPS, seasonSummary } from '../src/engine/offseason.js';
 import { fileClaim, processWaivers, freeAgents, rostersValid, ownerMap } from '../src/engine/transactions.js';
 
 function playSeason(league) {
@@ -237,4 +239,61 @@ test('a man with years left on his deal is kept without having to be a bargain',
     const v = validateKeepers(pro, i, keep, byId);
     assert.ok(v.ok, `club ${i}: ${v.reason}`);
   }
+});
+
+test('a rookie draft runs straight worst-to-first; a fantasy draft still snakes', () => {
+  // The snake exists to make a fantasy draft fair: twenty-seven rounds out of
+  // one all-time pool, and picking last every round would be ruinous. A rookie
+  // draft is five rounds over one class and the unfairness is the design — the
+  // worst club is supposed to get the better of it, every round, as it does in
+  // the real thing.
+  const fan = draftLeague(26);
+  assert.ok(snakes(fan.draft), 'a fantasy draft should turn round on itself');
+  assert.equal(pickOwner(fan.draft, 1, 0), fan.draft.order[0]);
+  assert.equal(pickOwner(fan.draft, 2, 0), fan.draft.order[fan.draft.order.length - 1], 'round two did not reverse');
+
+  const pro = createLeague({ name: 'P', mode: 'pro', franchise: 1, seed: 26, draftType: 'snake', injuries: 'off' });
+  autoDraftAll(pro, pro.draft, PLAYERS, new RNG(26));
+  // The founding draft is the all-time pool over twenty-seven rounds, so it
+  // stays a snake for the same reason the fantasy one does.
+  assert.ok(snakes(pro.draft), 'the founding pro draft should still snake');
+  startSeason(pro, byId);
+  playSeason(pro);
+  const table = standings(pro).map((r) => r.idx);
+  enterOffseason(pro, PLAYERS, byId);
+  const u = userTeamIndex(pro);
+  confirmKeepers(pro, aiKeepers(pro, u, PLAYERS, byId, null), PLAYERS, byId);
+  // A capped league shops before it drafts, so the rookie draft does not exist
+  // until the market closes.
+  assert.equal(pro.offseason.step, 'freeagency');
+  closeFreeAgency(pro, PLAYERS, byId);
+  const d = pro.draft;
+  assert.equal(snakes(d), false, 'a rookie draft should run straight');
+  assert.deepEqual(d.order, table.slice().reverse(), 'the order is not the table reversed');
+  // Every round opens with the club that finished worst, and closes with the best.
+  for (let r = 1; r <= d.rounds; r++) {
+    assert.equal(pickOwner(d, r, 0), table[table.length - 1], `round ${r} did not open with the worst club`);
+    assert.equal(pickOwner(d, r, d.order.length - 1), table[0], `round ${r} did not close with the best club`);
+  }
+  // The seat arithmetic is its own inverse in both shapes, which is what lets
+  // applyOwedPicks turn a club's seat back into the pick number it owns.
+  for (const draft of [fan.draft, d]) {
+    for (let r = 1; r <= 3; r++) {
+      for (let x = 0; x < draft.order.length; x++) assert.equal(seatAt(draft, r, seatAt(draft, r, x)), x);
+    }
+  }
+});
+
+test('a future pick is valued against the draft it will be made in', () => {
+  // The club picking first holds pick 1 either way, but its second-round pick
+  // is the last of round two in a snake and the first of it in a straight
+  // draft. Valuing a pro league's future picks on the snake overrated the
+  // good clubs' and underrated the bad ones'.
+  assert.equal(snakeOverall(2, 1, 32, true), 64, 'in a snake the first picker goes last in round two');
+  assert.equal(snakeOverall(2, 1, 32, false), 33, 'running straight he goes first again');
+  assert.equal(snakeOverall(2, 32, 32, true), 33);
+  assert.equal(snakeOverall(2, 32, 32, false), 64);
+  assert.equal(snakeOverall(1, 5, 32, true), snakeOverall(1, 5, 32, false), 'round one is the same either way');
+  assert.equal(nextDraftSnakes({ mode: 'pro' }), false);
+  assert.equal(nextDraftSnakes({ mode: 'fantasy' }), true);
 });

@@ -107,10 +107,29 @@ export function futureHand(league, teamIdx, { season = null } = {}) {
  * season, ten games in — is priced at about r = 0.86 where the same pick in
  * the offseason is priced at 0.59.
  */
-/** Where a slot lands in a snake's round. */
-export function snakeOverall(round, slot, teams) {
-  const within = round % 2 === 1 ? slot : teams + 1 - slot;
+/**
+ * Where a club's seat in the order lands, as an overall pick number.
+ *
+ * `snake` is what next season's draft will be, not this one's: a fantasy
+ * league turns the order round each round, a pro league's rookie draft runs
+ * straight worst-to-first. It changes what a future pick is worth, and by a
+ * lot — the club picking first holds pick 1 either way, but its second-round
+ * pick is number 24 of 24 in a snake and number 13 in a straight draft.
+ */
+export function snakeOverall(round, slot, teams, snake = true) {
+  const within = !snake || round % 2 === 1 ? slot : teams + 1 - slot;
   return (round - 1) * teams + within;
+}
+
+/**
+ * Whether the draft a future pick belongs to will snake.
+ *
+ * A league with a season behind it is drafting in season two or later, so a
+ * pro one is drafting rookies and runs straight. Kept here beside the pick
+ * arithmetic rather than imported, because `draft.js` imports this file.
+ */
+export function nextDraftSnakes(league) {
+  return league?.mode !== 'pro';
 }
 
 /**
@@ -162,7 +181,8 @@ export function applyOwedPicks(league, draft) {
     if (row.season !== season) continue;
     const j = draft.order.indexOf(row.from);
     if (j < 0) continue;
-    const i = row.round % 2 === 1 ? j : n - 1 - j;
+    // Same arithmetic as `seatAt`, inlined because `draft.js` imports this file.
+    const i = draft.snake === false || row.round % 2 === 1 ? j : n - 1 - j;
     const overall = (row.round - 1) * n + i + 1;
     if (row.round > ROSTER_SLOTS.length) continue;
     draft.traded[overall] = row.to;

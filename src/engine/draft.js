@@ -37,6 +37,15 @@ export function createDraft(league, rng, { order = null, taken = {} } = {}) {
     taken: { ...taken },
     complete: false,
     rounds: rookiesOnly ? proDraftRounds(league) : TOTAL_ROUNDS,
+    // A rookie draft runs straight, worst to first, every round — which is
+    // what the real thing does and the opposite of what this did. The snake
+    // exists to make a *fantasy* draft fair: over twenty-seven rounds from one
+    // all-time pool, picking last every round would be ruinous, so the order
+    // turns round on itself. A rookie draft is five rounds over one class and
+    // the unfairness is the whole design — a bad club is supposed to get the
+    // better of it. Absent on a save written before this, and `snakes` reads
+    // that as the snake, so nothing already in progress changes shape.
+    snake: !rookiesOnly,
     // Held as ids rather than a flag, so the board, the AI and the trade
     // projection all read the same list without needing the league.
     eligible: rookiesOnly ? rookieClass(league).map((p) => p.id) : null,
@@ -67,16 +76,33 @@ export function settlePointer(league, draft) {
   draft.complete = true;
 }
 
+/** Whether this draft turns the order round on itself each round. */
+export function snakes(draft) {
+  return draft?.snake !== false;
+}
+
 /**
- * Team index whose turn it is: the snake, unless this pick has been traded.
+ * Which seat in the order is on the clock at this point of this draft.
+ *
+ * Its own inverse, in both shapes: in a straight draft seat and position are
+ * the same, and in a snake they are `n - 1 - x` of each other either way. That
+ * is what lets `applyOwedPicks` use the same arithmetic to go from a club's
+ * seat to the pick number it owns.
+ */
+export function seatAt(draft, round, pickInRound) {
+  if (!snakes(draft)) return pickInRound;
+  return round % 2 === 1 ? pickInRound : draft.order.length - 1 - pickInRound;
+}
+
+/**
+ * Team index whose turn it is, unless this pick has been traded.
  * `draft.traded` maps an overall pick number to its new owner and is absent
  * in every league where nobody has dealt, so the lookup costs nothing.
  */
 export function currentPicker(draft) {
   const n = draft.order.length;
-  const idx = draft.round % 2 === 1 ? draft.pickInRound : n - 1 - draft.pickInRound;
   const traded = draft.traded?.[(draft.round - 1) * n + draft.pickInRound + 1];
-  return traded == null ? draft.order[idx] : traded;
+  return traded == null ? draft.order[seatAt(draft, draft.round, draft.pickInRound)] : traded;
 }
 
 export function overallPickNumber(draft) {
