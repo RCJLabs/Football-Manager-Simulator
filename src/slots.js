@@ -16,6 +16,8 @@
 // default name. That reads exactly like a delete that did not work. Deleting
 // the open slot now leaves nothing open, and the player picks.
 
+import { packCareers, unpackCareers } from './engine/awards.js';
+
 export const REGISTRY_KEY = 'gridiron-eras:slots:v1';
 /** How many saves a browser holds. Three is a menu; a list is a filing system. */
 export const MAX_SLOTS = 3;
@@ -94,12 +96,30 @@ export function summarize(league) {
   };
 }
 
+/**
+ * Whatever a save can do without carrying, it does not carry.
+ *
+ * This is the only place a league is written in a shape nothing reads. The
+ * career table is twenty-one fields a man and most of them are zero for
+ * anybody — 258 KB of a pro save against 94 packed — and stripping those in
+ * memory would leave every reader of `c.sacks` coping with it being absent,
+ * which fails as a silent NaN in a record book rather than as an error. So it
+ * is packed on the way out and unpacked on the way in, here, at the boundary
+ * where the quota actually bites.
+ */
+function packLeague(league) {
+  if (!league?.careers) return league;
+  return { ...league, careers: packCareers(league.careers) };
+}
+
 export function readSlot(storage, id) {
-  return read(storage, slotKey(id));
+  const raw = read(storage, slotKey(id));
+  if (raw?.league?.careers) raw.league.careers = unpackCareers(raw.league.careers);
+  return raw;
 }
 
 export function writeSlot(storage, reg, id, state) {
-  write(storage, slotKey(id), { league: state.league, game: state.game });
+  write(storage, slotKey(id), { league: packLeague(state.league), game: state.game });
   const s = reg.slots.find((x) => x.id === id);
   if (s) {
     s.updated = Date.now();

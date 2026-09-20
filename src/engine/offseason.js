@@ -19,7 +19,7 @@ import { createAuction, priceGuide, DEFAULT_BUDGET, MIN_BID } from './auction.js
 import { capOn, expireContracts, marketSalary, VET_YEARS, PRO_CAP, MIN_SALARY, SLOT_RESERVE } from './cap.js';
 import { openFreeAgency, resolveFreeAgency } from './freeagency.js';
 import { createDraft } from './draft.js';
-import { standings, syncContracts, userTeamIndex } from './season.js';
+import { standings, syncContracts, userTeamIndex, thinCompletedLogs } from './season.js';
 import { clearIr } from './injuries.js';
 import { addRookieClass } from './rookies.js';
 import { advanceCareers, releaseRetired } from './careers.js';
@@ -92,6 +92,10 @@ export function validateKeepers(league, teamIdx, ids, byId = null) {
  */
 export function enterOffseason(league, pool, byId) {
   if (league.phase !== 'complete') throw new Error('The season is not over');
+  // The season just played stops being the one on screen, so its play-by-play
+  // comes down to the story. This is the single biggest thing in a pro save —
+  // see `thinCompletedLogs`.
+  thinCompletedLogs(league);
   // Injured reserve empties: anyone whose slot was filled behind him is let go.
   const released = clearIr(league, byId);
   syncContracts(league, byId);

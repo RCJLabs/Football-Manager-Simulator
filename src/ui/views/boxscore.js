@@ -18,13 +18,16 @@ export function view(root, params, ctx) {
     const entry = list && list[Number(params.b)];
     if (!entry || !entry.result) { render(root, html`<div class="card"><p class="empty">No box score for that game.</p><a class="btn" href="#/season">Back</a></div>`); return; }
     const r = entry.result;
-    box = { teams: [league.teams[entry.home], league.teams[entry.away]], score: r.score, teamStats: r.teamStats, players: r.players, log: r.log, drives: r.drives, overtime: r.overtime, final: true, back: '#/season', injuries: r.injuries || [[], []],
+    box = { teams: [league.teams[entry.home], league.teams[entry.away]], score: r.score, teamStats: r.teamStats, players: r.players, log: r.log, drives: r.drives, overtime: r.overtime, final: true, back: '#/season', injuries: r.injuries || [[], []], thinned: !!r.thinned,
       title: params.kind === 'p' ? league.playoffs.rounds[Number(params.a) - 1].name : `Week ${params.a}` };
   }
   const [h, a] = box.teams;
   const ts = box.teamStats;
   const cmp = (label, f, fmt = (v) => v) => `<div class="l">${fmt(f(ts[0]))}</div><div class="m">${label}</div><div>${fmt(f(ts[1]))}</div>`;
   const scoring = (box.log || []).filter((e) => e.scoring);
+  // A thinned log carries bare { q, wp } points so the win-probability chart
+  // keeps its shape; they have nothing to print, so the list skips them.
+  const plays = (box.log || []).filter((e) => e.text);
   const story = box.final && box.log ? gameStory(box, ctx.byId) : [];
   const wp = box.log ? wpChart(box.log, box.teams) : '';
   const drives = box.drives ? driveChart(box.drives, box.teams) : '';
@@ -89,6 +92,6 @@ export function view(root, params, ctx) {
       <div class="card tight"><h2 style="font-size:1rem">${teamChip(h)}</h2>${raw(tables(0))}</div>
       <div class="card tight"><h2 style="font-size:1rem">${teamChip(a)}</h2>${raw(tables(1))}</div>
     </div>
-    ${box.log ? html`<details class="card tight" style="margin-top:.75rem"><summary style="cursor:pointer"><b>Full play-by-play</b></summary><ul class="pbp" style="max-height:none;margin-top:.5rem">${raw(box.log.map((e) => `<li class="${e.type === 'drive' ? 'drive' : e.flag ? 'penalty' : e.scoring ? 'scoring' : e.type === 'int' || e.type === 'fumble' ? 'turnover' : e.type === 'injury' ? 'injury' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`).join(''))}</ul></details>` : ''}
+    ${plays.length ? html`<details class="card tight" style="margin-top:.75rem"><summary style="cursor:pointer"><b>${box.thinned ? 'How it went' : 'Full play-by-play'}</b></summary>${box.thinned ? html`<p class="muted" style="margin:.4rem 0 0;font-size:.78rem">Scores, flags, turnovers and injuries. Once a season is over its routine plays are dropped, because a pro save keeps seventeen play-by-plays and they are the biggest thing in it.</p>` : ''}<ul class="pbp" style="max-height:none;margin-top:.5rem">${raw(plays.map((e) => `<li class="${e.type === 'drive' ? 'drive' : e.flag ? 'penalty' : e.scoring ? 'scoring' : e.type === 'int' || e.type === 'fumble' ? 'turnover' : e.type === 'injury' ? 'injury' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`).join(''))}</ul></details>` : ''}
   `);
 }

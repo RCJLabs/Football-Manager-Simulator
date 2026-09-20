@@ -207,8 +207,45 @@ export function updateCareers(league, awards, byId) {
   return C;
 }
 
-function blankCareer() {
+export function blankCareer() {
   return { seasons: 0, games: 0, pts: 0, passYds: 0, passTd: 0, rushYds: 0, rushTd: 0, recYds: 0, recTd: 0, sacks: 0, interceptions: 0, tackles: 0, fieldGoals: 0, mvp: 0, opoy: 0, dpoy: 0, allLeague: 0, leader: 0, titles: 0, teams: [], last: 0 };
+}
+
+/**
+ * The career table, with its zeroes left out, and put back.
+ *
+ * Twenty-one fields a man, of which most are zero for anybody: a quarterback
+ * records no sacks, tackles or field goals, and a lineman records none of the
+ * offensive lines either. Written out in full that is 306 bytes a player and
+ * 258 KB for the 864 of a pro league, second only to the schedule in a save.
+ * Dropping the zeroes takes it to 94 KB.
+ *
+ * This is deliberately a *storage* format and not the shape anything reads.
+ * Stripping the zeroes in memory would mean every reader of `c.sacks` had to
+ * cope with it being absent, and the failure when one did not would be a
+ * silent NaN in a record book. So the pair runs at the localStorage boundary
+ * in slots.js and nothing else ever sees a packed table.
+ */
+export function packCareers(careers) {
+  if (!careers) return careers;
+  const out = {};
+  for (const [id, c] of Object.entries(careers)) {
+    const row = {};
+    for (const [k, v] of Object.entries(c)) {
+      if (v === 0) continue;
+      if (Array.isArray(v) && !v.length) continue;
+      row[k] = v;
+    }
+    out[id] = row;
+  }
+  return out;
+}
+
+export function unpackCareers(careers) {
+  if (!careers) return careers;
+  const out = {};
+  for (const [id, c] of Object.entries(careers)) out[id] = { ...blankCareer(), ...c };
+  return out;
 }
 
 /** A résumé score: longevity, honours and rings. Documented in DESIGN.md. */

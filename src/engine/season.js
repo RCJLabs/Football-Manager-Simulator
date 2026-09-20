@@ -626,6 +626,71 @@ export function recordResult(league, week, gameEntry, g, { keepLog = false, keep
   return result;
 }
 
+/**
+ * What a play has to be to survive a season ending.
+ *
+ * Scoring plays, flags, turnovers, injuries and drive markers are the ones
+ * anybody reads back; the other five sixths of a log are first-and-ten runs
+ * for four. `thinLog` keeps these whole.
+ */
+const tellsTheStory = (e) => !!(e.scoring || e.flag
+  || e.type === 'drive' || e.type === 'int' || e.type === 'fumble' || e.type === 'injury');
+
+/**
+ * Cut a finished game's play-by-play down to what is worth keeping.
+ *
+ * Measured on a 32-club save parked at its second draft: the schedule is
+ * 1,464 KB of a 2,116 KB league, and 857 KB of that is seventeen play-by-play
+ * logs at about 70 KB each. Three pro dynasties parked in an offseason is
+ * therefore 6.3 MB against an origin of roughly 5, which is a save that stops
+ * being written — loudly, since `store.js` surfaces the quota error, but
+ * stopped either way.
+ *
+ * The routine plays go and the story stays. What is left of a non-story play
+ * is `{ q, wp }`, which is there so the win-probability chart keeps its real
+ * shape: the chart spaces points by index rather than by clock, so dropping
+ * the quiet stretches would squeeze them out of the picture and silently
+ * redraw the game. Those two fields cost 53 KB of the 643 saved, which is the
+ * cheapest honest chart available.
+ *
+ * 1,464 KB becomes 874 KB, and the parked dynasty 2,116 becomes about 1,526.
+ */
+export function thinLog(log) {
+  if (!Array.isArray(log)) return log;
+  const out = [];
+  for (const e of log) {
+    if (tellsTheStory(e)) out.push(e);
+    else if (typeof e.wp === 'number') out.push({ q: e.q, wp: e.wp });
+  }
+  return out;
+}
+
+/**
+ * Thin every log in a finished season.
+ *
+ * Called when the offseason opens, which is the moment the schedule stops
+ * being the one you are playing. Nothing is thinned during the season, so the
+ * full play-by-play of any game in the season you are in is always there.
+ * `thinned` is set so the box score can say what it is showing rather than
+ * present the highlights as the whole game.
+ */
+export function thinCompletedLogs(league) {
+  let games = 0;
+  const weeks = [...(league?.schedule || []), ...(league?.playoffs?.rounds || [])];
+  for (const wk of weeks) {
+    for (const g of wk?.games || []) {
+      const r = g.result;
+      if (!r?.log || r.thinned) continue;
+      r.log = thinLog(r.log);
+      r.thinned = true;
+      games++;
+    }
+  }
+  // Games, not entries: a routine play leaves a `{ q, wp }` behind rather than
+  // disappearing, so the count of entries barely moves while the bytes halve.
+  return games;
+}
+
 function compactPlayers(players) {
   const out = {};
   for (const [id, s] of Object.entries(players)) {

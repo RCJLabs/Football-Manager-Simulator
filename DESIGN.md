@@ -1088,7 +1088,54 @@ Depth charts were already revisited after every waiver claim and trade. Both hal
 
 ## Save slots and sharing (`slots.js`, `share.js`)
 
-**What a save actually costs.** Measured, because the figure had been quoted loosely: an eight-club league at the end of a played season is about **1.05 MB**, of which **595 KB is play-by-play** and 216 KB box scores. Only games the human *plays* keep a log, and `startSeason` rebuilds the schedule each year, so logs do not accumulate — a five-season dynasty carries about **220 KB** of durable history. Three full slots mid-season is roughly 3.2 MB against a browser's five, which is what the 3,500 KB warning on the home screen is set for; it is calibrated about right rather than, as was once claimed here, on the way to a wall.
+**What a save actually costs.** Measured, because the figure had been quoted loosely: an eight-club league at the end of a played season is about **1.05 MB**, of which **595 KB is play-by-play** and 216 KB box scores. Only games the human *plays* keep a log, and `startSeason` rebuilds the schedule each year, so logs do not accumulate — a five-season dynasty carries about **220 KB** of durable history. Three full slots mid-season is roughly 3.2 MB against a browser's five, which is what the 3,500 KB warning on the home screen is set for; it is calibrated about right for a fantasy league. For a pro league it was not — see below.
+
+**The pro league was on the way to a wall, and the eight-club measurement hid
+it.** The figures above are an eight-club fantasy league. A pro league is
+always 32 clubs, and measured at its worst moment — parked at the second
+draft, where the season just played is still sitting in `league.schedule` —
+a save is **2,116 KB**:
+
+| | KB |
+| --- | --- |
+| schedule | 1,464 |
+| careers | 258 |
+| dev | 140 |
+| everything else | 254 |
+
+Three of those is **6.3 MB against an origin of roughly 5**, so three pro
+dynasties could not coexist at all. Two fixes, both measured:
+
+**A finished season's play-by-play comes down to the story.** 857 KB of that
+schedule is seventeen logs at about 70 KB each — only the human's own games
+keep one, and `startSeason` rebuilds the schedule, so they do not accumulate
+across years; the offseason is simply the moment one season's worth is still
+held. `thinCompletedLogs` runs when the offseason opens and keeps scoring
+plays, flags, turnovers, injuries and drive markers whole. A routine play
+leaves `{ q, wp }` behind rather than disappearing, and that detail is the
+point: the win-probability chart spaces its points by index rather than by
+clock, so dropping the quiet stretches would squeeze them out of the picture
+and silently redraw the game. Those two fields cost 53 KB of the 590 saved,
+which is the cheapest honest chart on offer. Story-only would have been 821 KB
+against 874; the chart is worth the difference. The box score says "How it
+went" rather than "Full play-by-play" when it is showing a thinned log, because
+presenting the highlights as the whole game is the kind of quiet lie that gets
+mistaken for a bug.
+
+**The career table drops its zeroes at the storage boundary.** Twenty-one
+fields a man, of which most are zero for anybody — a quarterback records no
+sacks, tackles or field goals; a lineman records none of the offensive lines
+either — is 306 bytes a player and 258 KB for the 864 of a pro league, packed
+to 94. This is deliberately a *storage* format and not the shape anything
+reads: stripping the zeroes in memory would leave every reader of `c.sacks`
+coping with it being absent, and the failure when one did not would be a silent
+NaN in a record book rather than an error. So `packCareers`/`unpackCareers` run
+inside `writeSlot`/`readSlot` and nothing else ever sees a packed table.
+
+Together: **2,116 KB to 1,361, and three parked pro dynasties from 6.3 MB to
+4.0.** That is headroom rather than a ceiling removed — `dev` is 140 KB of
+mostly-populated fields and the 17 box scores another 320 — so the quota error
+in `store.js` still has to work, and does.
 
 Two fields in every logged event were free to reclaim. Win probability was stored at a double's full precision — nineteen characters where three decimals is more than a chart drawn at pixel resolution and a label printed as a whole percent can use — and `flag` was written as `"flag":false` on almost every event when every reader tests it for truth. Together that is **8.4% off every log** and no visible change; the per-event cost went from 248 bytes to 227. What is left is mostly irreducible: the printed sentence is 24% of an event and the pre-play situation line another 13%, and the latter is built from state the event does not otherwise store, so it cannot be derived back.
 

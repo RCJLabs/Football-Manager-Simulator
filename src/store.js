@@ -14,12 +14,19 @@ let dirty = false;
 let saveTimer = null;
 // Why the last write did not reach the browser, or null while saves land.
 //
-// A full origin is the realistic failure and it is closer than it looks: a
-// 32-club pro save measures about 2.4 MB and a browser gives an origin roughly
-// 5 MB, so a second pro dynasty in the same browser is already at the edge.
-// This used to be swallowed into a console warning, which meant the game
+// A full origin is the realistic failure. Measured on a pro dynasty parked at
+// its second draft — the worst moment, because the season just played is still
+// in the schedule — a save was 2,116 KB, of which 1,464 was seventeen full
+// play-by-plays and 258 the career table. Three of those is 6.3 MB against an
+// origin of roughly 5, so three pro dynasties simply could not coexist.
+// Thinning a finished season's logs (`thinCompletedLogs`) and dropping the
+// zeroes out of the career table on the way to storage (`packCareers`) take
+// the same save to 1,361 KB and three of them to 4.0 MB.
+//
+// It is headroom and not a ceiling removed, so this still has to work: the
+// failure used to be swallowed into a console warning, which meant the game
 // carried on accepting moves it was no longer writing down and threw the whole
-// session away at the next reload — a save system failing silently is worse
+// session away at the next reload. A save system failing silently is worse
 // than one failing loudly.
 let lastSaveError = null;
 
