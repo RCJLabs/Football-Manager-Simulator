@@ -197,3 +197,44 @@ test('running it back with the same rosters still works alongside the offseason'
   assert.equal(league.phase, 'season');
   assert.equal(Object.keys(league.contracts).length, 8 * ROSTER_SLOTS.length);
 });
+
+test('a man with years left on his deal is kept without having to be a bargain', () => {
+  // The defect this pins: the keeper round used to re-run every player through
+  // a surplus test each offseason, so a contract meant nothing after the year
+  // it was signed in. It fell hardest on the draft, which is priced above
+  // market on purpose — a first-round rookie costs 15 to 20 against a guide
+  // that says he is worth about 5, so his own club let him go every time.
+  const pro = createLeague({ name: 'P', mode: 'pro', franchise: 1, seed: 31, draftType: 'snake', injuries: 'off' });
+  autoDraftAll(pro, pro.draft, PLAYERS, new RNG(31));
+  startSeason(pro, byId);
+  playSeason(pro);
+  enterOffseason(pro, PLAYERS, byId);
+
+  const pool = PLAYERS;
+  let bound = 0, boundKept = 0, dear = 0, dearKept = 0;
+  for (let i = 0; i < pro.teams.length; i++) {
+    const keep = new Set(aiKeepers(pro, i, pool, byId, new RNG(900 + i)));
+    for (const id of rosterIds(pro.teams[i])) {
+      const c = pro.contracts[id] || {};
+      if (c.expiring || (c.years ?? 0) <= 0) continue;
+      bound++;
+      if (keep.has(id)) boundKept++;
+      // The ones the old rule dropped: paid well above what a guide says they
+      // are worth. They are exactly the club's own draft picks.
+      if ((c.salary ?? 1) >= 8) { dear++; if (keep.has(id)) dearKept++; }
+    }
+  }
+  assert.ok(bound > 100, `only ${bound} men are under contract`);
+  assert.ok(boundKept / bound > 0.9, `${boundKept} of ${bound} men under contract were kept`);
+  assert.ok(dear > 10, `only ${dear} expensive deals to test`);
+  assert.ok(dearKept / dear > 0.85, `${dearKept} of ${dear} dear contracts were kept`);
+
+  // And the list a club produces still satisfies the validator, which is what
+  // the first attempt at this got wrong: it exempted contracts from the cap
+  // test, and `confirmKeepers` then threw on the human's own list.
+  for (let i = 0; i < pro.teams.length; i++) {
+    const keep = aiKeepers(pro, i, pool, byId, new RNG(900 + i));
+    const v = validateKeepers(pro, i, keep, byId);
+    assert.ok(v.ok, `club ${i}: ${v.reason}`);
+  }
+});

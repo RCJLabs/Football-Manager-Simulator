@@ -224,12 +224,33 @@ export function aiKeepers(league, teamIdx, pool, byId, rng = null) {
   const cap = capOn(league) ? (league.cap ?? PRO_CAP) : (league.auction?.budget ?? DEFAULT_BUDGET);
   const floor = capOn(league) ? SLOT_RESERVE : MIN_BID;
   const scored = roster.map((p) => {
-    const cost = keeperCost(league.contracts[p.id], p, league);
+    const c = league.contracts[p.id];
+    const cost = keeperCost(c, p, league);
     const market = (guide.worth.get(p.id) ?? 1) * savvy + (guide.prices.get(p.id) ?? 1) * (1 - savvy);
     // A bird in hand: a club pays a little over market to skip the auction's risk.
     const surplus = market * taste(p) * BIRD_IN_HAND - cost + (rng ? rng.normal(0, 1.5) : 0);
-    return { id: p.id, cost, surplus };
-  }).filter((x) => x.surplus > 0).sort((a, b) => b.surplus - a.surplus);
+    // A man with years left on his deal is not a decision, and this is the one
+    // place that was not true. `keeperLimit` has said since the cap shipped
+    // that under a cap the contract decides rather than a quota — four-year
+    // rookie deals turning over about a quarter of a roster a year — but the
+    // keeper round then re-ran every player through the surplus test each
+    // offseason, so a contract meant nothing after the year it was signed in.
+    //
+    // It fell hardest on the draft, which is priced above market on purpose: a
+    // first-round rookie costs 15 to 20 against an auction guide that says he
+    // is worth about 5, so his surplus is negative from the day he is picked
+    // and his own club let him go every time. Measured over twelve seasons, a
+    // class drafted 155 strong came back the next year 17 strong with three
+    // years still to run.
+    //
+    // He is still droppable — the cap test below is applied to him exactly as
+    // to anyone else, and a club that cannot fit its own contracts sheds the
+    // ones it values least. That is a cut, which is what the real thing does.
+    // What he no longer has to do is prove himself a bargain every August.
+    const bound = capOn(league) && !!c && !c.expiring && (c.years ?? 0) > 0;
+    return { id: p.id, cost, surplus, bound };
+  }).filter((x) => x.bound || x.surplus > 0)
+    .sort((a, b) => (Number(b.bound) - Number(a.bound)) || (b.surplus - a.surplus));
   const keep = [];
   let committed = 0;
   for (const x of scored) {
