@@ -431,21 +431,40 @@ is gone, and the two halves of what replaces it are not symmetrical:
   `settlePointer` already skipped anybody with no open slots, so its *latest*
   picks are simply never made — and those are the cheapest ones it holds.
 
-That asymmetry is the whole market, and it makes the decision a real one.
-Measured over six twelve-club leagues, against the same league drafted without
-the trade:
+That asymmetry is the whole market. Measured over six leagues against the same
+league drafted without the trade — and then, a commit later, measured again for
+whether anybody would actually *sign* it:
 
-| deal | change to the user's finished roster |
-| --- | --- |
-| next three picks for their first | **−37** |
-| last three picks for their first | **+19** |
-| last two picks for their first | **+23** |
-| their three last for your first (moving down) | **−72** |
+| deal | worth to you | AI clubs who agreed |
+| --- | --- | --- |
+| your last two for their first | **+32** | **0 of 24** |
+| your next two for their first | **−49** | **24 of 24** |
+| your next one for their next two | **+13** | 2 of 24 |
+| one for one | −16 | 12 of 24 |
 
-Late picks are the currency of moving up, because a twenty-fifth-round pick is
-barely better than the best man still unsigned — so you give up almost nothing
-and get a premium player. Moving down for quantity is a straight loss, which is
-correct when a roster cannot hold the extra men. `MAX_SHORT` caps how short a
+**The second column is the finding, and it arrived late.** The first version of
+this section stopped at the left-hand column and called packaging late picks to
+move up "the deal that pays" — which it is, and which no club will ever sign,
+because the same arithmetic that makes it good for you makes it terrible for
+them. The only uneven deal an AI reliably agrees to is the one that costs you
+forty-nine points. The trade room was advertising a trap.
+
+The cause is structural rather than a tuning error. A club cannot use more picks
+than it has slots, so surplus picks are never made: **quantity is worth exactly
+nothing to whoever receives it.** Adding a late pick to either side of a deal was
+measured to move the projection by *exactly zero* — it is a one-for-one with
+extra paper. Uneven packages of early picks are near zero-sum, so one side's gain
+is the other's loss and no bar can be cleared by both. Across every shape tried,
+**0 of 24** cleared both; the lone exception is a club that is *already* short,
+which will pay a little for a late pick because it fills a hole that would
+otherwise go to a free agent, and that managed 2 of 24.
+
+So uneven trades are legal, correctly valued, and mostly unsignable — and AI
+clubs do not propose them because there is nothing fair to propose. Making them
+work needs quantity to be worth something, which under a fixed twenty-seven-slot
+roster and one draft a season it cannot be. The fix is future picks: a pick in
+next season's draft has value because next season there are twenty-seven fresh
+slots. That is not built. `MAX_SHORT` caps how short a
 club may trade itself, because a club that did this every year would arrive at
 kickoff with half a roster of leftovers, which is not a decision, just a club
 that has stopped playing the draft.
