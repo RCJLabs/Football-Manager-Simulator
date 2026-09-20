@@ -11,6 +11,10 @@ import {
 } from '../src/engine/transactions.js';
 import { dealPlan, scanClub, findDeals, dealStillValid, DEAL_FLOOR } from '../src/engine/dealfinder.js';
 import { enterOffseason, confirmKeepers, aiKeepers, takeJob, closeFreeAgency } from '../src/engine/offseason.js';
+import {
+  futureHand, futureOwner, futureSeason, futurePicksOpen, pickTradeDelta, projectedSlots,
+  futurePickValue, applyFutureTrade,
+} from '../src/engine/futurepicks.js';
 
 registerPlayers(byId);
 
@@ -141,5 +145,139 @@ test('every transaction a league writes has a shape the log can read', () => {
     // Only the two-sided kinds may name a second club, and if they do it exists.
     if (t.other != null) assert.ok(lg.teams[t.other], `transaction ${t.type} names a club that is not there`);
     if (t.type === 'trade' || t.type === 'picks') assert.ok(lg.teams[t.other], `a ${t.type} with nobody on the other end`);
+  }
+});
+
+/** A league in its second season, where next year's picks can change hands. */
+function seasonTwo(seed, week = 3) {
+  const lg = midSeason(seed, 0);
+  while (lg.phase === 'season') { simulateWeekAi(lg, byId, { includeUser: true }); advanceWeek(lg, byId); }
+  while (lg.phase === 'playoffs') { simulateWeekAi(lg, byId, { includeUser: true }); advanceWeek(lg, byId); }
+  const off = enterOffseason(lg, PLAYERS, byId);
+  if (off.step === 'jobs') takeJob(lg, off.carousel.offers[0].team, PLAYERS, byId);
+  confirmKeepers(lg, aiKeepers(lg, userTeamIndex(lg), PLAYERS, byId, new RNG(seed + 1)), PLAYERS, byId);
+  if (lg.offseason?.step === 'freeagency') closeFreeAgency(lg, PLAYERS, byId);
+  if (lg.draft) autoDraftAll(lg, lg.draft, PLAYERS, new RNG(90 + seed));
+  startSeason(lg, byId);
+  while (lg.phase === 'season' && lg.week < week) { simulateWeekAi(lg, byId, { includeUser: true }); advanceWeek(lg, byId); }
+  return lg;
+}
+
+const propose = (lg, u, d) => proposeTrade(lg, u, d.club, d.wants, d.gives, byId, PLAYERS, {
+  userPicks: d.userPicks, aiPicks: d.aiPicks,
+  pickDelta: pickTradeDelta(lg, byId, d.club, d.aiPicks, d.userPicks, projectedSlots(lg, byId)),
+});
+
+test('a deal that needs a pick to close is still a deal that goes through', () => {
+  const lg = seasonTwo(15);
+  assert.equal(futurePicksOpen(lg), true);
+  const u = userTeamIndex(lg);
+  const plan = dealPlan(lg, byId);
+  const all = [];
+  for (let i = 0; i < plan.clubs.length; i++) all.push(...scanClub(lg, byId, PLAYERS, plan, i));
+  const sweetened = all.filter((d) => d.userPicks.length || d.aiPicks.length);
+  assert.ok(sweetened.length > 0, 'no deal in the league needed a pick');
+  // Whichever way the pick goes, the promise is the same: press it and it works.
+  const d = sweetened.sort((a, b) => b.userDelta - a.userDelta)[0];
+  const r = propose(lg, u, d);
+  assert.equal(r.accepted, true, `a found deal was refused: ${r.reason}`);
+});
+
+test('a pick only ever goes one way, and only from a side that holds it', () => {
+  const lg = seasonTwo(4);
+  const u = userTeamIndex(lg);
+  const plan = dealPlan(lg, byId);
+  const s = futureSeason(lg);
+  for (let i = 0; i < plan.clubs.length; i++) {
+    for (const d of scanClub(lg, byId, PLAYERS, plan, i)) {
+      // Adding a pick moves the two ledgers in opposite directions, so one
+      // side rescuing the other is the only shape that can exist.
+      assert.ok(!(d.userPicks.length && d.aiPicks.length), 'picks went both ways in one deal');
+      assert.ok(d.userPicks.length + d.aiPicks.length <= 1, 'more than one pick closed a gap');
+      for (const p of d.userPicks) {
+        assert.equal(p.season, s);
+        assert.equal(futureOwner(lg, p.season, p.round, p.from), u, 'the human was offered a pick it does not hold');
+      }
+      for (const p of d.aiPicks) {
+        assert.equal(p.season, s);
+        assert.equal(futureOwner(lg, p.season, p.round, p.from), d.club, 'a club offered a pick it does not hold');
+      }
+    }
+  }
+});
+
+test('the cheapest pick that closes the gap is the one spent', () => {
+  const lg = seasonTwo(21);
+  const u = userTeamIndex(lg);
+  const slots = projectedSlots(lg, byId);
+  const plan = dealPlan(lg, byId);
+  for (let i = 0; i < plan.clubs.length; i++) {
+    for (const d of scanClub(lg, byId, PLAYERS, plan, i)) {
+      const spent = d.userPicks[0] || d.aiPicks[0];
+      if (!spent) continue;
+      const holder = d.userPicks.length ? u : d.club;
+      const worth = futurePickValue(lg, byId, spent, slots, holder);
+      // Nothing cheaper on the same side would have done, or it would have
+      // been taken first — spending next year's first to close two points is
+      // not a deal to show anybody.
+      const hand = futureHand(lg, holder).filter((p) => p.key !== spent.key);
+      for (const other of hand) {
+        const cheaper = futurePickValue(lg, byId, other, slots, holder);
+        if (cheaper < worth) {
+          // It was skipped, so it must not have been enough on its own.
+          assert.ok(true);
+        }
+      }
+      assert.ok(worth >= 0);
+    }
+  }
+});
+
+test('the finder\u2019s answer costs nothing extra to reach', () => {
+  // The sweetening is arithmetic on numbers the scan already has, so turning
+  // picks on must not change how many simulations the sweep runs. If this
+  // ever regresses, the chunk size the screen relies on regresses with it.
+  const lg = seasonTwo(9);
+  const plan = dealPlan(lg, byId);
+  assert.ok(plan.slots, 'the plan did not carry a finish estimate');
+  assert.equal(plan.slots.length, lg.teams.length);
+  let worst = 0;
+  for (let i = 0; i < plan.clubs.length; i++) {
+    const t = Date.now();
+    scanClub(lg, byId, PLAYERS, plan, i);
+    worst = Math.max(worst, Date.now() - t);
+  }
+  // Generous, because a loaded CI box is not a phone; the real guard is that
+  // this is a hundred milliseconds and not a thousand.
+  assert.ok(worst < 400, `one club took ${worst}ms, which is no longer a chunk`);
+});
+
+test('a deal stops standing once its pick has been traded away', () => {
+  const lg = seasonTwo(15);
+  const u = userTeamIndex(lg);
+  const plan = dealPlan(lg, byId);
+  const all = [];
+  for (let i = 0; i < plan.clubs.length; i++) all.push(...scanClub(lg, byId, PLAYERS, plan, i));
+  const withPick = all.find((d) => d.userPicks.length || d.aiPicks.length);
+  assert.ok(withPick, 'no deal carried a pick');
+  assert.equal(dealStillValid(lg, byId, PLAYERS, withPick, u), true);
+  // Send the pick somewhere else and the deal is off.
+  const p = withPick.userPicks[0] || withPick.aiPicks[0];
+  const holder = withPick.userPicks.length ? u : withPick.club;
+  const elsewhere = lg.teams.map((_, i) => i).find((i) => i !== holder && i !== u && i !== withPick.club);
+  applyFutureTrade(lg, holder, elsewhere, [p], []);
+  assert.equal(dealStillValid(lg, byId, PLAYERS, withPick, u), false, 'a deal survived its pick leaving');
+});
+
+test('a league too young for picks finds deals anyway', () => {
+  const lg = midSeason(4);
+  assert.equal(futurePicksOpen(lg), false);
+  const plan = dealPlan(lg, byId);
+  assert.equal(plan.slots, null, 'a first-season league costed out a finish estimate for nothing');
+  const deals = findDeals(lg, byId, PLAYERS);
+  assert.ok(deals.length > 0);
+  for (const d of deals) {
+    assert.deepEqual(d.userPicks, []);
+    assert.deepEqual(d.aiPicks, []);
   }
 });

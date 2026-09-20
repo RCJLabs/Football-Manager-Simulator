@@ -134,11 +134,16 @@ export function view(root, params, ctx) {
     const dealsFresh = !!ui.deals && ui.dealsWeek === stamp(league);
     const dealRow = (d, i) => {
       const them = league.teams[d.club];
-      const names = (ids) => ids.map((id) => esc(ctx.byId.get(id)?.name || id)).join(' + ');
+      // A pick on either side is part of the price, so it is named in the same
+      // breath as the players rather than tucked away in a badge.
+      const names = (ids, picks) => [
+        ...ids.map((id) => esc(ctx.byId.get(id)?.name || id)),
+        ...(picks || []).map((p) => esc(futureLabel(league, p))),
+      ].join(' + ') || 'nothing';
       return `<li class="prow">
         <div class="who">
           <div class="nm">${teamChip(them, { abbr: true }).__raw} <b style="color:var(--good)">+${d.userDelta}</b> <span class="muted">to your lineup</span></div>
-          <div class="meta"><span class="muted">you get ${names(d.gives)} · you give ${names(d.wants)}${d.uneven ? ' · uneven' : ''}</span></div>
+          <div class="meta"><span class="muted">you get ${names(d.gives, d.aiPicks)} · you give ${names(d.wants, d.userPicks)}${d.uneven ? ' · uneven' : ''}</span></div>
         </div>
         <div class="act"><button class="btn sm primary" data-loaddeal="${i}">Load</button></div>
       </li>`;
@@ -148,7 +153,7 @@ export function view(root, params, ctx) {
       : !dealsFresh
         ? `<p class="muted" style="margin:0;font-size:.82rem">Nothing searched yet. A sweep reads every roster in the league and takes a second or two.</p>`
         : ui.deals.found.length
-          ? `<ul class="plist">${ui.deals.found.map(dealRow).join('')}</ul><p class="muted" style="margin:.4rem 0 0;font-size:.78rem">Every one of these clears the club's own bar, so it should be accepted as it stands. Loading one fills both sides so you can look at it first.</p>`
+          ? `<ul class="plist">${ui.deals.found.map(dealRow).join('')}</ul><p class="muted" style="margin:.4rem 0 0;font-size:.78rem">Every one of these clears the club's own bar, so it should be accepted as it stands. Loading one fills both sides so you can look at it first. Some need next year's pick to close the gap — either way round — and the number already counts what that costs you.</p>`
           : `<p class="muted" style="margin:0;font-size:.82rem">No club would take a deal that also helps you this week. That happens; try again after the wire runs.</p>`;
 
     const partner = league.teams[ui.partner];
@@ -456,7 +461,8 @@ export function view(root, params, ctx) {
       ui.partner = d.club;
       ui.give = new Set(d.wants);
       ui.get = new Set(d.gives);
-      ui.givePicks.clear(); ui.getPicks.clear();
+      ui.givePicks = new Set((d.userPicks || []).map((p) => p.key));
+      ui.getPicks = new Set((d.aiPicks || []).map((p) => p.key));
       redraw();
       return;
     }

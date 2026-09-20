@@ -713,6 +713,35 @@ one fills both sides of the builder rather than executing it, so you can look
 first — and it is re-checked on the way in, because rosters move between
 finding a deal and pressing it.
 
+**It closes a gap with a pick, and that costs no simulation at all.** A pick
+does not touch either roster, so `evaluateTrade`'s answer for the player half
+is unchanged by adding one: the pick is a flat offset on each side's ledger, in
+the same lineup points. The club's bar is `delta >= greed` and the human's is
+`delta >= DEAL_FLOOR`, so sweetening is subtraction on numbers the scan already
+holds. Re-simulating each variant would have been about 380 extra
+`evaluateTrade` calls a club — roughly doubling the per-club cost the chunking
+was sized against — for answers that are arithmetic. Measured after: the worst
+club still runs 25 to 30 ms, unchanged.
+
+Only one side can ever be rescued, because a pick moves the two ledgers in
+opposite directions: if the club is short the human pays, and if the human is
+short the club pays. The cheapest pick that works is the one taken, since
+spending next year's first to close a two-point gap is not a deal to show
+anybody, and a deal needing no pick sorts above one that does at the same
+lineup gain — the pick is a real cost the headline number does not show twice.
+
+What it buys, across four second-season leagues: 41 of 90, 2 of 7, 7 of 12 and
+6 of 14 deals needed a pick to stand up, and **0 to 3 clubs a league became
+reachable that were not reachable at all** without one. Every top-ranked deal
+was still accepted when proposed, pick and all.
+
+**One bug the tests caught before the screen did.** `dealStillValid` passed the
+two sides' picks to `validateTrade` the wrong way round — the club's picks
+belong in `aPicks` because the club is that call's first club, and swapping
+them checked each side's ownership against the other. The effect would have
+been every pick-carrying deal reporting itself as no longer standing, so the
+Load button would have said "that one has moved on" every time.
+
 **One bug it surfaced that had nothing to do with it.** The Moves log treated
 any row it did not recognise as a trade and read `league.teams[t.other].isUser`
 off it. `cut`, `sign` and `fill` carry no second club, and a pro league makes
