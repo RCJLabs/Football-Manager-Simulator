@@ -13,10 +13,14 @@ import {
   futureHand, futurePicksOpen, futureLabel, futureSeason, futurePickValue, pickTradeDelta,
   projectedSlots, slotBand, FUTURE_ROUNDS,
 } from '../../engine/futurepicks.js';
+import { dealPlan, scanClub, dealStillValid } from '../../engine/dealfinder.js';
 import { faBoard, keeperAdvice } from '../../engine/market.js';
 import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge, outBadge } from '../components.js';
 import { emptySlotAt } from '../../engine/transactions.js';
 import { shownOverall } from '../../engine/scouting.js';
+
+/** What a set of found deals belongs to. A different league, season or week retires them. */
+const stamp = (league) => `${league.id || 'x'}:${league.season}:${league.week}`;
 
 const ui = {
   tab: 'fa', pos: 'ALL', era: 'ALL', q: '', limit: 60, partner: null, give: new Set(), get: new Set(),
@@ -27,6 +31,9 @@ const ui = {
   // The trade finder keeps its own filters: it searches every club's roster,
   // not the free-agent pool the first tab is looking at.
   findQ: '', findPos: '', blockOnly: true, findLimit: 10,
+  // The deal finder's last answer, kept so it survives a redraw. Cleared
+  // whenever a roster moves, because a deal found last week may not stand.
+  deals: null, dealsWeek: null,
 };
 
 export function view(root, params, ctx) {
@@ -123,6 +130,27 @@ export function view(root, params, ctx) {
       <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${tradesOpen(league) ? 'Clubs ring you when they are thin somewhere and deep where you are thin. An offer stands for the week; declining it takes that deal off the table for the season.' : `The trade deadline passed after week ${deadline}.`}</p>
       ${offers.length ? raw(offers.map(card).join('')) : html`<p class="empty">Nobody is calling this week.</p>`}`;
   } else if (ui.tab === 'trade') {
+    // --- The deal finder's results, if it has been run this week.
+    const dealsFresh = !!ui.deals && ui.dealsWeek === stamp(league);
+    const dealRow = (d, i) => {
+      const them = league.teams[d.club];
+      const names = (ids) => ids.map((id) => esc(ctx.byId.get(id)?.name || id)).join(' + ');
+      return `<li class="prow">
+        <div class="who">
+          <div class="nm">${teamChip(them, { abbr: true }).__raw} <b style="color:var(--good)">+${d.userDelta}</b> <span class="muted">to your lineup</span></div>
+          <div class="meta"><span class="muted">you get ${names(d.gives)} · you give ${names(d.wants)}${d.uneven ? ' · uneven' : ''}</span></div>
+        </div>
+        <div class="act"><button class="btn sm primary" data-loaddeal="${i}">Load</button></div>
+      </li>`;
+    };
+    const dealsBody = !tradesOpen(league)
+      ? `<p class="muted" style="margin:0;font-size:.82rem">The market is shut.</p>`
+      : !dealsFresh
+        ? `<p class="muted" style="margin:0;font-size:.82rem">Nothing searched yet. A sweep reads every roster in the league and takes a second or two.</p>`
+        : ui.deals.found.length
+          ? `<ul class="plist">${ui.deals.found.map(dealRow).join('')}</ul><p class="muted" style="margin:.4rem 0 0;font-size:.78rem">Every one of these clears the club's own bar, so it should be accepted as it stands. Loading one fills both sides so you can look at it first.</p>`
+          : `<p class="muted" style="margin:0;font-size:.82rem">No club would take a deal that also helps you this week. That happens; try again after the wire runs.</p>`;
+
     const partner = league.teams[ui.partner];
     const best = bestAvailable(league, ctx.players);
     const needs = teamNeeds(league, ctx.byId);
@@ -223,6 +251,14 @@ export function view(root, params, ctx) {
         : league.phase === 'season' ? `The trade deadline passed after week ${deadline}.` : 'Trades are open during the regular season only.'}</p>
 
       <div class="card tight">
+        <div class="row between" style="gap:.5rem;flex-wrap:wrap">
+          <div><h3 style="margin:0">Who would say yes</h3><small class="muted">Searches every club for a deal it would take that also helps you.</small></div>
+          <button class="btn sm ${dealsFresh && ui.deals.found.length ? '' : 'primary'}" id="findDeals" ${tradesOpen(league) ? '' : 'disabled'}>${dealsFresh ? 'Search again' : 'Find deals'}</button>
+        </div>
+        <div id="dealOut" style="margin-top:.5rem">${raw(dealsBody)}</div>
+      </div>
+
+      <div class="card tight" style="margin-top:.6rem">
         <div class="row between"><h3 style="margin:0">Find a player</h3><small class="muted">${rows.length} of ${found.total}</small></div>
         <div class="tabs" id="findPos" style="margin-top:.4rem">${raw(['', ...POSITION_ORDER].map((p) => `<button class="tab ${ui.findPos === p ? 'active' : ''}" data-fpos="${p}">${p || 'ALL'}</button>`).join(''))}</div>
         <div class="row" style="gap:.5rem;align-items:center;margin-top:.4rem">
@@ -268,7 +304,20 @@ export function view(root, params, ctx) {
       if (t.type === 'ir') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} placed <b>${esc(ctx.byId.get(t.add)?.name)}</b> on injured reserve</li>`;
       if (t.type === 'activate') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} activated <b>${esc(ctx.byId.get(t.add)?.name)}</b>${t.drop ? `, released ${esc(ctx.byId.get(t.drop)?.name)}` : ''}</li>`;
       if (t.type === 'release') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">Wk ${t.week}</small> ${teamChip(team, { abbr: true }).__raw} released <b>${esc(ctx.byId.get(t.drop)?.name)}</b> from injured reserve</li>`;
+      // The moves nobody is on the other end of. These carry week 0 because
+      // they happen between seasons — the cap cutting somebody loose, the
+      // free-agent market settling, an empty slot filled off the board at
+      // kickoff — so they are stamped with the season instead.
+      const when = t.week ? `Wk ${t.week}` : `${t.season}`;
+      if (t.type === 'cut') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">${when}</small> ${teamChip(team, { abbr: true }).__raw} cut <b>${esc(ctx.byId.get(t.drop)?.name)}</b> to get under the cap</li>`;
+      if (t.type === 'sign') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">${when}</small> ${teamChip(team, { abbr: true }).__raw} signed <b>${esc(ctx.byId.get(t.add)?.name)}</b> in free agency</li>`;
+      if (t.type === 'fill') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">${when}</small> ${teamChip(team, { abbr: true }).__raw} signed <b>${esc(ctx.byId.get(t.add)?.name)}</b> off the board</li>`;
       const other = league.teams[t.other];
+      // Anything the log does not recognise is skipped rather than thrown at.
+      // The screen used to assume every unhandled row was a trade and read
+      // `other.isUser` off it, so one cap cut — which every pro league makes at
+      // kickoff — took the whole tab down with it.
+      if (!other) return '';
       // An uneven trade carried a signing and a release on each side; the log
       // says so, because otherwise a roster changes for reasons nothing names.
       const tail = (t.signs || t.releases)
@@ -317,6 +366,52 @@ export function view(root, params, ctx) {
     const caret = e.target.selectionStart; redraw();
     const input = root.querySelector('#findQ'); input.focus(); input.setSelectionRange(caret, caret);
   });
+  /**
+   * The sweep, one club a task.
+   *
+   * A full search is about 700 ms on a desktop and near three seconds on a
+   * phone, which is exactly the kind of thing that froze the draft screen
+   * before it was broken up. So the plan is built in one task and each club
+   * scanned in its own, with only the progress line touched in between —
+   * redrawing the whole view thirty-one times would cost more than the search.
+   */
+  el.querySelector('#findDeals')?.addEventListener('click', () => {
+    const out = el.querySelector('#dealOut');
+    const btn = el.querySelector('#findDeals');
+    if (!out || !btn) return;
+    btn.disabled = true;
+    out.innerHTML = '<p class="muted" style="margin:0;font-size:.82rem"><span class="spinner"></span> Reading the league…</p>';
+    setTimeout(() => {
+      const plan = dealPlan(league, ctx.byId);
+      if (!plan) { out.innerHTML = '<p class="muted" style="margin:0;font-size:.82rem">Nobody to deal with.</p>'; btn.disabled = false; return; }
+      const found = [];
+      let i = 0;
+      const step = () => {
+        if (i >= plan.clubs.length) {
+          // One per club: five variations on the same swap is a list nobody
+          // reads, and the best of them is the only one worth offering.
+          found.sort((a, b) => b.userDelta - a.userDelta);
+          const seen = new Set();
+          const best = [];
+          for (const d of found) {
+            if (seen.has(d.club)) continue;
+            seen.add(d.club);
+            best.push(d);
+            if (best.length >= 12) break;
+          }
+          ui.deals = { found: best };
+          ui.dealsWeek = stamp(league);
+          redraw();
+          return;
+        }
+        found.push(...scanClub(league, ctx.byId, ctx.players, plan, i));
+        i++;
+        out.innerHTML = `<p class="muted" style="margin:0;font-size:.82rem"><span class="spinner"></span> Searching… ${i} of ${plan.clubs.length} clubs, ${found.length} so far</p>`;
+        setTimeout(step, 0);
+      };
+      step();
+    }, 20);
+  });
   el.querySelector('#clearTrade')?.addEventListener('click', () => { ui.give.clear(); ui.get.clear(); ui.givePicks.clear(); ui.getPicks.clear(); redraw(); });
   el.querySelector('#propose')?.addEventListener('click', () => {
     const give = [...ui.give], get = [...ui.get];
@@ -341,12 +436,30 @@ export function view(root, params, ctx) {
       ${r.accepted ? html`${[...give.map((id) => ctx.byId.get(id).name), ...mine.map((p) => futureLabel(league, p))].join(', ')} to ${partner.name}; ${[...get.map((id) => ctx.byId.get(id).name), ...theirs.map((p) => futureLabel(league, p))].join(', ')} join you.${r.fills?.a?.signs?.length ? ` You signed ${r.fills.a.signs.map((id) => ctx.byId.get(id).name).join(' and ')}.` : ''}${r.fills?.a?.releases?.length ? ` ${r.fills.a.releases.map((id) => ctx.byId.get(id).name).join(' and ')} released.` : ''} Check your depth chart.</p>` : ''}
       <div class="row"><button class="btn primary" data-close>OK</button>${r.accepted ? html`<a class="btn" href="#/team/${u}/depth">Depth chart</a>` : ''}</div>`);
     void m;
-    if (r.accepted) { ui.give.clear(); ui.get.clear(); ui.givePicks.clear(); ui.getPicks.clear(); ui.tab = 'log'; }
+    // The search was run against rosters that have just moved.
+    if (r.accepted) { ui.give.clear(); ui.get.clear(); ui.givePicks.clear(); ui.getPicks.clear(); ui.deals = null; ui.tab = 'log'; }
     redraw();
   });
   el.addEventListener('click', (e) => {
     const show = e.target.closest('[data-show]');
     if (show) { playerModal(ctx.byId.get(show.dataset.show)); return; }
+    const ld = e.target.closest('[data-loaddeal]');
+    if (ld) {
+      const d = ui.deals?.found?.[Number(ld.dataset.loaddeal)];
+      if (!d) return;
+      // Rosters move between finding a deal and pressing it, so the deal is
+      // re-checked rather than loaded into a builder that will refuse it.
+      if (!dealStillValid(league, ctx.byId, ctx.players, d, u)) {
+        toast('That one has moved on — search again.');
+        ui.deals = null; redraw(); return;
+      }
+      ui.partner = d.club;
+      ui.give = new Set(d.wants);
+      ui.get = new Set(d.gives);
+      ui.givePicks.clear(); ui.getPicks.clear();
+      redraw();
+      return;
+    }
     const gp = e.target.closest('[data-givepick]');
     if (gp) { const k = gp.dataset.givepick; ui.givePicks.has(k) ? ui.givePicks.delete(k) : ui.givePicks.add(k); redraw(); return; }
     const tp = e.target.closest('[data-getpick]');

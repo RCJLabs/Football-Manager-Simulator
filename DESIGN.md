@@ -666,6 +666,62 @@ imports nothing that can come back around, and the valuation half stays in
 `pickDelta` as a number and `makeAiOffers` takes a `picks` handle: both are
 valued by the caller, because this file cannot value them itself.
 
+### Who would say yes (`dealfinder.js`)
+
+The trade room was a guessing game. It listed every roster and told you who was
+on the block, and then you picked two players, pressed Propose and were
+refused — because a deal has to clear the club's greed **and** improve your own
+lineup, and eyeballing two rosters will not tell you when both are true.
+
+The market underneath it is busy. Sampling sixteen weeks across four leagues,
+**14.4 deals a week exist that a club would accept and that improve the human's
+lineup**, spread over about seven clubs of thirty-one, and there was never a
+week with none — the spread ran 1 to 40. The human saw eleven offers a
+*season*. So the finder is the same search `makeAiOffers` already runs, pointed
+the other way, behind a button.
+
+**It runs the whole sweep, and that is measured rather than lazy.** Ranking
+candidates for free and stopping early is the pattern draftpicks.js uses, and
+it was tried here first. Of 4,464 candidates only 9 were good, and the best
+free estimate — the lesser of the two sides' marginal gains — found 3 of them
+in the first 300 against 1 for no ranking at all:
+
+| ordering | good deals in the first 300 (of 9) |
+| --- | --- |
+| lesser of the two sides | 3 |
+| the sum | 1 |
+| the club's side alone | 1 |
+| the human's side alone | 0 |
+| no ranking | 1 |
+
+Better than nothing and nowhere near enough. A finder that reports three deals
+when nine exist is worse than no finder, because you cannot tell which case you
+are in. The ranking survives only to order the results.
+
+**So it is chunked instead of budgeted.** The full sweep measures 717 ms on a
+desktop, about 2.9 s on a mid-range phone — which is exactly the shape of thing
+that froze the draft screen. `dealPlan` does the cheap half in one task and
+`scanClub` does one club at a time, with the screen touching only its progress
+line in between; redrawing the whole view thirty-one times would cost more than
+the search. The worst single club measures 34 ms, or 135 ms throttled, which
+stays inside a frame budget people can feel. In the browser the whole thing
+takes about 950 ms and ticks its progress six times.
+
+Each result is a deal that has already cleared both bars, so pressing it should
+work: across three leagues the top-ranked deal was accepted every time. Loading
+one fills both sides of the builder rather than executing it, so you can look
+first — and it is re-checked on the way in, because rosters move between
+finding a deal and pressing it.
+
+**One bug it surfaced that had nothing to do with it.** The Moves log treated
+any row it did not recognise as a trade and read `league.teams[t.other].isUser`
+off it. `cut`, `sign` and `fill` carry no second club, and a pro league makes
+cap cuts at kickoff — so opening the tab in one threw. It only showed up here
+because a completed trade is what sends you to the log tab, and until the
+finder existed no trade ever completed in a test drive. Those three now have
+their own lines, stamped with the season rather than week 0, and anything
+unrecognised is skipped rather than thrown at.
+
 ## Why the interface froze (performance)
 
 A report that pressing a button locked the game for a moment — starting a
