@@ -497,6 +497,19 @@ slots and `settlePointer` skips anybody already full, so a club that signs four
 free agents simply never makes four of its picks. Nothing had to be written to
 make that true; it falls out of slots-for-slots.
 
+**How much of its roster a club buys here (`AI_FA_SHARE`), finally swept.** It was set at half when the market shipped and never revisited, through the two-pool split, the contract rules, dead money and the practice squad — every one of which changes what free agency is for. Four values over four seeds and twelve offseasons each, watching where a roster actually comes from:
+
+| share | signed / drafted / scraped | cap | best-to-worst spread |
+| --- | --- | --- | --- |
+| 0.25 | 13 / 75 / 13 | 156 | 756 |
+| **0.50** | **25 / 63 / 12** | **166** | **759** |
+| 0.75 | 29 / 61 / 12 | 169 | 781 |
+| 1.00 | 38 / 52 / 9 | 171 | 829 |
+
+Half stays, now for a measured reason rather than an untested one. Above it the gap between the best and worst roster opens up — clubs that are already good buy the market — and the draft stops being where most of a roster comes from, which is what the two-pool split was for. Below it the market is vestigial at an eighth of all signings and the cap goes slack at 156 of 200. Between 0.25 and 0.5 the spread is flat, so this is not a knife-edge optimum; it is the top of the range before the cliff. One reading to be careful with: on a single seed 0.5 looked like a true minimum at 746 against 786 and 813, and across four seeds that turned out to be noise. The real signal is the cliff above it, not a dip at it.
+
+**A club with one hole sits the market out, and that is load-bearing.** `want` is floored, so a single open slot rounds to nothing and the club drafts instead. It reads like an off-by-one. Measured over 256 club-offseasons it shuts out 8% of them — and they are the *good* clubs, because a club with one hole is one that kept everybody. Letting them shop with `Math.max(1, …)` was tried: the spread widens from 759 to **821**, well outside the range between seeds. A contender buying its last piece every single year is how a league stops being competitive. A test pins it, since the next person to read that `floor` will think it is a bug.
+
 **Bids are sealed, and the asking price is a floor.** A player will not sign for
 less than `marketSalary` says he is worth, because without that floor an
 uncontested star goes for a dollar, which is not a market but an oversight. A

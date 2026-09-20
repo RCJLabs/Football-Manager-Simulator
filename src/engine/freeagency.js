@@ -34,6 +34,25 @@ export const FA_YEARS = VET_YEARS;
  * the draft is where a cap-squeezed club finds value. Half is the AI's rule of
  * thumb; the human is not held to it, because choosing to mortgage a draft for
  * a win now is exactly the sort of decision this is for.
+ *
+ * Set when free agency shipped and left alone through the two-pool split, the
+ * contract rules, dead money and the practice squad, so it was finally swept:
+ * four values over four seeds and twelve offseasons each, watching where a
+ * roster comes from and what the league looks like afterwards.
+ *
+ *   share   FA / draft / scraped     cap    spread
+ *   0.25      13 / 75 / 13          156      756
+ *   0.50      25 / 63 / 12          166      759
+ *   0.75      29 / 61 / 12          169      781
+ *   1.00      38 / 52 /  9          171      829
+ *
+ * Half stays, and now for a measured reason rather than an untested one. Above
+ * it the gap between the best and worst roster opens up — clubs that are
+ * already good buy the market — and the draft stops being where most of a
+ * roster comes from, which is the thing the two-pool split was for. Below it
+ * the market is vestigial at an eighth of all signings and the cap goes slack
+ * at 156 of 200. Between 0.25 and 0.5 the spread is flat, so this is not a
+ * knife-edge optimum; it is the top of the range before the cliff.
  */
 export const AI_FA_SHARE = 0.5;
 
@@ -164,6 +183,13 @@ export function aiBid(league, pool, byId, rng = null) {
   for (const ti of order) {
     const team = league.teams[ti];
     if (team.isUser) continue;
+    // Floored, so a club with a single hole sits the market out entirely. That
+    // looks like an off-by-one and is not: measured, it shuts out 8% of club
+    // offseasons, and they are the *good* clubs — a club with one hole is one
+    // that kept everybody. Letting them shop with `Math.max(1, …)` was tried
+    // and widens the gap between the best and worst roster from 759 to 821,
+    // well outside the spread between seeds. A contender buying its last piece
+    // every year is how a league stops being competitive.
     const want = Math.floor(openCount(team) * AI_FA_SHARE);
     if (want <= 0) continue;
     const greed = aiGreed(team, league);

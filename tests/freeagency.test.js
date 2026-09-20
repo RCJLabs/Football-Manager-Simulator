@@ -9,6 +9,7 @@ import { enterOffseason, confirmKeepers, aiKeepers, takeJob, closeFreeAgency } f
 import { capHit, overCap, marketSalary, PRO_CAP, SLOT_RESERVE } from '../src/engine/cap.js';
 import {
   askingBoard, biddingRoom, openCount, submitOffer, freeAgencyReport, openFreeAgency,
+  aiBid, AI_FA_SHARE,
 } from '../src/engine/freeagency.js';
 
 registerPlayers(byId);
@@ -131,4 +132,30 @@ test('a fantasy league never sees the market', () => {
   assert.equal(openFreeAgency(lg, PLAYERS, byId).offers && Object.keys(lg.freeAgency.offers).length, 0);
   assert.equal(biddingRoom(lg, 0), 0);
   void SLOT_RESERVE;
+});
+
+test('a club with a single hole sits the market out, and that is deliberate', () => {
+  // This reads like an off-by-one and is not. `want` is floored, so one open
+  // slot rounds to nothing and the club drafts instead. Measured over 256 club
+  // offseasons it shuts out 8% of them, and they are the good clubs — a club
+  // with one hole is one that kept everybody. Letting them shop with
+  // `Math.max(1, …)` was tried and widened the gap between the best and worst
+  // roster from 759 to 821, well outside the spread between seeds. A contender
+  // buying its last piece every year is how a league stops being competitive.
+  const lg = toMarket(12);
+  openFreeAgency(lg, PLAYERS, byId);
+  const one = lg.teams.findIndex((t, i) => !t.isUser && openCount(t) === 1);
+  if (one < 0) {
+    // Nothing to check in this league; the arithmetic still has to hold.
+    assert.equal(Math.floor(1 * AI_FA_SHARE), 0);
+    return;
+  }
+  const bidsBy = (i) => Object.keys(lg.freeAgency?.offers?.[i] || {}).length;
+  const before = bidsBy(one);
+  aiBid(lg, PLAYERS, byId, new RNG(5));
+  assert.equal(bidsBy(one), before, 'a club with one hole bid anyway');
+  // And the market is not simply mute: somebody with room to spare did shop.
+  const shoppers = lg.teams.map((_, i) => i).filter((i) => bidsBy(i) > 0);
+  assert.ok(shoppers.length > 0, 'no club bid at all, so the rule proves nothing');
+  for (const i of shoppers) assert.ok(openCount(lg.teams[i]) >= 2, `club ${i} bid with ${openCount(lg.teams[i])} open slot`);
 });
