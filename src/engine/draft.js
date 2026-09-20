@@ -4,6 +4,7 @@ import { GM_PERSONALITIES } from '../data/teams.js';
 import { overall } from './ratings.js';
 import { RNG } from './rng.js';
 import { scoutedOverall } from './scouting.js';
+import { applyOwedPicks } from './futurepicks.js';
 
 export const TOTAL_ROUNDS = ROSTER_SLOTS.length;
 
@@ -30,6 +31,11 @@ export function createDraft(league, rng, { order = null, taken = {} } = {}) {
     taken: { ...taken },
     complete: false,
   };
+  // Picks promised in last year's draft come due here, and here is the first
+  // moment they can: a future pick is a round and a club, and it takes an
+  // order to turn that into a pick number. Before `settlePointer`, because
+  // what is owed can change who is on the clock.
+  applyOwedPicks(league, draft);
   settlePointer(league, draft);
   return draft;
 }

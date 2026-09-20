@@ -45,6 +45,11 @@ import {
 } from './draft.js';
 import { RNG } from './rng.js';
 import { fillOpenSlots } from './season.js';
+import {
+  futureHandValue, futurePickValue, futureHand, futurePicksOpen, futureDepth,
+  validateFuturePicks, applyFutureTrade, projectedSlots, futureLabel,
+} from './futurepicks.js';
+import { keeperPickValue } from './pickvalue.js';
 
 /** Overall pick number from a round and a position in it. */
 export function overallOf(draft, round, pickInRound) {
@@ -257,19 +262,44 @@ export function pickTradeProjector(league, draft, pool, byId) {
       // loss: measured, the mover finished 279 points down on a club that
       // stood pat purely because two slots sat empty.
       fillOpenSlots(after.league, pool, byId, { log: false });
+      // Next year's picks are priced off the rosters this draft *finishes*
+      // with, not the ones it started with, which is what makes moving up cost
+      // twice: a club that comes out of the draft stronger is guessed to
+      // finish higher, so its own future pick falls later and is worth less.
+      const fa = nextPicks(aGives), fb = nextPicks(bGives);
+      let futA = 0, futB = 0;
+      if (fa.length || fb.length) {
+        const slots = projectedSlots(after.league, byId);
+        // Each club's own books. Pricing both sides the same way is what made
+        // the future half of a deal sum to exactly zero, and a deal that sums
+        // to zero cannot clear two greed bars — see futurepicks.js.
+        futA = futureHandValue(league, byId, fb, slots, aIdx) - futureHandValue(league, byId, fa, slots, aIdx);
+        futB = futureHandValue(league, byId, fa, slots, bIdx) - futureHandValue(league, byId, fb, slots, bIdx);
+      }
       return {
-        a: round1(rosterValue(after.league, aIdx, byId) - baseline[aIdx]),
-        b: round1(rosterValue(after.league, bIdx, byId) - baseline[bIdx]),
+        a: round1(rosterValue(after.league, aIdx, byId) - baseline[aIdx] + futA),
+        b: round1(rosterValue(after.league, bIdx, byId) - baseline[bIdx] + futB),
+        future: fa.length || fb.length ? { a: round1(futA), b: round1(futB) } : null,
         horizon: null,
       };
     },
   };
 }
 
+/**
+ * Either side of a deal may hold both kinds at once, so every list here is
+ * mixed and split at the point of use. Keeping them in one array rather than
+ * two parallel ones is what keeps `MAX_PICK_SIDE` meaning what a player thinks
+ * it means — picks a side, not picks a side of each kind.
+ */
+export const isFuture = (p) => !!p?.future;
+export const nowPicks = (list) => (list || []).filter((p) => !isFuture(p));
+export const nextPicks = (list) => (list || []).filter(isFuture);
+
 function applySwap(draft, aIdx, bIdx, aGives, bGives) {
   draft.traded ??= {};
-  for (const p of aGives) draft.traded[p.overall] = bIdx;
-  for (const p of bGives) draft.traded[p.overall] = aIdx;
+  for (const p of nowPicks(aGives)) draft.traded[p.overall] = bIdx;
+  for (const p of nowPicks(bGives)) draft.traded[p.overall] = aIdx;
 }
 
 // ---------------------------------------------------------------------------
@@ -295,20 +325,29 @@ export function validatePickTrade(league, draft, aIdx, bIdx, aGives, bGives) {
   if (aIdx === bIdx) return { ok: false, reason: 'Pick another club' };
   if (!aGives.length || !bGives.length) return { ok: false, reason: 'Both sides have to give something' };
   if (aGives.length > MAX_PICK_SIDE || bGives.length > MAX_PICK_SIDE) return { ok: false, reason: `At most ${MAX_PICK_SIDE} picks a side` };
+  // Next year's picks are checked by their own rules — they have no pick
+  // number yet, so they cannot be looked up in this draft at all.
+  for (const [idx, gives] of [[aIdx, aGives], [bIdx, bGives]]) {
+    const fv = validateFuturePicks(league, idx, nextPicks(gives));
+    if (!fv.ok) return fv;
+  }
+  const aNow = nowPicks(aGives), bNow = nowPicks(bGives);
   const mineA = remainingPicks(draft, aIdx), mineB = remainingPicks(draft, bIdx);
   const has = (list, p) => list.some((x) => x.overall === p.overall);
-  for (const p of aGives) if (!has(mineA, p)) return { ok: false, reason: `Pick ${p.overall} is not ${league.teams[aIdx].abbr}'s to trade` };
-  for (const p of bGives) if (!has(mineB, p)) return { ok: false, reason: `Pick ${p.overall} is not ${league.teams[bIdx].abbr}'s to trade` };
+  for (const p of aNow) if (!has(mineA, p)) return { ok: false, reason: `Pick ${p.overall} is not ${league.teams[aIdx].abbr}'s to trade` };
+  for (const p of bNow) if (!has(mineB, p)) return { ok: false, reason: `Pick ${p.overall} is not ${league.teams[bIdx].abbr}'s to trade` };
   const dupe = (list) => new Set(list.map((p) => p.overall)).size !== list.length;
-  if (dupe(aGives) || dupe(bGives)) return { ok: false, reason: 'A pick is listed twice' };
+  if (dupe(aNow) || dupe(bNow)) return { ok: false, reason: 'A pick is listed twice' };
   // Uneven deals are allowed, and the club that sends more than it gets simply
   // drafts fewer times than it has slots — it signs the difference off the
   // board when the season starts. That is the price of moving up, and it is a
   // real one, because what is left after a draft is what nobody wanted. The
   // limit is on how much of a roster may arrive that way.
+  // Only this year's picks count towards finishing short: a pick a year out
+  // fills nothing in the draft going on now.
   const shortfall = (idx, gives, gets) => {
     const open = openSlots(league.teams[idx]).length;
-    const picks = remainingPicks(draft, idx).length - gives.length + gets.length;
+    const picks = remainingPicks(draft, idx).length - nowPicks(gives).length + nowPicks(gets).length;
     return open - picks;
   };
   for (const [idx, gives, gets] of [[aIdx, aGives, bGives], [bIdx, bGives, aGives]]) {
@@ -325,13 +364,16 @@ export function executePickTrade(league, draft, aIdx, bIdx, aGives, bGives) {
   const v = validatePickTrade(league, draft, aIdx, bIdx, aGives, bGives);
   if (!v.ok) throw new Error(v.reason);
   applySwap(draft, aIdx, bIdx, aGives, bGives);
+  applyFutureTrade(league, aIdx, bIdx, nextPicks(aGives), nextPicks(bGives));
   // A swap can move the club that is on the clock, and can hand a pick to a
   // club whose roster is already full.
   settlePointer(league, draft);
   league.transactions ??= [];
+  const label = (p) => (isFuture(p) ? futureLabel(league, p) : `#${p.overall}`);
   league.transactions.push({
     week: 0, season: league.season, type: 'picks', team: aIdx, other: bIdx,
-    gives: aGives.map((p) => p.overall), gets: bGives.map((p) => p.overall),
+    gives: nowPicks(aGives).map((p) => p.overall), gets: nowPicks(bGives).map((p) => p.overall),
+    givesNext: nextPicks(aGives).map(label), getsNext: nextPicks(bGives).map(label),
     round: draft.round,
   });
   return league.transactions[league.transactions.length - 1];
@@ -438,36 +480,112 @@ export function pickOfferCandidates(league, draft, pool, byId, rng, { projector 
   // decent ranker. It still does not decide anything; the projection does.
   for (const c of candidates) c.guess = proj.slotValue(c.a, c.tp, c.mp);
   candidates.sort((x, y) => y.guess - x.guess);
-  return { user: u, round: draft.round, projector: proj, candidates };
+  return {
+    user: u, round: draft.round, projector: proj, candidates,
+    future: futureCandidates(league, draft, byId, u, others),
+  };
+}
+
+/**
+ * Deals with next year in them, kept apart from the straight swaps.
+ *
+ * Separate because the two cannot be ranked against each other: `slotValue`
+ * scores a straight swap in board points and a future pick is priced in lineup
+ * points, and sorting one list by two scales is how you get a list sorted by
+ * neither. They get their own slice of the budget instead.
+ *
+ * **Straight, one for one, and round one only.** Sweetening a swap with a
+ * future pick was built first and measured 5 of 540 — it fails on units as
+ * much as on value, because the smallest future pick worth trading is worth
+ * more than the whole swing of a swap between two nearby present picks, so no
+ * future pick is small enough to be change. Rounds two and three of a keeper
+ * draft are worth about three points and a fifth of a point; simulating a deal
+ * over those is a draft spent on nothing.
+ *
+ * Measured at 21 of 248 pairings clearing both bars, against 14% for the
+ * straight swaps — a real market, and one that only appeared once the curve
+ * was calibrated for a keeper draft rather than an opening one. On the old
+ * numbers this measured 1 of 248 and I had written "AI clubs never ring about
+ * next year" into three files as a structural finding. It was a scale error.
+ */
+function futureCandidates(league, draft, byId, u, others) {
+  if (!futurePicksOpen(league)) return [];
+  const out = [];
+  const slots = projectedSlots(league, byId);
+  const n = league.teams.length;
+  const depth = futureDepth(league);
+  const mineNow = remainingPicks(draft, u).slice(0, 2);
+  const mineNext = futureHand(league, u).filter((p) => p.round === 1);
+  for (const a of others) {
+    const theirsNow = remainingPicks(draft, a).slice(0, 2);
+    const theirsNext = futureHand(league, a).filter((p) => p.round === 1);
+    for (const [gives, wants] of [
+      ...theirsNext.flatMap((f) => mineNow.map((p) => [[f], [p]])),
+      ...theirsNow.flatMap((p) => mineNext.map((f) => [[p], [f]])),
+    ]) {
+      if (!validatePickTrade(league, draft, a, u, gives, wants).ok) continue;
+      // Ranked on the club's own books, and in one unit: this year's draft is
+      // a keeper draft too, so the same curve prices both sides for nothing.
+      // The projection still decides — this only picks which one to ask.
+      const price = (p) => (isFuture(p)
+        ? futurePickValue(league, byId, p, slots, a)
+        : keeperPickValue(p.overall, depth, n));
+      const sum = (list) => list.reduce((t, p) => t + price(p), 0);
+      out.push({ a, gives, wants, tp: gives[0], mp: wants[0], guess: sum(wants) - sum(gives) });
+    }
+  }
+  out.sort((x, y) => y.guess - x.guess);
+  return out;
 }
 
 /** Put one candidate through the real projection. Returns an offer, or null. */
 export function tryPickOffer(league, plan, c) {
   const u = plan.user;
-  const v = plan.projector.project(c.a, u, [c.tp], [c.mp]);
+  const gives = c.gives || [c.tp];
+  const wants = c.wants || [c.mp];
+  const v = plan.projector.project(c.a, u, gives, wants);
   if (v.a < aiGreed(league.teams[c.a], league)) return null;
   if (v.b < -PICK_OFFER_FAIR_MARGIN) return null;
-  const up = c.tp.overall > c.mp.overall;
+  const abbr = league.teams[c.a].abbr;
+  const name = (p) => (isFuture(p) ? futureLabel(league, p) : `#${p.overall}`);
+  const key = [...gives, ...wants].find(isFuture);
+  const note = key
+    ? `${abbr} want ${isFuture(gives[0]) ? 'this year' : 'next year'}: ${gives.map(name).join(' and ')} for ${wants.map(name).join(' and ')}.`
+    : `${abbr} want to move ${c.tp.overall > c.mp.overall ? 'up' : 'down'}: their #${c.tp.overall} for your #${c.mp.overall}.`;
   return {
-    id: `pk-${league.season}-${plan.round}-${c.a}-${c.mp.overall}`,
+    id: `pk-${league.season}-${plan.round}-${c.a}-${c.mp.overall}-${key ? key.key : 'x'}`,
     season: league.season, round: plan.round, from: c.a,
-    gives: [c.tp], wants: [c.mp], aiGain: v.a, userDelta: v.b,
-    note: `${league.teams[c.a].abbr} want to move ${up ? 'up' : 'down'}: their #${c.tp.overall} for your #${c.mp.overall}.`,
+    gives, wants, aiGain: v.a, userDelta: v.b, future: v.future || null, note,
   };
 }
+
+/**
+ * How much of the budget goes on a deal with next year in it.
+ *
+ * One, taken out of the four rather than added to them, so the turn costs
+ * exactly what it did before. A future-pick pairing clears both bars about
+ * 8.5% of the time against 14% for a straight swap, so it earns a slot and
+ * does not earn more than one.
+ */
+export const FUTURE_BUDGET = 1;
 
 export function makePickOffers(league, draft, pool, byId, rng, { max = 1, budget = OFFER_BUDGET, projector = null } = {}) {
   const plan = pickOfferCandidates(league, draft, pool, byId, rng, { projector });
   if (!plan) return [];
   const made = [];
   let spent = 0;
-  for (const c of plan.candidates) {
-    if (made.length >= max || spent >= budget) break;
-    if (made.some((o) => o.from === c.a)) continue;
-    spent++;
-    const o = tryPickOffer(league, plan, c);
-    if (o) made.push(o);
-  }
+  const tryList = (list, cap) => {
+    let used = 0;
+    for (const c of list) {
+      if (made.length >= max || spent >= budget || used >= cap) break;
+      if (made.some((o) => o.from === c.a)) continue;
+      spent++; used++;
+      const o = tryPickOffer(league, plan, c);
+      if (o) made.push(o);
+    }
+  };
+  tryList(plan.future || [], FUTURE_BUDGET);
+  tryList(plan.candidates, budget);
   return made;
 }
 

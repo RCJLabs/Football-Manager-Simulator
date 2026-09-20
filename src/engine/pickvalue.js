@@ -118,3 +118,59 @@ export function handValue(picks, openSlots, totalPicks, teams) {
 export function draftPickCount(teams) {
   return ROSTER_SLOTS.length * teams;
 }
+
+// ---------------------------------------------------------------------------
+// The keeper draft, which is a different animal
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything above was fitted on an **opening** draft, where the whole pool is
+ * on the board and a club has twenty-seven slots to fill. A keeper draft is
+ * not that: eighteen of twenty-seven are already signed, the best man left is
+ * nothing like the best man alive, and a club has about nine slots to use.
+ * Applying the opening curve there is wrong by between five times and fifty:
+ *
+ * | slot | measured in a second draft | opening curve says | ratio |
+ * | --- | --- | --- | --- |
+ * | 1 | 56.1 | 304 | 0.18 |
+ * | 5 | 33.5 | 254 | 0.13 |
+ * | 12 | 11.7 | 191 | 0.06 |
+ * | 48 | 1.8 | 76 | 0.02 |
+ *
+ * That error is what made every future-pick market measure as dead: a future
+ * first priced at 304 against present picks correctly priced at 2 to 12 is not
+ * a trade anybody can construct.
+ *
+ * The shape is different too, not just the scale. The opening curve needs a
+ * slow second exponential for its tail because there are slots deep in the
+ * draft worth filling; a keeper draft has no such tail, and a **single**
+ * exponential fits as well as two (rms 0.056 against 0.059 — with six points
+ * the extra parameters are not earned). Value collapses inside the first
+ * round, because that is how many useful players are left.
+ *
+ * Measured in a thirty-two club pro league over six second drafts. Everything
+ * else is extrapolation: the decay is held at a fraction of the *usable*
+ * draft, so it moves with league size and with how many a league keeps, but
+ * only the pro shape was measured.
+ */
+export const KEEPER_DECAY = 0.0285;   // in fractions of the usable draft
+export const KEEPER_SCALE = 1.75;     // points the top pick is worth, per club
+
+/** How many rounds a draft of this kind actually reaches before everyone is full. */
+export function usableRounds(keepers) {
+  return Math.max(1, ROSTER_SLOTS.length - Math.max(0, keepers || 0));
+}
+
+/**
+ * What a pick is worth in a draft that only runs `rounds` deep.
+ *
+ * `overallPick` is counted in the full snake, so round 2 of a thirty-two club
+ * league starts at 33 whatever the depth — which is what a pick number means
+ * everywhere else in the code.
+ */
+export function keeperPickValue(overallPick, rounds, teams) {
+  if (!Number.isFinite(overallPick) || !(rounds > 0) || !(teams > 0)) return 0;
+  const usable = Math.max(2, rounds * teams);
+  const frac = Math.max(0, overallPick - 1) / (usable - 1);
+  return KEEPER_SCALE * teams * Math.exp(-frac / KEEPER_DECAY);
+}

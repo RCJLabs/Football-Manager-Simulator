@@ -463,8 +463,8 @@ So uneven trades are legal, correctly valued, and mostly unsignable — and AI
 clubs do not propose them because there is nothing fair to propose. Making them
 work needs quantity to be worth something, which under a fixed twenty-seven-slot
 roster and one draft a season it cannot be. The fix is future picks: a pick in
-next season's draft has value because next season there are twenty-seven fresh
-slots. That is not built. `MAX_SHORT` caps how short a
+next season's draft has value because next season there are fresh slots. That is
+the next section. `MAX_SHORT` caps how short a
 club may trade itself, because a club that did this every year would arrive at
 kickoff with half a roster of leftovers, which is not a decision, just a club
 that has stopped playing the draft.
@@ -485,6 +485,127 @@ AI clubs evaluate uneven offers — `evaluatePickTrade` runs the same projection
 but they only *propose* one for one, because the candidate space for uneven
 packages is combinatorially larger and the offer budget is already the tightest
 thing on that screen.
+
+## Next year's picks (`futurepicks.js`, `pickvalue.js`)
+
+The request was to ban pick trades in a league's opening draft and, from the
+second year on, price picks off how each club performed. Half of that is right
+and half of it is backwards, and the measurements say which half.
+
+**Banning the opening draft's pick trades is the wrong ban.** The order of the
+draft in front of you is *known* — pick 3 is pick 3, and `projectPickTrade`
+prices it by drafting the board twice. There is nothing to estimate. What cannot
+be valued in a league's first year is a pick in the *second* year, because the
+estimate has to come from somewhere and in an opening draft every club is the
+same twenty-seven empty slots. So the ban is on **future** picks until a season
+has been played, and current-year picks stay tradeable from day one.
+
+**Last season's record barely predicts next season's.** This is the finding
+that changed the design. Over 512 club-seasons of the pro league, where a club
+finished last year predicts where it picks this year at **r = 0.15** — mean
+error nine and a half slots of thirty-two. Near enough nothing. The reason is
+that the league is built to equalise: the draft order is reverse standings,
+about nine slots a club turn over every offseason, and free agency runs before
+the draft. Finishing last is most of a cure for finishing last. Pricing a
+future pick off a club's record — the thing that was asked for — would be
+pricing it off noise.
+
+What does predict it is **the roster the club is about to field: r = 0.59**,
+mean error six slots of thirty-two. What that is worth on the curve a keeper
+draft actually has:
+
+| what is traded | average worth | range across the league | priced to within |
+| --- | --- | --- | --- |
+| next year's round 1 | 15 | 0.2 to 56 | 9.4 |
+| next year's round 2 | under 1 | — | 0.2 |
+| next year's round 3 | under 1 | — | 0.0 |
+
+Next year's first is the only future pick worth much, and only from the right
+club — a first from a side about to be good is worth nothing, and telling the
+difference is the gamble. Off last year's record instead of the roster, the
+same round-1 pick prices to within 14.6, which is most of what it is worth.
+Rounds two and three are throw-ins, and the code prices them accordingly rather
+than pretending a cutoff at one is principled.
+
+The number that matters more than any of those is the bias: **−0.0 points** on
+a round-1 pick. Both sides use the same estimate, so a wide error bar makes a
+future pick a gamble rather than a robbery. The room says so in as many words
+rather than printing a number that implies precision it does not have.
+
+**Three rounds, one year.** Two years out needs a guess at a roster that has not
+been assembled. Three rounds is where a keeper draft ends: a pro league keeps
+eighteen of twenty-seven, so it drafts about nine rounds and then everybody is
+full and `settlePointer` ends it. Over 960 club-drafts a round-1 pick is
+actually made 100% of the time, round 2 95%, round 3 93% — and round 7 only 77%.
+Past round three a future pick is mostly a promise that quietly never comes due,
+which is a miserable thing to have traded for. Those odds are priced in
+(`madeOdds`). A fantasy league keeps six, drafts twenty-one rounds every year
+and never voids one at all.
+
+### The scale error that killed the feature once
+
+The curve in `pickvalue.js` was fitted on an **opening** draft, where the whole
+pool is on the board and a club has twenty-seven slots to fill. A keeper draft
+is a different animal: eighteen of twenty-seven are already signed, the best
+man left is nothing like the best man alive, and a club has about nine slots to
+use. Measured in six second drafts:
+
+| slot | measured in a keeper draft | opening curve says | ratio |
+| --- | --- | --- | --- |
+| 1 | 56.1 | 304 | 0.18 |
+| 5 | 33.5 | 254 | 0.13 |
+| 12 | 11.7 | 191 | 0.06 |
+| 48 | 1.8 | 76 | 0.02 |
+
+The shape is different too, not only the scale: the opening curve needs a slow
+second exponential for its tail because there are slots deep in the draft worth
+filling, and a keeper draft has no such tail — a **single** exponential fits as
+well as two (rms 0.056 against 0.059, and with six points the extra parameters
+are not earned). Value collapses inside the first round, because that is how
+many useful players are left.
+
+**This was not an academic error.** With future picks priced at 304 against
+present picks correctly priced at 2 to 12, every market measured as dead: the
+human selling next year's first was offered −145 points and every club took it;
+the human buying one was refused by 123 of 124 clubs. Three shapes of AI offer
+were built and all three measured unsignable — sweetening a straight swap 5 of
+540, lump for lump 2 of 672, size-matched 1 of 631 — and I wrote "AI clubs
+never ring about next year, and that is arithmetic" into three files as a
+structural finding before checking the scale.
+
+With `keeperPickValue` the same measurements read: the human selling next
+year's first now averages +0.6 with a best of +26, 67 of 124 clubs will take
+it and 41 of 124 will sell one, **26 of 248 pairings are good for the human and
+acceptable to the club**, and 21 of 248 clear the bar a club needs to ring you
+about it — against 14% for a straight present-pick swap. It is a real market.
+
+What survives from the wrong version is the shape of AI offer: **one future
+pick straight against one present pick, round one only**. Sweetening a swap
+fails on units as much as on value — the smallest future pick worth trading is
+worth more than the whole swing of a swap between two nearby present picks, so
+no future pick is small enough to be change. Rounds two and three of a keeper
+draft are worth about three points and a fifth of a point, which is not worth a
+draft simulation to ask about.
+
+`futureDiscount` gives each club its own time preference — a contender near the
+top of the table discounts next year to 0.70, a rebuilding club values it in
+full — so the same pick fetches 24 from a contender and 28 from a rebuilder.
+That is what makes shopping one around worth doing.
+
+**How it is stored.** `league.owedPicks` records only deviations — `{ season,
+round, from, to }` — so a league where nobody has traded carries an empty array.
+Ownership is rewritten in place rather than appended, which means a pick traded
+on and then traded back leaves no row behind, and `futureOwner` falling through
+to `from` is then always correct. The rows come due in `createDraft`, which is
+the first moment an order exists and so the first moment a round and a club can
+become a pick number; they are consumed as they are applied, so nothing fires
+twice.
+
+**Moving up costs twice.** Future picks are priced off the rosters the draft
+*finishes* with, not the ones it started with. A club that trades up comes out
+stronger, is guessed to finish higher, and so its own future pick falls later
+and is worth less. That falls out of the arithmetic rather than being written
+in, and it is the right answer.
 
 ## Why the interface froze (performance)
 
