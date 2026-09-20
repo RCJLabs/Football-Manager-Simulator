@@ -641,7 +641,10 @@ function enforcePenalty(g, pen, sit, elapsed = 0) {
     }
   }
   const prefix = `${fmtQuarter(sit.q)} ${fmtClock(sit.clock)} · ${['1st', '2nd', '3rd', '4th'][sit.down - 1]} & ${sit.ballOn + sit.toGo >= 100 ? 'Goal' : sit.toGo} at ${spot(g, off, sit.ballOn)}`;
-  logEvent(g, { type: 'penalty', flag: true, yards: pen.side === off ? -yards : yards, situation: prefix, text: `${penaltyLabel(g, pen, yards)} ${downText(g)} at ${spot(g, off, g.ballOn)}.` });
+  // Same two fields the scrimmage plays carry, so the field strip can draw a
+  // flag where it happened rather than silently skipping it. `g.ballOn` below
+  // is already the enforced spot, so `from` is the only record of the snap.
+  logEvent(g, { type: 'penalty', flag: true, yards: pen.side === off ? -yards : yards, from: sit.ballOn, snapOff: off, situation: prefix, text: `${penaltyLabel(g, pen, yards)} ${downText(g)} at ${spot(g, off, g.ballOn)}.` });
   g.clockRunning = false;
 }
 
@@ -685,22 +688,33 @@ function applyOutcome(g, rng, o, sit) {
   if (g.drive) g.drive.time += elapsed;
 
   const prefix = `${fmtQuarter(sit.q)} ${fmtClock(sit.clock)} · ${['1st', '2nd', '3rd', '4th'][sit.down - 1]} & ${sit.ballOn + sit.toGo >= 100 ? 'Goal' : sit.toGo} at ${spot(g, off, sit.ballOn)}`;
-  const base = { type: o.type, call: o.call, defCall: o.defCall, yards: o.yards, situation: prefix, text: o.text, flag: !!o.flag };
+  // Where the ball was snapped from, and who snapped it. `logEvent` snapshots
+  // `g.ballOn`/`g.possession` at the moment of the call, and that moment is not
+  // the same place twice: post-play on an ordinary snap, but pre-flip on a
+  // turnover (`changePossession` runs after the log) and post-enforcement when
+  // a flag is tacked on. So the line of scrimmage is not recoverable from the
+  // entry alone. The field strip draws the play itself, from here to
+  // here-plus-yards, and needs both.
+  const base = { type: o.type, call: o.call, defCall: o.defCall, yards: o.yards, from: sit.ballOn, snapOff: off, situation: prefix, text: o.text, flag: !!o.flag };
 
-  // Special outcomes first.
+  // Special outcomes first. Kicks are the one place `yards` does not describe
+  // the ball's travel — a punt is logged at 0 and the flight lives in `puntTo`,
+  // a field goal at 0 and the flight is the kick itself. `to` carries the end
+  // of the play in the snapping club's frame so the field strip can draw it;
+  // everywhere else `from + yards` already is that spot.
   if (o.type === 'fg') {
     if (o.fgGood) {
       g.score[off] += 3;
       ts.points += 0;
       endDrive(g, 'FG');
-      logEvent(g, { ...base, scoring: true, text: `${o.text} ${scoreLine(g)}` });
+      logEvent(g, { ...base, to: 100, scoring: true, text: `${o.text} ${scoreLine(g)}` });
       g.phase = 'kickoff'; g.kickingTeam = off; g.clockRunning = false;
       checkOvertimeEnd(g);
       return;
     }
     // Miss: defense takes over at spot of kick (7 yards behind LOS) or 20 if inside.
     endDrive(g, 'missed FG');
-    logEvent(g, { ...base });
+    logEvent(g, { ...base, to: Math.min(80, Math.max(0, sit.ballOn - 7)) });
     changePossession(g, Math.max(20, 100 - (sit.ballOn - 7)));
     g.clockRunning = false;
     return;
@@ -710,11 +724,11 @@ function applyOutcome(g, rng, o, sit) {
     if (o.puntReturnTd) {
       g.possession = defT;
       g.score[defT] += 6;
-      logEvent(g, { ...base, scoring: true });
+      logEvent(g, { ...base, to: 0, scoring: true });
       g.phase = 'pat'; g.patTeam = defT; g.clockRunning = false;
       return;
     }
-    logEvent(g, { ...base });
+    logEvent(g, { ...base, to: o.puntBlocked ? clamp(sit.ballOn + o.yards, 0, 100) : 100 - o.puntTo });
     if (o.puntBlocked) changePossession(g, clamp(100 - (sit.ballOn + o.yards), 1, 99));
     else changePossession(g, o.puntTo);
     g.clockRunning = false;

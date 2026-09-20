@@ -186,3 +186,47 @@ test('serialized game can be resumed identically', () => {
   assert.deepEqual(copy.score, g.score);
   assert.equal(copy.log.length, g.log.length);
 });
+
+test('every scrimmage play logs where it was snapped from and by whom', () => {
+  // The field strip draws the play as a bar, which means it needs the line of
+  // scrimmage and the frame to read it in. Neither is recoverable from the rest
+  // of the entry: `ballOn`/`off` are post-play on an ordinary snap, pre-flip on
+  // a turnover, and post-enforcement when a flag is tacked on.
+  const SCRIMMAGE = new Set(['run', 'pass', 'incomplete', 'sack', 'int', 'fumble', 'punt', 'fg', 'kneel', 'spike', 'penalty']);
+  const KICK = new Set(['punt', 'fg']);
+  let drawn = 0, flags = 0, kicks = 0, ordinary = 0;
+  for (let seed = 4000; seed < 4060; seed++) {
+    const g = simulateGame(mk(seed));
+    for (const e of g.log) {
+      if (!SCRIMMAGE.has(e.type)) {
+        assert.equal(e.from, undefined, `${e.type} should not claim a snap spot`);
+        continue;
+      }
+      drawn++;
+      if (e.type === 'penalty') flags++;
+      assert.ok(Number.isInteger(e.from) && e.from >= 0 && e.from <= 100, `${e.type} from=${e.from}`);
+      assert.ok(e.snapOff === 0 || e.snapOff === 1, `${e.type} snapOff=${e.snapOff}`);
+      // The bar runs from the snap to `to` when the play carries one — a kick,
+      // whose `yards` is 0 because nothing was gained from scrimmage — and to
+      // `from + yards` otherwise. Either way it has to stay on the field.
+      const end = e.to != null ? e.to : e.from + e.yards;
+      assert.ok(end >= 0 && end <= 100, `${e.type} ends off the field: ${e.from} -> ${end}`);
+      if (KICK.has(e.type)) { kicks++; assert.notEqual(e.to, undefined, `${e.type} has no landing spot`); }
+      else assert.equal(e.to, undefined, `${e.type} should take its end from yards`);
+      // On a clean snap the spot is checkable against the entry itself, which
+      // pins `from` as pre-snap and `snapOff` as the club that had the ball.
+      // Turnovers and kicks are logged before `changePossession`, and a flagged
+      // play after enforcement, so for those the entry's own `ballOn` is not
+      // the end of the play — which is the whole reason `from` exists.
+      const keeps = !KICK.has(e.type) && e.type !== 'int' && e.type !== 'fumble';
+      if (keeps && !e.flag && !e.scoring && e.off === e.snapOff) {
+        ordinary++;
+        assert.equal(e.ballOn, end, `${e.type}: ${e.from} + ${e.yards} != ${e.ballOn}`);
+      }
+    }
+  }
+  assert.ok(drawn > 4000, `only ${drawn} drawable plays sampled`);
+  assert.ok(flags > 100, `only ${flags} penalties sampled`);
+  assert.ok(kicks > 300, `only ${kicks} kicks sampled`);
+  assert.ok(ordinary > 3000, `only ${ordinary} spot-checkable plays sampled`);
+});

@@ -185,11 +185,18 @@ try {
   }
   await checkOverflow('live game mid-drive');
   await shot('06-game');
-  for (let i = 0; i < 3 && !(await page.$('#simEnd')); i++) {
+  // `Sim to end` moved behind a disclosure on the watching controls — three
+  // buttons you want occasionally and never by accident. It still stands on its
+  // own in the coach-mode panels, so advance until the other club has the ball,
+  // which is when the watching controls are up, and open it as a player would.
+  for (let i = 0; i < 60 && !(await page.$('.skipahead')); i++) {
     const pat = await page.$('[data-pat="xp"]');
-    if (pat) await pat.click();
+    const off = await page.$('[data-off="pass_med"]');
+    const def = await page.$('[data-def="ai"]');
+    if (pat) await pat.click(); else if (off) await off.click(); else if (def) await def.click(); else break;
     await sleep(20);
   }
+  await page.click('.skipahead > summary');
   await page.click('#simEnd');
   await page.waitForSelector('#finish');
   await shot('07-final');

@@ -13,6 +13,27 @@ const PLAY_HELP = {
   pass_deep: 'Take a shot', pa_pass: 'Fake the run, throw', fg: '', punt: '', kneel: 'Run out the clock', spike: 'Stop the clock',
 };
 
+/**
+ * The snap the field strip should draw: the most recent play in the log, which
+ * is not always the most recent *event*.
+ *
+ * A play that changes possession logs itself and then, inside the same step,
+ * logs the new drive's header on top of it — so walking back past a drive
+ * header (and the asides that can follow a play) is how you find the snap that
+ * just happened. A kickoff, quarter break or extra point means the last snap is
+ * over and the bar should clear, so the walk stops at anything else.
+ */
+const SKIP_BACK = new Set(['drive', 'injury', 'timeout', 'info']);
+function lastSnap(log) {
+  if (!Array.isArray(log)) return null;
+  for (let i = log.length - 1; i >= 0 && i >= log.length - 4; i--) {
+    const e = log[i];
+    if (e.from != null) return e;
+    if (!SKIP_BACK.has(e.type)) return null;
+  }
+  return null;
+}
+
 export function view(root, params, ctx) {
   const state = ctx.getState();
   const league = state.league;
@@ -51,6 +72,36 @@ export function view(root, params, ctx) {
       ? (off === 0 ? g.drive.startBallOn : 100 - g.drive.startBallOn) : null;
     const driveFrom = startX != null ? Math.min(startX, ballX) : null;
     const driveTo = startX != null ? Math.max(startX, ballX) : null;
+    // The play that just happened, in the same left-to-right frame the strip
+    // uses. `from` and `snapOff` come off the log entry because the ball has
+    // already moved (and on a turnover changed hands) by the time it is written.
+    const ev = lastSnap(g.log);
+    // Not `g.lastEvent`: a play that changes hands calls `changePossession` in
+    // the same step, and that logs the new drive's header on top of it. Punts,
+    // interceptions, fumbles, missed field goals and turnovers on downs all did
+    // that, so the bar for every one of them was overwritten before it drew.
+    // The phase is no authority either — a touchdown flips to `pat` and a made
+    // field goal to `kickoff` the moment they score.
+    const playable = ev && typeof ev.yards === 'number' && !g.final;
+    let play = null;
+    if (playable) {
+      const frame = (spotOn) => (ev.snapOff === 0 ? spotOn : 100 - spotOn);
+      const clamp100 = (n) => Math.max(0, Math.min(100, n));
+      const a = frame(clamp100(ev.from));
+      // Kicks carry their landing spot, because their `yards` is 0.
+      const b = frame(clamp100(ev.to != null ? ev.to : ev.from + ev.yards));
+      const kick = ev.type === 'punt' || ev.type === 'fg';
+      const turnover = ev.type === 'int' || ev.type === 'fumble'
+        || (ev.type === 'fg' && !ev.scoring) || /Turnover on downs/.test(ev.text || '');
+      play = {
+        from: Math.min(a, b), to: Math.max(a, b),
+        // Outcome, not club: a green team on a green field is invisible, and
+        // several of them are green. The drive band underneath still carries
+        // the colour, so identity is not lost.
+        kind: ev.scoring ? 'score' : turnover ? 'turn' : ev.type === 'penalty' ? 'flag'
+          : kick ? 'kick' : ev.yards < 0 ? 'loss' : 'gain',
+      };
+    }
     const dist = fgDistance(g.ballOn);
     const kicker = g.teams[off].comp.k;
     const fgP = Math.round(fgProbability(kicker, dist) * 100);
@@ -88,14 +139,22 @@ export function view(root, params, ctx) {
       controls = html`<div class="row between"><b>Touchdown! Extra point or two?</b></div>
         <div class="btn-group" style="margin:.5rem 0"><button class="btn primary" data-pat="xp">Kick the extra point</button><button class="btn" data-pat="two">Go for two</button></div>`;
     } else {
-      controls = html`<div class="btn-group">
+      // Five buttons of equal weight measured 179px of an 844px phone — a fifth
+      // of the screen, for the least interesting thing on it, pushing the
+      // play-by-play below the fold. Watching is one action; skipping ahead is
+      // three you want occasionally and never by accident.
+      controls = html`<div class="gamebar">
         <button class="btn primary" id="next">Next play</button>
-        <button class="btn" id="drive">Next drive</button>
-        <button class="btn" id="quarter">End of quarter</button>
-        <button class="btn" id="simEnd">Sim to end</button>
-        <span class="spacer"></span>
         <button class="btn ${autoplay ? 'primary' : ''}" id="auto">${autoplay ? '⏸ Pause' : '▶ Autoplay'}</button>
-      </div>`;
+      </div>
+      <details class="skipahead">
+        <summary class="muted">Skip ahead</summary>
+        <div class="btn-group" style="margin-top:.4rem">
+          <button class="btn sm" id="drive">Next drive</button>
+          <button class="btn sm" id="quarter">End of quarter</button>
+          <button class="btn sm" id="simEnd">Sim to end</button>
+        </div>
+      </details>`;
     }
 
     const last = g.lastCall && g.phase !== 'kickoff' && !g.final ? `Last: ${OFFENSE_CALLS[g.lastCall.off]?.label || g.lastCall.off} vs ${DEFENSE_CALLS[g.lastCall.def]?.label || g.lastCall.def}` : '';
@@ -123,6 +182,7 @@ export function view(root, params, ctx) {
         ${raw([20, 40, 50, 60, 80].map((x) => `<div class="yard" style="left:${6 + x * 0.88}%">${x > 50 ? 100 - x : x}</div>`).join(''))}
         ${driveFrom != null && driveTo - driveFrom > 0.5
           ? html`<div class="gained" style="left:${6 + driveFrom * 0.88}%;width:${(driveTo - driveFrom) * 0.88}%;background:${g.teams[off].color}"></div>` : ''}
+        ${play ? html`<div class="play ${play.kind}" style="left:${6 + play.from * 0.88}%;width:${Math.max(0.6, play.to - play.from) * 0.88}%"></div>` : ''}
         ${fdX != null && fdX > 0 && fdX < 100 ? html`<div class="marker" style="left:${6 + fdX * 0.88}%"></div>` : ''}
         ${g.phase === 'play' ? html`<div class="ball" style="left:${6 + ballX * 0.88}%"></div>` : ''}
         ${g.phase === 'play' ? html`<div class="going ${off === 0 ? 'right' : 'left'}" style="left:${6 + ballX * 0.88}%">${off === 0 ? '▸' : '◂'}</div>` : ''}
