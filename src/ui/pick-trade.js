@@ -8,7 +8,7 @@
 import { html, raw } from '../util.js';
 import { modal, teamChip, toast, esc } from './components.js';
 import {
-  remainingPicks, validatePickTrade, projectPickTrade, proposePickTrade,
+  usablePicks, validatePickTrade, projectPickTrade, proposePickTrade,
   needSummary, MAX_PICK_SIDE,
 } from '../engine/draftpicks.js';
 import {
@@ -42,7 +42,7 @@ const needChips = (team) => {
  */
 export function openPickTrade({ league, draft, pool, byId, userIdx, onDone }) {
   const openFuture = futurePicksOpen(league);
-  const canDeal = (i) => i !== userIdx && (remainingPicks(draft, i).length > 0 || (openFuture && futureHand(league, i).length > 0));
+  const canDeal = (i) => i !== userIdx && (usablePicks(league, draft, i).length > 0 || (openFuture && futureHand(league, i).length > 0));
   const sel = { partner: league.teams.findIndex((t, i) => canDeal(i)), mine: new Set(), theirs: new Set() };
   let valued = null;   // the last projection, cleared whenever the sides change
   let busy = false;
@@ -64,8 +64,14 @@ export function openPickTrade({ league, draft, pool, byId, userIdx, onDone }) {
     </li>`;
   };
 
-  /** Both kinds on one side, this year's first, which is the order a GM reads. */
-  const sidePicks = (idx) => [...remainingPicks(draft, idx).slice(0, 14), ...(openFuture ? futureHand(league, idx) : [])];
+  /**
+   * Both kinds on one side, this year's first, which is the order a GM reads.
+   *
+   * `usablePicks` rather than everything a club holds: a keeper draft leaves a
+   * club with twenty-seven picks and three slots, and listing the twenty-four
+   * it will never make buries the three that matter.
+   */
+  const sidePicks = (idx) => [...usablePicks(league, draft, idx).slice(0, 14), ...(openFuture ? futureHand(league, idx) : [])];
 
   function body() {
     const partner = league.teams[sel.partner];

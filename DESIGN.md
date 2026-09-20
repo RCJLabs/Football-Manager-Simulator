@@ -486,6 +486,38 @@ but they only *propose* one for one, because the candidate space for uneven
 packages is combinatorially larger and the offer budget is already the tightest
 thing on that screen.
 
+### The picks a club can actually make
+
+A comment on `remainingPicks` claimed *"its length is always its number of open
+slots, which is the invariant every trade here has to preserve."* True of an
+opening draft, where twenty-seven rounds meet twenty-seven empty slots. Wildly
+false of a keeper draft, and the wrongness had reached the screen.
+
+Measured in a thirty-two club pro league: in its second season a club held **27
+picks against 3 open slots**, and in its third, 27 against 7. A club stops
+drafting the moment it is full — `settlePointer` skips it — so the rest are
+never made by anybody. The draft screen said **"Trade picks · 27 left"** and the
+room listed fourteen rows a side, of which three were real. The other eleven
+were paper: a club could be offered one in exchange for a pick that would
+actually become a player.
+
+`usablePicks` is the first of a club's hand, as many as it has slots. That it
+is exactly what a club drafts with is measured rather than reasoned — over two
+keeper drafts the picks made were precisely the first `openSlots` held, for
+**32 of 32 clubs both times**, which falls out of `settlePointer` walking a
+hand in order and dropping a club when it fills.
+
+**It is a display rule, not a trading rule.** A pick outside the window is not
+worthless in a package: giving away an early one promotes a late one into it,
+so a club trading its first three then drafts with its fourth, fifth and sixth.
+Refusing to trade those would be wrong, so nothing does. What changed is that
+the room lists what a club will make, the draft screen counts it, and the AI
+builds its offers from it — handing the human a pick that will never become a
+player, in exchange for one that will, reads as fair and is not.
+
+`remainingPicks` still returns everything, because that is the mechanical truth
+the snake and `applyOwedPicks` work in.
+
 ## Next year's picks (`futurepicks.js`, `pickvalue.js`)
 
 The request was to ban pick trades in a league's opening draft and, from the

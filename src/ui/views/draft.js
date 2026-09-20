@@ -23,7 +23,7 @@ import { ovrBadge, playerItem, playerModal, teamChip, toast, esc, withBusy } fro
 import { shownOverall } from '../../engine/scouting.js';
 import { draftBoard, boardOverlay, snakeRows, scrollToPick, lastName } from '../draft-board.js';
 import { openPickTrade, pickOfferCard } from '../pick-trade.js';
-import { survivalOdds, remainingPicks, nextPickFor, pickOfferCandidates, tryPickOffer, OFFER_BUDGET, executePickTrade } from '../../engine/draftpicks.js';
+import { survivalOdds, usablePicks, nextPickFor, pickOfferCandidates, tryPickOffer, OFFER_BUDGET, executePickTrade } from '../../engine/draftpicks.js';
 
 export const selfRendering = true;
 
@@ -250,7 +250,7 @@ export function view(root, params, ctx) {
         <div class="needs" style="margin-top:.45rem">${raw(POSITION_ORDER.map((pos) => `<span class="need ${open[pos] ? 'open' : ''}" data-filter="${pos}">${pos} ${open[pos] ? `×${open[pos]}` : '✓'}</span>`).join(''))}</div>
         <div class="btn-group" style="margin-top:.6rem">
           <button class="btn sm primary" id="openBoard">Draft board <span class="muted">${draft.picks.length}/${TOTAL_ROUNDS * league.teams.length}</span></button>
-          <button class="btn sm" id="tradePicks">Trade picks <span class="muted">${remainingPicks(draft, u).length} left</span></button>
+          <button class="btn sm" id="tradePicks">Trade picks <span class="muted">${usablePicks(league, draft, u).length} left</span></button>
           ${mine ? html`<button class="btn sm" id="autoOne">Auto-pick for me</button>` : html`<button class="btn sm" id="skip">Skip to my pick</button>`}
           <button class="btn sm" id="autoAll">Auto-draft the rest</button>
         </div>

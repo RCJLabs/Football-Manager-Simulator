@@ -8,7 +8,7 @@ import {
 import { autoDraftAll, openSlots } from '../src/engine/draft.js';
 import { enterOffseason, confirmKeepers, aiKeepers, takeJob, closeFreeAgency } from '../src/engine/offseason.js';
 import {
-  remainingPicks, validatePickTrade, executePickTrade, projectPickTrade, pickOwner,
+  remainingPicks, usablePicks, validatePickTrade, executePickTrade, projectPickTrade, pickOwner,
   pickOfferCandidates, FUTURE_BUDGET, OFFER_BUDGET,
 } from '../src/engine/draftpicks.js';
 import { lineupStrength } from '../src/engine/transactions.js';
@@ -247,4 +247,35 @@ test('AI clubs do build deals with next year in them', () => {
   }
   // And the budget for them comes out of the existing one, not on top.
   assert.ok(FUTURE_BUDGET >= 1 && FUTURE_BUDGET < OFFER_BUDGET);
+});
+
+test('a keeper draft offers only the picks a club will actually make', () => {
+  const lg = secondDraft(14);
+  const d = lg.draft;
+  for (let i = 0; i < lg.teams.length; i++) {
+    const held = remainingPicks(d, i);
+    const usable = usablePicks(lg, d, i);
+    const open = openSlots(lg.teams[i]).length;
+    // The invariant a comment in draftpicks.js used to claim held always:
+    // true of an opening draft, false of this one.
+    assert.equal(usable.length, Math.min(open, held.length));
+    assert.ok(held.length >= usable.length);
+    // Usable picks are the earliest ones, in order, because settlePointer
+    // walks a club's hand in order and drops it the moment it is full.
+    assert.deepEqual(usable.map((p) => p.overall), held.slice(0, usable.length).map((p) => p.overall));
+  }
+  // And in a keeper draft the two genuinely differ, or this proves nothing.
+  const gap = lg.teams.some((_, i) => usablePicks(lg, d, i).length < remainingPicks(d, i).length);
+  assert.ok(gap, 'no club held a pick it could not use, so the test is vacuous');
+});
+
+test('the picks a club makes are exactly the ones it was told it could use', () => {
+  const lg = secondDraft(17);
+  const d = lg.draft;
+  const predicted = lg.teams.map((_, i) => usablePicks(lg, d, i).map((p) => p.overall));
+  autoDraftAll(lg, d, PLAYERS, new RNG(303));
+  for (let i = 0; i < lg.teams.length; i++) {
+    const made = d.picks.filter((p) => p.team === i).map((p) => p.overall).sort((a, b) => a - b);
+    assert.deepEqual(made, predicted[i], `club ${i} did not draft with the picks it was shown`);
+  }
 });

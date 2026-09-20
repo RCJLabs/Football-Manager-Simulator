@@ -73,8 +73,17 @@ export function originalOwner(draft, round, pickInRound) {
 
 /**
  * Every pick a club still holds, this one included if it is on the clock.
- * Its length is always its number of open slots, which is the invariant every
- * trade here has to preserve.
+ *
+ * **Its length is not the club's open slots, and a comment here said it was.**
+ * That is true of an opening draft, where twenty-seven rounds meet
+ * twenty-seven empty slots. It is wildly false of a keeper draft: measured in
+ * a second season, a club held 27 picks against 3 open slots, and in a third,
+ * 27 against 7. A club stops drafting the moment it is full — `settlePointer`
+ * skips it — so the rest of its picks are never made by anybody.
+ *
+ * This still returns all of them, because that is the mechanical truth the
+ * snake and `applyOwedPicks` work in. What a club can actually *use* is
+ * `usablePicks`.
  */
 export function remainingPicks(draft, teamIdx) {
   const n = draft.order.length;
@@ -88,6 +97,28 @@ export function remainingPicks(draft, teamIdx) {
     }
   }
   return out;
+}
+
+/**
+ * The picks a club will actually make: the first of its hand, as many as it
+ * has slots to fill.
+ *
+ * Measured rather than reasoned: over two keeper drafts in a thirty-two club
+ * league, the picks a club made were exactly the first `openSlots` it held,
+ * for 32 of 32 clubs both times. `settlePointer` walks a club's picks in order
+ * and drops it when it is full, so there is no other way for it to come out.
+ *
+ * This is what a screen should offer, because the rest are paper. It is *not*
+ * a trading rule — a pick outside this window is not worthless in a package,
+ * since giving away an early one promotes a late one into the window — so
+ * nothing here refuses to trade them. It only stops the room listing
+ * twenty-four rows that will never become a player.
+ */
+export function usablePicks(league, draft, teamIdx) {
+  const team = league?.teams?.[teamIdx];
+  const held = remainingPicks(draft, teamIdx);
+  if (!team) return held;
+  return held.slice(0, openSlots(team).length);
 }
 
 /** The next pick a club is due, or null if it has none left. */
@@ -442,9 +473,9 @@ export function pickOfferCandidates(league, draft, pool, byId, rng, { projector 
   if (draft.complete) return null;
   const u = league.teams.findIndex((t) => t.isUser);
   if (u < 0) return null;
-  const mine = remainingPicks(draft, u);
+  const mine = usablePicks(league, draft, u);
   if (!mine.length) return null;
-  const others = league.teams.map((_, i) => i).filter((i) => i !== u && remainingPicks(draft, i).length > 0);
+  const others = league.teams.map((_, i) => i).filter((i) => i !== u && usablePicks(league, draft, i).length > 0);
   if (!others.length) return null;
   if (rng) for (let i = others.length - 1; i > 0; i--) { const j = rng.int(0, i); [others[i], others[j]] = [others[j], others[i]]; }
 
@@ -452,7 +483,7 @@ export function pickOfferCandidates(league, draft, pool, byId, rng, { projector 
   // round nineteen, and the projection cannot see that far anyway.
   const candidates = [];
   for (const a of others) {
-    const theirs = remainingPicks(draft, a);
+    const theirs = usablePicks(league, draft, a);
     for (const mp of mine.slice(0, 3)) for (const tp of theirs.slice(0, 3)) {
       if (mp.overall === tp.overall) continue;
       if (!validatePickTrade(league, draft, a, u, [tp], [mp]).ok) continue;
@@ -514,10 +545,10 @@ function futureCandidates(league, draft, byId, u, others) {
   const slots = projectedSlots(league, byId);
   const n = league.teams.length;
   const depth = futureDepth(league);
-  const mineNow = remainingPicks(draft, u).slice(0, 2);
+  const mineNow = usablePicks(league, draft, u).slice(0, 2);
   const mineNext = futureHand(league, u).filter((p) => p.round === 1);
   for (const a of others) {
-    const theirsNow = remainingPicks(draft, a).slice(0, 2);
+    const theirsNow = usablePicks(league, draft, a).slice(0, 2);
     const theirsNext = futureHand(league, a).filter((p) => p.round === 1);
     for (const [gives, wants] of [
       ...theirsNext.flatMap((f) => mineNow.map((p) => [[f], [p]])),
@@ -605,7 +636,7 @@ export function aiPickTrades(league, draft, pool, byId, rng, { pairs = 2 } = {})
   for (let n = 0; n < pairs; n++) {
     const a = ai[rng.int(0, ai.length - 1)], b = ai[rng.int(0, ai.length - 1)];
     if (a === b) continue;
-    const pa = remainingPicks(draft, a).slice(0, 2), pb = remainingPicks(draft, b).slice(0, 2);
+    const pa = usablePicks(league, draft, a).slice(0, 2), pb = usablePicks(league, draft, b).slice(0, 2);
     const pairs = [];
     for (const x of pa) for (const y of pb) {
       if (x.overall === y.overall) continue;
