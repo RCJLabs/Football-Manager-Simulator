@@ -120,6 +120,80 @@ export function rookieSalary(overallPick, totalPicks) {
   return Math.max(MIN_SALARY, Math.round(ROOKIE_TOP * (1 - frac) ** ROOKIE_CURVE));
 }
 
+/**
+ * What a club keeps paying for a man it cut.
+ *
+ * Without this a cut is free: the contract is simply deleted and the money
+ * comes straight back. That is the one thing that stopped contracts from
+ * meaning anything on the wire. With the keeper round fixed so a man under
+ * contract is kept by default, the churn did not stop, it moved — of 105
+ * rookies on rosters at one kickoff, 51 were gone a year later and 36 of those
+ * went on in-season waivers, because `aiFileClaims` will drop anyone for a free
+ * agent two points better and it costs the club nothing to do it.
+ *
+ * Half the money follows him, for the years that were left. It is the real
+ * game's shape without the real game's machinery: there is no signing bonus
+ * here to prorate and accelerate, so half a deal is the plain stand-in for the
+ * guaranteed part of one.
+ *
+ * Floored rather than rounded, so a minimum deal leaves no bill at all. That
+ * matters for more than tidiness: `cutToCap` sheds salary until a club fits,
+ * and a cut that freed nothing would let it loop without ever converging. At
+ * half, a cut always frees at least as much as it costs.
+ */
+export const DEAD_SHARE = 0.5;
+
+/** The bill for cutting this man, or null if walking away costs nothing. */
+export function deadCharge(contract) {
+  if (!contract || contract.expiring || (contract.years ?? 0) <= 0) return null;
+  const amount = Math.floor((contract.salary ?? MIN_SALARY) * DEAD_SHARE);
+  if (amount <= 0) return null;
+  return { amount, years: contract.years };
+}
+
+/**
+ * Book what a club owes a man it is letting go.
+ *
+ * Called at the three places a roster actually loses somebody it was still
+ * paying: the cap shed at kickoff, a drop on the waiver wire, and the keeper
+ * round. Retirement is not one of them — a man who stops playing stops being
+ * owed — and neither is a trade, where the contract goes with him.
+ */
+export function bookDead(league, teamIdx, id, contract) {
+  if (!capOn(league)) return null;
+  const charge = deadCharge(contract);
+  if (!charge) return null;
+  league.dead ??= {};
+  (league.dead[teamIdx] ??= []).push({ id, amount: charge.amount, years: charge.years });
+  return charge;
+}
+
+/** What a club is still paying men who are no longer on it. */
+export function deadHit(league, teamIdx) {
+  if (!capOn(league)) return 0;
+  let total = 0;
+  for (const d of league.dead?.[teamIdx] || []) total += d.amount;
+  return total;
+}
+
+/**
+ * Run the dead money down a year alongside the live contracts, and forget
+ * whatever has finished being paid.
+ */
+export function tickDead(league) {
+  if (!capOn(league) || !league.dead) return 0;
+  let cleared = 0;
+  for (const [team, list] of Object.entries(league.dead)) {
+    const left = [];
+    for (const d of list) {
+      const years = (d.years ?? 1) - 1;
+      if (years > 0) left.push({ ...d, years }); else cleared += d.amount;
+    }
+    if (left.length) league.dead[team] = left; else delete league.dead[team];
+  }
+  return cleared;
+}
+
 /** Every contract a club is paying, roster and injured reserve alike. */
 export function teamContractIds(league, teamIdx) {
   const t = league.teams[teamIdx];
@@ -133,7 +207,9 @@ export function capHit(league, teamIdx) {
   const c = league.contracts || {};
   let total = 0;
   for (const id of teamContractIds(league, teamIdx)) total += c[id]?.salary ?? MIN_SALARY;
-  return total;
+  // Men a club is no longer playing but is still paying count against it, which
+  // is the whole point of them.
+  return total + deadHit(league, teamIdx);
 }
 
 /** What a club has left. Negative means it is over and has to shed. */
@@ -235,6 +311,9 @@ export function cutToCap(league, teamIdx, byId) {
     const cut = worstValue(league, teamIdx, byId);
     if (!cut) break;
     league.teams[teamIdx].slots[cut.slot] = null;
+    // Book what is still owed before the contract goes, or the bill is lost
+    // with it. A cut at half pay still frees half, so the loop converges.
+    bookDead(league, teamIdx, cut.id, league.contracts?.[cut.id]);
     delete league.contracts?.[cut.id];
     released.push({ team: teamIdx, id: cut.id, slot: cut.slot, salary: cut.salary });
     league.transactions ??= [];

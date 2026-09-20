@@ -12,7 +12,7 @@ import { scoutingHits, scoutingOn } from '../../engine/scouting.js';
 import { takeJob } from '../../engine/offseason.js';
 import { jobsOn, yourCoach, careerSummary, coachOf } from '../../engine/jobs.js';
 import { RNG } from '../../engine/rng.js';
-import { capOn, capHit, PRO_CAP } from '../../engine/cap.js';
+import { capOn, capHit, deadHit, PRO_CAP } from '../../engine/cap.js';
 import { keeperBoard, keeperAdvice } from '../../engine/market.js';
 import {
   askingBoard, biddingRoom, openCount, submitOffer, freeAgencyReport, AI_FA_SHARE,
@@ -257,6 +257,7 @@ function freeAgency(root, league, ctx) {
       </details>
       <div class="kv">
         <dt>On the books</dt><dd><b>$${capHit(league, u)}</b> of $${cap}</dd>
+        ${deadHit(league, u) ? html`<dt>Still owed to men you cut</dt><dd><b>$${deadHit(league, u)}</b></dd>` : ''}
         <dt>Left to bid</dt><dd><b>$${room}</b></dd>
         <dt>Slots open</dt><dd><b>${open}</b> · ${mine.length} bid on</dd>
       </div>

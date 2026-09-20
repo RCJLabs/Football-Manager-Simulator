@@ -8,7 +8,8 @@ import { autoDraftAll } from '../src/engine/draft.js';
 import { enterOffseason, confirmKeepers, aiKeepers, takeJob, keeperCost, closeFreeAgency } from '../src/engine/offseason.js';
 import {
   capOn, capHit, capSpace, overCap, rookieSalary, marketSalary, expireContracts,
-  PRO_CAP, MIN_SALARY, ROOKIE_TOP, ROOKIE_YEARS, draftSize,
+  deadCharge, bookDead, deadHit, tickDead, cutToCap,
+  PRO_CAP, MIN_SALARY, ROOKIE_TOP, ROOKIE_YEARS, DEAD_SHARE, draftSize,
 } from '../src/engine/cap.js';
 
 registerPlayers(byId);
@@ -158,4 +159,53 @@ test('the spread never touches a fantasy league or a first season', () => {
   migrateLeague(fresh);
   assert.equal(JSON.stringify(fresh.contracts), sBefore);
   assert.equal(fresh.migrationNote, undefined);
+});
+
+test('cutting a man you are still paying leaves a bill; letting a deal run out does not', () => {
+  // Half the money follows him, for the years that were left.
+  assert.deepEqual(deadCharge({ salary: 20, years: 3 }), { amount: 10, years: 3 });
+  assert.deepEqual(deadCharge({ salary: 9, years: 2 }), { amount: 4, years: 2 });
+  // A deal that is up costs nothing to walk away from — that is the difference
+  // between declining to re-sign a man and cutting one.
+  assert.equal(deadCharge({ salary: 20, years: 0, expiring: true }), null);
+  assert.equal(deadCharge({ salary: 20, years: 0 }), null);
+  assert.equal(deadCharge(null), null);
+  // Floored, so a minimum deal leaves nothing. `cutToCap` depends on it: a cut
+  // that freed no money could loop without ever getting a club under the cap.
+  assert.equal(deadCharge({ salary: 1, years: 4 }), null);
+  assert.equal(deadCharge({ salary: 2, years: 4 }).amount, 1);
+  assert.ok(DEAD_SHARE > 0 && DEAD_SHARE < 1, 'a cut has to free more than it costs, or nothing converges');
+});
+
+test('dead money counts against the cap, runs down a year at a time, and then stops', () => {
+  const lg = drafted(9);
+  const u = userTeamIndex(lg);
+  const before = capHit(lg, u);
+  bookDead(lg, u, 'someone', { salary: 16, years: 2 });
+  assert.equal(deadHit(lg, u), 8);
+  assert.equal(capHit(lg, u), before + 8, 'a man you are still paying is on the books');
+  assert.equal(capSpace(lg, u), (lg.cap ?? PRO_CAP) - before - 8);
+  // Nobody else is charged for it.
+  assert.equal(deadHit(lg, (u + 1) % lg.teams.length), 0);
+  tickDead(lg);
+  assert.equal(deadHit(lg, u), 8, 'two years means two years');
+  tickDead(lg);
+  assert.equal(deadHit(lg, u), 0, 'and then it is done');
+  assert.equal(capHit(lg, u), before);
+});
+
+test('the cap shed books what it still owes, and still gets a club under the cap', () => {
+  const lg = drafted(10);
+  const u = userTeamIndex(lg);
+  // Push the club well over by making its deals expensive.
+  for (const s of ROSTER_SLOTS) {
+    const id = lg.teams[u].slots[s.id];
+    if (id) lg.contracts[id] = { ...(lg.contracts[id] || {}), salary: 14, years: 3 };
+  }
+  assert.ok(overCap(lg, u), 'the setup did not put the club over');
+  const released = cutToCap(lg, u, byId);
+  assert.ok(released.length > 0, 'nobody was cut');
+  assert.ok(deadHit(lg, u) > 0, 'the cuts left no bill at all');
+  // The point of flooring the charge: shedding still converges.
+  assert.ok(!overCap(lg, u), `still $${-capSpace(lg, u)} over after ${released.length} cuts`);
 });

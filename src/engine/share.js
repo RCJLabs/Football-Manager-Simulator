@@ -98,6 +98,12 @@ export function snapshot(league, players) {
     // all-time players back on the free-agent market and restarts the drain
     // from scratch, which is a different league from the one being shared.
     // Left out entirely for a fantasy league, where neither exists.
+    // Money a club still owes men it cut. Left out of a league that has none,
+    // which is every fantasy league and a pro one nobody has cut anybody in.
+    dead: league.dead && Object.keys(league.dead).length
+      ? Object.fromEntries(Object.entries(league.dead).map(([team, list]) => [team,
+          list.map((d) => [slotRef(d.id), d.amount, d.years]).filter(([k]) => k !== -1)]))
+      : undefined,
     departed: league.departed?.length ? league.departed.map(slotRef).filter((i) => i !== -1) : undefined,
     drain: league.drain && Object.keys(league.drain).length
       ? Object.fromEntries(Object.entries(league.drain).map(([id, when]) => [slotRef(id), when]).filter(([k]) => k !== -1))
@@ -149,6 +155,10 @@ export function leagueFromSnapshot(snap, players, byId) {
   // departed player must already be off it by then. A code written before
   // these existed carries neither, and the league picks the drain up from
   // scratch at its next offseason rather than breaking.
+  if (snap.dead) {
+    league.dead = Object.fromEntries(Object.entries(snap.dead).map(([team, list]) => [team,
+      list.map(([k, amount, years]) => ({ id: idAt(Number(k)), amount, years })).filter((d) => d.id)]));
+  }
   if (snap.departed) league.departed = snap.departed.map((k) => idAt(Number(k))).filter(Boolean);
   if (snap.drain) {
     league.drain = Object.fromEntries(Object.entries(snap.drain)

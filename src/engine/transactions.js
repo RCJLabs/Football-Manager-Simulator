@@ -27,6 +27,7 @@ import {
   futureOwner, applyFutureTrade, validateFuturePicks, futureLabel,
 } from './owedpicks.js';
 import { signablePool } from './proleague.js';
+import { bookDead } from './cap.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
 export const MAX_TRADE_SIDE = 3;
@@ -248,6 +249,9 @@ export function processWaivers(league, byId) {
     else if (owned.has(c.add)) reason = `${add.name} went to ${league.teams[owned.get(c.add)].abbr} on priority`;
     else if (!slotId) reason = c.drop ? `${drop.name} was no longer on the roster` : `no open ${add.pos} slot was left`;
     else {
+      // Dropping a man still under contract does not end what he is owed.
+      // This is the one that matters: the wire is where most of the churn is.
+      if (c.drop) bookDead(league, c.team, c.drop, league.contracts?.[c.drop]);
       team.slots[slotId] = c.add;
       if (c.drop) owned.delete(c.drop);
       owned.set(c.add, c.team);

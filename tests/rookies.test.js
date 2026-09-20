@@ -12,6 +12,7 @@ import { enterOffseason, aiKeepers, confirmKeepers } from '../src/engine/offseas
 import { rostersValid, ownerMap, freeAgents } from '../src/engine/transactions.js';
 import { applyCareers, careerIndex } from '../src/engine/careers.js';
 import { rookieClass, proDraftRounds } from '../src/engine/proleague.js';
+import { deadHit } from '../src/engine/cap.js';
 import { encodeLeagueCode, decodeLeagueCode, leagueFromSnapshot, poolFingerprint } from '../src/engine/share.js';
 import {
   addRookieClass, generateRookies, classSize, classPositions, rollOverall, leaguePool, leagueIndex,
@@ -199,6 +200,12 @@ test('a shared pro league keeps the men it has shown the door', async () => {
   const copy = leagueFromSnapshot(await decodeLeagueCode(code), PLAYERS, byId);
   assert.deepEqual(new Set(copy.departed), new Set(pro.departed), 'the departed did not travel');
   assert.deepEqual(copy.drain, pro.drain, 'the drain schedule did not travel');
+  // Money owed to men already cut travels too, or the recipient is handed cap
+  // room the league it came from does not have.
+  assert.ok(Object.keys(pro.dead || {}).length > 0, 'nobody has been cut, so there is nothing to test');
+  for (let i = 0; i < pro.teams.length; i++) {
+    assert.equal(deadHit(copy, i), deadHit(pro, i), `club ${i} arrived owing a different amount`);
+  }
   // And the restored league agrees about who can be signed.
   const mine = freeAgents(pro, applyCareers(pro, leaguePool(pro, PLAYERS))).map((p) => p.id).sort();
   const theirs = freeAgents(copy, applyCareers(copy, leaguePool(copy, PLAYERS))).map((p) => p.id).sort();

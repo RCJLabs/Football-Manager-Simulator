@@ -16,7 +16,7 @@ import { overall } from './ratings.js';
 import { RNG } from './rng.js';
 import { emptyTeamStats } from './stats.js';
 import { createAuction, priceGuide, DEFAULT_BUDGET, MIN_BID } from './auction.js';
-import { capOn, expireContracts, marketSalary, VET_YEARS, PRO_CAP, MIN_SALARY, SLOT_RESERVE } from './cap.js';
+import { capOn, expireContracts, marketSalary, bookDead, tickDead, deadHit, VET_YEARS, PRO_CAP, MIN_SALARY, SLOT_RESERVE } from './cap.js';
 import { openFreeAgency, resolveFreeAgency } from './freeagency.js';
 import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex, thinCompletedLogs } from './season.js';
@@ -76,7 +76,12 @@ export function validateKeepers(league, teamIdx, ids, byId = null) {
     if (!keeperEligible(league.contracts[id], league)) return { ok: false, reason: `${id} has been kept ${MAX_KEEPS} years and must return to the pool` };
   }
   if (league.draftType === 'auction' || capOn(league)) {
-    const money = capOn(league) ? (league.cap ?? PRO_CAP) : (league.auction?.budget ?? DEFAULT_BUDGET);
+    // Money already owed to men who are gone is not available to spend. What
+    // this round's own releases will add is not counted here — it cannot be,
+    // since the list is what decides it — and `cutToCap` settles any overage
+    // at kickoff, where it can see the whole roster.
+    const money = (capOn(league) ? (league.cap ?? PRO_CAP) : (league.auction?.budget ?? DEFAULT_BUDGET))
+      - (capOn(league) ? deadHit(league, teamIdx) : 0);
     const floor = capOn(league) ? SLOT_RESERVE : MIN_BID;
     const committed = ids.reduce((s, id) => s + keeperCost(league.contracts[id], byId?.get(id) || null, league), 0);
     const open = ROSTER_SLOTS.length - ids.length;
@@ -111,6 +116,9 @@ export function enterOffseason(league, pool, byId) {
   // Contracts run down a year and whoever's deal is up leaves. In a capped
   // league this *is* the attrition — see `keeperLimit`.
   const expired = expireContracts(league);
+  // Dead money runs down beside the live deals. A man cut two years ago with
+  // one year left has finished being paid and stops counting.
+  tickDead(league);
   const rng = new RNG(league.rngState);
   // Careers run first, so the keeper round is decided on who a player is now
   // rather than who he was when you signed him. Retired men leave their slots
@@ -221,7 +229,8 @@ export function aiKeepers(league, teamIdx, pool, byId, rng = null) {
   }
   const guide = freshGuide(league, pool);
   const savvy = { modern: 0.7, trenches: 0.62, defense: 0.5, balanced: 0.34, gambler: 0.26, ground: 0.16, oldschool: 0.18, airraid: 0.1 }[team.gm] ?? 0.3;
-  const cap = capOn(league) ? (league.cap ?? PRO_CAP) : (league.auction?.budget ?? DEFAULT_BUDGET);
+  const cap = (capOn(league) ? (league.cap ?? PRO_CAP) : (league.auction?.budget ?? DEFAULT_BUDGET))
+    - (capOn(league) ? deadHit(league, teamIdx) : 0);
   const floor = capOn(league) ? SLOT_RESERVE : MIN_BID;
   const scored = roster.map((p) => {
     const c = league.contracts[p.id];
@@ -284,6 +293,15 @@ export function confirmKeepers(league, userIds, pool, byId) {
   const budgets = [];
   league.teams.forEach((t, i) => {
     const ids = keepers[i] || [];
+    // Whoever was on the roster with years still to run and is not on the
+    // keeper list has been released, and a release is a cut: the club goes on
+    // paying its share. A deal that simply ran out costs nothing, which is
+    // what `deadCharge` checks.
+    const kept = new Set(ids);
+    for (const s of ROSTER_SLOTS) {
+      const id = t.slots[s.id];
+      if (id && !kept.has(id)) bookDead(league, i, id, league.contracts[id]);
+    }
     const byPos = {};
     for (const id of ids) (byPos[byId.get(id).pos] ??= []).push(id);
     const slots = {};
