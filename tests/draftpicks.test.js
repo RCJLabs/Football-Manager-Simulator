@@ -51,21 +51,41 @@ test('a club holds exactly as many picks as it has open slots', () => {
   }
 });
 
-test('picks trade one for one, and the refusal says why', () => {
+test('picks trade unevenly, and the refusal is about the shortfall', () => {
   const lg = mk(7);
   const d = lg.draft;
   const u = user(lg), o = u === 0 ? 1 : 0;
   const mine = remainingPicks(d, u), theirs = remainingPicks(d, o);
-  const v = validatePickTrade(lg, d, u, o, mine.slice(0, 2), theirs.slice(0, 1));
-  assert.equal(v.ok, false);
-  assert.match(v.reason, /one for one/);
-  assert.match(v.reason, /unable to fill a roster/);
+  // Three for one is the point of trading up: the club that sends more drafts
+  // fewer times than it has slots and signs the difference off the board.
+  assert.ok(validatePickTrade(lg, d, u, o, mine.slice(0, 3), theirs.slice(0, 1)).ok);
+  assert.ok(validatePickTrade(lg, d, u, o, mine.slice(0, 1), theirs.slice(0, 3)).ok);
   assert.ok(validatePickTrade(lg, d, u, o, mine.slice(0, 2), theirs.slice(0, 2)).ok);
   assert.ok(validatePickTrade(lg, d, u, o, mine.slice(0, 1), theirs.slice(0, 1)).ok);
-  // Four a side is too many.
+  // Four a side is still too many.
   assert.equal(validatePickTrade(lg, d, u, o, mine.slice(0, MAX_PICK_SIDE + 1), theirs.slice(0, MAX_PICK_SIDE + 1)).ok, false);
   // You cannot trade what you do not hold.
   assert.equal(validatePickTrade(lg, d, u, o, theirs.slice(0, 1), mine.slice(0, 1)).ok, false);
+});
+
+test('a club cannot trade away more of its draft than it can sign back', () => {
+  const lg = mk(8);
+  const d = lg.draft;
+  const u = user(lg), o = u === 0 ? 1 : 0;
+  // Walk a club down to the limit one deal at a time, then check it stops.
+  let short = 0;
+  for (let n = 0; n < 4; n++) {
+    const mine = remainingPicks(d, u), theirs = remainingPicks(d, o);
+    const v = validatePickTrade(lg, d, u, o, mine.slice(0, 3), theirs.slice(0, 1));
+    if (!v.ok) {
+      assert.match(v.reason, /men short/);
+      assert.ok(short > 0, 'it refused before anything had been given up');
+      return;
+    }
+    executePickTrade(lg, d, u, o, mine.slice(0, 3), theirs.slice(0, 1));
+    short += 2;
+  }
+  assert.fail(`no shortfall limit applied after ${short} slots given up`);
 });
 
 test('a traded pick changes hands, and the draft still fills every roster', () => {

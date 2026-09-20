@@ -11,7 +11,7 @@ import { PRO_TEAMS, CONFERENCES, DIVISIONS } from '../data/pro.js';
 import { DEFAULT_STRATEGY } from './playcall.js';
 import { RNG, hashSeed } from './rng.js';
 import { createDraft, assignGms } from './draft.js';
-import { createAuction } from './auction.js';
+import { createAuction, TRUE_LEVERAGE } from './auction.js';
 import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats, fantasyPoints } from './stats.js';
 import { buildLineup, teamPower, overall } from './ratings.js';
 import { ROSTER_SLOTS } from '../data/positions.js';
@@ -127,6 +127,65 @@ export function defaultKeepers(mode) {
  * and when it started. A player who arrived off the wire is on a minimum deal.
  * Idempotent, so it can run at season start and again at the offseason.
  */
+/**
+ * Sign a free agent into every empty roster slot, and say who signed.
+ *
+ * Nothing could leave a slot empty until picks could be traded unevenly. Now a
+ * club that sends three picks for one drafts twice fewer times than it has
+ * slots, and the difference has to come from somewhere: whoever is left on the
+ * board, which is the price of moving up. Measured on a twelve-club league, a
+ * club that sent #20, #29 and #44 for #4 finished the draft at 25 of 27 slots
+ * and 8096 points against 8375 for a club that stood pat — the move up was
+ * *worse* than standing still until those two slots were filled.
+ *
+ * Clubs sign in waiver order, worst first, because they are competing for the
+ * same few men and somebody has to go first. Within a club the dearest slot
+ * goes first: an empty quarterback slot is worth six times an empty punter by
+ * leverage, so it gets the pick of what is left.
+ *
+ * This lives here rather than in transactions.js, where the rest of the roster
+ * moves are, only because transactions.js already imports this file and the
+ * cycle is not worth the tidiness.
+ */
+export function fillOpenSlots(league, pool, byId, { log = true } = {}) {
+  if (!pool || !pool.length) return [];
+  const owned = new Set();
+  for (const t of league.teams) for (const id of [...ROSTER_SLOTS.map((sl) => t.slots[sl.id]), ...irList(t)]) if (id) owned.add(id);
+  const byPos = new Map();
+  for (const p of pool) {
+    if (owned.has(p.id) || p.retired) continue;
+    const list = byPos.get(p.pos);
+    if (list) list.push(p); else byPos.set(p.pos, [p]);
+  }
+  if (!byPos.size) return [];
+  for (const list of byPos.values()) list.sort((a, b) => overall(b) - overall(a));
+  const worth = (sl) => (TRUE_LEVERAGE[sl.pos] ?? 1) * (sl.starter ? 1 : 0.25);
+  const order = (league.waiverOrder && league.waiverOrder.length === league.teams.length)
+    ? league.waiverOrder.slice()
+    : league.teams.map((_, i) => i);
+  const signed = [];
+  for (const ti of order) {
+    const team = league.teams[ti];
+    if (!team) continue;
+    const open = ROSTER_SLOTS.filter((sl) => !team.slots[sl.id]).sort((a, b) => worth(b) - worth(a));
+    for (const sl of open) {
+      const list = byPos.get(sl.pos);
+      if (!list || !list.length) continue;
+      const man = list.shift();
+      team.slots[sl.id] = man.id;
+      signed.push({ team: ti, add: man.id, slot: sl.id, pos: sl.pos });
+      // The projection runs this against a sandbox whose `transactions` array
+      // is shared with the real league by reference, so it must not write.
+      if (log) {
+        league.transactions ??= [];
+        league.transactions.push({ week: 0, season: league.season, type: 'fill', team: ti, add: man.id, drop: null });
+      }
+    }
+  }
+  if (signed.length && byId) sortDepthCharts(league, byId);
+  return signed;
+}
+
 export function syncContracts(league) {
   league.contracts ??= {};
   const soldPrice = new Map((league.auction?.sold || []).map((s) => [s.playerId, s.price]));
@@ -418,7 +477,14 @@ export function sortDepthCharts(league, byId) {
 }
 
 /** Called when the draft or auction completes, and at the start of each later season. */
-export function startSeason(league, byId) {
+export function startSeason(league, byId, pool = null) {
+  // Nobody starts a season a man short. Uneven pick trades let a club draft
+  // fewer times than it has slots, so whatever is still on the board fills the
+  // rest — see `fillOpenSlots`. Doing it here rather than at the end of the
+  // draft means it holds however the league got to a season: a fresh draft, an
+  // auction, a share code, a simulated year.
+  const board = pool || (byId ? [...byId.values()] : null);
+  if (board) fillOpenSlots(league, board, byId);
   if (byId) sortDepthCharts(league, byId);
   if (byId) fitUserStrategy(league, byId);
   const rng = new RNG(league.rngState);

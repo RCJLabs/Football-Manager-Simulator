@@ -314,6 +314,58 @@ User games keep the full log and every player line. Playoff games keep player li
 
 At season start every position group is ordered by overall. Slots fill in the order players were bought, so an auction could otherwise leave a 92 back at RB2 behind a 75. AI clubs are re-sorted each season; the user's club only the first time.
 
+## Trading picks unevenly, and filling what is left
+
+The draft used to insist on n picks for n picks, because rosters are 27 slots
+and the draft is 27 rounds, so a club's picks and its open slots were the same
+number by construction. Deals could move *order* but never *quantity*. That rule
+is gone, and the two halves of what replaces it are not symmetrical:
+
+- A club that **sends more than it takes** drafts that many times fewer and
+  finishes the draft short. `fillOpenSlots` signs the difference off the board
+  when the season starts, dearest slot first (an empty quarterback slot is worth
+  six times an empty punter by leverage) and clubs in waiver order, worst first,
+  because they are competing for the same few men.
+- A club that **takes more than it sends** cannot use the surplus at all.
+  `settlePointer` already skipped anybody with no open slots, so its *latest*
+  picks are simply never made — and those are the cheapest ones it holds.
+
+That asymmetry is the whole market, and it makes the decision a real one.
+Measured over six twelve-club leagues, against the same league drafted without
+the trade:
+
+| deal | change to the user's finished roster |
+| --- | --- |
+| next three picks for their first | **−37** |
+| last three picks for their first | **+19** |
+| last two picks for their first | **+23** |
+| their three last for your first (moving down) | **−72** |
+
+Late picks are the currency of moving up, because a twenty-fifth-round pick is
+barely better than the best man still unsigned — so you give up almost nothing
+and get a premium player. Moving down for quantity is a straight loss, which is
+correct when a roster cannot hold the extra men. `MAX_SHORT` caps how short a
+club may trade itself, because a club that did this every year would arrive at
+kickoff with half a roster of leftovers, which is not a decision, just a club
+that has stopped playing the draft.
+
+**The projection had to learn about the fill.** `projectPickTrade` compares two
+finished rosters, and it scored an unfilled slot as nothing — so every move up
+looked like a loss. That is the partial-roster trap from the leverage work
+wearing a different hat, and the fix is the same one: both simulated worlds now
+run `fillOpenSlots` before being valued. Paired against what actually happens,
+the projection now reads −44 against a real −45 on the deal that was measured.
+
+**Nobody starts a season a man short.** The fill runs inside `startSeason`
+rather than at the end of the draft, so it holds however a league arrived at a
+season: a fresh draft, an auction, a share code, or a simulated year. There is a
+test for exactly that invariant.
+
+AI clubs evaluate uneven offers — `evaluatePickTrade` runs the same projection —
+but they only *propose* one for one, because the candidate space for uneven
+packages is combinatorially larger and the offer budget is already the tightest
+thing on that screen.
+
 ## Why the interface froze (performance)
 
 A report that pressing a button locked the game for a moment — starting a

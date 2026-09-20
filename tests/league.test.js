@@ -4,6 +4,7 @@ import { syntheticPool } from '../scripts/synthetic.mjs';
 import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { createLeague, buildSchedule, startSeason, simulateWeekAi, weekComplete, advanceWeek, standings, currentWeek, userGameThisWeek } from '../src/engine/season.js';
 import { autoDraftAll, runAiPicks, makePick, currentPicker, availablePlayers, RNG } from '../src/engine/draft.js';
+import { remainingPicks, executePickTrade } from '../src/engine/draftpicks.js';
 import { RNG as Rng } from '../src/engine/rng.js';
 
 const pool = syntheticPool(7);
@@ -150,4 +151,34 @@ test('every league size produces a balanced schedule and a champion', async () =
     assert.equal(league.playoffs.pools[0].seeds.length, playoffFieldSize(n));
     for (const t of league.teams) assert.equal(t.record.w + t.record.l + t.record.t, weeks);
   }
+});
+
+test('nobody starts a season a man short', () => {
+  // Uneven pick trades let a club draft fewer times than it has slots. What it
+  // did not draft it signs off the board, and the invariant is that every
+  // roster is whole by kickoff however it got there.
+  const lg = createLeague({ name: 'F', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 21, draftType: 'snake' });
+  const d = lg.draft;
+  const u = lg.teams.findIndex((t) => t.isUser);
+  const o = lg.teams.findIndex((t) => !t.isUser);
+  const mine = remainingPicks(d, u), theirs = remainingPicks(d, o);
+  executePickTrade(lg, d, u, o, mine.slice(-3), [theirs[0]]);
+  assert.equal(remainingPicks(d, u).length, ROSTER_SLOTS.length - 2, 'the user drafts twice fewer');
+  assert.equal(remainingPicks(d, o).length, ROSTER_SLOTS.length + 2, 'the other club holds two spare');
+
+  autoDraftAll(lg, d, pool, new Rng(5));
+  const filled = (i) => ROSTER_SLOTS.filter((s) => lg.teams[i].slots[s.id]).length;
+  assert.equal(filled(u), ROSTER_SLOTS.length - 2, 'short before the season starts');
+  assert.equal(filled(o), ROSTER_SLOTS.length, 'spare picks are simply skipped');
+
+  startSeason(lg, byId, pool);
+  for (let i = 0; i < lg.teams.length; i++) {
+    assert.equal(filled(i), ROSTER_SLOTS.length, `club ${i} started a man short`);
+  }
+  const signings = (lg.transactions || []).filter((t) => t.type === 'fill');
+  assert.equal(signings.length, 2, `expected two signings, got ${signings.length}`);
+  assert.ok(signings.every((t) => t.team === u), 'only the short club should sign');
+  // And nobody was signed twice.
+  const ids = ROSTER_SLOTS.flatMap((s) => lg.teams.map((t) => t.slots[s.id])).filter(Boolean);
+  assert.equal(new Set(ids).size, ids.length, 'a player is on two rosters');
 });

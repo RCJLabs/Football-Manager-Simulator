@@ -60,7 +60,7 @@ export function openPickTrade({ league, draft, pool, byId, userIdx, onDone }) {
 
     return html`
       <div class="row between"><h2 style="margin:0">Trade picks</h2><button class="btn sm ghost" data-close>✕</button></div>
-      <p class="muted" style="margin:.2rem 0 .5rem;font-size:.85rem">A club drafts as many times as it has slots, so picks go one for one — up to ${MAX_PICK_SIDE} a side. To move up, send two near picks for an early one and a late one.</p>
+      <p class="muted" style="margin:.2rem 0 .5rem;font-size:.85rem">Up to ${MAX_PICK_SIDE} picks a side, and the sides need not match. Send more than you take and you draft that many times fewer — you sign the difference off what is left when the season starts, which is why packaging <b>late</b> picks to move up is the deal that pays.</p>
       <div class="row" style="gap:.5rem;align-items:center">
         <label style="margin:0">With</label>
         <select id="pkPartner" style="max-width:16rem">${league.teams.map((t, i) => (i === userIdx || !remainingPicks(draft, i).length ? '' : html`<option value="${i}" ${i === sel.partner ? 'selected' : ''}>${t.abbr} · ${t.name}</option>`))}</select>

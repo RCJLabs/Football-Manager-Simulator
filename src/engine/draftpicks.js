@@ -6,14 +6,28 @@
 // club that now owns it, consulted by `pickOwner` and empty in every league
 // where nobody has traded.
 //
-// One rule governs every deal: **slots for slots**. Rosters are twenty-seven
-// slots and `TOTAL_ROUNDS` is twenty-seven, so a club's remaining picks always
-// equal its open slots exactly, and `settlePointer` skips anyone already full.
-// That means draft capital cannot be accumulated the way it is in the real
-// game — three picks for one leaves one club unable to use its last pick and
-// the other unable to fill its last slot. Trades therefore move *order*, not
-// quantity: n picks for n picks, and a player counts as a pick, because a man
-// on the roster and a pick still to come occupy the same slot.
+// Rosters are twenty-seven slots and `TOTAL_ROUNDS` is twenty-seven, so a club
+// starts with exactly as many picks as slots. Deals need not keep that balance,
+// and what happens when they do not is the whole shape of the feature, because
+// the two sides of an uneven deal are not symmetrical:
+//
+//   - A club that **sends more than it takes** drafts that many times fewer and
+//     finishes short. It signs the difference off the board when the season
+//     starts (`fillOpenSlots`), which is a real price, because what is left
+//     after a draft is what nobody wanted. `MAX_SHORT` caps how much of a
+//     roster may arrive that way.
+//   - A club that **takes more than it sends** cannot use the surplus at all:
+//     `settlePointer` skips anybody already full, so its *latest* picks are
+//     never made. Those are the cheapest ones it holds, which is why taking
+//     three for one is not the disaster it sounds like.
+//
+// That asymmetry is what makes the market. Measured over six leagues against
+// the same league drafted without the trade, sending your next three picks for
+// somebody's first costs 37 points of finished roster — they are premium picks
+// and two free agents replace them. Sending your last two gains 23, because a
+// twenty-fifth-round pick is barely better than the best man left unsigned. So
+// late picks are the currency of moving up, and moving *down* for quantity is a
+// loss of 72: you cannot use what you cannot slot.
 //
 // What a pick is worth is not a number off a chart. A static curve was fitted
 // and thrown away: mean overall by pick number runs 96 down to 86 and then
@@ -30,6 +44,7 @@ import {
   rankForTeam, aiChoose, makePick,
 } from './draft.js';
 import { RNG } from './rng.js';
+import { fillOpenSlots } from './season.js';
 
 /** Overall pick number from a round and a position in it. */
 export function overallOf(draft, round, pickInRound) {
@@ -207,6 +222,7 @@ export function pickTradeProjector(league, draft, pool, byId) {
   const before = sandbox(league, draft);
   const landed = new Map();
   rollForward(before.league, before.draft, pool, null, null, landed);
+  fillOpenSlots(before.league, pool, byId, { log: false });
   const baseline = league.teams.map((_, i) => rosterValue(before.league, i, byId));
   const boards = new Map();
   const boardFor = (i) => {
@@ -236,6 +252,12 @@ export function pickTradeProjector(league, draft, pool, byId) {
       const after = sandbox(league, draft);
       applySwap(after.draft, aIdx, bIdx, aGives, bGives);
       rollForward(after.league, after.draft, pool, null, null);
+      // A club that sent more picks than it got finishes short, and signs the
+      // difference off the board. Scoring those slots as zero instead is the
+      // partial-roster trap again, and it would make every move up look like a
+      // loss: measured, the mover finished 279 points down on a club that
+      // stood pat purely because two slots sat empty.
+      fillOpenSlots(after.league, pool, byId, { log: false });
       return {
         a: round1(rosterValue(after.league, aIdx, byId) - baseline[aIdx]),
         b: round1(rosterValue(after.league, bIdx, byId) - baseline[bIdx]),
@@ -258,21 +280,44 @@ function applySwap(draft, aIdx, bIdx, aGives, bGives) {
 /** Most picks either side may put in one deal. */
 export const MAX_PICK_SIDE = 3;
 
+/**
+ * How many slots a club may leave for free agency by trading picks away.
+ *
+ * Trading three picks for one is the whole point of trading up, but a club
+ * that did it repeatedly could arrive at kickoff with half a roster of
+ * leftovers, which is neither fun nor a decision — it is just a club that has
+ * stopped playing the draft. Three is one bad idea's worth.
+ */
+export const MAX_SHORT = 3;
+
 /** Structural checks. Returns { ok, reason }. */
 export function validatePickTrade(league, draft, aIdx, bIdx, aGives, bGives) {
   if (draft.complete) return { ok: false, reason: 'The draft is over' };
   if (aIdx === bIdx) return { ok: false, reason: 'Pick another club' };
   if (!aGives.length || !bGives.length) return { ok: false, reason: 'Both sides have to give something' };
-  if (aGives.length !== bGives.length) {
-    return { ok: false, reason: `Picks trade one for one: a club drafts as many times as it has slots, so ${aGives.length} for ${bGives.length} would leave somebody unable to fill a roster` };
-  }
-  if (aGives.length > MAX_PICK_SIDE) return { ok: false, reason: `At most ${MAX_PICK_SIDE} picks a side` };
+  if (aGives.length > MAX_PICK_SIDE || bGives.length > MAX_PICK_SIDE) return { ok: false, reason: `At most ${MAX_PICK_SIDE} picks a side` };
   const mineA = remainingPicks(draft, aIdx), mineB = remainingPicks(draft, bIdx);
   const has = (list, p) => list.some((x) => x.overall === p.overall);
   for (const p of aGives) if (!has(mineA, p)) return { ok: false, reason: `Pick ${p.overall} is not ${league.teams[aIdx].abbr}'s to trade` };
   for (const p of bGives) if (!has(mineB, p)) return { ok: false, reason: `Pick ${p.overall} is not ${league.teams[bIdx].abbr}'s to trade` };
   const dupe = (list) => new Set(list.map((p) => p.overall)).size !== list.length;
   if (dupe(aGives) || dupe(bGives)) return { ok: false, reason: 'A pick is listed twice' };
+  // Uneven deals are allowed, and the club that sends more than it gets simply
+  // drafts fewer times than it has slots — it signs the difference off the
+  // board when the season starts. That is the price of moving up, and it is a
+  // real one, because what is left after a draft is what nobody wanted. The
+  // limit is on how much of a roster may arrive that way.
+  const shortfall = (idx, gives, gets) => {
+    const open = openSlots(league.teams[idx]).length;
+    const picks = remainingPicks(draft, idx).length - gives.length + gets.length;
+    return open - picks;
+  };
+  for (const [idx, gives, gets] of [[aIdx, aGives, bGives], [bIdx, bGives, aGives]]) {
+    const short = shortfall(idx, gives, gets);
+    if (short > MAX_SHORT) {
+      return { ok: false, reason: `${league.teams[idx].abbr} would finish the draft ${short} men short, and only ${MAX_SHORT} can be signed off the board` };
+    }
+  }
   return { ok: true };
 }
 
