@@ -79,6 +79,37 @@ export function driveChart(drives, teams, { rowH = 14 } = {}) {
  * The story of a game from its log and stats: the result, the biggest
  * swings in win probability, the stars, and who got hurt.
  */
+/**
+ * Who is having the game, for one club: the leading passer, rusher, receiver
+ * and defender, with the line each of them has put up.
+ *
+ * Ranked on yards for the three offensive slots, because that is what a leader
+ * board means, and on a weighted count for the defender — sacks, interceptions
+ * and forced fumbles are the things a defensive player does that a spectator
+ * remembers, and tackles are not, since the leading tackler is usually just
+ * whoever plays the most snaps against the run.
+ *
+ * Nobody with a zero appears: early in a game most of these are empty, and a
+ * list of players who have done nothing is worse than a short list.
+ */
+const DEF_WEIGHT = { sck: 2, int: 3, ff: 2 };
+
+export function statLeaders(players, byId) {
+  if (!players) return [];
+  const rows = Object.entries(players).map(([id, s]) => ({ p: byId?.get(id), s })).filter((r) => r.p);
+  const pick = (kind, rank, fmt) => {
+    const best = rows.filter((r) => rank(r.s) > 0).sort((x, y) => rank(y.s) - rank(x.s))[0];
+    return best ? { kind, name: best.p.name, id: best.p.id, line: fmt(best.s) } : null;
+  };
+  return [
+    pick('pass', (s) => s.pass.yds, (s) => `${s.pass.cmp}/${s.pass.att}, ${s.pass.yds} yds, ${s.pass.td} TD${s.pass.int ? `, ${s.pass.int} INT` : ''}`),
+    pick('rush', (s) => s.rush.yds, (s) => `${s.rush.att} car, ${s.rush.yds} yds${s.rush.td ? `, ${s.rush.td} TD` : ''}`),
+    pick('rec', (s) => s.rec.yds, (s) => `${s.rec.rec} rec, ${s.rec.yds} yds${s.rec.td ? `, ${s.rec.td} TD` : ''}`),
+    pick('def', (s) => s.def.sck * DEF_WEIGHT.sck + s.def.int * DEF_WEIGHT.int + s.def.ff * DEF_WEIGHT.ff,
+      (s) => [s.def.sck ? `${s.def.sck} sck` : '', s.def.int ? `${s.def.int} INT` : '', s.def.ff ? `${s.def.ff} FF` : ''].filter(Boolean).join(', ')),
+  ].filter(Boolean);
+}
+
 export function gameStory(box, byId) {
   const [home, away] = box.teams;
   const [h, a] = box.score;
@@ -115,14 +146,7 @@ export function gameStory(box, byId) {
   if (box.players) {
     const stars = [];
     for (const side of [0, 1]) {
-      const rows = Object.entries(box.players[side]).map(([id, s]) => ({ p: byId.get(id), s })).filter((r) => r.p);
-      const pick = (f, fmt) => { const best = rows.filter((r) => f(r.s) > 0).sort((x, y) => f(y.s) - f(x.s))[0]; return best ? `${best.p.name} ${fmt(best.s)}` : null; };
-      const line = [
-        pick((s) => s.pass.yds, (s) => `${s.pass.cmp}/${s.pass.att}, ${s.pass.yds} yds, ${s.pass.td} TD${s.pass.int ? `, ${s.pass.int} INT` : ''}`),
-        pick((s) => s.rush.yds, (s) => `${s.rush.att} car, ${s.rush.yds} yds${s.rush.td ? `, ${s.rush.td} TD` : ''}`),
-        pick((s) => s.rec.yds, (s) => `${s.rec.rec} rec, ${s.rec.yds} yds${s.rec.td ? `, ${s.rec.td} TD` : ''}`),
-        pick((s) => s.def.sck * 2 + s.def.int * 3 + s.def.ff * 2, (s) => [s.def.sck ? `${s.def.sck} sck` : '', s.def.int ? `${s.def.int} INT` : '', s.def.ff ? `${s.def.ff} FF` : ''].filter(Boolean).join(', ')),
-      ].filter(Boolean);
+      const line = statLeaders(box.players[side], byId).map((l) => `${l.name} ${l.line}`);
       if (line.length) stars.push(`${box.teams[side].abbr}: ${line.join('; ')}`);
     }
     if (stars.length) out.push(`Stars — ${stars.join(' · ')}.`);

@@ -4,7 +4,7 @@ import { OFFENSE_CALLS, DEFENSE_CALLS, fgDistance, fgProbability, halfSecondsLef
 import { fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { currentWeek, simulateWeekAi, recordResult, weekNumber, userTeamIndex } from '../../engine/season.js';
 import { teamChip } from '../components.js';
-import { wpChart, wpLabel, driveChart, gameStory } from '../charts.js';
+import { wpChart, wpLabel, driveChart, gameStory, statLeaders } from '../charts.js';
 
 export const selfRendering = true;
 
@@ -331,6 +331,18 @@ export function view(root, params, ctx) {
     } : null;
     const wpNow = g.lastEvent && typeof g.lastEvent.wp === 'number' ? g.lastEvent.wp : null;
     const story = g.final ? gameStory({ teams: g.teams, score: g.score, final: true, overtime: g.quarter >= 5, log: g.log, players: [g.stats[0].players, g.stats[1].players], injuries: g.teams.map((t) => t.injuries || []) }, ctx.byId) : [];
+    // Who is having the game. Folded away like the drive chart, so it costs one
+    // line closed; the summary carries the two names worth seeing at a glance,
+    // which is the part you want while watching rather than while studying.
+    // Live only: once the game ends the story card above prints the same four
+    // lines as prose, and two copies of the same thing is worse than one.
+    const leaders = g.teams.map((t, side) => ({
+      abbr: t.abbr, color: t.color, rows: statLeaders(g.stats[side].players, ctx.byId),
+    }));
+    const leadSummary = leaders
+      .map((l) => { const best = l.rows.find((r) => r.kind === 'pass') || l.rows[0]; return best ? `${l.abbr} ${best.name.split(' ').at(-1)}` : ''; })
+      .filter(Boolean).join(' · ');
+
     const newest = g.log.length - 1;
     const logItems = pbpOrder(g.log).map((e) => {
       const cls = e.type === 'drive' ? 'drive' : e.type === 'injury' ? 'injury' : e.flag && !e.scoring ? 'penalty' : e.type === 'quarter' || e.type === 'final' || e.type === 'info' ? 'quarter' : e.scoring ? 'scoring' : (e.type === 'int' || e.type === 'fumble' || /Turnover on downs/.test(e.text)) ? 'turnover' : '';
@@ -374,6 +386,14 @@ export function view(root, params, ctx) {
         <div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span><span class="teamdot" style="background:${home.color}"></span>${home.abbr} above the line · <span class="teamdot" style="background:${away.color}"></span>${away.abbr} below</span></div>
         ${raw(wpChart(g.log, g.teams))}
         ${g.drives.length ? html`<details style="margin-top:.4rem"><summary class="muted" style="cursor:pointer;font-size:.8rem">Drive chart · ${g.drives.length} drives</summary>${raw(driveChart(g.drives, g.teams))}</details>` : ''}
+        ${!g.final && leaders.some((l) => l.rows.length) ? html`<details class="leaders" style="margin-top:.4rem">
+          <summary class="muted" style="cursor:pointer;font-size:.8rem">Leaders${leadSummary ? ` · ${leadSummary}` : ''}</summary>
+          ${leaders.map((l) => l.rows.length ? html`<div class="leadside">
+            <div class="who"><span class="teamdot" style="background:${l.color}"></span>${l.abbr}</div>
+            <ul>${l.rows.map((r) => html`<li><b>${r.name}</b> <span class="muted">${r.line}</span></li>`)}</ul>
+          </div>` : '')}
+          <a class="muted" href="#/box/live" style="font-size:.78rem">Full box score →</a>
+        </details>` : ''}
       </div>` : ''}
       <ul class="pbp card tight" style="padding:0">${raw(logItems)}</ul>
       <p class="muted" style="font-size:.8rem;margin-top:.5rem">${home.name} (home) vs ${away.name}. ${league.phase === 'playoffs' ? 'Playoff rules: overtime continues until someone wins.' : 'Regular season: one 10-minute overtime, ties allowed.'} <a href="#/season">Back to season hub</a> (the game is saved).</p>

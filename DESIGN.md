@@ -1319,6 +1319,32 @@ Two engine fields make it possible, added to every scrimmage play and every pena
 
 Two things about the plumbing are worth knowing, because both were wrong first. The bar reads the last entry in the log that carries `from`, not `g.lastEvent`: a play that changes hands calls `changePossession` inside the same step, and that logs the new drive's header on top of it, so punts, interceptions, fumbles, missed field goals and turnovers on downs all had their bar overwritten before it could draw. And the phase is no authority either — a touchdown flips to `pat` and a made field goal to `kickoff` the moment they score, so gating on `phase === 'play'` hid the bar for exactly the plays most worth seeing. Nothing but a snap logs `from`, so the bar clears itself at the next kickoff or quarter break. A test pins all of it: every scrimmage type carries the fields, nothing else claims them, the drawn span stays on the field, and on a clean snap `from + yards` still equals the entry's own `ballOn`.
 
+### Who is having the game, while it is still being had
+
+The box score already handled a game in progress — `#/box/live` renders it and
+says IN PROGRESS across the top — but nothing linked to it until the whistle,
+and the game screen itself said nothing about who was doing the damage. So this
+turned out to be smaller than it looked: the data and the screen both existed,
+and what was missing was a glance and a door.
+
+`statLeaders` is the picker that was already inside `gameStory`, lifted out so
+the live screen and the finished-game story share one definition of a leader.
+The three offensive slots rank on yards, because that is what a leader board
+means. The defender ranks on a weighted count — a sack is worth 2, an
+interception 3, a forced fumble 2 — and tackles are worth nothing at all, since
+the leading tackler is usually whoever plays the most snaps against the run
+rather than anybody who did something. Fourteen tackles and nothing else does
+not make the list, and a test says so. Nobody with a zero appears either: early
+in a game most of these slots are empty, and a list of players who have done
+nothing is worse than a short list.
+
+On screen it is a disclosure next to the drive chart, so it costs one line
+closed and 243px open, with the two leading passers in the summary for the
+glance you want while watching rather than while studying. It carries a link to
+the full box score, which is the door that was missing. It shows only while the
+game is live: once it ends the story card above prints the same four lines as
+prose, and two copies of the same thing is worse than one.
+
 ### Drive headers that are headers again
 
 The play-by-play runs newest first, so the play that just happened is at the

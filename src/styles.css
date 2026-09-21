@@ -343,6 +343,15 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .skipahead > summary::before { content: '▸ '; }
 .skipahead[open] > summary::before { content: '▾ '; }
 
+/* Who is having the game. One club per block, four lines at most, and only the
+   slots somebody has actually done something in. */
+.leaders .leadside { margin-top: 0.45rem; }
+.leaders .who { display: flex; align-items: center; gap: 0.3rem; font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.leaders ul { list-style: none; margin: 0.2rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.leaders li { font-size: 0.82rem; overflow-wrap: anywhere; }
+.leaders li b { font-weight: 600; }
+.leaders > a { display: inline-block; margin-top: 0.5rem; }
+
 /* What was called, and how much of the result was the guess rather than the
    play. The chip is the glanceable part — at the paced default a snap is on
    screen for under a second — and the sentence under it is for when you stop. */
