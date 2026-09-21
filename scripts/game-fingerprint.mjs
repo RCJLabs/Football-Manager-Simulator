@@ -44,13 +44,32 @@ function dump(g) {
   return out.join('\n');
 }
 
-/** A pair of synthetic sides, optionally lopsided so blowouts happen too. */
-function pair(seed, meanA, meanB) {
-  const a = syntheticTeam('alpha', meanA, 4, seed);
-  const b = syntheticTeam('bravo', meanB, 4, seed + 500);
+/**
+ * A pair of synthetic sides, optionally lopsided so blowouts happen too.
+ *
+ * `tag` is load-bearing and was not always here. `syntheticTeam` names its
+ * players after the club, so every pair built as alpha/bravo produced the same
+ * player ids — and `overall()` caches by id. The first pair's ratings were
+ * therefore handed back for every pair after it, and `teamPower` reported a gap
+ * of 0.1 for all five roster gaps below, the 95-against-60 blowout included.
+ * Play outcomes were never affected, because those read the raw attributes
+ * through `composites()`, but the win probability on every logged line comes
+ * from `priorMargin`, so the one column that is supposed to reflect the
+ * matchup reflected nothing. A distinct id per case fixes it; `abbr` and `name`
+ * are put back afterwards so the play-by-play still reads ALP and BRA.
+ *
+ * `shape` makes a pair lopsided a second way, by position rather than by
+ * overall mean. Every other case draws every position from one mean, so
+ * reweighting `TRUE_LEVERAGE` moves both sides equally and the gap does not
+ * move at all. Sides strong in different places make the leverage table reach
+ * the output, so a change to it cannot pass this check unnoticed.
+ */
+function pair(seed, meanA, meanB, shape, tag = '') {
+  const a = syntheticTeam(`alpha${tag}`, meanA, 4, seed, shape ? { posMeans: shape[0] } : {});
+  const b = syntheticTeam(`bravo${tag}`, meanB, 4, seed + 500, shape ? { posMeans: shape[1] } : {});
   return [
-    { ...a, lineup: buildLineup(a.slots, a.byId) },
-    { ...b, lineup: buildLineup(b.slots, b.byId) },
+    { ...a, id: 'alpha', name: 'Team alpha', abbr: 'ALP', lineup: buildLineup(a.slots, a.byId) },
+    { ...b, id: 'bravo', name: 'Team bravo', abbr: 'BRA', lineup: buildLineup(b.slots, b.byId) },
   ];
 }
 
@@ -73,10 +92,26 @@ for (let i = 0; i < 20; i++) {
   cases.push({ name: `chem #${i}`, seed: 7400 + i, meanA: 84, meanB: 84, opts: { chem: [1.5, -1.2] } });
 }
 
+// Sides built strong in different places, so the leverage weights reach the
+// power gap. One club buys the quarterback and the other buys the backfield and
+// the line; one splits the secondary against the receivers; one is the absurd
+// case of a club that spent everything on specialists, which is where a
+// mis-weighted kicker would show up.
+const SHAPES = [
+  [{ QB: 95, RB: 72, OL: 74, TE: 74 }, { QB: 72, RB: 95, OL: 93, TE: 92 }],
+  [{ CB: 95, S: 93, DL: 72, LB: 74 }, { WR: 95, TE: 93, CB: 72, S: 74 }],
+  [{ K: 97, P: 97, QB: 76, WR: 76 }, { QB: 92, WR: 90, K: 62, P: 62 }],
+];
+for (let s = 0; s < SHAPES.length; s++) {
+  for (let i = 0; i < 8; i++) {
+    cases.push({ name: `shape${s} #${i}`, seed: 9000 + s * 100 + i, meanA: 84, meanB: 84, shape: SHAPES[s], opts: {} });
+  }
+}
+
 const parts = [];
 let overtimes = 0, plays = 0;
 for (const c of cases) {
-  const [home, away] = pair(c.seed, c.meanA, c.meanB);
+  const [home, away] = pair(c.seed, c.meanA, c.meanB, c.shape, c.name.replace(/[^a-z0-9]/gi, ''));
   const g = createGame(home, away, { seed: c.seed, ...c.opts });
   simulateGame(g);
   if (g.quarter >= 5) overtimes++;
@@ -87,7 +122,7 @@ for (const c of cases) {
 // Coach mode: the human supplies calls, which walks a different branch through
 // step() than the AI path does.
 for (let i = 0; i < 12; i++) {
-  const [home, away] = pair(8000 + i, 84, 84);
+  const [home, away] = pair(8000 + i, 84, 84, null, `coach${i}`);
   const g = createGame(home, away, { seed: 8000 + i });
   const rng = new RNG(999 + i);
   const offCalls = Object.keys(OFFENSE_CALLS).filter((k) => !['fg', 'punt', 'kneel', 'spike'].includes(k));
