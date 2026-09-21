@@ -25,7 +25,7 @@ export const DEFENSE_CALLS = {
   base:     { label: 'Base',          desc: 'Balanced front and coverage.' },
   run_stop: { label: 'Stack the Box', desc: 'Extra run defender. Weak vs medium/deep passes.' },
   blitz:    { label: 'Blitz',         desc: 'Send extra rushers. Boom or bust.' },
-  deep:     { label: 'Deep Shell',    desc: 'Two-high, protect against the big play. Soft vs runs and short passes.' },
+  deep:     { label: 'Deep Shell',    desc: 'Two-high, five underneath. Squeezes the passing game. The run eats it.' },
 };
 
 /**
@@ -53,7 +53,7 @@ export const CALL_GRID = {
   run_in:     { base: 4.84, run_stop: 3.13, blitz: 5.07, deep: 7.37 },
   run_out:    { base: 4.96, run_stop: 3.57, blitz: 6.65, deep: 7.74 },
   screen:     { base: 5.45, run_stop: 6.27, blitz: 9.46, deep: 4.74 },
-  pass_short: { base: 6.53, run_stop: 7.28, blitz: 7.03, deep: 6.64 },
+  pass_short: { base: 6.53, run_stop: 7.28, blitz: 7.03, deep: 4.28 },
   pass_med:   { base: 8.48, run_stop: 10.25, blitz: 9.18, deep: 7.49 },
   pass_deep:  { base: 11.11, run_stop: 15.47, blitz: 11.79, deep: 6.10 },
   pa_pass:    { base: 9.72, run_stop: 12.49, blitz: 9.16, deep: 7.61 },

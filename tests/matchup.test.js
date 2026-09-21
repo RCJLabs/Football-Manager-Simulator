@@ -49,10 +49,10 @@ test('matchup reads the grid and refuses what it cannot judge', () => {
   assert.equal(matchup('screen', 'blitz').verdict, 'won', 'the screen is the answer to a blitz');
   assert.equal(matchup('run_in', 'run_stop').verdict, 'pinched', 'a stacked box eats the inside run');
   assert.equal(matchup('pa_pass', 'run_stop').verdict, 'won', 'play action punishes a run-committed defence');
-  // A flat row is honest about being flat rather than dressing up a rounding
-  // error: the short pass barely notices what the defence did.
-  assert.equal(matchup('pass_short', 'deep').verdict, 'even');
+  // A look that changes nothing says so rather than dressing up a rounding
+  // error: a blitz is the quick game's own answer, so it barely moves it.
   assert.equal(matchup('pass_short', 'blitz').verdict, 'even');
+  assert.equal(matchup('pass_short', 'deep').verdict, 'lost', 'five underneath is the quick game\'s counter');
 });
 
 test('the grid still matches what the engine does', () => {
@@ -93,4 +93,41 @@ test('the grid still matches what the engine does', () => {
     checked++;
   }
   assert.ok(checked >= 5, `only ${checked} rows had enough spread to check`);
+});
+
+test('every call has a look that counters it, so every call is a decision', () => {
+  // A row that is flat across all four defences is a call with nothing to read:
+  // the short pass used to span 0.75 yards, so no defensive guess changed it
+  // either way and the chip could never teach anything about it.
+  for (const [call, row] of Object.entries(CALL_GRID)) {
+    const vals = DEF.map((d) => row[d]);
+    assert.ok(Math.max(...vals) - Math.min(...vals) >= 2,
+      `${call} spans only ${(Math.max(...vals) - Math.min(...vals)).toFixed(2)} yards — no defence changes it`);
+    // And somewhere in the row the chip has to say something other than "that
+    // changed almost nothing". Which direction does not matter: a stacked box
+    // eating the run is a downside read, a screen punishing a blitz is an
+    // upside one, and the medium pass earns its keep by being merely good
+    // everywhere — its biggest swing is 1.8 yards and it is still a decision.
+    const verdicts = DEF.map((d) => matchup(call, d).verdict);
+    assert.ok(verdicts.some((v) => v !== 'even' && v !== 'straight'),
+      `${call} reads as even against all four looks`);
+  }
+});
+
+test('the two committed looks divide the playbook between them', () => {
+  // Stack the box is the answer to the run, the two-high shell is the answer to
+  // the pass, and each is beaten by what the other stops. A blitz counters
+  // nothing — it is a gamble, not a read — and base is the reference.
+  const worstFor = (call) => {
+    const vals = DEF.map((d) => CALL_GRID[call][d]);
+    return DEF[vals.indexOf(Math.min(...vals))];
+  };
+  for (const run of ['run_in', 'run_out']) assert.equal(worstFor(run), 'run_stop', `${run} should fear a stacked box`);
+  for (const pass of ['screen', 'pass_short', 'pass_med', 'pass_deep', 'pa_pass']) {
+    assert.equal(worstFor(pass), 'deep', `${pass} should fear a two-high shell`);
+  }
+  // And each look pays for what it gives up: the run punishes the shell, the
+  // deep ball punishes the stacked box.
+  assert.equal(matchup('run_out', 'deep').verdict, 'won');
+  assert.equal(matchup('pass_deep', 'run_stop').verdict, 'won');
 });
