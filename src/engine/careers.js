@@ -21,6 +21,7 @@
 // is built from. Two different meanings of the word career, one object.
 
 import { POSITIONS, ROSTER_SLOTS } from '../data/positions.js';
+import { PLAYERS } from '../data/players.js';
 import { RNG, hashSeed } from './rng.js';
 import { overall, rawOverall } from './ratings.js';
 
@@ -132,9 +133,32 @@ export function startCareer(league, p) {
     growth: g,
     retireAt: prime + CAREER_LENGTH + rng.int(-2, 3),
     entry,
-    ceiling: ceilingFor(entry, g, rng),
+    ceiling: ceilingFor(entry, g, rng, p.pos),
     d: {},
   };
+}
+
+/**
+ * The best man who ever played each position, out of the shipped pool.
+ *
+ * A generated rookie may grow into him and may not grow past him. This is a
+ * game about all-time greats, and a decade into a save it was handing out
+ * fictional punters rated 97 against Ray Guy's 94, a fictional linebacker at 97
+ * against Ray Lewis's 93, and a safety above Ronnie Lott — which is the premise
+ * quietly coming apart. A flat ceiling of 96 was fine for the positions whose
+ * best is 96 or 97 and nonsense for the five where it is not.
+ *
+ * Derived rather than listed, so it cannot go stale when the pool is re-rated.
+ * It goes through `rawOverall` on purpose: `overall` caches by id, and these
+ * are read at module load before any league exists to seed that cache.
+ */
+const PEAK = {};
+for (const p of PLAYERS) {
+  const o = rawOverall(p.pos, p.r);
+  if (!(PEAK[p.pos] >= o)) PEAK[p.pos] = o;
+}
+export function positionPeak(pos) {
+  return PEAK[pos] ?? 96;
 }
 
 /**
@@ -147,10 +171,15 @@ export function startCareer(league, p) {
  * swamp the top of the real pool, which is the thing the game is actually
  * about. Room also shrinks as the entry rating rises, so the players with the
  * least left to prove have the least left to gain.
+ *
+ * `pos` is optional because a caller who has no position gets the old flat 96;
+ * the `Math.max` against `entry` is there so a man who somehow enters above his
+ * position's peak is left alone rather than clamped backwards.
  */
-export function ceilingFor(entry, growth, rng) {
+export function ceilingFor(entry, growth, rng, pos) {
   const room = growth * 13 * clamp(1 - (entry - 55) / 55, 0.1, 1.2);
-  return clamp(Math.round(entry + room + rng.int(-2, 3)), entry, 96);
+  const top = Math.max(entry, pos ? positionPeak(pos) : 96);
+  return clamp(Math.round(entry + room + rng.int(-2, 3)), entry, top);
 }
 
 /** Every player id a club holds, on the roster or on injured reserve. */
@@ -238,23 +267,57 @@ export function stepCareer(league, src, c, season, knocks = 0) {
     }
     next.retireAt = Math.max(next.age, (next.retireAt ?? prime + CAREER_LENGTH) - KNOCK_YEARS * knocks);
     next.knocks = (c.knocks || 0) + knocks;
-    // A ceiling he can no longer reach is not a ceiling. Without this the
-    // development code would spend the next few seasons handing the loss back.
-    if (next.ceiling != null) next.ceiling = Math.min(next.ceiling, overall(developed(src, next)));
+    // A ceiling he can no longer reach is not a ceiling. But pinning it to what
+    // he is worth the day after the injury is not right either: that freezes him
+    // there for good, and contradicts paying the damage before the year's
+    // development so he can still grow through it. Drop the ceiling by what the
+    // knock actually cost him, so the room he had left is the room he keeps, and
+    // never below what he is worth now.
+    if (next.ceiling != null) {
+      const hurt = overall(developed(src, next));
+      next.ceiling = Math.max(hurt, Math.round(next.ceiling - (before - hurt)));
+    }
   }
+  // Where this year's growth actually starts: after the knock, before the gains.
+  // The clamps below measure against this rather than `before`, which is what he
+  // was last season. A knocked man is already under `before`, so measuring the
+  // ceiling against it skipped the clamp entirely and let him finish the season
+  // above his own ceiling — and stay there, every season after, because he then
+  // began each one already over it.
+  const start = overall(developed(src, next));
+  // Deltas as they stand after the knock. The scale-back rebuilds from these and
+  // not from `c.d`, which would hand the injury straight back.
+  const baseD = { ...next.d };
   const gain = {};
   for (const a of POSITIONS[src.pos].attrs) {
     gain[a] = step(CLASS_OF[a] || 'skill', next.age - prime, next.growth, rng);
     next.d[a] = (next.d[a] || 0) + gain[a];
   }
   let after = overall(developed(src, next));
-  const cap = c.ceiling ?? 99;
-  if (after > cap && after > before) {
-    const scale = clamp((cap - before) / (after - before), 0, 1);
-    for (const a of POSITIONS[src.pos].attrs) next.d[a] = (c.d[a] || 0) + gain[a] * scale;
+  const cap = next.ceiling ?? 99;
+  if (after > cap && after > start) {
+    const scale = clamp((cap - start) / (after - start), 0, 1);
+    for (const a of POSITIONS[src.pos].attrs) next.d[a] = (baseD[a] || 0) + gain[a] * scale;
     after = overall(developed(src, next));
   }
   for (const a of POSITIONS[src.pos].attrs) next.d[a] = Math.round(next.d[a] * 10) / 10;
+  // Rounding six deltas to a tenth can land a man a point over his own ceiling,
+  // which is how generated players were turning up at 97 against a cap of 96.
+  // The scale-back above lands him exactly on it; rounding then puts him over.
+  //
+  // Shave this season's biggest GAIN, not his biggest career delta. Those are
+  // different attributes for anyone past a rookie year, and taking it off the
+  // career total would claw back progress he made in earlier seasons to pay for
+  // a tenth of a point of rounding in this one. `start` floors it, so a season
+  // can be cancelled out but never reversed.
+  const attrs = POSITIONS[src.pos].attrs;
+  for (let guard = 0; guard < 40; guard++) {
+    const now = overall(developed(src, next));
+    if (now <= cap || now <= start) break;
+    const biggest = attrs.reduce((x, y) => ((gain[x] || 0) >= (gain[y] || 0) ? x : y));
+    next.d[biggest] = Math.round(((next.d[biggest] || 0) - 0.1) * 10) / 10;
+    gain[biggest] = (gain[biggest] || 0) - 0.1;
+  }
   return { career: next, before, after: overall(developed(src, next)) };
 }
 

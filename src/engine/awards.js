@@ -17,7 +17,32 @@ import { powerRankings, standings } from './season.js';
 const OFFENSE = ['QB', 'RB', 'WR', 'TE'];
 const DEFENSE = ['DL', 'LB', 'CB', 'S'];
 const ALL_LEAGUE_COUNTS = { QB: 1, RB: 1, WR: 3, TE: 1, DL: 4, LB: 3, CB: 2, S: 2, K: 1, P: 1 };
-const MVP_WEIGHT = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) => [k, Math.pow(v, 0.35)]));
+/**
+ * How much a position's importance counts, against how far a season stood above
+ * the rest of that position. This used to raise the leverage table to a power,
+ * and the power was 0.35 — flat enough that the RUNNING BACK won the award more
+ * often than the quarterback, in a game whose own leverage table prices a
+ * quarterback at 1.7 times a back. A back's fantasy line is more variable than
+ * a quarterback's, so his z-score runs further from the mean, and compressing a
+ * 1.7x advantage to 1.2x let that variance decide the award.
+ *
+ * Swept over 29 seasons, three seeds, `npm run playthrough`:
+ *
+ *   exponent   QB    RB    others
+ *   0.35       17%   48%   DL 4, WR 3, TE 3
+ *   0.7        66%   34%   —
+ *   1.0        79%   21%   —
+ *   1.3        86%   14%   —
+ *
+ * Real MVP voting since 2000 runs about 79% quarterbacks and 12% backs, so 1.0
+ * is the fit — and 1.0 means there is no exponent at all. The award is a
+ * player's season weighted by what his position is worth, with no free
+ * parameter in between, which is what it should have been described as from the
+ * start. Backs still take one in five, a little more often than they really do;
+ * pushing past 1.0 to correct that buys realism nobody asked for at the cost of
+ * a league where only quarterbacks ever win.
+ */
+const MVP_WEIGHT = TRUE_LEVERAGE;
 
 /** Every player with a stat line this season: { id, p, team (idx), s, pts, games }. */
 export function seasonLines(league, byId) {

@@ -34,7 +34,8 @@
     "budgets": "node scripts/budget-spread.mjs",
     "turnover": "node scripts/turnover-price.mjs",
     "playbook": "node scripts/playbook-equilibrium.mjs",
-    "knocks": "node scripts/knock-sim.mjs"
+    "knocks": "node scripts/knock-sim.mjs",
+    "playthrough": "node scripts/playthrough.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -6,8 +6,9 @@ import { createLeague } from '../src/engine/season.js';
 import { recordGameInjuries, SEASON_ENDING } from '../src/engine/injuries.js';
 import {
   startCareer, stepCareer, developed, advanceCareers, primeAge,
-  KNOCK_PHYSICAL, KNOCK_GENERAL, KNOCK_YEARS,
+  KNOCK_PHYSICAL, KNOCK_GENERAL, KNOCK_YEARS, positionPeak, ceilingFor,
 } from '../src/engine/careers.js';
+import { RNG } from '../src/engine/rng.js';
 
 const league = (seed = 3) => createLeague({ name: 'K', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed, draftType: 'auction' });
 const find = (name) => PLAYERS.find((p) => p.name === name);
@@ -92,4 +93,65 @@ test('the mark travels with the player so a screen can say why', () => {
   assert.equal(view.knocks, 1);
   assert.ok(overall(view) < overall(p), 'and he reads lower than the man in the pool');
   assert.equal(developed(p, { ...c, d: {} }).knocks, 0, 'an unmarked career says zero, not undefined');
+});
+
+// The ceiling is the promise that a generated player cannot outgrow the best
+// man who ever played his position. It was being broken two ways at once, and
+// neither showed up in a unit test because neither function breaks its own
+// contract — `stepCareer` returned exactly what its inputs asked for, and the
+// inputs were wrong. This walks careers instead of checking a call.
+test('nobody finishes a season above his own ceiling, knocks and all', () => {
+  const lg = league(11);
+  let steps = 0;
+  const over = [];
+  for (const p of PLAYERS.slice(0, 120)) {
+    let c = startCareer(lg, p);
+    for (let s = 0; s < 14; s++) {
+      // Knock him on a schedule rather than at random: the bug only appeared
+      // in the seasons AFTER an injury, so a career has to carry one forward.
+      c = stepCareer(lg, p, c, s, s % 5 === 0 ? 1 : 0).career;
+      steps++;
+      const cap = c.ceiling ?? 99;
+      const now = overall(developed(p, c));
+      if (now > cap) over.push(`${p.name} ${now} > ${cap}`);
+    }
+  }
+  assert.ok(steps > 1000, 'the walk is long enough to be worth anything');
+  assert.deepEqual(over, [], 'careers that finished above their own ceiling');
+});
+
+test('a knock lowers the ceiling by what it cost, not to where it left him', () => {
+  const lg = league(12);
+  const p = find('Jim Brown');
+  // Well before prime: past it `step` returns decline, so nobody grows through
+  // anything and the test would pass or fail for the wrong reason.
+  const c = { ...startCareer(lg, p), age: primeAge('RB') - 6 };
+  // Give him room to grow into, so "frozen where the injury left him" and
+  // "dropped by the damage" are distinguishable at all. The figure is set by
+  // hand rather than taken from `positionPeak`, because what is under test here
+  // is how a knock moves a ceiling, not where the ceiling started.
+  const roomy = { ...c, ceiling: overall(developed(p, c)) + 8 };
+  const hurt = stepCareer(lg, p, roomy, 1, 1).career;
+  const nowWorth = overall(developed(p, hurt));
+  assert.ok(hurt.ceiling < roomy.ceiling, 'the ceiling comes down');
+  assert.ok(hurt.ceiling > nowWorth, 'but not all the way to what he is worth today');
+
+  // And the room survives: he can still climb afterwards.
+  let c2 = hurt;
+  for (let s = 2; s < 6; s++) c2 = stepCareer(lg, p, c2, s, 0).career;
+  assert.ok(overall(developed(p, c2)) > nowWorth, 'a marked man can still grow through it');
+});
+
+test('a generated rookie cannot outgrow the best man at his position', () => {
+  const lg = league(13);
+  for (const pos of ['P', 'LB', 'S', 'TE', 'RB', 'QB']) {
+    const peak = positionPeak(pos);
+    const best = Math.max(...PLAYERS.filter((p) => p.pos === pos).map((p) => overall(p)));
+    assert.equal(peak, best, `${pos}: the peak is read off the pool, not guessed`);
+    // A maximal prospect: top entry, top growth, every roll in his favour.
+    for (const entry of [70, 80, 88]) {
+      assert.ok(ceilingFor(entry, 1.5, new RNG(entry), pos) <= Math.max(entry, peak),
+        `${pos}: a ceiling at entry ${entry} stays inside the position's peak`);
+    }
+  }
 });

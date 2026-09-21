@@ -1175,6 +1175,18 @@ A dynasty where nobody changes has no arc. Before this, season six played exactl
 
 **The ceiling.** Growth carries a player toward a ceiling and stops. Without one the two rolls compound — the rookie generator's prospect bump lands a class-leading entry rating, a high growth draw adds twenty more, and a twenty-season pro dynasty manufactures a dozen fictional 98s, swamping the top of the real pool, which is the thing the game is about. Room also shrinks as the entry rating rises. A season that would cross the ceiling has its gains scaled back to land on it.
 
+**The ceiling was flat at 96, and the pool is not.** That number was picked to sit just under the best real players, and at quarterback, receiver and corner it does — Rodgers, Rice and Sanders are 96. At the other eight positions it does not. The best real tight end is 92, the best back and the best linebacker 93, the best safety and the best punter 94, so a flat cap licensed a fictional player to beat the best there has ever been at his own position by up to five points. Played through, it did: a generated punter at 97 against Ray Guy's 94, a linebacker at 97 against Ray Lewis's 93, a safety at 96 against Ronnie Lott's 94. The cap is now `positionPeak(pos)`, computed once from the shipped pool through `rawOverall`, so it moves when the pool does and cannot drift out of date. Two seeds re-run: nothing generated now exceeds the best real player at its position, and equalling him is still allowed, which is the intended rule — the ceiling is a ceiling, not a reservation.
+
+One detail that had to be fixed with it: the scale-back lands on the cap by rounding, and rounding up crossed it. A season whose rounded attributes overshoot now has its largest gain shaved by a tenth at a time until it is back under, bounded so a pathological case cannot spin. It shaves this season's biggest *gain* rather than the biggest career delta, which are different attributes for anyone past his rookie year — taking it off the career total would claw back progress from earlier seasons to pay for a tenth of a point of rounding in this one.
+
+**Then the fix was checked, and the ceiling was being broken a second way.** Rather than trust the playthrough, a probe walked 112,000 career-seasons and counted how many finished above the player's own stored ceiling. The answer was 4,993, worst case four points over. Run again with injuries switched off it was zero, which named the culprit exactly: the knock branch.
+
+Two mistakes, compounding. The branch lowered `next.ceiling` after an injury, but the clamp a few lines down read `c.ceiling` — the *incoming* career's, i.e. the old high one — so the season of the injury developed against a ceiling that had already been lowered and ignored. From then on the man began every season already above his own ceiling, and the clamp's `after > before` guard, meant to stop a declining player being dragged down, saw that he was not improving and declined to act. He stayed over it for the rest of his career. The second mistake was in the scale-back itself: it rebuilt from `c.d`, the pre-injury deltas, so a clamped season handed the injury damage straight back.
+
+The repair separates two things that had been conflated. `before` is what he was last season and is still what gets reported; `start` is what he is worth after the knock and before this year's growth, which is where development actually begins, and every clamp now measures against that. The ceiling drops by what the knock cost rather than being pinned to what he is worth the day after it — pinning it froze him there permanently, which contradicted the comment three lines above promising he could still grow through an injury from further back. 4,993 violations to zero.
+
+Three mutations confirm the probe is not just agreeing with itself: restoring the `c.ceiling` read gives 272 violations, measuring the clamps against `before` gives 267, and deleting the rounding shave gives 140 with injuries off entirely. Each is caught by a different one of the three tests now in `knocks.test.js`. Reinstating the old ceiling pin also breaks a *pre-existing* test — the one asserting a back loses more to a knee than a quarterback does — which is the strongest evidence that the pin had been quietly distorting the injury toll all along.
+
 **Measured** (`scripts/career-sim.mjs`, the pool's top 200 and 600 generated rookies, run through the engine's own step function so the harness cannot drift):
 
 | | |
@@ -1923,11 +1935,26 @@ The controls under the strip were five equal buttons — next play, next drive, 
 
 ## Awards, records and the hall of fame (`awards.js`)
 
-The final closes the books. Every player with a stat line is scored against his own position first: how many standard deviations above the league's starters at that position (players with at least half the season) he finished, on fantasy points, with punters rated on placement and distance and linemen, who keep no statistics, left out. The MVP is the best of those z-scores weighted by positional leverage to the power 0.35, so a quarterback still wins most years, as one does in the real league, while a back or receiver with a truly outlying season can beat him. Offensive and defensive players of the year are the best z-scores on their side of the ball, the kicker award goes on points, and coach of the year to the club that finished furthest above its roster's power rank. An all-league team takes the top scorers at each position in starter numbers, and the season leaders are recorded in eleven categories. The awards screen shows the same race mid-season, so the MVP argument runs all year.
+The final closes the books. Every player with a stat line is scored against his own position first: how many standard deviations above the league's starters at that position (players with at least half the season) he finished, on fantasy points, with punters rated on placement and distance and linemen, who keep no statistics, left out. The MVP is the best of those z-scores weighted by positional leverage, so a quarterback wins most years, as one does in the real league, while a back or receiver with a truly outlying season can beat him. Offensive and defensive players of the year are the best z-scores on their side of the ball, the kicker award goes on points, and coach of the year to the club that finished furthest above its roster's power rank. An all-league team takes the top scorers at each position in starter numbers, and the season leaders are recorded in eleven categories. The awards screen shows the same race mid-season, so the MVP argument runs all year.
 
 The record book keeps season marks (twelve player categories), single-game marks from the games that kept player lines (yours and the playoffs; AI regular-season box scores hold team totals only), and team marks: points and margin in a game, points and wins in a season. Each entry names the holder, the club, the season and, for games, the opponent; a mark is replaced only when beaten.
 
-Careers accumulate per player across seasons: games, totals, honours, statistical titles and rings (every member of the champion's roster gets one). The hall of fame is a résumé score: a point a season, four for an MVP, two for a player-of-the-year award or a title, one and a half per all-league selection, half per statistical title, and a point per 300 fantasy points; induction at 12 with at least three seasons. That is deliberately reachable in a short dynasty and deliberately not reachable by longevity alone. Established: the scoring above. Speculation: whether the leverage exponent lets non-quarterbacks win often enough; it has not been measured over many seasons.
+Careers accumulate per player across seasons: games, totals, honours, statistical titles and rings (every member of the champion's roster gets one). The hall of fame is a résumé score: a point a season, four for an MVP, two for a player-of-the-year award or a title, one and a half per all-league selection, half per statistical title, and a point per 300 fantasy points; induction at 12 with at least three seasons. That is deliberately reachable in a short dynasty and deliberately not reachable by longevity alone. Established: the scoring above.
+
+**The exponent was measured, and the answer was to delete it.** The line above used to end by admitting that nobody had checked whether the leverage exponent let non-quarterbacks win often enough. Twenty-nine seasons across three seeds say the opposite problem: backs won 48% of the MVPs to the quarterbacks' 17%. `^0.35` compresses a 1.7x leverage advantage at quarterback down to 1.2x, which is not enough to survive a back's noisier fantasy line, and the running-back leverage rise that fixed his auction price made it worse without anyone noticing, because the two numbers were never read together.
+
+Swept over the same seasons, by patching the constant and playing the dynasty out at each value:
+
+| exponent | QB | RB | others |
+| --- | --- | --- | --- |
+| 0.35 | 17% | 48% | DL 4, WR 3, TE 3 |
+| 0.7 | 66% | 34% | — |
+| 1.0 | 79% | 21% | — |
+| 1.3 | 86% | 14% | — |
+
+Real MVP voting since 2000 runs about 79% quarterbacks and 12% backs. That makes 1.0 the fit, and 1.0 is not an exponent — it is the leverage table itself, so the parameter is gone and the award is simply a player's season weighted by what his position is worth. Backs keep one in five, a shade more often than they really manage; correcting that would need a value past 1.0, which buys a point of realism at the price of a league where nobody but a quarterback ever wins.
+
+Two caveats that are not speculation but are worth stating. The sweep holds the rest of the engine fixed, so a later change to `TRUE_LEVERAGE` moves this distribution again — it now moves it *directly*, with no exponent damping it, which is a feature only if the leverage table is trusted. And 29 seasons is a small sample for a distribution: the per-seed splits ranged from 44% to 80% quarterbacks at the chosen value, so the pooled 79% carries real width.
 
 ## AI general managers (`gm.js`)
 
@@ -2035,11 +2062,11 @@ The punter is still top and that is not ideal; what makes it tolerable is that
 `POS_RISK` puts a specialist at 0.12, an eighth of a linebacker, so he is barely
 ever hurt in the first place.
 
-**Frequency, measured over 23 league-seasons of a 32-club pro league**: about
-5.0 marked careers a season, 0.16 a club — a club sees one roughly every six
-seasons. That is 0.58% of the 864 men under contract, so the league-wide drag is
-arithmetically nil and the ageing drift in a long save (84.9 down to 78.4 over
-eight seasons) is the pre-existing one, not this. The toll is a per-player
+**Frequency, measured over 40 league-seasons of a 32-club pro league**: about
+4.8 marked careers a season, 0.15 a club — a club sees one roughly every seven
+seasons. That is 0.56% of the 864 men under contract, so the league-wide drag is
+arithmetically nil and the ageing drift in a long save (85.0 down to 78.1 by the
+eighth season, 75.8 by the tenth) is the pre-existing one, not this. The toll is a per-player
 event, which is what it should be: rare enough to be news, heavy enough to
 change a keeper decision.
 
@@ -2539,6 +2566,66 @@ reason is the trap the first test in the file is about: it bumped the bench
 and went on answering 80 whatever the attributes said. The fix is a second
 squad with its own ids. Worth recording because the cache defeated a test
 written by someone who had just finished documenting it.
+
+### Ten seasons, read rather than asserted (`scripts/playthrough.mjs`)
+
+Every suite in this repository asks a question it already knows the shape of.
+`npm run playbook` asks whether a call is priced right, `npm run realism` asks
+whether 44 numbers sit in their ranges, the 449 unit tests ask whether a
+function keeps its contract. None of them asks the open question: play this
+thing for ten years and does the *story* come out right. That is a different
+kind of check, and it is the only one that catches a defect nobody thought to
+write an assertion for.
+
+So `scripts/playthrough.mjs` plays a ten-season pro dynasty and prints what
+happened. It does carry invariants — rosters legal and full at every position,
+nobody on two clubs, no retired player in a lineup, no NaN in any rating or
+stat, a complete history entry and a named MVP per season — and all of them
+held, at every seed tried. The invariants found nothing. Reading the output
+found two things.
+
+**Running backs were winning the MVP.** Pooled over twenty-nine seasons at three
+seeds: fourteen backs to five quarterbacks, with the rest going to linemen,
+receivers and tight ends. That is not a close call in the wrong direction, it is
+the wrong sport. The cause and the fix are under
+Awards above; what matters here is that no test could have caught it. There is
+no contract being broken — `mvpOf` returns the highest weighted z-score, which
+is exactly what it promises, and it promised it correctly for every one of
+those twelve seasons. The defect only exists in aggregate, over a population
+of seasons, against a fact about the real league that lives outside the code.
+
+**Generated rookies were beating the best players who ever lived.** A fictional
+punter finished a career at 97 with Ray Guy in the same league at 94. Same
+story at linebacker and safety. Again no contract was broken: `ceilingFor`
+clamped at 96 and returned a number under 96. The bug is that 96 was a single
+number standing in for eleven different ones. Fix under Player careers above.
+
+Fixing the second one found a third, which is the part worth keeping. The
+obvious repair — cap the ceiling per position — was applied, the playthrough
+re-run, and nothing exceeded its position's best any more. That looked like
+done. Probing it instead of believing it, by walking 112,000 career-seasons and
+counting how many finished above their own stored ceiling, returned 4,993. The
+per-position cap was correct and a second, older bug in the injury path had been
+breaking the same rule the whole time; the playthrough had not shown it because
+a knocked player rarely ends up the best man at his position, so the symptom the
+report prints was the wrong symptom to watch. Details under Player careers
+above. The rule: a fix confirmed by the same instrument that found the bug is
+not confirmed, because that instrument only ever looked at one symptom.
+
+The first two defects share a shape worth naming, because it predicts where the
+next one will be. Each is a *constant that was right when it was written and went
+stale when something else moved* — the MVP exponent was fitted before running
+backs got their leverage raised, the flat ceiling was chosen before the pool
+grew to 1,500 and re-rated. Neither module changed. Neither has a test that
+could fail. The only instrument that sees this class of defect is playing the
+game and looking at the result, which is why this script exists and why it
+prints a readable season summary rather than a pass/fail.
+
+What it does not do: it plays passively, so it exercises the simulation and
+the offseason but never the auction, trades, or any decision a human makes.
+A passive dynasty is the cheap half of the space. The expensive half — does
+the game reward playing it well — is what `npm run strategy` and the season
+card comparison measure instead, and neither is a substitute for the other.
 
 ## UI
 
