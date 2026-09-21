@@ -3,7 +3,7 @@ import { step, stepDrive, stepQuarter, simulateGame, decisionNeeded, spot, downT
 import { OFFENSE_CALLS, DEFENSE_CALLS, fgDistance, fgProbability, halfSecondsLeft, matchup } from '../../engine/playcall.js';
 import { fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { currentWeek, simulateWeekAi, recordResult, weekNumber, userTeamIndex } from '../../engine/season.js';
-import { teamChip } from '../components.js';
+import { teamChip, announce} from '../components.js';
 import { wpChart, wpLabel, driveChart, gameStory, statLeaders } from '../charts.js';
 
 export const selfRendering = true;
@@ -140,6 +140,9 @@ export const isBeat = (e) => !!e && ((e.scoring && e.type !== 'xp') || e.type ==
  * over and the bar should clear, so the walk stops at anything else.
  */
 const SKIP_BACK = new Set(['drive', 'injury', 'timeout', 'info']);
+// The last play announced, so a redraw that changes nothing says nothing.
+let lastSaid = null;
+
 function lastSnap(log) {
   if (!Array.isArray(log)) return null;
   for (let i = log.length - 1; i >= 0 && i >= log.length - 4; i--) {
@@ -215,6 +218,13 @@ export function view(root, params, ctx) {
     // uses. `from` and `snapOff` come off the log entry because the ball has
     // already moved (and on a turnover changed hands) by the time it is written.
     const ev = lastSnap(g.log);
+    // A live game is the one screen where the thing worth knowing arrives on a
+    // timer rather than on a tap, and it was silent. The play-by-play list is
+    // not the place to say so — it redraws whole, so a live region on it would
+    // read the entire log again every snap. The newest play goes through the
+    // same one-line channel a toast uses, once, and only while there is a game
+    // still going on.
+    if (ev && ev.text && !g.final && lastSaid !== ev.text) { lastSaid = ev.text; announce(ev.text); }
     // Not `g.lastEvent`: a play that changes hands calls `changePossession` in
     // the same step, and that logs the new drive's header on top of it. Punts,
     // interceptions, fumbles, missed field goals and turnovers on downs all did

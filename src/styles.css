@@ -242,6 +242,10 @@ details.fold[open] > summary { margin-bottom: .25rem; }
 .prow .who { min-width: 0; }
 .prow .nm { font-weight: 700; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; overflow-wrap: anywhere; }
 .prow .nm .tap { cursor: pointer; }
+/* A player's name opens his card, and it was a <span> with a click handler, so
+   the app's main detail view could not be reached from a keyboard at all. It is
+   a button now; this strips the chrome so nothing looks different. */
+.tap { background: none; border: 0; padding: 0; margin: 0; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
 .prow .meta { font-size: 0.76rem; color: var(--muted); display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap; }
 .prow .act { display: flex; gap: 0.25rem; align-items: center; justify-self: end; }
 .prow .attrs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.05rem 0.5rem; margin-top: 0.15rem; }
@@ -589,3 +593,30 @@ details > summary { cursor: pointer; }
   .cmp-row .lbl { font-size: 0.65rem; }
   .cmp-who .nm { font-size: 0.85rem; }
 }
+
+/* Focus. There was one :focus-visible rule in this whole file, on a chip, so
+   every other control fell back to whatever the browser draws — visible, but
+   thin and low-contrast against this palette. Nothing here removes an outline;
+   it replaces a default with something that can actually be seen on dark green. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.btn:focus-visible, .tab:focus-visible, .tabitem:focus-visible, .nav a:focus-visible, .nav-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* The dialog takes focus on open so the reader starts inside it; that is a
+   programmatic focus, not a keyboard one, and does not want a ring. */
+.modal:focus, .modal:focus-visible, .app:focus, .app:focus-visible { outline: none; }
+
+/* Skip link: off-screen until focused, then the first thing on the page. */
+.skipnav {
+  position: fixed; top: 0; left: 0; z-index: 100;
+  transform: translateY(-120%);
+  background: var(--accent); color: #12211a; font: inherit; font-weight: 700;
+  border: 0; border-radius: 0 0 8px 0; padding: 0.6rem 0.9rem; cursor: pointer;
+}
+.skipnav:focus { transform: translateY(0); }
+@media (prefers-reduced-motion: no-preference) { .skipnav { transition: transform 0.12s ease; } }

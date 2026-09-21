@@ -80,6 +80,7 @@ const ctx = {
 };
 
 let cleanup = null;
+let booted = false;
 let activeView = null;
 let activeParams = null;
 
@@ -100,6 +101,11 @@ function mount(view, params) {
   // stays where the player left it.
   const stayPut = sameScreen(view, params);
   const y = stayPut ? window.scrollY : 0;
+  // Whether focus is somewhere the player put it, or somewhere a redraw left
+  // it. This runs on every state change and not just on navigation, so moving
+  // focus unconditionally would snatch it away each time a depth-chart arrow
+  // was pressed — worse than never moving it at all.
+  const movedScreen = !stayPut && booted;
   if (cleanup) { try { cleanup(); } catch (e) { console.error(e); } cleanup = null; }
   activeView = view; activeParams = params;
   try {
@@ -114,6 +120,13 @@ function mount(view, params) {
   // browser lay it out first and clamp to what is actually there.
   if (stayPut && y) requestAnimationFrame(() => window.scrollTo(0, Math.min(y, document.documentElement.scrollHeight - window.innerHeight)));
   else window.scrollTo(0, 0);
+  // A single-page app changes the whole screen without the browser doing any of
+  // the things that normally tell a screen reader so. Moving focus to the new
+  // view is what stands in for that: the reader starts reading here rather than
+  // leaving the cursor on a link that no longer describes where you are. Not on
+  // the first mount, which would interrupt the page the player just opened.
+  if (movedScreen) app.focus({ preventScroll: true });
+  booted = true;
 }
 
 /**
@@ -124,6 +137,9 @@ function mount(view, params) {
  * when they decide what to do about it. Exporting still works when storage is
  * full, since it reads the league out of memory, so that is what it offers.
  */
+const skipEl = document.getElementById('skipnav');
+if (skipEl) skipEl.addEventListener('click', () => app.focus({ preventScroll: false }));
+
 function renderSaveWarning() {
   if (!saveWarnEl) return;
   const err = saveError();

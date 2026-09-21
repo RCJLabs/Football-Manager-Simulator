@@ -92,7 +92,7 @@ export function openPickTrade({ league, draft, pool, byId, userIdx, onDone }) {
       : html`<span class="muted">Add picks to both sides.</span>`;
 
     return html`
-      <div class="row between"><h2 style="margin:0">Trade picks</h2><button class="btn sm ghost" data-close>✕</button></div>
+      <div class="row between"><h2 style="margin:0">Trade picks</h2><button class="btn sm ghost" data-close aria-label="Close">✕</button></div>
       <p class="muted" style="margin:.2rem 0 .5rem;font-size:.85rem">Up to ${MAX_PICK_SIDE} picks a side, and the sides need not match. Send more than you take and you draft that many times fewer, signing the difference off what is left when the season starts.
       <b>Uneven deals are hard to get signed</b>, and the reason is worth knowing: a club cannot use more picks than it has slots, so the spare ones are simply never made. Quantity is worth nothing to whoever receives it, which is why a club will take your two good picks for one of its own and refuse the same trade with your two worst. Value the deal before you send it.</p>
       <div class="row" style="gap:.5rem;align-items:center">

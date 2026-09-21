@@ -17,6 +17,12 @@
   <link rel="stylesheet" href="./src/styles.css">
 </head>
 <body>
+  <!-- A button, not an anchor: this is a hash-routed app, so `href="#app"`
+       would set the route to /app, match nothing and bounce you home. And
+       `skipnav`, not `skip`, because the draft screen already owns that id for
+       its own Skip to my pick — two elements sharing one is invalid, and the
+       lookups an assistive technology relies on are exactly the ones it breaks. -->
+  <button id="skipnav" class="skipnav" type="button">Skip to content</button>
   <header class="topbar">
     <a href="#/" class="brand"><span class="brand-ball">🏈</span><span class="brand-text"> Gridiron Eras</span></a>
     <nav id="nav" class="nav"></nav>
@@ -27,9 +33,13 @@
        anchored to the viewport would be anchored to the bar instead. -->
   <div id="navMenu" class="nav-menu" role="menu" hidden></div>
   <div id="savewarn" class="savewarn" role="alert" hidden></div>
-  <main id="app" class="app"><div class="loading">Loading…</div></main>
+  <!-- tabindex so a screen change can move focus here; see `mount` in main.js. -->
+  <main id="app" class="app" tabindex="-1"><div class="loading">Loading…</div></main>
   <nav id="tabbar" class="tabbar" aria-label="Main"></nav>
   <div id="toast" class="toast" hidden></div>
+  <!-- Always present and never hidden: a live region that appears only when it
+       has something to say is not reliably announced. `toast()` mirrors into it. -->
+  <div id="srlive" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

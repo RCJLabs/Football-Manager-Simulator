@@ -326,7 +326,7 @@ export function view(root, params, ctx) {
     const open = ROSTER_SLOTS.find((s) => s.pos === p.pos && !team.slots[s.id]);
     const options = ROSTER_SLOTS.filter((s) => s.pos === p.pos && team.slots[s.id]).map((s) => ({ s, q: ctx.byId.get(team.slots[s.id]) })).filter((x) => x.q);
     const m = modal(html`
-      <div class="row between"><h2 style="margin:0">Activate ${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
+      <div class="row between"><h2 style="margin:0">Activate ${p.name}</h2><button class="btn sm ghost" data-close aria-label="Close">✕</button></div>
       <p class="muted">${open ? `The ${open.id} slot is open, so nobody has to go.` : 'Your roster is full at his position. Who makes way?'}</p>
       ${open ? html`<button class="btn primary block" data-take="" style="margin-bottom:.5rem">Into the open ${open.id} slot</button>` : ''}
       <ul class="plist">${raw(options.map(({ s, q }) => playerItem(q, { attrs: false, meta: ` · <span class="badge slot">${s.id}</span>`, action: `<button class="btn sm danger" data-take="${esc(q.id)}">Release</button>` })).join(''))}</ul>`);
@@ -345,7 +345,7 @@ export function view(root, params, ctx) {
     const open = ROSTER_SLOTS.find((s) => s.pos === p.pos && !team.slots[s.id]);
     const options = ROSTER_SLOTS.filter((s) => s.pos === p.pos && team.slots[s.id]).map((s) => ({ s, q: ctx.byId.get(team.slots[s.id]) })).filter((x) => x.q);
     const m = modal(html`
-      <div class="row between"><h2 style="margin:0">Bring up ${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
+      <div class="row between"><h2 style="margin:0">Bring up ${p.name}</h2><button class="btn sm ghost" data-close aria-label="Close">✕</button></div>
       <p class="muted">${open ? `The ${open.id} slot is open, so nobody has to go.` : 'Your roster is full at his position. Who makes way?'}</p>
       ${open ? html`<button class="btn primary block" data-take="" style="margin-bottom:.5rem">Into the open ${open.id} slot</button>` : ''}
       <ul class="plist">${raw(options.map(({ s, q }) => playerItem(q, { attrs: false, meta: ` · <span class="badge slot">${s.id}</span>`, action: `<button class="btn sm danger" data-take="${esc(q.id)}">Release</button>` })).join(''))}</ul>`);

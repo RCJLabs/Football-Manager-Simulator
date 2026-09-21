@@ -517,7 +517,7 @@ export function view(root, params, ctx) {
     const openSlot = emptySlotAt(me, p.pos);
     const hurtNote = injuries[p.id] ? html`<p class="notice">He is hurt: ${injuries[p.id].kind}, out ${fmtWeeksSafe(injuries[p.id].weeks)}. You can still claim him and wait.</p>` : '';
     const m = modal(html`
-      <div class="row between"><h2 style="margin:0">Claim ${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
+      <div class="row between"><h2 style="margin:0">Claim ${p.name}</h2><button class="btn sm ghost" data-close aria-label="Close">✕</button></div>
       <p class="muted">${ovrBadge(p)} ${posBadge(p.pos)} ${p.season} ${p.team}. ${openSlot ? 'Fill the open slot, or release someone.' : 'Who goes to make room?'}</p>
       ${hurtNote}
       ${openSlot ? html`<button class="btn primary block" data-drop="" style="margin-bottom:.5rem">Into the open ${openSlot} slot</button>` : ''}

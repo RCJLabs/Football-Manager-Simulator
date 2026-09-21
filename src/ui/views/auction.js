@@ -124,7 +124,7 @@ export function view(root, params, ctx) {
           <div class="lbl"><span>Only ask me about players rated</span><b id="askLbl">${ui.minAsk}+</b></div>
           <input type="range" id="minAsk" min="70" max="99" step="1" value="${ui.minAsk}">
         </div>
-        <button class="btn danger block" id="autoAll">Auto-complete my roster</button>
+        <button class="btn danger block" id="autoAll" data-autoall>Auto-complete my roster</button>
       </div>
     </div>`;
 
@@ -188,7 +188,7 @@ export function view(root, params, ctx) {
         <small class="muted">The highest maximum wins and pays $1 more than the runner-up, so bidding your true limit costs you nothing.</small>
       </div>`;
   } else {
-    main = html`<div class="card"><p class="empty">Waiting on the room…</p><button class="btn block" id="autoAll">Auto-complete my roster</button></div>`;
+    main = html`<div class="card"><p class="empty">Waiting on the room…</p><button class="btn block" data-autoall>Auto-complete my roster</button></div>`;
   }
 
   render(root, html`<div id="auction-view">
@@ -213,7 +213,12 @@ export function view(root, params, ctx) {
 
   el.querySelector('#minAsk')?.addEventListener('input', (e) => { el.querySelector('#askLbl').textContent = `${e.target.value}+`; });
   el.querySelector('#minAsk')?.addEventListener('change', (e) => { ui.minAsk = Number(e.target.value); redraw(); });
-  el.querySelector('#autoAll')?.addEventListener('click', (e) => {
+  // Two of these render at once — one beside the roster, one in the panel that
+  // shows while the room is bidding on somebody else — and they shared an id,
+  // so `querySelector` bound the first and the other was a button that did
+  // nothing when pressed. Bind by attribute and both work; the id stays on one
+  // so anything addressing it still can.
+  el.querySelectorAll('[data-autoall]').forEach((b) => b.addEventListener('click', (e) => {
     // Filling every remaining seat runs the rest of the room, which measures
     // over a second on a desktop and several on a phone.
     withBusy(e.currentTarget, () => {
@@ -223,7 +228,7 @@ export function view(root, params, ctx) {
         s.league.rngState = rng.state;
       });
     }, 'Completing…');
-  });
+  }));
 
   el.querySelector('#posTabs')?.addEventListener('click', (e) => { const b = e.target.closest('[data-pos]'); if (b) { ui.pos = b.dataset.pos; ui.limit = 60; redraw(); } });
   el.querySelector('#eraTabs')?.addEventListener('click', (e) => { const b = e.target.closest('[data-era]'); if (b) { ui.era = b.dataset.era; ui.limit = 60; redraw(); } });

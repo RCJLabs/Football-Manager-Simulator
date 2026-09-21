@@ -109,7 +109,7 @@ export function compareModal(a, b) {
   }).join('');
 
   return modal(html`
-    <div class="row between"><h2 style="margin:0">Compare</h2><button class="btn sm ghost" data-close>✕</button></div>
+    <div class="row between"><h2 style="margin:0">Compare</h2><button class="btn sm ghost" data-close aria-label="Close">✕</button></div>
     <div class="cmp-head">${raw(headline(a))}${raw(headline(b))}</div>
     <div class="cmp-rows">${raw(body)}</div>
     <p class="muted cmp-note">${edgeLine(rows)}${anyEstimate ? ' Tildes are projections, not measurements — he has not played yet.' : ''}</p>

@@ -2243,6 +2243,66 @@ name that wrapped to two lines pushed its badge a line clear of the other
 player's, so the one pair of numbers most worth reading together did not line
 up.
 
+### Reachable without a mouse
+
+The audit counted 154 buttons against 18 aria attributes, zero live regions and
+one `:focus-visible` rule in the whole stylesheet, and the counts undersold it
+in one direction and oversold it in another. Nothing anywhere sets `outline:
+none`, so keyboard focus was never invisible, only unstyled and thin against
+dark green. What the counts missed was worse.
+
+**A player's name was a `<span>` with a click handler.** The player card is the
+app's detail view — ratings, age, the decline curve, the rating editor — and it
+is opened by tapping a name, in the pool, on a roster, on the draft board, in
+the auction room, in the honours list. A span is not in the tab order and a
+click handler does not fire on Enter, so from a keyboard that screen did not
+exist. They are buttons now, styled back down to bare text so nothing looks
+different.
+
+**The modal made a promise it did not keep.** `aria-modal="true"` tells
+assistive technology that nothing behind the dialog is reachable, and the
+browser does not enforce that on its own: Tab walked straight out of the panel
+into a page that was still scrolled to wherever it had been. Focus now moves to
+the panel on open, cycles inside it, and goes back to whatever opened it on
+close — that last part mattering most, because a card opened from the fortieth
+row of the pool used to leave you at the top of the document.
+
+**Nothing was ever announced.** The toast is the whole feedback channel — a deal
+going through, a claim refused — and a `hidden` element is not announced, nor is
+unhiding one reliably a change worth announcing. Rather than make the toast
+itself a live region, `toast()` mirrors into a permanent one, so announcement no
+longer depends on the visible toast at all. The live game goes through the same
+channel: the play-by-play list redraws whole, so a live region on it would read
+the entire log again every snap, and instead the newest play is said once.
+
+A screen change moves focus to `#app`. A single-page app replaces the screen
+without the browser doing any of the things that normally tell a reader so, and
+moving focus is what stands in for that. Only on a real screen change: `mount`
+runs on every state change, so doing it unconditionally would snatch focus away
+each time a depth-chart arrow was pressed, which is worse than never moving it.
+
+**Two bugs found by building it, neither of them about accessibility.**
+
+The skip link went in as `id="skip"`, which is the id the draft screen already
+uses for *Skip to my pick*. Two elements sharing an id is invalid, and the
+lookups it breaks are exactly the ones assistive technology depends on. Nothing
+noticed except a smoke click that timed out against an off-screen button.
+
+So the smoke run now asserts an accessibility floor on every screen it already
+visits: every rendered control has an accessible name, no id appears twice, the
+live region is present and unmuted. On its first run it found `autoAll` twice in
+the auction — one beside the roster, one in the panel shown while the room bids
+on somebody else — which meant `querySelector` bound the first and **the other
+was a button that did nothing when pressed**. That had nothing to do with
+screen readers and had been shipped for a while.
+
+Also here: the skip link is a `<button>` rather than an `<a href="#app">`,
+because this is a hash-routed app and that href would set the route to `/app`,
+match nothing, and bounce the player home.
+
+Not done: colour-contrast measurement, a keyboard pass over the auction room's
+bidding controls specifically, and `aria-current` on the active nav item.
+
 ## UI
 
 Vanilla ES modules, hash router, one persisted state object (`store.js`). Views re-render from state; the live game view manages its own DOM and autoplay timer. Everything is relative-path so it deploys to a GitHub Pages subpath. Service worker: network-first for HTML, cache-first for assets (bump `CACHE` in `sw.js` on every release or installed clients keep the old CSS).

@@ -64,6 +64,37 @@ async function checkNav(where) {
 }
 
 /** Fails if the page scrolls sideways, and names the widest offending element. */
+/**
+ * The accessibility floor, asserted on every screen the run visits.
+ *
+ * Three things, each of which had actually gone wrong rather than being
+ * theoretical: a control nobody can name, two elements sharing an id, and a
+ * live region that is not there to speak. The id check earns its place — adding
+ * a skip link as `#skip` quietly stole the id the draft screen uses for Skip to
+ * my pick, and the first thing that noticed was a click timing out.
+ */
+async function checkA11y(where) {
+  const bad = await page.evaluate(() => {
+    const out = { unnamed: [], dupes: [], live: null };
+    const name = (el) => (el.getAttribute('aria-label') || el.getAttribute('title')
+      || (el.getAttribute('aria-labelledby') ? 'labelledby' : '') || el.textContent || '').trim();
+    for (const el of document.querySelectorAll('button, a[href]')) {
+      if (el.offsetParent === null && el.id !== 'skipnav') continue;   // not rendered, cannot be reached
+      if (!name(el)) out.unnamed.push(`${el.tagName.toLowerCase()}#${el.id || ''}.${(el.className || '').toString().split(' ')[0]}`);
+    }
+    const seen = new Set();
+    for (const el of document.querySelectorAll('[id]')) {
+      if (seen.has(el.id)) out.dupes.push(el.id); else seen.add(el.id);
+    }
+    const live = document.getElementById('srlive');
+    out.live = live && !live.hidden && live.getAttribute('aria-live') === 'polite';
+    return out;
+  });
+  if (bad.unnamed.length) errors.push(`a11y ${where}: ${bad.unnamed.length} control(s) with no accessible name: ${bad.unnamed.slice(0, 4).join(', ')}`);
+  if (bad.dupes.length) errors.push(`a11y ${where}: duplicate id(s): ${[...new Set(bad.dupes)].slice(0, 4).join(', ')}`);
+  if (!bad.live) errors.push(`a11y ${where}: the live region is missing or muted`);
+}
+
 async function checkOverflow(where) {
   const bad = await page.evaluate(() => {
     const docW = document.documentElement.clientWidth;
@@ -83,6 +114,7 @@ async function checkOverflow(where) {
   });
   if (bad) errors.push(`overflow on ${where}: page is ${bad.scrollW}px wide in a ${bad.docW}px viewport — ${bad.offenders.join(', ') || 'no single offender found'}`);
   await checkNav(where);
+  await checkA11y(where);
 }
 
 try {

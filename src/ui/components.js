@@ -93,7 +93,7 @@ export function playerItem(p, { action = '', meta = '', cls = '', attrs = true, 
   return `<li class="prow ${cls}" data-id="${esc(p.id)}">
     ${ovrBadge(p).__raw}
     <div class="who">
-      <div class="nm"><span class="tap" data-show="${esc(p.id)}">${esc(p.name)}</span>${pos ? posBadge(p.pos).__raw : ''}</div>
+      <div class="nm"><button type="button" class="tap" data-show="${esc(p.id)}">${esc(p.name)}</button>${pos ? posBadge(p.pos).__raw : ''}</div>
       <div class="meta">${p.generated ? `class of ${p.season}` : `${p.season} ${esc(p.team)}`}${p.generated ? rookieBadge(p).__raw : era ? eraBadge(p.season).__raw : ''}${ageBadge(p).__raw}${meta}</div>
     </div>
     <div class="act">${action}</div>
@@ -139,7 +139,26 @@ export function withBusy(btn, fn, label = 'Working…') {
   }, 20);
 }
 
+/**
+ * The game's whole feedback channel — a deal going through, a claim refused, a
+ * rating edit saved — and it was invisible to a screen reader, because a
+ * `hidden` element is not announced and unhiding one is not reliably a change
+ * worth announcing either.
+ *
+ * The fix is not to make the toast itself a live region but to mirror it into a
+ * permanently-present one. Announcement then has nothing to do with whether the
+ * visible toast is up, which is the part that was fragile.
+ */
+export function announce(msg) {
+  const live = document.getElementById('srlive');
+  if (!live) return;
+  // Same message twice in a row is not a change, so nothing is read. A
+  // zero-width space that alternates makes it one.
+  live.textContent = live.textContent === msg ? `${msg}\u200b` : msg;
+}
+
 export function toast(msg, ms = 2200) {
+  announce(msg);
   const el = document.getElementById('toast');
   if (!el) return;
   el.textContent = msg;
@@ -148,15 +167,50 @@ export function toast(msg, ms = 2200) {
   toastTimer = setTimeout(() => (el.hidden = true), ms);
 }
 
-export function modal(contentHtml, { onClose } = {}) {
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * A dialog that a keyboard can actually get out of.
+ *
+ * `aria-modal` is a promise to assistive technology that nothing behind the
+ * dialog is reachable, and the browser does not keep that promise on its own:
+ * without a trap, Tab walks straight out of the panel and into the page
+ * underneath, which is still scrolled to wherever it was and still looks
+ * interactive. So focus moves in on open, cycles inside, and goes back to
+ * whatever opened it on close — the last part matters most, because a player
+ * modal opened from the fortieth row of the pool used to dump you at the top
+ * of the document.
+ */
+export function modal(contentHtml, { onClose, label = 'Dialog' } = {}) {
+  const opener = document.activeElement;
   const back = document.createElement('div');
   back.className = 'modal-back';
-  back.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${contentHtml.__raw ?? contentHtml}</div>`;
-  const close = () => { back.remove(); document.removeEventListener('keydown', onKey); onClose && onClose(); };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  back.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(label)}" tabindex="-1">${contentHtml.__raw ?? contentHtml}</div>`;
+  const panel = back.firstElementChild;
+  const close = () => {
+    back.remove();
+    document.removeEventListener('keydown', onKey);
+    // Only take focus back if it is still ours to give; a close that navigates
+    // has already put it somewhere better.
+    if (opener && opener.isConnected && (document.activeElement === document.body || !document.activeElement)) opener.focus();
+    onClose && onClose();
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key !== 'Tab') return;
+    const items = [...panel.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === panel);
+    if (!items.length) { e.preventDefault(); panel.focus(); return; }
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
   back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('[data-close]')) close(); });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(back);
+  // The panel itself, not its first button: landing on ✕ reads the dialog as
+  // one thing you can do, which is to leave. A dialog with `tabindex="-1"` and
+  // a label reads its name and then its contents, which is the whole point.
+  panel.focus();
   return { el: back, close };
 }
 
@@ -165,7 +219,7 @@ export function playerModal(p, extra = '') {
   const editing = !!getState().prefs?.ratingEditor;
   const rows = def.attrs.map((a) => `<div class="slider-row"><div class="lbl"><span>${ATTR_NAMES[a] || a}${p.baseR && p.baseR[a] !== p.r[a] ? ` <small class="muted">(was ${p.baseR[a]})</small>` : ''}</span>${editing ? `<input type="number" class="rating-edit" data-attr="${a}" min="40" max="99" value="${p.r[a]}" style="width:4.5rem;padding:.2rem .4rem;text-align:right">` : `<b>${p.r[a]}</b>`}</div><div class="bar"><i style="width:${p.r[a]}%"></i></div></div>`).join('');
   const m = modal(html`
-    <div class="row between"><h2 style="margin:0">${p.name}</h2><span class="row" style="gap:.35rem">${raw(compareButton(p))}<button class="btn sm ghost" data-close>✕</button></span></div>
+    <div class="row between"><h2 style="margin:0">${p.name}</h2><span class="row" style="gap:.35rem">${raw(compareButton(p))}<button class="btn sm ghost" data-close aria-label="Close">✕</button></span></div>
     <p class="muted">${def.name} · ${p.generated ? `generated rookie, class of ${p.season}` : `${p.season} ${p.team} · ${eraOf(p.season)}`} · Overall <span id="ovrNow">${ovrBadge(p)}</span></p>
     ${p.retired ? html`<p class="muted" style="margin:-.3rem 0 0">Retired at ${p.age}. He stays in the record books; he cannot be signed.</p>`
       : p.age != null ? html`<p class="muted" style="margin:-.3rem 0 0">Age ${p.age}, ${careerPhase(p.pos, p.age)}${p.base && overall(p) !== overall(p.base) ? ` · ${overall(p) > overall(p.base) ? 'up' : 'down'} ${Math.abs(overall(p) - overall(p.base))} from the ${p.base.season} version you signed` : ''}.</p>` : ''}

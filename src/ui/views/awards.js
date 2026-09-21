@@ -16,7 +16,7 @@ export function view(root, params, ctx) {
   const ordOf = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
   const byId = ctx.byId;
   const name = (id) => esc(byId.get(id)?.name || id);
-  const who = (e) => (e ? `<span class="tap" data-show="${esc(e.id)}"><b>${name(e.id)}</b></span> ${posBadge(byId.get(e.id)?.pos || '').__raw} ${teamChip(league.teams[e.team], { abbr: true }).__raw}` : '<span class="muted">—</span>');
+  const who = (e) => (e ? `<button type="button" class="tap" data-show="${esc(e.id)}"><b>${name(e.id)}</b></button> ${posBadge(byId.get(e.id)?.pos || '').__raw} ${teamChip(league.teams[e.team], { abbr: true }).__raw}` : '<span class="muted">—</span>');
   const played = league.teams.some((t) => t.record.w + t.record.l + t.record.t > 0);
 
   let body;
@@ -106,7 +106,7 @@ export function view(root, params, ctx) {
       const bits = [`${c.seasons} season${c.seasons === 1 ? '' : 's'}`, c.titles ? `${c.titles} title${c.titles > 1 ? 's' : ''}` : '', c.mvp ? `${c.mvp}× MVP` : '', c.opoy ? `${c.opoy}× OPOY` : '', c.dpoy ? `${c.dpoy}× DPOY` : '', c.allLeague ? `${c.allLeague}× all-league` : '', c.leader ? `${c.leader}× leader` : ''].filter(Boolean);
       const p = byId.get(r.id);
       const totals = p ? (p.pos === 'QB' ? `${c.passYds} pass yds, ${c.passTd} TD` : ['RB'].includes(p.pos) ? `${c.rushYds} rush yds, ${c.rushTd + c.recTd} TD` : ['WR', 'TE'].includes(p.pos) ? `${c.recYds} rec yds, ${c.recTd} TD` : p.pos === 'K' ? `${c.fieldGoals} FG` : p.pos === 'P' ? '' : `${c.tackles} tkl, ${c.sacks} sck, ${c.interceptions} INT`) : '';
-      return `<li><span class="tap" data-show="${esc(r.id)}"><b>${name(r.id)}</b></span> ${posBadge(p?.pos || '').__raw} <small class="muted">${bits.join(' · ')}${totals ? ` · ${totals}` : ''} · score <b>${r.score}</b></small></li>`;
+      return `<li><button type="button" class="tap" data-show="${esc(r.id)}"><b>${name(r.id)}</b></button> ${posBadge(p?.pos || '').__raw} <small class="muted">${bits.join(' · ')}${totals ? ` · ${totals}` : ''} · score <b>${r.score}</b></small></li>`;
     };
     body = html`
       <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">A résumé score: a point a season, four for an MVP, two for a player-of-the-year award or a title, one and a half per all-league selection, half per statistical title, plus a point per 300 fantasy points. Induction at ${HOF_THRESHOLD} with at least ${HOF_MIN_SEASONS} seasons.</p>
