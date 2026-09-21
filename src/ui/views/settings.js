@@ -44,6 +44,7 @@ export function view(root, params, ctx) {
         <div class="slider-row" style="margin-top:1rem">
           <div class="lbl"><span>Autoplay speed</span><b id="speedLbl">${(s.prefs.autoplayMs / 1000).toFixed(1)}s per play</b></div>
           <input type="range" id="speed" min="200" max="3000" step="100" value="${s.prefs.autoplayMs}">
+          <small class="muted">An average: a big swing is held on, a kneel-down goes by.</small>
         </div>
       </div>
       <div class="card">

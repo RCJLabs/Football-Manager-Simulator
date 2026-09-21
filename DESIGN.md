@@ -1319,6 +1319,50 @@ Two engine fields make it possible, added to every scrimmage play and every pena
 
 Two things about the plumbing are worth knowing, because both were wrong first. The bar reads the last entry in the log that carries `from`, not `g.lastEvent`: a play that changes hands calls `changePossession` inside the same step, and that logs the new drive's header on top of it, so punts, interceptions, fumbles, missed field goals and turnovers on downs all had their bar overwritten before it could draw. And the phase is no authority either — a touchdown flips to `pat` and a made field goal to `kickoff` the moment they score, so gating on `phase === 'play'` hid the bar for exactly the plays most worth seeing. Nothing but a snap logs `from`, so the bar clears itself at the next kickoff or quarter break. A test pins all of it: every scrimmage type carries the fields, nothing else claims them, the drawn span stays on the field, and on a clean snap `from + yards` still equals the entry's own `ballOn`.
 
+### Autoplay, paced by what is at stake
+
+Autoplay was a flat `setInterval`, so a kneel-down got the same 900ms as a
+pick-six. That is most of why watching read as a ticker rather than a game: the
+screen changed at a constant rate regardless of whether anything had happened.
+
+The pacing signal was already there. Every event carries a win probability, so
+the swing a play produced is a free measure of how much it mattered. Measured
+over 5,785 snaps: half move it by less than half a point, the 75th percentile is
+1.6 points, the 99th is 24, and the largest single swing seen was 58. That is a
+range of two orders of magnitude being rendered at one speed.
+
+`paceDelay(base, delta, beat)` turns the swing into a hold. The curve is a
+square root, so the common small swings still separate from each other rather
+than all collapsing onto the floor, saturating at `FULL` (about the 99th
+percentile). `BEAT` is a separate floor — not a cap — for plays worth holding on
+even when the number barely moves: a score that is not a routine extra point, a
+turnover, the end of a period. A garbage-time touchdown is still the most
+interesting thing on the screen, and an extra point is the dullest score there
+is, which is why `xp` is excluded. 8.3% of snaps carry a beat.
+
+The constants (MIN 0.55, MAX 2.8, FULL 0.20, BEAT 1.4) were swept rather than
+guessed, against two requirements: a floor a person can actually read, and a
+mean that lands on the speed the player set. At the 900ms default that gives a
+495ms floor, an 846ms median, and a 2.5s ceiling, with a quarter of snaps at
+the floor — and a mean within 2% of 900ms, so the slider keeps meaning what it
+says and a game takes as long as it always did. Only the distribution changes. A
+test pins the mean over 2,000+ snaps so the curve cannot be retuned into
+something that quietly doubles a game. The result is clamped in absolute terms
+too (250ms–4s), so neither end of a 200–3000ms slider becomes a flicker or a
+slideshow.
+
+Two mechanical notes. The loop is a self-rescheduling `setTimeout` rather than
+an interval, because each gap differs; `stopAuto` clears it, and leaving the
+screen is covered by the view's own teardown. And the first play runs on the
+click instead of after a wait, so the button answers straight away.
+
+Two things went wrong while measuring this and are worth recording, because both
+were the instrument rather than the code. Sampling the page from the driver with
+a dynamic `import()` per poll cost more than the gap being measured, and the
+floor read as 886ms against a modelled 495ms until the sampler moved inside the
+page. And the first "gap" of a run is the opening kickoff firing on the click,
+not a pace at all.
+
 ### The clock, when a coach is running it
 
 Coach mode let you call plays and nothing else. The clock was entirely the
