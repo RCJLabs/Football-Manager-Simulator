@@ -30,7 +30,8 @@
     "yardstick": "node scripts/yardstick.mjs",
     "yardstick-fit": "node scripts/yardstick-fit.mjs",
     "legacy": "node scripts/legacy-check.mjs",
-    "attrs": "node scripts/attribute-leverage.mjs"
+    "attrs": "node scripts/attribute-leverage.mjs",
+    "budgets": "node scripts/budget-spread.mjs"
   },
   "engines": {
     "node": ">=20"

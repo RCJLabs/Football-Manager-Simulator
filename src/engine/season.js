@@ -13,7 +13,7 @@ import { RNG, hashSeed } from './rng.js';
 import { createDraft, assignGms } from './draft.js';
 import { signablePool, scheduleDrain } from './proleague.js';
 import { squadList, agedOutOfSquad } from './squad.js';
-import { createAuction, TRUE_LEVERAGE } from './auction.js';
+import { createAuction, TRUE_LEVERAGE, spreadBudgets, DEFAULT_BUDGET} from './auction.js';
 import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats, fantasyPoints } from './stats.js';
 import { buildLineup, teamPower, overall } from './ratings.js';
 import { ROSTER_SLOTS } from '../data/positions.js';
@@ -48,7 +48,7 @@ function blankTeam(t) {
  * mode 'pro': 32 franchises; `franchise` is the index the user takes over, and
  * any user name/abbr/color given overrides that franchise's identity.
  */
-export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 'auction', budget, mode = 'fantasy', franchise = 0, injuries = DEFAULT_INJURY_LEVEL, keepers } = {}) {
+export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 'auction', budget, budgetSpread = 0, mode = 'fantasy', franchise = 0, injuries = DEFAULT_INJURY_LEVEL, keepers } = {}) {
   seed = seed ?? Math.floor(Math.random() * 4294967295);
   const rng = new RNG(seed);
   let teams;
@@ -92,10 +92,20 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
     injuries: {},
     contracts: {},
     offseason: null,
-    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, scouting: true, jobs: true, difficulty: DEFAULT_DIFFICULTY, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode) },
+    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, scouting: true, jobs: true, difficulty: DEFAULT_DIFFICULTY, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode), budgetSpread: Number(budgetSpread) || 0 },
   };
   assignGms(league, rng);
-  if (draftType === 'auction') league.auction = createAuction(league, rng, budget ? { budget } : {});
+  if (draftType === 'auction') {
+    // Unequal cap room is a setup choice rather than a default: it buys variety
+    // by making some clubs richer than others, and the money in the room is
+    // unchanged either way. Whose club is which is the shuffle's business, and
+    // yours is in the draw.
+    const cap = budget || DEFAULT_BUDGET;
+    const spread = league.settings.budgetSpread;
+    league.auction = createAuction(league, rng, spread
+      ? { budget: cap, budgets: spreadBudgets(cap, league.teams.length, spread, rng) }
+      : (budget ? { budget } : {}));
+  }
   else league.draft = createDraft(league, rng);
   league.rngState = rng.state;
   return league;

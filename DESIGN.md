@@ -1947,9 +1947,50 @@ That is not a flat league. The pass/run read is worth about a point, so tactics 
 
 What is true, and was never the point being argued: the draft distributes talent evenly *relative to what the pool allows*. An eight-club league could produce a 6.40 power spread and produces 0.88 — 12% of the available range, and the same 12% at every league size, because the snake order hands out equal draft capital and the roster template forbids concentrating it. The pool is not the constraint: at eight clubs every drafted player is 88 or better.
 
-If more variety is ever wanted, the one lever that measured worth having is **unequal auction budgets**: ±20% takes the best-to-worst differential from 6.4 to **10.1 points a game**, ±40% adds nothing further (10.2), and widening the spread of GM savvy is worth under a point. It belongs as a setup option rather than a default, and it is not built.
+If more variety is ever wanted, the one lever that measured worth having is
+**unequal auction budgets**, and it is built now — a *Cap room* choice on the
+setup screen, auction only, off by default. See **Unequal cap room** below,
+which re-measures it and corrects one half of what this paragraph used to
+claim.
 
-### What the strategy dials are actually worth### What the strategy dials are actually worth
+### Unequal cap room
+
+`spreadBudgets` hands the same money out unevenly: multipliers spaced evenly
+from `1-spread` to `1+spread`, rounded, then shuffled. Evenly spaced rather than
+drawn at random so the advertised range is exactly what clubs get, and summing
+to the same total so this redistributes buying power rather than inflating the
+market — a $160 club and a $240 club, not a poorer league. Which seat is rich is
+the shuffle's business and yours is in the draw, because that is the variety
+being bought.
+
+The claim it was built on predated the pool rewrite, the attribute wiring and
+the weight refit, so `npm run budgets` measures it again. The reading that
+matters is the gap in roster strength between the best and worst club, because
+a thirteen-game season's point differential is mostly luck — the same leagues
+show a 17-point season gap with *equal* budgets, which is what the old
+measurement's 6.4 was not counting.
+
+| cap room | power gap | ≈ points a game | corr(budget, power) |
+| --- | --- | --- | --- |
+| even | 1.52 ± 0.08 | 4.9 | — |
+| ±10% (`mild`) | 1.79 ± 0.05 | 5.8 | 0.55 |
+| ±20% (`wide`) | 2.44 ± 0.08 | 7.9 | 0.81 |
+| ±40% | 3.98 ± 0.09 | 12.9 | 0.93 |
+
+Half the old claim holds: a fifth either way roughly doubles how far the best
+squad finishes ahead of the worst. The other half does not. "±40% adds nothing
+further" does not reproduce — it keeps climbing, and takes the correlation
+between a club's budget and its roster strength to **0.93**, at which point the
+draw has decided the season before a game is played. That is why the ladder
+stops at `wide` rather than going further: the setting is for variety, and past
+about a fifth it stops being variety and starts being the result.
+
+A safety property worth stating because it is the auction's one promise: a club
+always keeps $1 per unfilled slot, so every roster completes however poor it
+started. A club on $160 with twenty-seven seats to fill is exactly where that
+would break, and a test drives one to make sure it does not.
+
+### What the strategy dials are actually worth
 
 Five dials were presented as five decisions. Driven end to end on identical rosters, 700 to 1,500 paired games per cell, only one of them is:
 

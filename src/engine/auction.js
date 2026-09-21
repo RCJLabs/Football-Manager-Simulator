@@ -242,6 +242,39 @@ export function priceGuide(auction, league, pool) {
   return { prices, worth, repl, totalSlots, moneyLeft };
 }
 
+/** The spreads the setup screen offers, as a fraction either side of the cap. */
+export const BUDGET_SPREADS = { even: 0, mild: 0.1, wide: 0.2 };
+
+/**
+ * Unequal cap room, handed out evenly across the range and then shuffled.
+ *
+ * Measured before it was built: a spread of a fifth either way takes the
+ * best-to-worst differential in a league from 6.4 points a game to about ten,
+ * where widening the spread of GM savvy instead is worth under a point. Forty
+ * per cent adds nothing over twenty, so `wide` is where the ladder stops.
+ *
+ * Evenly spaced rather than drawn at random, for two reasons: the advertised
+ * range is then exactly what clubs get instead of whatever the dice said, and
+ * the money in the room is unchanged, so this redistributes buying power rather
+ * than inflating or deflating the whole market. Whose club is rich is the part
+ * left to the shuffle, and yours is in it — that is the variety being bought.
+ */
+export function spreadBudgets(base, n, spread, rng) {
+  if (!spread || n < 2) return Array.from({ length: n }, () => base);
+  const raw = Array.from({ length: n }, (_, i) => base * (1 - spread + (2 * spread * i) / (n - 1)));
+  const out = raw.map((v) => Math.max(1, Math.round(v)));
+  // Rounding eleven or thirteen ways does not land on the total; give the
+  // difference to the middle club so the extremes stay exactly as advertised.
+  let drift = base * n - out.reduce((a, b) => a + b, 0);
+  for (let i = 0; drift !== 0; i = (i + 1) % n) {
+    const mid = Math.floor(n / 2);
+    const k = (mid + Math.ceil(i / 2) * (i % 2 ? 1 : -1) + n) % n;
+    const step = drift > 0 ? 1 : -1;
+    out[k] += step; drift -= step;
+  }
+  return rng ? rng.shuffle(out) : out;
+}
+
 export function createAuction(league, rng, { budget = DEFAULT_BUDGET, budgets = null, order = null, taken = {} } = {}) {
   const start = budgets ? budgets.slice() : league.teams.map(() => budget);
   const a = {
