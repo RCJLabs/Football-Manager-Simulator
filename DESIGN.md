@@ -2303,6 +2303,40 @@ match nothing, and bounce the player home.
 Not done: colour-contrast measurement, a keyboard pass over the auction room's
 bidding controls specifically, and `aria-current` on the active nav item.
 
+### Contracts for the two modules that had none
+
+`season.js` is the largest engine module at eleven hundred lines and had no test
+file; `ratings.js` had none either, and holds the id-keyed cache that produced
+the blind fingerprint. Both were exercised sideways by other suites — `overall`
+appears in eighteen of them — but as a helper, with nothing asserting what it
+promises.
+
+What is pinned, in `tests/ratings.test.js`: that `overall` caches by id and
+therefore hands one player's rating to a different object sharing it, which is
+the trap rather than an accident; that `rawOverall` is the way out and treats a
+missing attribute as 60; that a player carrying his own `ovr` never consults the
+cache; that a lineup follows slot order and an injury moves the next man up;
+that awareness now reaches coverage and run fits and is neutral at 82, the
+population the engine was fitted against; that pass rush leans on the best two
+rushers rather than the mean of four; and that team power weighs starters by
+leverage and ignores the bench. In `tests/season.test.js`: the schedule
+invariants — nobody plays himself, nobody twice in a week, eight clubs get a
+clean double round robin with hosting split exactly, the pro slate is seventeen
+games and one bye with a last week of nothing but rivalries — plus that a game
+seed is fixed by league, season, week and both clubs, and that power rankings
+sort and feel an injury.
+
+**They were checked by breaking the code.** A test written against behaviour
+that already passes proves nothing until something fails it, so five mutations
+went in one at a time: stop reading awareness, count the bench, flatten pass
+rush to a four-man mean, stop flipping home and away, drop the week from the
+game seed. Four were caught immediately. **The bench one was not**, and the
+reason is the trap the first test in the file is about: it bumped the bench
+*after* reading the squad once, by which point `overall` had cached those ids
+and went on answering 80 whatever the attributes said. The fix is a second
+squad with its own ids. Worth recording because the cache defeated a test
+written by someone who had just finished documenting it.
+
 ## UI
 
 Vanilla ES modules, hash router, one persisted state object (`store.js`). Views re-render from state; the live game view manages its own DOM and autoplay timer. Everything is relative-path so it deploys to a GitHub Pages subpath. Service worker: network-first for HTML, cache-first for assets (bump `CACHE` in `sw.js` on every release or installed clients keep the old CSS).
