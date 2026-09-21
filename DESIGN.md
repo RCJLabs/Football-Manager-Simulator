@@ -1319,6 +1319,57 @@ Two engine fields make it possible, added to every scrimmage play and every pena
 
 Two things about the plumbing are worth knowing, because both were wrong first. The bar reads the last entry in the log that carries `from`, not `g.lastEvent`: a play that changes hands calls `changePossession` inside the same step, and that logs the new drive's header on top of it, so punts, interceptions, fumbles, missed field goals and turnovers on downs all had their bar overwritten before it could draw. And the phase is no authority either — a touchdown flips to `pat` and a made field goal to `kickoff` the moment they score, so gating on `phase === 'play'` hid the bar for exactly the plays most worth seeing. Nothing but a snap logs `from`, so the bar clears itself at the next kickoff or quarter break. A test pins all of it: every scrimmage type carries the fields, nothing else claims them, the drawn span stays on the field, and on a clean snap `from + yards` still equals the entry's own `ballOn`.
 
+### Every call has its down
+
+The equilibrium solve over first and ten said the blitz and the stacked box were
+never worth calling. That is a claim about first down, not about the playbook,
+and `scripts/situational-grid.mjs` measures the rest of it: seven situations,
+each solved on the payoff that situation actually has. On first and second down
+that is yards less a turnover priced at forty of them. On third down yards
+barely matter — converting does — so it is the conversion rate, less a turnover
+priced at 0.8 of a conversion, because failing a third down means punting and
+losing it means handing back the same field without the punt.
+
+Where each defensive call earns its place, at 5% or more of the mix:
+
+| call | lives in |
+|---|---|
+| Base | 1st & 10, 2nd & 7, 3rd & 7 |
+| Stack the Box | **3rd & 1 (80% of the mix), 3rd & 3** |
+| Blitz | 3rd & 3, **1st & goal from the 6 (96%)** |
+| Deep Shell | everywhere except the red zone |
+
+Nothing is dead. The stacked box is a third-and-one call, exactly as expected —
+at 3rd & 1 the defence plays it 80% of the time and the offence answers by
+mixing the inside run 53% with a short pass 47%, converting 74%. The blitz was
+the surprise: its home is not third and long at all but the red zone, where it
+takes 96% of the mix at first and goal from the six. That follows once stated —
+in a compressed field the deep ball has nowhere to go, so the coverage a blitz
+sells is worth nothing and the pressure it buys is worth everything.
+
+Both prices are assumptions, so the table was re-solved at half and at nearly
+double them. The two findings that matter do not move: the stacked box lives at
+third and short at every price, the blitz lives in the red zone at every price.
+What shifts is only the marginal appearances — whether the blitz also shows up
+at 3rd & 3, whether base or a stacked box takes a share inside the six — and
+those move with the sample size too, so they should not be read as anything.
+
+Two things fell out of this that are worth keeping.
+
+**Third down is a different game, and the engine knows it.** `sticks()` starts
+at third down and scales with the distance, so the same inside run converts 81%
+on 3rd & 1 and 8% on 3rd & 12, while a medium pass goes the other way. That is
+the run's real job showing up in a number for the first time — the yards table
+could never display it.
+
+**Second and seven is first and ten to this engine, and deliberately so.** The
+two situations solve identically: same mixes, 7.13 against 7.12 yards a play.
+Down reaches a play only through `sticks()`, which does not fire until third,
+and through short yardage. The difference between a first and ten and a second
+and seven is which plays get called, which is `chooseOffense`'s job rather than
+the resolver's. A test says so, so that nobody reads the situational grid and
+files it as a bug.
+
 ### Reading the grid the wrong way
 
 The call grid is a table of what each pairing yields, and I twice read it as if
@@ -1353,11 +1404,11 @@ swings twenty points between a 1,200-snap sample and a 2,500-snap one and means
 nothing, so the script says so in its own output. What is stable across sample
 sizes and across any sane turnover price is the shape.
 
-And the shape names a different imbalance than the one I went looking for: **the
-blitz and the stacked box are never worth calling at first and ten**, at any
-turnover price. They earn their place in their own situations — a stacked box on
-3rd & 1, a blitz on 3rd & 8 — which a first-down grid cannot see, so this is a
-flag to go and measure those, not a verdict.
+And the shape appeared to name a different imbalance: **the blitz and the
+stacked box are never worth calling at first and ten**, at any turnover price.
+That was flagged as a thing to go and measure rather than a verdict, and
+measuring it is what **Every call has its down** below does. They are not dead;
+they were being asked about the one down where neither belongs.
 
 ### The shell stops the deep ball rather than erasing it
 
