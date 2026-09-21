@@ -59,7 +59,7 @@ export const RUN_OUT = 4.2;     // the same outside, where the spread is wider
 // nothing or lose ground, which is 16 to 22% in the real league — the rate
 // itself is lower than that share, because the branch that is *not* stuffed
 // still produces the occasional nothing.
-export const STUFF_RATE = 0.145;
+export const STUFF_RATE = 0.1415;  // 0.145 before power began resisting the stuff, which pushed runs stopped to 22.3 against a real ceiling of 22
 
 /**
  * What a broken tackle and a breakaway are worth, and how often they happen.
@@ -95,6 +95,15 @@ export const STUFF_RATE = 0.145;
  * was coming from the extra yards, not from the stacking, so the cascade was
  * an expensive way to write `+= more`.
  */
+// These centre the two run-game terms below. 82 is not the pool's average back
+// — that is nearer 84 power and 89 elusiveness — it is the mean of the
+// synthetic population every other constant in this file was fitted against,
+// which is the one that has to stay put. Centring on the real pool instead
+// halved the breakaway rate against the yardstick and took the mean run from
+// 4.61 to 4.15. A league of all-time greats then runs hotter than the
+// reference, which is correct: they are better than the reference.
+export const POW_MID = 82;
+export const ELU_MID = 82;
 export const BREAK_YDS_IN = 1.9;    // mean yards a broken tackle adds inside
 export const BREAK_YDS_OUT = 2.6;   // the same outside, where there is grass
 export const BREAKAWAY_RATE = 2.4;  // multiplier on the per-carry breakaway chance
@@ -258,19 +267,33 @@ export function resolveRun(g, rng, call, defCall) {
   if (sneak) {
     yards = rng.chance(0.78 + (comp.runBlock - def.runStop) / 200) ? rng.int(1, 3) : rng.int(-1, 0);
   } else {
-    const stuffP = clamp(STUFF_RATE * (1.6 - blockEdge * 1.2) + (m.stuff || 0) + squeeze(g.ballOn) * SQUEEZE_STUFF, 0.05, 0.45);
+    // A back with real power turns a would-be stuff into two yards, and that is
+    // most of what power is for. This did not look at the carrier at all, which
+    // is the larger half of why an eight-point lift in `pow` measured as worth
+    // nothing. Centred on the pool's starting back so the stuff rate itself
+    // does not move.
+    const stuffP = clamp(STUFF_RATE * (1.6 - blockEdge * 1.2) - (pow - POW_MID) * 0.0055 + (m.stuff || 0) + squeeze(g.ballOn) * SQUEEZE_STUFF, 0.05, 0.45);
     if (rng.chance(stuffP)) {
       yards = clamp(Math.round(rng.normal(-1, 1.4)), -5, 1);
     } else {
       const base = outside ? rng.normal(RUN_OUT, 3.4) : rng.normal(RUN_IN, 2.7);
       yards = (base + (blockEdge - 0.5) * 5 + (m.run || 0)) * (1 - squeeze(g.ballOn) * SQUEEZE_RUN);
       // Break a tackle.
-      const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) / 170, 0.05, 0.45);
+      // The divisor was flat enough that eight points of power moved this by
+      // 2.6 points of probability, for about three extra yards when it fired —
+      // eight hundredths of a yard a carry. A back who breaks tackles for a
+      // living should sit further from one who does not.
+      const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) / 115, 0.05, 0.45);
       if (rng.chance(btP)) yards += rng.exp(outside ? BREAK_YDS_OUT : BREAK_YDS_IN) + 0.48;
       // Breakaway: usually a medium burst, occasionally one that goes the
       // distance. The exponential is what gives the long one a tail instead of
       // a ceiling — a ninety-yard run is rare rather than impossible.
-      const baP = clamp(BREAKAWAY_RATE * (0.014 + Math.max(0, spd - def.defSpeed) / 300 + (m.breakaway || 0) + (outside ? 0.01 : 0)), 0.004, 0.24);
+      // Speed alone used to own the long run, behind a hard floor at the
+      // defence's speed: a back slower than the secondary broke nothing, however
+      // elusive, which is why `spd` measured at .567 of a back's worth and `elu`
+      // at zero. Elusiveness gets its own path to the same place, signed rather
+      // than floored so that a back who lacks it is worse off and the rate holds.
+      const baP = clamp(BREAKAWAY_RATE * (0.014 + (Math.max(0, spd - def.defSpeed) + (elu - ELU_MID) * 0.7) / 300 + (m.breakaway || 0) + (outside ? 0.01 : 0)), 0.004, 0.24);
       if (rng.chance(baP)) {
         const burst = rng.chance(HOUSECALL) ? 30 + rng.exp(20) : rng.int(9, 26);
         yards += burst * (spd >= 92 ? 1.3 : 1);

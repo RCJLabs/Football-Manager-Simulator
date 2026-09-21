@@ -83,6 +83,23 @@ export function composites(lineup) {
   const top2DL = topN(dl, 'prs', 2);
   const restDL = dl.filter((x) => !top2DL.includes(x));
 
+  // Awareness is what a defender does before the snap and in the first step
+  // after it: reading the route, filling the right gap. It used to be gathered
+  // here as `defAwr` and read by nothing, which made it fifteen per cent of a
+  // corner's rating and none of his effect — two corners eight points apart in
+  // awareness played games that came out identical to the character.
+  //
+  // It reaches the field now through the thing it improves rather than as a
+  // number of its own, and it improves its OWN group: a smart corner covers
+  // better, a smart front fits the run better. Centred on 82, the mean of the
+  // synthetic population the engine's constants were fitted against, for the
+  // same reason `olAwr` centres on 80 — the calibration is what has to hold
+  // still. Real defenders average nearer 88, so a real defence reads above the
+  // reference, which is what being better than the reference means.
+  const AWR_MID = 82;
+  const covOf = (arr) => (arr.length ? mean(arr, 'cov') + (mean(arr, 'awr') - AWR_MID) * 0.30 : 60);
+  const fitOf = (arr) => (arr.length ? mean(arr, 'rsd') + (mean(arr, 'awr') - AWR_MID) * 0.25 : 60);
+
   return {
     qb,
     rb1: rb[0], rb2: rb[1],
@@ -94,13 +111,15 @@ export function composites(lineup) {
     // defense
     passRush: 0.6 * mean(top2DL, 'prs') + 0.25 * mean(restDL.length ? restDL : dl, 'prs') + 0.15 * mean(lb, 'prs'),
     blitzRush: 0.45 * mean(top2DL, 'prs') + 0.15 * mean(restDL.length ? restDL : dl, 'prs') + 0.4 * mean(lb, 'prs'),
-    runStop: 0.45 * mean(dl, 'rsd') + 0.35 * mean(lb, 'rsd') + 0.1 * mean(s, 'rsd') + 0.1 * mean(lb, 'tck'),
-    covShort: 0.4 * mean(cb, 'cov') + 0.35 * mean(lb, 'cov') + 0.25 * mean(s, 'cov'),
-    covMed: 0.5 * mean(cb, 'cov') + 0.2 * mean(lb, 'cov') + 0.3 * mean(s, 'cov'),
-    covDeep: 0.5 * mean(cb, 'cov') + 0.4 * mean(s, 'cov') + 0.1 * mean(lb, 'cov'),
+    runStop: 0.45 * fitOf(dl) + 0.35 * fitOf(lb) + 0.1 * mean(s, 'rsd') + 0.1 * mean(lb, 'tck'),
+    covShort: 0.4 * covOf(cb) + 0.35 * covOf(lb) + 0.25 * covOf(s),
+    covMed: 0.5 * covOf(cb) + 0.2 * covOf(lb) + 0.3 * covOf(s),
+    covDeep: 0.5 * covOf(cb) + 0.4 * covOf(s) + 0.1 * covOf(lb),
     ballSkills: 0.6 * mean(cb, 'bal') + 0.4 * mean(s, 'bal'),
     tackling: 0.2 * mean(dl, 'tck') + 0.4 * mean(lb, 'tck') + 0.15 * mean(cb, 'tck') + 0.25 * mean(s, 'tck'),
     defSpeed: 0.45 * mean(cb, 'spd') + 0.35 * mean(s, 'spd') + 0.2 * mean(lb, 'spd'),
+    // Kept for anything that wants the raw number; the effect lives in covOf
+    // and fitOf above.
     defAwr: mean(allDef, 'awr'),
   };
 }

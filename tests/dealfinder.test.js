@@ -186,15 +186,34 @@ const propose = (lg, u, d) => proposeTrade(lg, u, d.club, d.wants, d.gives, byId
   pickDelta: pickTradeDelta(lg, byId, d.club, d.aiPicks, d.userPicks, projectedSlots(lg, byId)),
 });
 
+/**
+ * A season-two league holding at least one deal that needs a pick to close,
+ * with that league's full scan.
+ *
+ * Which deals need sweetening falls out of the standings, and the standings
+ * fall out of the simulation, so pinning a seed here pinned the engine too:
+ * both tests below broke the moment defensive awareness started reaching the
+ * field, having tested nothing about awareness. Searching survives that.
+ */
+function sweetenedDeal(from = 15, limit = 25) {
+  for (let seed = from; seed < from + limit; seed++) {
+    const lg = seasonTwo(seed);
+    if (!futurePicksOpen(lg)) continue;
+    const plan = dealPlan(lg, byId);
+    const all = [];
+    for (let i = 0; i < plan.clubs.length; i++) all.push(...scanClub(lg, byId, PLAYERS, plan, i));
+    const sweetened = all.filter((d) => d.userPicks.length || d.aiPicks.length);
+    if (sweetened.length) return { lg, all, sweetened };
+  }
+  return null;
+}
+
 test('a deal that needs a pick to close is still a deal that goes through', () => {
-  const lg = seasonTwo(15);
+  const found = sweetenedDeal();
+  assert.ok(found, 'no deal in twenty-five leagues needed a pick');
+  const { lg, sweetened } = found;
   assert.equal(futurePicksOpen(lg), true);
   const u = userTeamIndex(lg);
-  const plan = dealPlan(lg, byId);
-  const all = [];
-  for (let i = 0; i < plan.clubs.length; i++) all.push(...scanClub(lg, byId, PLAYERS, plan, i));
-  const sweetened = all.filter((d) => d.userPicks.length || d.aiPicks.length);
-  assert.ok(sweetened.length > 0, 'no deal in the league needed a pick');
   // Whichever way the pick goes, the promise is the same: press it and it works.
   const d = sweetened.sort((a, b) => b.userDelta - a.userDelta)[0];
   const r = propose(lg, u, d);
@@ -271,13 +290,11 @@ test('the finder\u2019s answer costs nothing extra to reach', () => {
 });
 
 test('a deal stops standing once its pick has been traded away', () => {
-  const lg = seasonTwo(15);
+  const found = sweetenedDeal();
+  assert.ok(found, 'no deal in twenty-five leagues carried a pick');
+  const { lg, sweetened } = found;
   const u = userTeamIndex(lg);
-  const plan = dealPlan(lg, byId);
-  const all = [];
-  for (let i = 0; i < plan.clubs.length; i++) all.push(...scanClub(lg, byId, PLAYERS, plan, i));
-  const withPick = all.find((d) => d.userPicks.length || d.aiPicks.length);
-  assert.ok(withPick, 'no deal carried a pick');
+  const withPick = sweetened[0];
   assert.equal(dealStillValid(lg, byId, PLAYERS, withPick, u), true);
   // Send the pick somewhere else and the deal is off.
   const p = withPick.userPicks[0] || withPick.aiPicks[0];
