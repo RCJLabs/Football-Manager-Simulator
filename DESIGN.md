@@ -32,7 +32,7 @@ That seam was already there. Across four hundred lines of play resolution the on
 
 **It stops there deliberately.** What remains is `applyOutcome`, `changePossession`, `doKickoff` and `endOfQuarter`, which call each other and share the whole game object. Splitting mutually recursive state machinery across files makes it harder to follow, not easier; 836 lines against `season.js`'s 791 is no longer an outlier, which was the actual problem.
 
-**How it was verified.** The engine is seeded, so the same rosters and seed must produce the same game down to the last word of play-by-play — which makes a hash of the output a far stronger check than the test suite, because a test asserts the properties somebody thought of and a fingerprint asserts everything. `scripts/game-fingerprint.mjs` (`npm run fingerprint`) simulates 256 games across the paths that diverge — five roster gaps, three rosters lopsided by position, penalties off, every injury rate, neutral sites, playoff rules, chemistry, and twelve coach-mode games driving `step()` by hand — and prints one hash over 47,821 log lines, plus a per-game hash so a divergence names itself. Before and after the split: `a9480bd47f40cac9`, identical. It reads `c0f42fd53ad4a81e` since the harness itself was fixed — see **A fingerprint that could not see the roster** below; the engine did not change for that one. Before that, `1e08b72a40e8bb25` from the two-high shell no longer erasing the deep ball (below). Before that, `318460005bde6589` from the short pass being given a counter (below). Before that, `328aac09ca0ef3eb` from the run game being given a look that rewards it and the second-quarter clock rules dropping their score gate (below). Before that, `fff8872cea59867e` from the defence playing the first-down marker and the red-zone squeeze being strengthened (below). Before that, `3147f969ccb7c6eb` from reshaping the run distribution, and `64ed7a2198e6daab` from win probability being stored to three decimals rather than to a double's full precision, which moved the annotation on every line and no play, and `6130e8df755f35db` from the realism audit below.
+**How it was verified.** The engine is seeded, so the same rosters and seed must produce the same game down to the last word of play-by-play — which makes a hash of the output a far stronger check than the test suite, because a test asserts the properties somebody thought of and a fingerprint asserts everything. `scripts/game-fingerprint.mjs` (`npm run fingerprint`) simulates 256 games across the paths that diverge — five roster gaps, three rosters lopsided by position, penalties off, every injury rate, neutral sites, playoff rules, chemistry, and twelve coach-mode games driving `step()` by hand — and prints one hash over 47,821 log lines, plus a per-game hash so a divergence names itself. Before and after the split: `a9480bd47f40cac9`, identical. It reads `64ff480a39db399a` since the leverage table was corrected (below). Before that, `c0f42fd53ad4a81e` from the harness itself being fixed — see **A fingerprint that could not see the roster** below; the engine did not change for that one. Before that, `1e08b72a40e8bb25` from the two-high shell no longer erasing the deep ball (below). Before that, `318460005bde6589` from the short pass being given a counter (below). Before that, `328aac09ca0ef3eb` from the run game being given a look that rewards it and the second-quarter clock rules dropping their score gate (below). Before that, `fff8872cea59867e` from the defence playing the first-down marker and the red-zone squeeze being strengthened (below). Before that, `3147f969ccb7c6eb` from reshaping the run distribution, and `64ed7a2198e6daab` from win probability being stored to three decimals rather than to a double's full precision, which moved the annotation on every line and no play, and `6130e8df755f35db` from the realism audit below.
 
 **The audit tool was under-reporting itself.** `scripts/realism.mjs` prints a header saying "! marks a number outside the real league's range" and then quietly exempted fifteen of its forty rows: everything below the penalty lines was a hand-written `console.log` carrying the reference range as a literal string, so it could never be marked. TD : FG sat at 1.99 against a stated 1.3–1.8 with no mark on it for as long as that lasted, and a claim of "37 of 40 in range" made in a commit message was read off marks that only covered part of the report. Every row goes through the same helper now, the helper judges the number *as printed* (a row reading 10.0 against a range of 10–13 and carrying a mark looks like a broken report), and the last line is a count.
 
@@ -1319,7 +1319,7 @@ Two engine fields make it possible, added to every scrimmage play and every pena
 
 Two things about the plumbing are worth knowing, because both were wrong first. The bar reads the last entry in the log that carries `from`, not `g.lastEvent`: a play that changes hands calls `changePossession` inside the same step, and that logs the new drive's header on top of it, so punts, interceptions, fumbles, missed field goals and turnovers on downs all had their bar overwritten before it could draw. And the phase is no authority either — a touchdown flips to `pat` and a made field goal to `kickoff` the moment they score, so gating on `phase === 'play'` hid the bar for exactly the plays most worth seeing. Nothing but a snap logs `from`, so the bar clears itself at the next kickoff or quarter break. A test pins all of it: every scrimmage type carries the fields, nothing else claims them, the drawn span stays on the field, and on a clean snap `from + yards` still equals the entry's own `ballOn`.
 
-### The running back is underpriced, and fixing it breaks the trade economy
+### The running back was underpriced, and what it took to fix it
 
 `TRUE_LEVERAGE` was re-measured at the same 10,000 games a reading the last
 audit used. Ten of the eleven positions came back where they were. One did not.
@@ -1348,21 +1348,51 @@ The corrected table, scaled to hold the starter-weighted total at 86.45 so that
     { QB: 15.89, RB: 9.39, TE: 5.58, CB: 4.39, WR: 2.95, S: 2.87,
       LB: 2.76, DL: 2.46, OL: 2.17, P: 2.00, K: 1.25 }
 
-**It is not shipped, and the reason is worth recording.** Holding the total
-constant keeps the units — mean `lineupStrength` over twelve rosters moves by
-0.2% — but it redistributes them, and `aiGreed` compares fixed thresholds of 2
-to 8 against strength deltas that a 56% heavier running back makes much larger.
-The thresholds clear too easily. Measured on the offer simulation: the mean
-value of an AI offer to the human goes from 4.6 to 32.8 and the share of offers
-that help the human from 38% to 67%, with uneven trades rising 57% to 65%. That
-is an AI that can be robbed. Strategy is unaffected — value shopping still wins
-at 7.8 wins and the ordering of the six strategies does not change — so the
-damage is confined to the trade thresholds, and rescaling those to the new
-distribution is the work that has to come first.
+Shipping it needed one other thing, and the first diagnosis of what was wrong.
 
-So the position is: the mispricing is real, measured and written down; the
-correction is computed and waiting; and shipping it needs `aiGreed` retuned in
-the same change.
+Applying the table sent the mean value of an AI trade offer to the human from
+4.6 to 32.8 and the share of offers that help the human from 38% to 67%. The
+obvious reading is that `aiGreed`'s fixed thresholds of 2 to 8 had become easy
+to clear, because a 56% heavier running back makes every strength delta bigger.
+That reading is wrong, and measuring it said so: across 80,352 candidate swaps
+in six leagues the delta distribution barely moves, mean 15.87 against 15.77
+and the median within 5%. The thresholds were fine.
+
+The mean was hiding the shape. Both sides of every offer, measured:
+
+| | offers | human mean | human median | human p90 | human positive | club mean | club positive |
+|---|---|---|---|---|---|---|---|
+| before | 207 | 4.6 | −0.3 | 5.8 | 38% | 9.6 | 100% |
+| corrected table | 203 | 32.8 | 2.5 | **130.8** | 67% | 13.4 | 100% |
+| and capped | 186 | 2.9 | 0.6 | 9.1 | 59% | 12.4 | 100% |
+
+The club gains on every offer it makes, before and after — it never proposes
+anything that hurts it. The median offer to the human moved 2.8 points. What
+changed was the tail: a ninetieth percentile of 130 points of lineup strength,
+which is a free win button rather than a decision.
+
+Those are deals where the club ships a reserve the human starts — a quarter
+weight on one roster and full weight on the other — and the back being properly
+valued gave them their real size. They are genuinely good for both sides, which
+is why greed never blocked them. What blocked them is `OFFER_LOPSIDED`, a
+ceiling to go with the floor `OFFER_FAIR_MARGIN` already provided: a general
+manager who would not ask you for something insulting also does not hand over a
+man worth far more to you than to him, because he would ask more for him. Twelve
+points, from a sweep — the tail sits so far out that caps of 20, 12 and 8 all
+give the same p90 of about 9 and the same volume to within five deals.
+
+What it costs: offers per league 10.3 to 9.3, weeks with an offer 49% to 43%,
+week-one offers 16 leagues in 20 to 12. The human is helped more often than
+before (59% against 38%) but by less on average (2.9 against 4.6), which is a
+market of small frequent edges rather than rare enormous ones. AI-to-AI trades
+are unchanged at 3.8 a season. The strategy table does not move at all: value
+shopping still leads on 7.8 wins and the ordering of all six is identical.
+
+Two tests fell over and both were fragile rather than wrong-in-principle. One
+had always, when its fixed seed produced no offer, made offers in a *second*
+league and then checked them against the first — reading the wrong rosters
+entirely; fewer offers finally made it fire. Both now go through the seed search
+that was already sitting in the file for this purpose.
 
 ### A fingerprint that could not see the roster
 

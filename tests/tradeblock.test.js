@@ -57,9 +57,26 @@ test('the backfill signs the best free agent at the hole and releases the weakes
 });
 
 test('an uneven trade needs a free-agent pool, and stays refused without one', () => {
-  const lg = league(5);
-  const u = user(lg), other = u === 0 ? 1 : 0;
-  const qb = at(lg.teams[u], 'QB')[0], wr = at(lg.teams[other], 'WR')[0];
+  // Searched rather than assumed. These leagues are built by auction and the
+  // auction prices off the leverage table, so a fixed seed does not hold a
+  // fixed roster: this used to grab the user's first quarterback and the next
+  // club's first receiver, and the day the table changed that pair became a
+  // quarterback who would have been cut on arrival — a legitimate refusal for
+  // an entirely different reason than the one under test.
+  const found = (() => {
+    for (let seed = 5; seed < 25; seed++) {
+      const lg = league(seed);
+      const u = user(lg), other = u === 0 ? 1 : 0;
+      for (const qb of at(lg.teams[u], 'QB')) {
+        for (const wr of at(lg.teams[other], 'WR')) {
+          if (validateTrade(lg, u, other, [qb], [wr], byId, PLAYERS).ok) return { lg, u, other, qb, wr };
+        }
+      }
+    }
+    return null;
+  })();
+  assert.ok(found, 'no quarterback-for-receiver deal in twenty leagues');
+  const { lg, u, other, qb, wr } = found;
   const without = validateTrade(lg, u, other, [qb], [wr], byId);
   assert.equal(without.ok, false);
   assert.match(without.reason, /Positions must match/);
@@ -147,14 +164,27 @@ test('a club judges the roster it would field, hole filled, not the hole', () =>
 });
 
 test('a club will not trade down in position however thin its own room', () => {
-  const lg = league(9);
-  const u = user(lg), other = u === 0 ? 1 : 0;
-  const me = lg.teams[u], them = lg.teams[other];
-  // Offer the league's worst kicker for their best receiver. Shipping 3.30 of
-  // leverage for 0.79 has to be refused whatever the kicker arithmetic says.
-  const k = at(me, 'K')[0];
-  const wr = at(them, 'WR').slice().sort((x, y) => overall(byId.get(y)) - overall(byId.get(x)))[0];
-  const ev = evaluateTrade(lg, other, [wr], [k], byId, PLAYERS);
+  // Offer a kicker for their best receiver. Shipping a starting receiver's
+  // leverage for a kicker's has to be refused whatever the kicker arithmetic
+  // says — the exact ratio moves when the leverage table is re-measured, the
+  // direction does not. Seed-searched for a pair that shapes a legal roster,
+  // because `evaluateTrade` returns before it reaches the premium when the
+  // club cannot field one, and a premium of `undefined` reads like the rule is
+  // missing when it is only unreached.
+  const found = (() => {
+    for (let seed = 9; seed < 29; seed++) {
+      const lg = league(seed);
+      const u = user(lg), other = u === 0 ? 1 : 0;
+      const k = at(lg.teams[u], 'K')[0];
+      const wr = at(lg.teams[other], 'WR').slice().sort((x, y) => overall(byId.get(y)) - overall(byId.get(x)))[0];
+      if (!k || !wr) continue;
+      const ev = evaluateTrade(lg, other, [wr], [k], byId, PLAYERS);
+      if (ev.premium != null) return { lg, u, other, k, wr, ev };
+    }
+    return null;
+  })();
+  assert.ok(found, 'no receiver-for-kicker deal in twenty leagues shaped a roster');
+  const { lg, u, other, k, wr, ev } = found;
   assert.equal(ev.accept, false);
   assert.ok(ev.premium > 0, `a premium should be charged: ${ev.premium}`);
   const r = proposeTrade(lg, u, other, [k], [wr], byId, PLAYERS);

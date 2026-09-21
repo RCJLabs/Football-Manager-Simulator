@@ -42,6 +42,31 @@ export const MAX_TRADE_IMBALANCE = 2;
 export const MAX_LIVE_OFFERS = 3;
 /** How far below even, on the lineup-strength yardstick, a club will still ask. Past this a GM knows the phone gets hung up. */
 export const OFFER_FAIR_MARGIN = 2;
+/**
+ * How much better than itself a club will let a deal be for the other side.
+ *
+ * The floor above stops a club asking for something insulting. Nothing stopped
+ * the reverse: among the deals that cleared its own greed the club took the one
+ * that paid *it* most, with no regard for what the other side was walking away
+ * with. That is not how a general manager behaves — a man who is worth far more
+ * to you than to me is a man I ask more for, not one I hand over because the
+ * deal happens to suit me too.
+ *
+ * It went unnoticed while the leverage table undervalued the running back,
+ * because the deals that opened the gap were mostly back-for-something and the
+ * gap was small. Corrected, those deals got their real size: the median offer
+ * moved only 2.8 points but the 90th percentile reached 130 — a free win button
+ * rather than a decision.
+ *
+ * Twelve, from a sweep. The tail sits so far out that anything which clips it
+ * does the whole job: caps of 20, 12 and 8 give the same 90th percentile of
+ * about 9 and the same offer volume to within five deals, against 130 with no
+ * cap at all. Twelve is the middle of that flat stretch — tight enough to stay
+ * honest if the leverage table moves again, loose enough that an ordinary
+ * lopsided-but-fair deal still gets offered. The club still gains on every
+ * single offer it makes, and gains more than it did before.
+ */
+export const OFFER_LOPSIDED = 12;
 
 /** How keen each GM personality is to work the wire. */
 const ACTIVITY = { modern: 0.9, gambler: 0.75, balanced: 0.6, defense: 0.55, trenches: 0.55, airraid: 0.5, ground: 0.45, oldschool: 0.3 };
@@ -709,7 +734,7 @@ export function makeAiOffers(league, byId, rng, { max = 2, pool = null, picks = 
         const gainA = lineupStrength(outA.slots, byId, league) - baseA - leveragePremium(gives, wants, byId);
         const gainU = lineupStrength(outU.slots, byId, league) - baseU;
         const greed = aiGreed(A, league);
-        if (gainA < greed || gainU < -OFFER_FAIR_MARGIN) {
+        if (gainA < greed || gainU < -OFFER_FAIR_MARGIN || gainU - gainA > OFFER_LOPSIDED) {
           // Keep the closest thing to a deal, for the pick pass below.
           if (picks && gainA + gainU > (nearMiss?.total ?? -Infinity)) {
             nearMiss = { gives, wants, gainA, gainU, need: Q, surplus: P, uneven: !!v.uneven, fills: v.fills, total: gainA + gainU };

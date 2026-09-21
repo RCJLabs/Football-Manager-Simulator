@@ -7,7 +7,7 @@ import { createLeague, startSeason, simulateWeekAi, advanceWeek, userTeamIndex }
 import { autoCompleteAll } from '../src/engine/auction.js';
 import {
   makeAiOffers, liveOffers, acceptOffer, declineOffer, pruneOffers, initOffers, advanceWeekWithMoves,
-  lineupStrength, rostersValid, ownerMap, aiGreed, slotOf, tradeDeadlineWeek, MAX_LIVE_OFFERS, OFFER_FAIR_MARGIN,
+  lineupStrength, rostersValid, ownerMap, aiGreed, slotOf, tradeDeadlineWeek, MAX_LIVE_OFFERS, OFFER_FAIR_MARGIN, OFFER_LOPSIDED,
 } from '../src/engine/transactions.js';
 
 function league(seed, n = 8) {
@@ -18,11 +18,23 @@ function league(seed, n = 8) {
 }
 const rosterIds = (t) => ROSTER_SLOTS.map((s) => t.slots[s.id]).filter(Boolean);
 
+/** A league whose clubs have a deal to propose at week one. Not every roster does. */
+function leagueWithOffer(from = 51) {
+  for (let seed = from; seed < from + 20; seed++) {
+    const lg = league(seed);
+    const made = makeAiOffers(lg, byId, null, { max: 8 });
+    if (made.length) return { lg, made, seed };
+  }
+  throw new Error('no league in twenty produced an offer');
+}
+
 test('AI clubs offer deals that help them and are not insulting to the human', () => {
-  const lg = league(51);
+  // Through the seed search, not a fixed seed. This used to fall back to making
+  // offers in a *second* league and then checking them against the first, so
+  // the moment seed 51 stopped producing one the assertions were reading the
+  // wrong rosters and failed on ownership rather than on anything real.
+  const { lg, made } = leagueWithOffer(51);
   const u = userTeamIndex(lg);
-  let made = makeAiOffers(lg, byId, null, { max: 8 });
-  if (!made.length) made = makeAiOffers(league(56), byId, null, { max: 8 });
   assert.ok(made.length > 0, 'somebody called');
   assert.ok(made.length <= MAX_LIVE_OFFERS);
   const baseU = lineupStrength(lg.teams[u].slots, byId, lg);
@@ -37,21 +49,13 @@ test('AI clubs offer deals that help them and are not insulting to the human', (
     assert.deepEqual(posGives, posWants, 'positions match');
     assert.ok(o.aiGain >= aiGreed(lg.teams[o.from]), `${o.from} gains ${o.aiGain}, greed ${aiGreed(lg.teams[o.from])}`);
     assert.ok(o.userDelta >= -OFFER_FAIR_MARGIN, `insulting offer: user ${o.userDelta}`);
+    assert.ok(o.userDelta - o.aiGain <= OFFER_LOPSIDED,
+      `giveaway: the human takes ${o.userDelta} to the club's ${o.aiGain}`);
     assert.ok(/thin at [A-Z]+ and deep at [A-Z]+/.test(o.note), o.note);
     assert.equal(o.week, lg.week);
   }
   void baseU;
 });
-
-/** A league whose clubs have a deal to propose at week one. Not every roster does. */
-function leagueWithOffer(from = 51) {
-  for (let seed = from; seed < from + 20; seed++) {
-    const lg = league(seed);
-    const made = makeAiOffers(lg, byId, null, { max: 8 });
-    if (made.length) return { lg, made, seed };
-  }
-  throw new Error('no league in twenty produced an offer');
-}
 
 test('accepting an offer does the deal; declining kills it for the season', () => {
   const { lg, made, seed } = leagueWithOffer(52);
@@ -115,7 +119,9 @@ test('offers arrive with the new week, expire, and stop at the deadline', () => 
 });
 
 test('taking every offer never breaks a roster and stays inside the rules', () => {
-  const lg = league(54);
+  // Seed-searched for the same reason: fewer offers reach the human than they
+  // used to, so a fixed seed is no longer guaranteed to produce one to take.
+  const { lg } = leagueWithOffer(54);
   const u = userTeamIndex(lg);
   const rng = new RNG(6);
   let taken = 0;
@@ -148,4 +154,28 @@ test('pruning keeps the list small and initOffers is safe on an old league', () 
   lg.refusedOffers = new Array(400).fill('x');
   pruneOffers(lg);
   assert.equal(lg.refusedOffers.length, 200);
+});
+
+
+test('a club does not hand over a deal worth far more to you than to it', () => {
+  // A floor already stopped a club asking for something insulting. Nothing
+  // stopped the reverse, and once the leverage table stopped undervaluing the
+  // running back those deals showed their real size: the median offer moved
+  // 2.8 points of lineup strength but the 90th percentile reached 130. That is
+  // a free win button, not a decision. A general manager asks more for a man
+  // who is worth more to you than to him.
+  let seen = 0, worst = -Infinity;
+  for (let seed = 40; seed < 70; seed++) {
+    const lg = league(seed);
+    for (const o of makeAiOffers(lg, byId, null, { max: 8 })) {
+      seen++;
+      worst = Math.max(worst, o.userDelta - o.aiGain);
+      assert.ok(o.userDelta - o.aiGain <= OFFER_LOPSIDED,
+        `seed ${seed}: the human takes ${o.userDelta} to the club's ${o.aiGain}`);
+      // And the club is still doing this for its own benefit, every time.
+      assert.ok(o.aiGain > 0, `seed ${seed}: the club offered a deal that hurts it`);
+    }
+  }
+  assert.ok(seen > 30, `only ${seen} offers sampled`);
+  assert.ok(worst > -Infinity);
 });

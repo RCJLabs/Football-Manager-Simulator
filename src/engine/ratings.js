@@ -113,7 +113,7 @@ export function composites(lineup) {
  * lives here so `teamPower` can weight by it without the two files importing
  * each other.
  */
-export const TRUE_LEVERAGE = { QB: 17.99, RB: 6.01, TE: 5.78, CB: 4.69, WR: 3.30, S: 2.95, LB: 2.92, DL: 2.48, OL: 2.10, P: 1.52, K: 0.79 };
+export const TRUE_LEVERAGE = { QB: 15.89, RB: 9.39, TE: 5.58, CB: 4.39, WR: 2.95, S: 2.87, LB: 2.76, DL: 2.46, OL: 2.17, P: 2.00, K: 1.25 };
 
 /**
  * How strong a lineup is, on the 40..99 rating scale.
