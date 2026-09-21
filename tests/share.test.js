@@ -10,7 +10,7 @@ import { loadRegistry, createSlot, activateSlot, deleteSlot, writeSlot, readSlot
 
 const fakeStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), size: () => m.size }; };
 
-test('a league code round-trips rosters, contracts and settings and refuses a different pool', async () => {
+test('a league code round-trips rosters, contracts and settings, and outlives the pool', async () => {
   const league = createLeague({ name: 'Shared', user: { name: 'Me', abbr: 'ME', color: '#123456' }, numTeams: 8, seed: 77, draftType: 'auction', injuries: 'high', keepers: 9 });
   autoCompleteAll(league.auction, league, PLAYERS, new RNG(77), byId);
   startSeason(league, byId);
@@ -18,7 +18,11 @@ test('a league code round-trips rosters, contracts and settings and refuses a di
   advanceWeek(league);
   const code = await encodeLeagueCode(league, PLAYERS);
   assert.ok(/^GE[01]\./.test(code));
-  assert.ok(code.length < 6000, `code is ${code.length} characters`);
+  // Naming the players rather than pointing at pool positions roughly doubles
+  // a code: this one went from about 3,300 characters to 6,200, and a 32-club
+  // pro league from 16,600 to 33,600. That is the price of a code that outlives
+  // the pool, and it is guarded here so it cannot creep further unnoticed.
+  assert.ok(code.length < 7500, `code is ${code.length} characters`);
   const snap = await decodeLeagueCode(code);
   assert.equal(snap.pool, poolFingerprint(PLAYERS));
   const copy = leagueFromSnapshot(snap, PLAYERS, byId);
@@ -38,11 +42,19 @@ test('a league code round-trips rosters, contracts and settings and refuses a di
   });
   for (const [id, c] of Object.entries(league.contracts)) assert.deepEqual(copy.contracts[id], c);
   assert.ok(copy.shared);
-  // Whitespace pasted around a code is fine; garbage is not; a different pool is refused.
+  // Whitespace pasted around a code is fine; garbage is not.
   await decodeLeagueCode(`  ${code}\n`);
   await assert.rejects(decodeLeagueCode('hello'), /not a league code/);
-  const other = { ...snap, pool: 'nope' };
-  assert.throws(() => leagueFromSnapshot(other, PLAYERS, byId), /different player pool/);
+  // A version-3 code names its players, so a pool that has moved on does not
+  // stop it opening. This is the whole point of the version: the fingerprint is
+  // carried for information and no longer used to refuse.
+  const moved = { ...snap, pool: 'a-completely-different-pool' };
+  const still = leagueFromSnapshot(moved, PLAYERS, byId);
+  for (const s of ROSTER_SLOTS) assert.equal(still.teams[0].slots[s.id], league.teams[0].slots[s.id], `${s.id} survived the pool moving`);
+  assert.equal(still.migrationNote, undefined, 'and nothing to apologise for');
+  // A version-2 code points at positions rather than players, so it is still
+  // only meaningful against the pool it was made from.
+  assert.throws(() => leagueFromSnapshot({ ...snap, v: 2, pool: 'nope' }, PLAYERS, byId), /older player pool/);
   const bad = snapshot(league, PLAYERS);
   bad.v = 99;
   await assert.rejects(decodeLeagueCode(`GE0.${Buffer.from(JSON.stringify(bad)).toString('base64url')}`), /version 99/);
@@ -121,4 +133,67 @@ test('save slots: deleting empties the slot in place and opens nothing else', ()
   assert.throws(() => activateSlot(st, reg, 'nope'), /No such/);
   assert.equal(summarize(null).phase, 'empty');
   void REGISTRY_KEY;
+});
+
+test('a code opens against a pool that has grown and been reordered', async () => {
+  // The scenario this version exists for. `add-players.mjs` re-sorts every
+  // position by overall when it merges, so adding one name shuffles the
+  // indices of everyone below him — which is why pointing at positions could
+  // only ever be defended by refusing the code outright.
+  const league = createLeague({ name: 'Durable', user: { name: 'Me', abbr: 'ME', color: '#0f0' }, numTeams: 8, seed: 91, draftType: 'auction' });
+  autoCompleteAll(league.auction, league, PLAYERS, new RNG(91), byId);
+  startSeason(league, byId);
+  const snap = await decodeLeagueCode(await encodeLeagueCode(league, PLAYERS));
+
+  // A later pool: two new men at the front, and the rest reversed.
+  const newcomer = (id) => ({ ...PLAYERS[0], id, name: id });
+  const future = [newcomer('a-new-signing-2030'), newcomer('another-one-2030'), ...PLAYERS].reverse();
+  const futureById = new Map(future.map((p) => [p.id, p]));
+  assert.notEqual(poolFingerprint(future), poolFingerprint(PLAYERS), 'the pool really did move');
+
+  const copy = leagueFromSnapshot(snap, future, futureById);
+  assert.equal(copy.migrationNote, undefined, 'nobody went missing');
+  copy.teams.forEach((t, i) => {
+    for (const s of ROSTER_SLOTS) assert.equal(t.slots[s.id], league.teams[i].slots[s.id], `${t.abbr} ${s.id} came back as somebody else`);
+  });
+  for (const [id, c] of Object.entries(league.contracts)) assert.deepEqual(copy.contracts[id], c, `${id}'s contract`);
+});
+
+test('a player the recipient has not got is reported, not silently swapped', async () => {
+  const league = createLeague({ name: 'Partial', user: { name: 'Me', abbr: 'ME', color: '#0f0' }, numTeams: 8, seed: 92, draftType: 'auction' });
+  autoCompleteAll(league.auction, league, PLAYERS, new RNG(92), byId);
+  startSeason(league, byId);
+  const snap = await decodeLeagueCode(await encodeLeagueCode(league, PLAYERS));
+  // Somebody the code names is not in this pool at all.
+  const missing = league.teams[0].slots.QB1;
+  const thinner = PLAYERS.filter((p) => p.id !== missing);
+  const thinnerById = new Map(thinner.map((p) => [p.id, p]));
+  const copy = leagueFromSnapshot(snap, thinner, thinnerById);
+  assert.match(copy.migrationNote || '', /not in your player pool/, 'the recipient is told');
+  assert.match(copy.migrationNote || '', /^1 player/, 'and how many');
+  // The hole is filled off the market rather than left open, so the league is
+  // playable; the note is what makes that honest rather than silent.
+  assert.ok(copy.teams[0].slots.QB1, 'the slot is not left empty');
+  assert.notEqual(copy.teams[0].slots.QB1, missing);
+});
+
+test('version 2 codes still open, and only against the pool they were made from', async () => {
+  const league = createLeague({ name: 'Old', user: { name: 'Me', abbr: 'ME', color: '#0f0' }, numTeams: 8, seed: 93, draftType: 'auction' });
+  autoCompleteAll(league.auction, league, PLAYERS, new RNG(93), byId);
+  startSeason(league, byId);
+  // What a version-2 code was: pool indices, no table.
+  const v3 = snapshot(league, PLAYERS);
+  const base = PLAYERS.filter((p) => !p.generated);
+  const poolIndex = new Map(base.map((p, i) => [p.id, i]));
+  const toPool = (ref) => (ref >= 0 ? poolIndex.get(v3.ids[ref]) ?? -1 : ref);
+  const v2 = JSON.parse(JSON.stringify(v3));
+  v2.v = 2; delete v2.ids;
+  v2.teams.forEach((t) => { t.s = t.s.map(toPool); t.ir = t.ir.map(toPool); t.sq = t.sq.map(toPool); });
+  const rekey = (o) => (o ? Object.fromEntries(Object.entries(o).map(([k, val]) => [toPool(Number(k)), val])) : o);
+  v2.contracts = rekey(v2.contracts); v2.dev = rekey(v2.dev);
+  v2.retired = (v2.retired || []).map((k) => toPool(Number(k)));
+
+  const opened = leagueFromSnapshot(v2, PLAYERS, byId);
+  for (const s of ROSTER_SLOTS) assert.equal(opened.teams[0].slots[s.id], league.teams[0].slots[s.id], `v2 ${s.id}`);
+  assert.throws(() => leagueFromSnapshot({ ...v2, pool: 'moved on' }, PLAYERS, byId), /older player pool/);
 });

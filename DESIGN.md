@@ -1956,6 +1956,47 @@ setup screen, auction only, off by default. See **Unequal cap room** below,
 which re-measures it and corrects one half of what this paragraph used to
 claim.
 
+### A code that outlives the pool
+
+A league code used to store a roster as indices into the shipped player pool,
+which made it a statement about an array rather than about a league. Grow the
+pool by one name — and `add-players.mjs` re-sorts every position by overall when
+it merges, so one name shuffles everyone below him — and every index after it
+points at a different man. The only safe response was to refuse the code
+outright, which is what `poolFingerprint` was for.
+
+That was a known risk when codes were built, written down in the roadmap at the
+time. It came due this session: the pool went from 1,269 players to 1,500, and
+every code anyone had ever made died with it.
+
+Version 3 carries `ids`, a table of the players a code actually mentions, and
+every reference is an index into that. The code is then about players rather
+than positions, and opens against any pool containing them. Version 2 is still
+read, but only against a matching fingerprint, which is the only thing it ever
+worked against anyway.
+
+**A player the recipient has not got is reported rather than silently swapped.**
+He gets `migrationNote` — the same channel a save problem uses, which sits above
+the view and stays until it is read — naming how many men were missing and that
+their places were filled from the market. A code that quietly hands over a
+different league under the same name is worse than one that refuses.
+
+**It costs roughly double.** An eight-club code goes from about 3,300 characters
+to 6,200; a 32-club pro league from 16,600 to 33,600. The table is the whole
+cost, and it does not compress away: sorting it so deflate sees like next to
+like was measured at 2–3%, which is not worth the remapping. A 32-bit hash per
+player instead of the id would be about a quarter of the raw size, but hashes do
+not compress at all where ids share surnames and seasons, so the saving after
+deflate is nearer 27% — bought at the price of a collision silently resolving to
+the wrong man. Correctness won. The bound is asserted in the test so it cannot
+creep further unnoticed.
+
+Why a pro code names the whole pool: 864 men are rostered, and `drain` — the
+schedule on which unsigned all-time players leave the market — names the other
+636. Dropping it would save 42% and hand the recipient four hundred players back
+on the free-agent market, which is the exact problem carrying the drain was
+added to fix. Left alone deliberately.
+
 ### What a knee costs
 
 An injury used to cost weeks and nothing else, which made a thirty-four-year-old
@@ -2596,7 +2637,7 @@ third season, not by effort.
 
 8. **Smarter AI general managers.** *Shipped; see AI general managers above.* Evidence at the time: personalities are static presets; AI clubs never change a strategy slider, never revisit a depth chart after the season-start sort, and never respond to what beat them last week. Touches `playcall.js` (per-opponent adjustments: blitz more against a weak line, run against a weak front) and a weekly AI housekeeping pass. Risk: a smarter field narrows the strategy spread measured in the auction section; re-measure and keep the spread near four wins.
 
-9. **Save slots and shareable leagues.** *Shipped; see Save slots and sharing above.* Evidence at the time: `store.js` holds one league under one localStorage key; a second league overwrites the first, and export/import is the only backup. Because every game is seeded, a league is reproducible from its seed and pick history, so a short share code could rebuild a league on another device and a roster card could be rendered to an image for sharing. Touches `store.js`, settings view, a canvas renderer. Risk: the players file must stay byte-identical for codes to replay; version the code with the data file's hash.
+9. **Save slots and shareable leagues.** *Shipped; see Save slots and sharing above.* Evidence at the time: `store.js` holds one league under one localStorage key; a second league overwrites the first, and export/import is the only backup. Because every game is seeded, a league is reproducible from its seed and pick history, so a short share code could rebuild a league on another device and a roster card could be rendered to an image for sharing. Touches `store.js`, settings view, a canvas renderer. Risk: the players file must stay byte-identical for codes to replay; version the code with the data file's hash. *That risk landed and has since been removed — see **A code that outlives the pool**.*
 
 10. **Rating tooling and a fictional-name toggle.** *Shipped; see Rating tooling and names above.* Evidence at the time: 310 of 1,269 players are from the 2010s against 32 from the 1950s; every rating is editorial; the README carries a licensing caveat for real names on a store listing. An in-app rating editor with a diff export, an era-balance report, and a switch that replaces names with generated ones would let the pool be argued with in public and keep a Play Store build clear of the name question. Touches `players.js` loading, settings, `scripts/db-report.mjs`. Risk: the fictional names must map one-to-one and stay stable across versions or saves break.
 
