@@ -324,11 +324,18 @@ export function fillVacancies(league, byId, rng, { hold = [] } = {}) {
     // Otherwise the carousel hires over your own offer before you can take it.
     if (held.has(v.idx)) continue;
     const standard = standardFor(league, v.idx, byId);
-    const ranked = jobs.pool
+    const available = jobs.pool
       .map((id) => jobs.coaches[id])
-      .filter((c) => c && c.team == null && !c.you)
-      .sort((a, b) => b.rep - a.rep);
-    if (!ranked.length) break;
+      .filter((c) => c && c.team == null && !c.you);
+    if (!available.length) break;
+    // No owner fires a man in February and rehires him in March. `makeOffers`
+    // has always applied that to the user -- it is why the club that sacked you
+    // never appears on your list -- but the carousel did not apply it to
+    // anybody else, so an AI club could hand its own sacked coach his job
+    // straight back and make the sacking meaningless. Unless he is genuinely
+    // the last man available, in which case a coached club beats the principle.
+    const fresh = available.filter((c) => c.lastClub !== v.idx);
+    const ranked = (fresh.length ? fresh : available).sort((a, b) => b.rep - a.rep);
     // The best club takes the best man who clears its bar; a club nobody wants
     // takes whoever is left, which is how a bad club stays bad.
     const pick = ranked.find((c) => c.rep >= standard) || ranked[0];

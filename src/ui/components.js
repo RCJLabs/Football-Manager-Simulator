@@ -3,7 +3,7 @@ import { fmtWeeks } from '../engine/injuries.js';
 import { overall } from '../engine/ratings.js';
 import { getState, update } from '../store.js';
 import { setOverride } from '../data/tuning.js';
-import { POSITIONS, eraOf } from '../data/positions.js';
+import { POSITIONS, eraOf, edgeness, ratedAsEdge } from '../data/positions.js';
 import { careerPhase } from '../engine/careers.js';
 import { scoutReport, coarseAttrs, scoutLabel, shownOverall } from '../engine/scouting.js';
 
@@ -214,6 +214,21 @@ export function modal(contentHtml, { onClose, label = 'Dialog' } = {}) {
   return { el: back, close };
 }
 
+/**
+ * Why a linebacker who cannot cover is rated highly anyway.
+ *
+ * `edgeness` blends his rating between the off-ball and edge weight vectors,
+ * which is invisible in the attribute bars: a man with 58 coverage reading 89
+ * overall looks like a mistake unless the screen says what job he is being
+ * rated for. Only shown when it is actually deciding something.
+ */
+function roleLine(p) {
+  if (!ratedAsEdge(p.pos, p.r)) return '';
+  const e = edgeness(p.pos, p.r);
+  const how = e >= 0.99 ? 'A pure edge rusher' : e >= 0.6 ? 'Mostly an edge rusher' : 'Part edge rusher, part off-ball';
+  return html`<p class="muted" style="margin:.2rem 0 0">${how} — rated on getting to the quarterback rather than on coverage, and he rushes instead of dropping on a passing down.</p>`;
+}
+
 export function playerModal(p, extra = '') {
   const def = POSITIONS[p.pos];
   const editing = !!getState().prefs?.ratingEditor;
@@ -224,6 +239,7 @@ export function playerModal(p, extra = '') {
     ${p.retired ? html`<p class="muted" style="margin:-.3rem 0 0">Retired at ${p.age}. He stays in the record books; he cannot be signed.</p>`
       : p.age != null ? html`<p class="muted" style="margin:-.3rem 0 0">Age ${p.age}, ${careerPhase(p.pos, p.age)}${p.base && overall(p) !== overall(p.base) ? ` · ${overall(p) > overall(p.base) ? 'up' : 'down'} ${Math.abs(overall(p) - overall(p.base))} from the ${p.base.season} version you signed` : ''}.</p>` : ''}
     ${p.knocks ? html`<p class="muted" style="margin:.2rem 0 0">Came back from ${p.knocks === 1 ? 'a season-ending injury' : `${p.knocks} season-ending injuries`} — a step slower, and ${p.knocks === 1 ? 'a year' : `${p.knocks} years`} off the end of his career.</p>` : ''}
+    ${roleLine(p)}
     ${raw(rows)}
     ${editing ? html`<small class="muted">Rating editor is on (settings). Edits apply everywhere at once and export as a diff.</small>` : ''}
     ${raw(extra)}

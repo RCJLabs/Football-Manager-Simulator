@@ -2314,7 +2314,7 @@ The pool is 1,500 players, up from 1,269. The count was the least interesting pa
 
 It reported 141 violations, the worst of them 27 points. Three override passes later — 610 attribute changes across 129 players, through `apply-overrides.mjs`, which dry-runs and prints every edit — it reports 16, the worst of them 8.
 
-**What is left is the honest part.** Every one of those 16 is a position whose weight vector cannot express the archetype, and the script proves it rather than asserting it: it recomputes each flagged player with his strongest attribute set to 99 and prints the result. Derrick Thomas caps at 77 against a floor of 85 with a perfect pass rush. Kevin Greene caps at 76. Thirteen of the sixteen are edge rushers, because pass rush is 15% of a linebacker's rating and run defence is 35% of a lineman's — the one thing they were paid for is the one thing the formula barely counts. Larry Csonka caps at 79 because a fullback who cannot catch spends half his rating on speed, elusiveness and receiving. That is a real mis-specification and it is not fixed here: changing `POSITIONS` moves every player's overall, the leverage table, auction prices, the draft board and every trade valuation at once, which is a separate decision with its own measurement to do first.
+**What is left is the honest part.** Every one of those 16 is a position whose weight vector cannot express the archetype, and the script proves it rather than asserting it: it recomputes each flagged player with his strongest attribute set to 99 and prints the result. Derrick Thomas caps at 77 against a floor of 85 with a perfect pass rush. Kevin Greene caps at 76. Thirteen of the sixteen are edge rushers, because pass rush is 15% of a linebacker's rating and run defence is 35% of a lineman's — the one thing they were paid for is the one thing the formula barely counts. *Since resolved: a linebacker is now rated on whichever of two weight vectors suits the job he does, and the edge rushers among those sixteen all clear their bars. See **One linebacker position, two jobs**.* Larry Csonka caps at 79 because a fullback who cannot catch spends half his rating on speed, elusiveness and receiving. That is a real mis-specification and it is not fixed here: changing `POSITIONS` moves every player's overall, the leverage table, auction prices, the draft board and every trade valuation at once, which is a separate decision with its own measurement to do first.
 
 **Who was added, and where.** 231 players, weighted at the thin end rather than the top: the 1940s through 1960s go from 115 players to 200, the 1950s from 32 to 65. Sid Luckman, Bob Griese, Earl Morrall and Daryle Lamonica for the quarterback hole before 1970; Jim Taylor, Bill Dudley, Doak Walker and Frank Gifford at back; Mick Tingelhoff, Rosey Brown, Jim Covert and Danny Fortmann on the line; Dick LeBeau, Ken Riley, Johnny Robinson and Jack Butler in the secondary; and the current names the pool was missing — Justin Herbert, C.J. Stroud, Jayden Daniels, Jonathan Taylor, Trent McDuffie, Joe Alt. Seventy-six of the first draft of that list collided with players already in the pool, including two that slug differently but are the same man (`Pat Surtain II` against the pool's `Patrick Surtain II`, `Jessie Bates` against `Jessie Bates III`); `scripts/add-players.mjs` catches the exact-id kind, and a normalised check that strips suffixes and nicknames catches the rest.
 
@@ -2350,6 +2350,13 @@ linebacker's pass rush at 0.40 of `blitzRush`. Measured, a linebacker's `prs` is
 worth 0.122 against the 0.150 he was priced at — slightly *over*weighted, because
 a defence rarely blitzes and the coefficient is not the frequency. The defensive
 lineman was the real case: 0.548 measured against 0.400 priced.
+
+*And the original premise turned out to be right after all, for a reason neither
+reading had found: the linebacker's pass rush was over-priced because it was
+nearly inert, and it was nearly inert because `passRush` read one elite rusher at
+a sixth of what it read a lineman. Both of those measurements were taken on a
+population with no edge rushers in it. See **One linebacker position, two
+jobs**.*
 
 **Three attributes did nothing at all.** `defAwr` was gathered in `composites`
 and consumed by no one, so two corners eight points apart in awareness played
@@ -2414,7 +2421,9 @@ a quarterback whose arm barely matters, a linebacker whose pass rush the field
 does not reward the way history did. All twelve of the linebacker violations are
 edge rushers and neither direction of reweighting helps them, because the
 disagreement is in the simulation, not the formula. That is the next piece of
-work, and it is engine work.
+work, and it is engine work. *It was done — see **One linebacker position, two
+jobs** below. The diagnosis held: it took an engine change, and reweighting on
+its own could never have got there.*
 
 Safety awareness dropping to 0.06 is not the wiring being wasted. Before it, the
 correct weight was 0.00.
@@ -2430,6 +2439,200 @@ seed, a slot, a pair of "equal" synthetic teams — that only held for one
 particular engine. They search, or mirror, or check their premise now.
 
 **Fictional names.** A settings toggle swaps every real name for a made-up one, one to one, chosen from the hash of the player's id and settled in pool order so it never changes between sessions or versions as long as the name lists only grow at the end and the pool stays append-only. Ids, ratings, saves and league codes are untouched; the real name is kept on the player so the switch reverses. Logs and records keep the names they were written with. Team abbreviations in the pool (the club a player's prime season was with) are left as they are. `applyNameMode` runs at boot from the preference, so a store build can default it to `fictional` by changing one line in `main.js`; the real names still ship in the data file either way, which is a licensing question this toggle does not settle, only sidesteps on screen.
+
+### One linebacker position, two jobs (`edgeness` in `positions.js`)
+
+Derrick Thomas is in the hall of fame, holds the single-game sack record with
+seven, and made nine Pro Bowls. He rated **77** — below an average starter. So
+did Kevin Greene at 76, DeMarcus Ware at 78, Von Miller at 79. Twelve of the
+sixteen ratings `npm run legacy` disputed were the same kind of player, and the
+legacy check named the cause itself: *caps at 77 with prs 99 — the weights, not
+the rating.* Maxing his pass rush to 99 could not get him past 77.
+
+His attribute line was not wrong. Coverage 58 is an honest description of
+Derrick Thomas. The weights were wrong, because they were being asked to price
+two different jobs with one vector:
+
+| | spd | tck | rsd | cov | prs | awr | was |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Derrick Thomas | 92 | 78 | 74 | 58 | 99 | 76 | 77 |
+| Ray Lewis | 92 | 98 | 97 | 90 | 78 | 99 | 93 |
+
+Sixty per cent of a linebacker's rating sat in tackling, run fit and coverage.
+An off-ball linebacker is paid for exactly those. A 3-4 edge rusher is paid to
+get to the quarterback and is a liability in coverage by design — he is not on
+the field to cover, and in the real sport somebody else does it.
+
+**Reweighting alone cannot fix it, and the measurement says so.** LB `prs`
+measured 0.108 of the position's leverage against a shipped 0.150: *over*-priced
+already. Raising it to rescue the edge rushers would have moved the economy
+further from the field, not closer — which is why this sat open through two
+earlier reweights.
+
+**The engine alone cannot fix it either, and that measurement is the
+interesting one.** `composites` read the rush as `0.6 × top-two linemen + 0.25 ×
+the rest of the line + 0.15 × the mean of all three linebackers`. One elite edge
+rusher therefore moved the pass rush by 0.05 a point where a top lineman moved
+it by 0.30 — six times less. That is why LB `prs` measured near nothing: the
+attribute was very nearly inert, and a whole class of famous players had nothing
+in the game to be good at.
+
+But fixing the formula on its own reaches almost nobody. Measured over 128
+drafted rosters, edge rushers took **0.34 of the four rushing places**, because
+at a rating of 77 they were drafted late and rarely started. The rating caused
+the absence; the engine change could not reach past it. **Both halves are
+required, and they bootstrap**: fix the rating and they start, fix the engine
+and starting them pays.
+
+#### The role is derived, not tagged
+
+`edgeness` is how much better a linebacker rushes than he covers, `(prs - cov) /
+30`, clamped to 0..1. Nothing is hand-tagged, for three reasons: a stored flag
+would need 158 edits and a rule for generated rookies anyway; a derived one
+cannot go stale when the pool is re-rated; and the derivation is checkable,
+which a list of names is not.
+
+It sorts the pool on its own. Derrick Thomas, Kevin Greene, Ware, Von Miller,
+T.J. Watt and James Harrison all reach 1.00; Khalil Mack and Terrell Suggs 0.93;
+Micah Parsons 0.87; **Lawrence Taylor 0.70**, which is the case that says the
+measure is doing something real — chiefly a rusher, genuinely both, and he lands
+between the two groups without anybody putting him there. Ray Lewis, Urlacher,
+Seau and Kuechly read 0.00. Forty-six of 158 carry any edge character, fourteen
+reach the cap.
+
+`EDGE_SPAN` was chosen against the record, not for tidiness. Widening it to 45
+stops anyone saturating, which looks better and costs four of the twelve rated
+seasons the record argues for. Saturation is not a defect: a man who rushes
+forty points better than he covers and one who rushes thirty better are both
+simply rushers.
+
+#### Three changes, and what each is for
+
+**The rush.** A defence sends four. Two linemen always go; the other two seats
+are contested between the rest of the line and any edge linebacker, ranked by a
+`prs` that pulls a backer toward replacement level by how little of a rusher he
+is. An off-ball backer never takes a seat; a Derrick Thomas takes one off a
+mediocre lineman. The two terms are normalised over the four men actually
+rushing, at `0.67 / 0.33`, which holds the synthetic calibration mean to within
+0.02 on both populations.
+
+**The coverage.** The half that was missing, and the record is what exposed it.
+With the rush fixed, the edge rushers still failed their bars for any non-zero
+coverage weight — measured: they clear only at exactly 0.00. That is the engine
+charging a man for coverage he is not doing, having already counted him among
+the rushers. The linebackers' share of coverage is now weighted by how much of
+an off-ball player each one is. A front with no off-ball backer left still has
+to cover somebody and covers with the men it has, so below a floor the plain
+mean returns — fielding three rushers is still a coverage problem, which is the
+trade-off this exists to create.
+
+**Blitzing is deliberately left alone.** Sending extra men is precisely when an
+off-ball linebacker does rush, so `blitzRush` still reads the whole corps.
+
+#### The rating is a maximum, not a blend
+
+The first version blended the two vectors by `edgeness`, and the blend had a
+defect worth recording because the economy would have carried it silently.
+Blending made the rating **non-monotonic in coverage**. Raising a rusher's `cov`
+lowers his `edgeness`, shifting weight off a vector paying `prs` 0.45 onto one
+paying 0.05, and for an elite rusher that loss exceeds anything the coverage
+gains him. Swept across a grid: a linebacker with `prs` 96 read 88 at `cov` 67
+and **84 at `cov` 82**. Improving a player by fifteen points made him four points
+worse — and `overall` is the price, so that is a man getting cheaper for getting
+better, with development, the rating editor and the draft board all acting on it.
+
+Taking the better of the two vectors is monotonic by construction: the maximum
+of two non-negative weighted sums is non-decreasing in every attribute. Swept
+over the same grid, zero non-monotonic steps in `cov` and zero in `prs`. It is
+also the more honest description — nobody rates Derrick Thomas as seven-tenths
+of a coverage linebacker. `edgeness` stays, and stays continuous, because the
+engine asks a different question: not what a man is worth, but how often he
+rushes, which really is a matter of degree.
+
+#### What the field said afterwards
+
+Re-measured, the off-ball vector agrees with the simulation to within 0.005 on
+every attribute — `tck` 0.269 against 0.270, `cov` 0.232 against 0.230, `prs`
+0.055 against 0.050. The defensive line was refitted in the same pass, `prs`
+0.55 → 0.61 and `rsd` 0.27 → 0.20, which is what the field measured and which
+also lifted the two remaining edge-rusher violations, Dwight Freeney and Mark
+Gastineau, under the tolerance.
+
+Measuring the *edge* vector needed a new instrument, and the first two attempts
+measured the wrong thing. `npm run attrs EDGE` reshapes a linebacker into a
+rusher, because a synthetic roster draws attributes independently and its
+backers are off-ball players almost every time. Reshaping **all three** — the
+first attempt — produced a roster nobody fields, and with every backer saturated
+the coverage floor correctly hands back the plain mean, so the reading announced
+that an edge rusher's coverage was the most valuable attribute on the defence.
+It is, when all three of them are edge rushers. Reshaping one, which is what a
+real defence fields:
+
+| EDGE | prs | tck | rsd | spd | awr | cov |
+| --- | --- | --- | --- | --- | --- | --- |
+| measured | 0.401 | 0.237 | 0.211 | 0.087 | 0.063 | **−0.200 → 0** |
+| shipped | 0.45 | 0.17 | 0.19 | 0.11 | 0.08 | **0.00** |
+
+The coverage reading is the confirmation. It comes out *negative* and clamps to
+zero, exactly the shipped weight: a single edge rusher's coverage does nothing
+for the defence, which is what the coverage gate asserts. The rest is a
+constrained fit — the largest move toward the measurement that leaves the record
+no worse, which is halfway. Going the whole way costs Terrell Suggs his bar.
+
+Derrick Thomas now reads 89, T.J. Watt 92, Lawrence Taylor 96. Ray Lewis,
+Urlacher, Seau and Kuechly are untouched by any of it, because a vector they are
+not rated on cannot move them. Legacy violations **16 → 2**, and both survivors
+are unrelated to edge rushing: Larry Csonka wants more from `pow` at running
+back, George Blanda more from `thp`.
+
+Realism holds at its baseline — 1 of 44 outside, the same pre-existing
+yards-per-completion. The engine fingerprint moved, `7cbe66ddb0bfd37c` →
+`079635dc4406a02e`, which is correct and expected: this is the first change in
+some time that reaches play resolution.
+
+#### Three mistakes, since the method is the point
+
+The pass rush was fitted against `syntheticTeam(..., 82, **2**, seed)`, copied
+from the leverage script, while `npm run realism` builds its population at SD 4.
+The split that preserved the level on one did not on the other; scoring went to
+44.9 points and TD:FG out of band before the numbers were re-fitted on the right
+population. Both agree on 0.67/0.33.
+
+The rush gate read `edgeness` unconditionally, and `edgeness` correctly returns
+0 for a lineman — so the first version discounted the entire defensive line to
+the replacement floor, quietly taking three points off every pass rush in the
+game. It was caught by two measurements of the same formula disagreeing, not by
+reading the code.
+
+And the blend's non-monotonicity above, which no test would have caught and
+which was found only by asking whether the derived role could ever make a better
+player cheaper.
+
+#### One thing it turned up that was nothing to do with linebackers
+
+Three seed-pinned tests broke on the reweight, and two were the usual thing — a
+fixed seed asserting something the code never guaranteed, now searched rather
+than pinned. The third was real. `makeOffers` has always refused to show the
+user a vacancy at the club that just sacked him; that is the rule written up
+under Coaching jobs, and the reason is that being handed your own job back makes
+the sacking meaningless. `fillVacancies` never applied it to anybody else, so an
+AI club could sack a coach and rehire him in the same offseason. It now prefers
+anyone whose `lastClub` is not that club, and falls back only if he is genuinely
+the last man available, because a coached club beats the principle.
+
+Worth noting how it was found: not by reading `jobs.js`, which nobody had reason
+to open, but because a rating change shifted which coach ranked highest and the
+assertion that had been passing by luck stopped passing. Pinned seeds are a
+nuisance most of the time and occasionally an instrument.
+
+#### Not done
+
+The defensive line has the same interior-versus-edge split — Freeney and
+Gastineau are undersized speed rushers whose `rsd` drags them — and it is
+deliberately left alone. The simulation makes no distinction between a run-down
+and a pass-down lineman, so a rating split there would be a change with no
+engine counterpart, which is the exact disagreement this section is about
+removing. It needs the engine half first.
 
 ### Two players, side by side (`ui/compare.js`)
 

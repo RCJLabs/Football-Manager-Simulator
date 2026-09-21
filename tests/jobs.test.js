@@ -148,10 +148,14 @@ test('rival coaches are hired and sacked too, which is what makes vacancies', ()
   const lg = pro(9);
   const byId = index(lg);
   const before = lg.teams.map((t) => t.coach);
-  // Two clubs lose their coach.
+  // Two clubs lose their coach. `lastClub` is what a real sacking records, and
+  // setting it here is the difference between simulating a sacking and just
+  // moving a man into the pool -- without it the club is free to hire him
+  // straight back, which is what `fillVacancies` now refuses.
   for (const i of [0, 5]) {
     const c = coachOf(lg, i);
     c.team = null;
+    c.lastClub = i;
     lg.jobs.pool.push(c.id);
     lg.teams[i].coach = null;
   }

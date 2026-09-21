@@ -87,11 +87,19 @@ test('the squad has a size, and it is enforced', () => {
 });
 
 test('a man who outgrows the squad comes up or goes, and never just sits there', () => {
-  const lg = pro(44, 1);
-  const ix = view(lg).byId;
-  const idx = 0, team = lg.teams[idx];
-  const slot = ROSTER_SLOTS.find((s) => team.slots[s.id] && canStash(lg, idx, team.slots[s.id], ix));
-  assert.ok(slot, 'nobody eligible to send down');
+  // The seed is searched, not pinned. Whether a club happens to hold anybody
+  // young enough to send down depends on who the draft gave it, so a fixed seed
+  // is a coin flip that happened to land -- 44 stopped producing one the moment
+  // linebacker ratings changed, and the test failed on an empty roster rather
+  // than on anything to do with outgrowing the squad.
+  let lg = null, ix = null, idx = 0, team = null, slot = null;
+  for (let seed = 44; seed < 120 && !slot; seed++) {
+    lg = pro(seed, 1);
+    ix = view(lg).byId;
+    team = lg.teams[idx];
+    slot = ROSTER_SLOTS.find((s) => team.slots[s.id] && canStash(lg, idx, team.slots[s.id], ix));
+  }
+  assert.ok(slot, 'no seed in the search range had anybody eligible to send down');
   const id = team.slots[slot.id];
   stash(lg, idx, id, ix);
   assert.ok(squadList(team).includes(id));

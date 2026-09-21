@@ -43,9 +43,14 @@ export const POSITIONS = {
   OL: { name: 'Offensive Line', attrs: ['pbk', 'rbk', 'awr'],
         weights: { pbk: 0.45, rbk: 0.45, awr: 0.10 } },
   DL: { name: 'Defensive Line', attrs: ['prs', 'rsd', 'tck', 'awr'],
-        weights: { prs: 0.55, rsd: 0.27, tck: 0.11, awr: 0.07 } },
+        weights: { prs: 0.61, rsd: 0.20, tck: 0.12, awr: 0.07 } },
+  // `edgeWeights` is the same position doing a different job -- see `edgeness`
+  // below. A linebacker's rating blends the two by how much of an edge rusher
+  // he is, so the pool does not have to be hand-tagged and a man who grows into
+  // a rusher is re-priced as one without anybody editing a file.
   LB: { name: 'Linebacker',    attrs: ['spd', 'tck', 'rsd', 'cov', 'prs', 'awr'],
-        weights: { tck: 0.20, rsd: 0.20, cov: 0.20, prs: 0.15, awr: 0.15, spd: 0.10 } },
+        weights:     { tck: 0.27, cov: 0.23, rsd: 0.23, awr: 0.13, spd: 0.09, prs: 0.05 },
+        edgeWeights: { prs: 0.45, rsd: 0.19, tck: 0.17, spd: 0.11, awr: 0.08, cov: 0.00 } },
   CB: { name: 'Cornerback',    attrs: ['spd', 'cov', 'bal', 'tck', 'awr'],
         weights: { cov: 0.48, spd: 0.17, bal: 0.17, awr: 0.12, tck: 0.06 } },
   S:  { name: 'Safety',        attrs: ['spd', 'cov', 'bal', 'tck', 'rsd', 'awr'],
@@ -55,6 +60,87 @@ export const POSITIONS = {
   P:  { name: 'Punter',        attrs: ['ppw', 'pac'],
         weights: { ppw: 0.69, pac: 0.31 } },
 };
+
+/**
+ * How much of an edge rusher a linebacker is, from 0 to 1.
+ *
+ * The game had one linebacker position and the sport has two jobs. An off-ball
+ * backer is paid to tackle, fit the run and cover; an edge rusher is paid to
+ * get to the quarterback and is usually a liability in coverage. Averaging both
+ * into one weight vector priced neither correctly: Derrick Thomas, a hall of
+ * famer with the single-game sack record, came out at 77 -- below an average
+ * starter -- because sixty per cent of an LB's rating sat in three things he
+ * was not paid to do. His attribute line was not wrong. The weights were.
+ *
+ * Derived from the attributes rather than stored as a flag, for three reasons.
+ * A stored tag needs 158 hand edits and a rule for generated rookies anyway; a
+ * derived one cannot go stale when the pool is re-rated; and a BINARY tag would
+ * make `overall` jump the moment a developing player crossed the line, which
+ * the economy reads as a man suddenly worth several points more. A continuous
+ * blend has no such cliff.
+ *
+ * The measure is simply how much better he rushes than he covers. It sorts the
+ * real pool with nothing by hand: Derrick Thomas, Kevin Greene, DeMarcus Ware,
+ * Von Miller, T.J. Watt and James Harrison all reach 1.00; Khalil Mack and
+ * Terrell Suggs 0.93; Micah Parsons 0.87; and Lawrence Taylor 0.70, which is
+ * the case that says the measure is doing something real -- he was chiefly a
+ * rusher and genuinely did both jobs, and he lands between the pure rushers and
+ * the pure backers without anybody deciding that. Ray Lewis, Urlacher, Seau and
+ * Kuechly all read 0.00. Forty-six of 158 linebackers carry any edge character
+ * at all and fourteen reach the cap.
+ *
+ * `EDGE_SPAN` was chosen against the record rather than for tidiness. Widening
+ * it to 45 stops anyone saturating, which looks better and costs four of the
+ * twelve rated seasons the record argues for. Saturation is not a defect here:
+ * a man who rushes forty points better than he covers and one who rushes thirty
+ * better are both simply rushers, and the cap says so.
+ */
+export const EDGE_SPAN = 30;
+
+export function edgeness(pos, r) {
+  if (pos !== 'LB' || !r) return 0;
+  const d = (r.prs ?? 60) - (r.cov ?? 60);
+  return Math.max(0, Math.min(1, d / EDGE_SPAN));
+}
+
+/**
+ * The weight vector a player is actually rated on: the one that rates him
+ * higher, which is to say the job he is better at.
+ *
+ * This was a blend by `edgeness` first, and the blend had a defect that is
+ * worth keeping written down, because it is not obvious and it is the kind of
+ * thing the economy would have carried silently. Blending made a rating
+ * NON-MONOTONIC in coverage. Raising a rusher's `cov` lowers his `edgeness`,
+ * which shifts weight off the edge vector, where `prs` is worth 0.50, onto the
+ * off-ball one, where it is worth 0.05 -- and for a man with an elite pass rush
+ * that loss is bigger than anything the coverage gains him. Measured across a
+ * grid of profiles: a linebacker with `prs` 96 read 88 at `cov` 67 and 84 at
+ * `cov` 82. Improving a player by fifteen points made him four points worse,
+ * which development, the rating editor and the draft board would all have
+ * acted on.
+ *
+ * Taking the better of the two vectors is monotonic by construction -- each is
+ * a non-negative weighted sum, and the maximum of two such is non-decreasing in
+ * every attribute. Swept over the same grid: zero non-monotonic steps in `cov`
+ * and zero in `prs`. It is also the more honest description. A man is worth
+ * what he is worth at the thing he is good at, and nobody rates Derrick Thomas
+ * as seven-tenths of a coverage linebacker.
+ *
+ * `edgeness` stays, and stays continuous, because the ENGINE asks a different
+ * question: not what a man is worth but how often he rushes, which really is a
+ * matter of degree. See `composites` in ratings.js.
+ */
+export function weightsFor(pos, r) {
+  const def = POSITIONS[pos];
+  if (!def.edgeWeights || !r) return def.weights;
+  const dot = (w) => { let s = 0; for (const k in w) s += (r[k] ?? 60) * w[k]; return s; };
+  return dot(def.edgeWeights) > dot(def.weights) ? def.edgeWeights : def.weights;
+}
+
+/** True when a player is rated as an edge rusher rather than an off-ball backer. */
+export function ratedAsEdge(pos, r) {
+  return POSITIONS[pos]?.edgeWeights ? weightsFor(pos, r) === POSITIONS[pos].edgeWeights : false;
+}
 
 export const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K', 'P'];
 

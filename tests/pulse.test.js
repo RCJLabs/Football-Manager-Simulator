@@ -71,15 +71,21 @@ test('a week nobody played reports nothing rather than guessing', () => {
 test('a season-ending injury is not reported as ninety-nine weeks', () => {
   // SEASON_ENDING is a sentinel, and printing it is the kind of thing nobody
   // notices until it is on screen.
-  const lg = played(44, 10);
+  // Seeds are searched rather than pinned: whether anybody's season ends inside
+  // ten weeks is a draw, and a rating change shifts the stream that decides it.
+  // The sentinel check below runs on every seed tried, so widening the search
+  // strengthens that half rather than weakening it.
   let sawSeasonEnder = false;
-  for (let wk = 1; wk <= 10; wk++) {
-    for (const it of weekPulse(lg, PLAYERS_BY_ID, wk, { limit: 40 })) {
-      assert.ok(!it.text.includes(`${SEASON_ENDING} week`), `printed the sentinel: ${it.text}`);
-      if (it.kind === 'injury' && /for the season/.test(it.text)) sawSeasonEnder = true;
+  for (let seed = 44; seed < 60 && !sawSeasonEnder; seed++) {
+    const lg = played(seed, 10);
+    for (let wk = 1; wk <= 10; wk++) {
+      for (const it of weekPulse(lg, PLAYERS_BY_ID, wk, { limit: 40 })) {
+        assert.ok(!it.text.includes(`${SEASON_ENDING} week`), `printed the sentinel: ${it.text}`);
+        if (it.kind === 'injury' && /for the season/.test(it.text)) sawSeasonEnder = true;
+      }
     }
   }
-  assert.ok(sawSeasonEnder, 'ten weeks on the high injury setting should have ended somebody\'s season');
+  assert.ok(sawSeasonEnder, 'no seed on the high injury setting ended anybody\'s season in ten weeks');
 });
 
 test('what it says about a game matches what the game actually was', () => {

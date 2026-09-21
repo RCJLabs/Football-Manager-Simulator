@@ -151,10 +151,20 @@ test('taking every offer never breaks a roster and stays inside the rules', () =
 });
 
 test('pruning keeps the list small and initOffers is safe on an old league', () => {
-  const lg = league(55);
-  initOffers(lg);
-  assert.deepEqual(lg.offers, []);
-  makeAiOffers(lg, byId, null, { max: 8 });
+  // The seed is searched rather than pinned. Whether any club fancies a trade
+  // at a given seed depends on the rosters the draft threw up, so a pinned one
+  // is a coin flip that happened to land -- seed 55 stopped producing an offer
+  // the moment linebacker ratings changed, and the test failed on an empty list
+  // rather than on anything to do with pruning.
+  let lg = null;
+  for (let seed = 55; seed < 120 && !lg; seed++) {
+    const cand = league(seed);
+    initOffers(cand);
+    assert.deepEqual(cand.offers, [], `initOffers should start empty at seed ${seed}`);
+    makeAiOffers(cand, byId, null, { max: 8 });
+    if (cand.offers.length) lg = cand;
+  }
+  assert.ok(lg, 'no seed in the search range produced an offer to prune');
   lg.offers[0].answered = 'declined';
   lg.week += 3;
   pruneOffers(lg);

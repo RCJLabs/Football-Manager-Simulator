@@ -1,4 +1,4 @@
-import { POSITIONS, ROSTER_SLOTS, eraOf } from '../data/positions.js';
+import { POSITIONS, ROSTER_SLOTS, eraOf, weightsFor, edgeness } from '../data/positions.js';
 const ovrCache = new Map();
 
 /** Drop a cached overall after a rating edit. */
@@ -16,7 +16,10 @@ export function clearOverallCache() {
  * and would hand back a stale number.
  */
 export function rawOverall(pos, r) {
-  const w = POSITIONS[pos].weights;
+  // `weightsFor`, not `POSITIONS[pos].weights`: a linebacker is rated on a
+  // blend of the off-ball and edge vectors according to how much of a rusher
+  // he is. Every other position hands back its one vector unchanged.
+  const w = weightsFor(pos, r);
   let s = 0;
   for (const k in w) s += (r[k] ?? 60) * w[k];
   return Math.round(s);
@@ -42,6 +45,7 @@ export function playerEra(p) {
 }
 
 const mean = (arr, key) => (arr.length ? arr.reduce((s, p) => s + p.r[key], 0) / arr.length : 60);
+const meanBy = (arr, fn) => (arr.length ? arr.reduce((s, p) => s + fn(p), 0) / arr.length : 60);
 const topN = (arr, key, n) => arr.slice().sort((a, b) => b.r[key] - a.r[key]).slice(0, n);
 
 /**
@@ -82,6 +86,20 @@ export function composites(lineup) {
 
   const top2DL = topN(dl, 'prs', 2);
   const restDL = dl.filter((x) => !top2DL.includes(x));
+  // What a man is worth as one of the four rushers. A lineman is worth his pass
+  // rush; a linebacker is worth his, pulled toward replacement level by however
+  // much of an off-ball player he is. `RUSH_FLOOR` is not a guess at what a
+  // covering backer would manage if he rushed -- it is the level at which he
+  // loses the seat to a lineman, which is the only thing it decides.
+  const RUSH_FLOOR = 60;
+  const rushPrs = (x) => {
+    // Linemen rush for a living and are worth their pass rush outright. Only a
+    // linebacker is gated -- `edgeness` returns 0 for every other position, so
+    // reading it unconditionally discounted the whole line to the floor.
+    if (x.pos !== 'LB') return x.r.prs;
+    return RUSH_FLOOR + (x.r.prs - RUSH_FLOOR) * edgeness(x.pos, x.r);
+  };
+  const otherRushers = [...restDL, ...lb].sort((a, b) => rushPrs(b) - rushPrs(a)).slice(0, 2);
 
   // Awareness is what a defender does before the snap and in the first step
   // after it: reading the route, filling the right gap. It used to be gathered
@@ -98,6 +116,33 @@ export function composites(lineup) {
   // reference, which is what being better than the reference means.
   const AWR_MID = 82;
   const covOf = (arr) => (arr.length ? mean(arr, 'cov') + (mean(arr, 'awr') - AWR_MID) * 0.30 : 60);
+  /**
+   * The linebackers' share of coverage, weighted by how much of an off-ball
+   * player each one is.
+   *
+   * The other half of `passRush` above, and the half that was missing. An edge
+   * rusher is not in coverage -- on a passing down he is one of the four going
+   * after the quarterback, which the rush already says. Charging the defence
+   * for his coverage too counted him in both places at once, and it was why the
+   * record and the engine could not both be satisfied: the moment his own
+   * coverage carried weight, his rating had to price it, and a hall of famer
+   * fell back under what the record supports. Measured: the twelve edge rushers
+   * the record argues for clear their bar only when that charge is zero.
+   *
+   * A front with no off-ball backer left still has to cover somebody, and it
+   * covers with the men it has -- so below `OFF_BALL_MIN` the plain mean is the
+   * floor, not a free pass. Fielding three rushers is still a coverage problem,
+   * which is the trade-off this is supposed to create.
+   */
+  const OFF_BALL_MIN = 0.5;
+  const covOfLb = () => {
+    if (!lb.length) return 60;
+    const w = lb.map((x) => 1 - edgeness(x.pos, x.r));
+    const tot = w.reduce((a, b) => a + b, 0);
+    if (tot < OFF_BALL_MIN) return covOf(lb);
+    const wm = (key) => lb.reduce((acc, x, i) => acc + x.r[key] * w[i], 0) / tot;
+    return wm('cov') + (wm('awr') - AWR_MID) * 0.30;
+  };
   const fitOf = (arr) => (arr.length ? mean(arr, 'rsd') + (mean(arr, 'awr') - AWR_MID) * 0.25 : 60);
 
   return {
@@ -109,12 +154,25 @@ export function composites(lineup) {
     runBlock: 0.8 * mean(ol, 'rbk') + 0.2 * teBlk,
     olAwr: mean(ol, 'awr'),
     // defense
-    passRush: 0.6 * mean(top2DL, 'prs') + 0.25 * mean(restDL.length ? restDL : dl, 'prs') + 0.15 * mean(lb, 'prs'),
+    // A defence sends four. Two linemen always go; the other two seats are
+    // contested between the rest of the line and any EDGE linebacker, ranked by
+    // `rushPrs` above.
+    //
+    // The old line read `0.15 * mean(lb, 'prs')` across all three backers, so
+    // one elite edge rusher moved the rush by 0.05 a point against 0.30 for a
+    // top lineman -- six times less. That is why LB `prs` measured 0.108
+    // leverage against a 0.150 price: the attribute was very nearly inert, and
+    // a whole class of famous players had nothing to be good at. The two terms
+    // are normalised over the four men actually rushing, which holds the
+    // synthetic calibration mean to within a hundredth of a point.
+    passRush: 0.67 * mean(top2DL, 'prs') + 0.33 * meanBy(otherRushers, rushPrs),
+    // Blitzing is deliberately NOT gated. Sending extra men is exactly when an
+    // off-ball linebacker rushes, so this still reads the whole corps.
     blitzRush: 0.45 * mean(top2DL, 'prs') + 0.15 * mean(restDL.length ? restDL : dl, 'prs') + 0.4 * mean(lb, 'prs'),
     runStop: 0.45 * fitOf(dl) + 0.35 * fitOf(lb) + 0.1 * mean(s, 'rsd') + 0.1 * mean(lb, 'tck'),
-    covShort: 0.4 * covOf(cb) + 0.35 * covOf(lb) + 0.25 * covOf(s),
-    covMed: 0.5 * covOf(cb) + 0.2 * covOf(lb) + 0.3 * covOf(s),
-    covDeep: 0.5 * covOf(cb) + 0.4 * covOf(s) + 0.1 * covOf(lb),
+    covShort: 0.4 * covOf(cb) + 0.35 * covOfLb() + 0.25 * covOf(s),
+    covMed: 0.5 * covOf(cb) + 0.2 * covOfLb() + 0.3 * covOf(s),
+    covDeep: 0.5 * covOf(cb) + 0.4 * covOf(s) + 0.1 * covOfLb(),
     ballSkills: 0.6 * mean(cb, 'bal') + 0.4 * mean(s, 'bal'),
     tackling: 0.2 * mean(dl, 'tck') + 0.4 * mean(lb, 'tck') + 0.15 * mean(cb, 'tck') + 0.25 * mean(s, 'tck'),
     defSpeed: 0.45 * mean(cb, 'spd') + 0.35 * mean(s, 'spd') + 0.2 * mean(lb, 'spd'),

@@ -14,9 +14,20 @@
 //
 // Nothing keeps those two in agreement, and where they disagree the economy
 // misprices a player the field rewards, or pays for something the field
-// ignores. The linebacker is the loud case: `composites` reads his pass rush at
-// 0.40 of `blitzRush`, and `POSITIONS.LB.weights` gives `prs` 0.15 of his
-// overall.
+// ignores. The linebacker was the loud case and is now the worked example: see
+// the edge-rusher section in DESIGN.md. One thing that matters for reading this
+// output is that a linebacker no longer HAS one weight vector. He is rated on a
+// blend of an off-ball vector and an edge vector, chosen by `edgeness`.
+//
+// The `LB` reading measures the OFF-BALL vector, because `syntheticTeam` draws
+// attributes independently and a randomly-drawn backer is an off-ball player
+// almost every time. On that population `prs` correctly reads as nearly
+// worthless -- a covering linebacker's pass rush does not decide games, which
+// is the whole reason the edge vector exists.
+//
+// Pass `EDGE` as a position to measure the other half: the same rosters with
+// every linebacker reshaped into a rusher, so the edge vector can be checked
+// against the field instead of asserted.
 //
 // Method is `leverage-sim.mjs`'s, narrowed: mirrored rosters so the baseline is
 // zero by construction, home advantage off, sides swapped every other game,
@@ -33,7 +44,7 @@ import { createGame, simulateGame } from '../src/engine/game.js';
 import { POSITIONS, ROSTER_SLOTS } from '../src/data/positions.js';
 
 const N = Number(process.argv[2] || 3000);
-const ONLY = process.argv.slice(3).filter((a) => POSITIONS[a]);
+const ONLY = process.argv.slice(3).filter((a) => POSITIONS[a] || a === 'EDGE');
 const BOOST = 8;
 const MEAN = 82;
 const SD = 2;
@@ -91,13 +102,50 @@ function measure(A, B, games) {
 
 const starterSlots = (pos) => ROSTER_SLOTS.filter((s) => s.starter && s.pos === pos).map((s) => s.id);
 
+/**
+ * Turn a roster's linebackers into edge rushers.
+ *
+ * `syntheticTeam` draws each attribute independently, so its linebackers are
+ * off-ball players nearly every time and `edgeness` reads ~0 for all of them.
+ * That makes the plain LB sweep a measurement of the off-ball vector and leaves
+ * the edge vector unmeasurable, which is not good enough for a weight the
+ * economy pays out of. Shifting `prs` up and `cov` down puts a backer past
+ * `EDGE_SPAN`, so the reading is taken on a front where he rushes.
+ *
+ * ONE linebacker, not all three. Reshaping the whole corps was the first
+ * attempt and it measured the wrong thing twice over: it is a roster nobody
+ * fields, and with every backer saturated the coverage floor in `composites`
+ * correctly hands back the plain mean, so the reading said an edge rusher's
+ * coverage was the most valuable attribute on the defence. It is -- when all
+ * three of them are edge rushers. A real defence fields one, which is what the
+ * edge weight vector is for and what this now measures.
+ *
+ * Applied to BOTH sides of a mirrored pair, after the boost, so the baseline
+ * stays zero by construction and the only difference between the two rosters
+ * is still the one attribute under test.
+ */
+function edgeify(team, slotId) {
+  const id = team.slots[slotId];
+  const p = team.byId.get(id);
+  if (!p) return team;
+  const byId = new Map(team.byId);
+  byId.set(id, { ...p, r: { ...p.r, prs: Math.min(99, p.r.prs + 8), cov: Math.max(40, p.r.cov - 24) } });
+  return { ...team, byId };
+}
+
 export function sweep(games = N, positions = Object.keys(POSITIONS)) {
   const out = {};
   for (const pos of positions) {
-    const slots = starterSlots(pos);
-    if (!slots.length) continue;
-    out[pos] = POSITIONS[pos].attrs.map((attr) => {
-      const m = measure(...mirrorPair(1, slots, attr, BOOST), games);
+    const real = pos === 'EDGE' ? 'LB' : pos;
+    const all = starterSlots(real);
+    if (!all.length) continue;
+    // EDGE lifts and reshapes a SINGLE linebacker, so the margins are about a
+    // third the size of a whole-corps reading and want more games to settle.
+    const slots = pos === 'EDGE' ? [all[0]] : all;
+    out[pos] = POSITIONS[real].attrs.map((attr) => {
+      let [a, b] = mirrorPair(1, slots, attr, BOOST);
+      if (pos === 'EDGE') { a = edgeify(a, slots[0]); b = edgeify(b, slots[0]); }
+      const m = measure(a, b, games);
       return { attr, margin: m.margin, se: m.se };
     });
   }
@@ -114,8 +162,11 @@ if (process.argv[1] && process.argv[1].endsWith('attribute-leverage.mjs')) {
     // Negative readings are noise around zero, not evidence an attribute hurts;
     // clamp before normalising so one unlucky reading cannot flip a weight.
     const total = rows.reduce((s, r) => s + Math.max(0, r.margin), 0) || 1;
-    const w = POSITIONS[pos].weights;
-    console.log(`${pos}  (${starterSlots(pos).length} starters)`);
+    const real = pos === 'EDGE' ? 'LB' : pos;
+    const w = pos === 'EDGE' ? POSITIONS.LB.edgeWeights : POSITIONS[real].weights;
+    const note = pos === 'EDGE' ? '  — ONE linebacker reshaped into a rusher, against LB.edgeWeights'
+      : real === 'LB' ? '  — off-ball backers, against LB.weights' : '';
+    console.log(`${pos}  (${starterSlots(real).length} starters)${note}`);
     console.log('  attr   margin      se    measured   shipped   change');
     for (const r of rows.slice().sort((a, b) => b.margin - a.margin)) {
       const got = Math.max(0, r.margin) / total;

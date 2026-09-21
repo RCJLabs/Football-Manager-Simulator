@@ -31,16 +31,22 @@ function playedSeason(seed) {
 
 test('a finished season keeps the story and drops the routine plays', () => {
   const lg = playedSeason(2);
-  const logged = lg.schedule.flatMap((w) => w.games).filter((g) => g.result?.log);
+  // Counted the way `thinCompletedLogs` counts, across the playoffs too. Taking
+  // only `schedule` matched by luck of the seed: it was right while the user's
+  // club missed the playoffs, and wrong the moment a reweight got them in, at
+  // which point two logged playoff games made the function's answer larger than
+  // the test's for no reason the test was about.
+  const allWeeks = [...lg.schedule, ...(lg.playoffs?.rounds || [])];
+  const logged = allWeeks.flatMap((w) => w.games).filter((g) => g.result?.log);
   assert.ok(logged.length >= 10, `only ${logged.length} games carried a log`);
-  const before = kb(lg.schedule);
+  const before = kb(allWeeks);
   const sample = logged[0].result.log;
   const scoringBefore = sample.filter((e) => e.scoring).length;
   const wpBefore = sample.filter((e) => typeof e.wp === 'number').length;
 
   const cut = thinCompletedLogs(lg);
   assert.equal(cut, logged.length, 'not every logged game was thinned');
-  const after = kb(lg.schedule);
+  const after = kb(allWeeks);
   assert.ok(after < before * 0.75, `schedule went ${before.toFixed(0)}KB to ${after.toFixed(0)}KB, not much of a saving`);
 
   const now = logged[0].result.log;
