@@ -26,7 +26,15 @@ const MATRIX = {
   // all four looks — a call with no counter and so no decision behind it.
   pass_short: { base: {}, run_stop: { comp: 0.05, cov: -4 }, blitz: { pressure: 0.12, cov: -3, yac: 1.5 }, deep: { comp: -0.08, cov: 6, yac: -2.4 } },
   pass_med:   { base: {}, run_stop: { comp: 0.07, cov: -6 }, blitz: { pressure: 0.14, cov: -6, yac: 2 }, deep: { comp: -0.05, cov: 4 } },
-  pass_deep:  { base: {}, run_stop: { comp: 0.08, cov: -8 }, blitz: { pressure: 0.16, cov: -8, yac: 3 }, deep: { comp: -0.12, cov: 8, int: 0.02 } },
+  // A two-high shell cut the deep ball from 11.1 yards to 6.1, a 45% erasure
+  // harsher than anything else in this table. Cover two has holes — the deep
+  // middle between the safeties, the sideline behind the corner — so it costs
+  // 31% now instead. It is still the harshest thing done to the deep ball, and
+  // the throw is still picked off 7% of the time into that look, because a
+  // shell inviting it and jumping it is the whole idea. Loosened further the
+  // deep ball overtakes the run as the answer to a shell, which is backwards:
+  // stopping it is what the look is for.
+  pass_deep:  { base: {}, run_stop: { comp: 0.08, cov: -8 }, blitz: { pressure: 0.16, cov: -8, yac: 3 }, deep: { comp: -0.08, cov: 6, int: 0.02 } },
   pa_pass:    { base: {}, run_stop: { comp: 0.1, cov: -9, pressure: -0.04 }, blitz: { pressure: 0.12, cov: -5 }, deep: { comp: -0.08, cov: 6 } },
 };
 

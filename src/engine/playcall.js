@@ -55,7 +55,7 @@ export const CALL_GRID = {
   screen:     { base: 5.45, run_stop: 6.27, blitz: 9.46, deep: 4.74 },
   pass_short: { base: 6.53, run_stop: 7.28, blitz: 7.03, deep: 4.28 },
   pass_med:   { base: 8.48, run_stop: 10.25, blitz: 9.18, deep: 7.49 },
-  pass_deep:  { base: 11.11, run_stop: 15.47, blitz: 11.79, deep: 6.10 },
+  pass_deep:  { base: 11.11, run_stop: 15.47, blitz: 11.79, deep: 7.61 },
   pa_pass:    { base: 9.72, run_stop: 12.49, blitz: 9.16, deep: 7.61 },
 };
 

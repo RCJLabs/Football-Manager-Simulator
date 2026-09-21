@@ -32,7 +32,7 @@ That seam was already there. Across four hundred lines of play resolution the on
 
 **It stops there deliberately.** What remains is `applyOutcome`, `changePossession`, `doKickoff` and `endOfQuarter`, which call each other and share the whole game object. Splitting mutually recursive state machinery across files makes it harder to follow, not easier; 836 lines against `season.js`'s 791 is no longer an outlier, which was the actual problem.
 
-**How it was verified.** The engine is seeded, so the same rosters and seed must produce the same game down to the last word of play-by-play — which makes a hash of the output a far stronger check than the test suite, because a test asserts the properties somebody thought of and a fingerprint asserts everything. `scripts/game-fingerprint.mjs` (`npm run fingerprint`) simulates 232 games across the paths that diverge — five roster gaps, penalties off, every injury rate, neutral sites, playoff rules, chemistry, and twelve coach-mode games driving `step()` by hand — and prints one hash over 43,269 log lines, plus a per-game hash so a divergence names itself. Before and after the split: `a9480bd47f40cac9`, identical. It reads `318460005bde6589` since the short pass was given a counter (below). Before that, `328aac09ca0ef3eb` from the run game being given a look that rewards it and the second-quarter clock rules dropping their score gate (below). Before that, `fff8872cea59867e` from the defence playing the first-down marker and the red-zone squeeze being strengthened (below). Before that, `3147f969ccb7c6eb` from reshaping the run distribution, and `64ed7a2198e6daab` from win probability being stored to three decimals rather than to a double's full precision, which moved the annotation on every line and no play, and `6130e8df755f35db` from the realism audit below.
+**How it was verified.** The engine is seeded, so the same rosters and seed must produce the same game down to the last word of play-by-play — which makes a hash of the output a far stronger check than the test suite, because a test asserts the properties somebody thought of and a fingerprint asserts everything. `scripts/game-fingerprint.mjs` (`npm run fingerprint`) simulates 232 games across the paths that diverge — five roster gaps, penalties off, every injury rate, neutral sites, playoff rules, chemistry, and twelve coach-mode games driving `step()` by hand — and prints one hash over 43,269 log lines, plus a per-game hash so a divergence names itself. Before and after the split: `a9480bd47f40cac9`, identical. It reads `1e08b72a40e8bb25` since the two-high shell stopped erasing the deep ball (below). Before that, `318460005bde6589` from the short pass being given a counter (below). Before that, `328aac09ca0ef3eb` from the run game being given a look that rewards it and the second-quarter clock rules dropping their score gate (below). Before that, `fff8872cea59867e` from the defence playing the first-down marker and the red-zone squeeze being strengthened (below). Before that, `3147f969ccb7c6eb` from reshaping the run distribution, and `64ed7a2198e6daab` from win probability being stored to three decimals rather than to a double's full precision, which moved the annotation on every line and no play, and `6130e8df755f35db` from the realism audit below.
 
 **The audit tool was under-reporting itself.** `scripts/realism.mjs` prints a header saying "! marks a number outside the real league's range" and then quietly exempted fifteen of its forty rows: everything below the penalty lines was a hand-written `console.log` carrying the reference range as a literal string, so it could never be marked. TD : FG sat at 1.99 against a stated 1.3–1.8 with no mark on it for as long as that lasted, and a claim of "37 of 40 in range" made in a commit message was read off marks that only covered part of the report. Every row goes through the same helper now, the helper judges the number *as printed* (a row reading 10.0 against a range of 10–13 and carrying a mark looks like a broken report), and the last line is a count.
 
@@ -1319,6 +1319,71 @@ Two engine fields make it possible, added to every scrimmage play and every pena
 
 Two things about the plumbing are worth knowing, because both were wrong first. The bar reads the last entry in the log that carries `from`, not `g.lastEvent`: a play that changes hands calls `changePossession` inside the same step, and that logs the new drive's header on top of it, so punts, interceptions, fumbles, missed field goals and turnovers on downs all had their bar overwritten before it could draw. And the phase is no authority either — a touchdown flips to `pat` and a made field goal to `kickoff` the moment they score, so gating on `phase === 'play'` hid the bar for exactly the plays most worth seeing. Nothing but a snap logs `from`, so the bar clears itself at the next kickoff or quarter break. A test pins all of it: every scrimmage type carries the fields, nothing else claims them, the drawn span stays on the field, and on a clean snap `from + yards` still equals the entry's own `ballOn`.
 
+### Reading the grid the wrong way
+
+The call grid is a table of what each pairing yields, and I twice read it as if
+it were a table of what each call is *worth*. It is not, and the difference
+produced a confident, wrong conclusion that took a proper solve to undo.
+
+The first mistake was taking a column's maximum — the offence's best answer to
+a look — as a measure of that look's strength. By that reading the two-high
+shell gave up 7.86 a play against a blitz's 9.48, so the shell was far and away
+the best defensive call and needed weakening. The 9.48 was not even the blitz's
+column maximum; it was the screen's row, read across instead of down. The blitz
+actually gives up 11.52, so the gap I quoted was wrong in both directions.
+
+The second mistake was deeper. Both sides call at the same time, so no pure
+strategy is the answer to anything — what matters is the value of the game when
+neither side can be predicted. `scripts/playbook-equilibrium.mjs` runs
+fictitious play over the matrix and prints it, and it also prices the payoff
+properly. Scored in raw yards the answer is degenerate: the offence should throw
+deep on every snap and the defence should sit in a shell on every snap. Yards
+are not what a play is worth. A giveaway costs about four points and four points
+is about forty yards of field position, so a play is worth its yards less its
+turnover rate times that. Scored that way, the deep ball leaves the mix
+altogether — it is the riskiest throw on the field — and the equilibrium is:
+
+    defence   base 20%, shell 80%, stacked box 0%, blitz 0%
+    offence   outside run 35%, play action 65%
+    worth     7.10 yards a play
+
+So the shell is not pathologically strong. Base and the shell are near-tied
+best replies, which is why the defence mixes them; the split between the two
+swings twenty points between a 1,200-snap sample and a 2,500-snap one and means
+nothing, so the script says so in its own output. What is stable across sample
+sizes and across any sane turnover price is the shape.
+
+And the shape names a different imbalance than the one I went looking for: **the
+blitz and the stacked box are never worth calling at first and ten**, at any
+turnover price. They earn their place in their own situations — a stacked box on
+3rd & 1, a blitz on 3rd & 8 — which a first-down grid cannot see, so this is a
+flag to go and measure those, not a verdict.
+
+### The shell stops the deep ball rather than erasing it
+
+Asked to weaken the shell, and having established above that its dominance was
+my own misreading, there was still one thing wrong with it on its own terms. It
+cut the deep ball from 11.11 yards to 6.10, a 45% erasure, harsher than anything
+else in the matrix. Cover two has holes — the deep middle between the safeties,
+the sideline behind the corner — and a great deep passing attack finds them.
+That cell is now `comp −0.08, cov +6, int 0.02`: 7.61, a 31% cut.
+
+It is still by some way the harshest thing done to the deep ball, and the throw
+is still intercepted 7% of the time into that look against 4.4% elsewhere,
+because a shell inviting the throw and jumping it is the whole point. Loosening
+it further was tried and reverted: at a 18% cut the deep ball overtakes the run
+as the best answer to a shell, which is backwards — stopping it is what the look
+is for. A test caught that, which is what the test is for.
+
+Being honest about what this bought: **nothing at equilibrium.** Before and
+after, the solve gives the same mixes and the same 7.10 a play, because the deep
+ball is not in the offence's mix either way. League scoring does not move either
+(44.6 points a game between the two clubs, against 44.6). This is a realism fix
+to a cell a player can see on the matchup chip, and it is not the rebalancing it
+was asked to be, because there was no imbalance there to fix.
+
+### A counter for the quick game
+
 ### A counter for the quick game
 
 The short pass was the one call with nothing to read. Its four cells spanned
@@ -1358,12 +1423,10 @@ to a shell anyway. What did move was league scoring, from 46.0 points a game
 between the two clubs back to 44.6, which is roughly where it sat before the
 second-quarter clock fix and squarely in the real league's range.
 
-One thing worth stating plainly, since the column maxima make it visible: the
-shell is the strongest single defensive call in the game. Against an offence
-that answers each look optimally it gives up 7.86 a play, where a blitz gives
-up 9.48, a base look 10.85 and a stacked box 15.51. That was true before this
-work and is unchanged by it, but it is a real imbalance on the defensive side
-and it has not been addressed.
+I wrote here that the column maxima made the shell the strongest defensive call
+in the game — 7.86 a play against an offence answering optimally, where a blitz
+gave up 9.48. Both halves of that were wrong, and **Reading the grid the wrong
+way** below records what replaced it.
 
 ### A look that rewards the run
 
@@ -1532,7 +1595,7 @@ the matrix rather than the ratings.
 | Screen | 5.45 | 6.27 | **9.46** | 4.74 |
 | Short Pass | 6.53 | 7.28 | 7.03 | **4.28** |
 | Medium Pass | 8.48 | 10.25 | 9.18 | 7.49 |
-| Deep Shot | 11.11 | **15.47** | 11.79 | **6.10** |
+| Deep Shot | 11.11 | **15.47** | 11.79 | **7.61** |
 | Play Action | 9.72 | 12.49 | 9.16 | 7.61 |
 
 The rock-paper-scissors is real: the run dies against a stacked box and eats a
