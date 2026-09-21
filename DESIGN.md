@@ -32,7 +32,7 @@ That seam was already there. Across four hundred lines of play resolution the on
 
 **It stops there deliberately.** What remains is `applyOutcome`, `changePossession`, `doKickoff` and `endOfQuarter`, which call each other and share the whole game object. Splitting mutually recursive state machinery across files makes it harder to follow, not easier; 836 lines against `season.js`'s 791 is no longer an outlier, which was the actual problem.
 
-**How it was verified.** The engine is seeded, so the same rosters and seed must produce the same game down to the last word of play-by-play — which makes a hash of the output a far stronger check than the test suite, because a test asserts the properties somebody thought of and a fingerprint asserts everything. `scripts/game-fingerprint.mjs` (`npm run fingerprint`) simulates 232 games across the paths that diverge — five roster gaps, penalties off, every injury rate, neutral sites, playoff rules, chemistry, and twelve coach-mode games driving `step()` by hand — and prints one hash over 43,269 log lines, plus a per-game hash so a divergence names itself. Before and after the split: `a9480bd47f40cac9`, identical. It reads `fff8872cea59867e` since the defence began playing the first-down marker and the red-zone squeeze was strengthened (below). Before that, `3147f969ccb7c6eb` from reshaping the run distribution, and `64ed7a2198e6daab` from win probability being stored to three decimals rather than to a double's full precision, which moved the annotation on every line and no play, and `6130e8df755f35db` from the realism audit below.
+**How it was verified.** The engine is seeded, so the same rosters and seed must produce the same game down to the last word of play-by-play — which makes a hash of the output a far stronger check than the test suite, because a test asserts the properties somebody thought of and a fingerprint asserts everything. `scripts/game-fingerprint.mjs` (`npm run fingerprint`) simulates 232 games across the paths that diverge — five roster gaps, penalties off, every injury rate, neutral sites, playoff rules, chemistry, and twelve coach-mode games driving `step()` by hand — and prints one hash over 43,269 log lines, plus a per-game hash so a divergence names itself. Before and after the split: `a9480bd47f40cac9`, identical. It reads `328aac09ca0ef3eb` since the run game was given a look that rewards it and the second-quarter clock rules stopped gating on the score (below). Before that, `fff8872cea59867e` from the defence playing the first-down marker and the red-zone squeeze being strengthened (below). Before that, `3147f969ccb7c6eb` from reshaping the run distribution, and `64ed7a2198e6daab` from win probability being stored to three decimals rather than to a double's full precision, which moved the annotation on every line and no play, and `6130e8df755f35db` from the realism audit below.
 
 **The audit tool was under-reporting itself.** `scripts/realism.mjs` prints a header saying "! marks a number outside the real league's range" and then quietly exempted fifteen of its forty rows: everything below the penalty lines was a hand-written `console.log` carrying the reference range as a literal string, so it could never be marked. TD : FG sat at 1.99 against a stated 1.3–1.8 with no mark on it for as long as that lasted, and a claim of "37 of 40 in range" made in a commit message was read off marks that only covered part of the report. Every row goes through the same helper now, the helper judges the number *as printed* (a row reading 10.0 against a range of 10–13 and carrying a mark looks like a broken report), and the last line is a count.
 
@@ -1319,6 +1319,93 @@ Two engine fields make it possible, added to every scrimmage play and every pena
 
 Two things about the plumbing are worth knowing, because both were wrong first. The bar reads the last entry in the log that carries `from`, not `g.lastEvent`: a play that changes hands calls `changePossession` inside the same step, and that logs the new drive's header on top of it, so punts, interceptions, fumbles, missed field goals and turnovers on downs all had their bar overwritten before it could draw. And the phase is no authority either — a touchdown flips to `pat` and a made field goal to `kickoff` the moment they score, so gating on `phase === 'play'` hid the bar for exactly the plays most worth seeing. Nothing but a snap logs `from`, so the bar clears itself at the next kickoff or quarter break. A test pins all of it: every scrimmage type carries the fields, nothing else claims them, the drawn span stays on the field, and on a clean snap `from + yards` still equals the entry's own `ballOn`.
 
+### A look that rewards the run
+
+The call grid said no defensive look rewarded running: the medium pass beat
+both runs against all four, its floor into a deep shell (7.49) sitting above
+the inside run's ceiling against that same shell (6.56). At first down there
+was never a reason to hand the ball off.
+
+Two measurements had to come first, and both narrowed the problem. **The run
+already scaled harder with personnel than the pass**: an elite backfield (RB and
+OL at 95) takes the outside run from 5.65 to 9.69 yards a play, +71%, where an
+elite quarterback and receiver take the medium pass from 8.69 to 11.61, +34%.
+And **a run-built club already beat a pass-built one**: over 200 games with the
+sides swapping home and away, a roster with RB 95 / OL 94 / QB 77 / WR 77
+leaning on the run won 54.0% against the mirror-image roster leaning on the
+pass. So "the run game is not viable" was wrong as a roster claim, and was only
+ever true of the play-call grid at league-average rosters. The run also owns
+short yardage, which a yards-per-play table cannot show at all: on 3rd & 1
+against a base defence an inside run converts 81% against a medium pass's 58%.
+
+What was actually broken was one cell. A two-high shell is the look that in
+football means *run* — six in the box against five blockers and a back — and it
+was worth only +1.2 yards to the inside run and +1.4 to the outside, not enough
+to overtake a pass. It is now +2.0 and +2.2, with the stuff rate dropped from
+−0.05 to −0.06 because a light box gets fewer bodies to the ball.
+
+The other half of that cell was play-action, which beat both runs against a
+shell and should not have. A run fake is wasted on a defence already sitting
+deep; its value is against a defence crashing the line, which the matrix
+already pays it handsomely for (+2.8 against a stacked box). Yet it was
+punished *less* by a two-high look (`comp −0.04, cov +3`) than a straight
+drop-back was (`comp −0.05, cov +4`). Now `comp −0.08, cov +6`.
+
+Together those put the outside run at the top of the deep-shell column (7.74,
+against play-action's 7.61 and the medium pass's 7.49) and leave the inside run
+level with the pass. The run is no longer beaten by anything against every
+defence. The inside run is still the lowest-yield call in the game, which is
+correct — its job is 3rd & 1 and the clock, not yards.
+
+The cost was checked rather than assumed. A run-built club committing to it
+goes from 54.0% to 53.8% against a pass build, so the roster balance did not
+move; and at league level scoring, yards per carry, yards per attempt and the
+run's share of plays are all within noise of where they were (4.41 ypc, 7.48
+ypa, 41.2% run share, 45.2 points a game between the two clubs — the real
+league runs about 4.3, 7.2, 42% and 45).
+
+### The second quarter is not about the score
+
+`wantsTimeout` required `diff <= 3` before half, so a club leading by more than
+a field goal never stopped the clock and simply took the two-minute drill off.
+Measured over 400 games from 0:50 on the opponent's 40 leading by seven: 1.00
+point and a 79.0% win rate, against 3.32 and 89.0% for spending the timeouts.
+An eight-point swing thrown away by a condition that has no business being
+there — before half the score is not the question, and there is no version of
+football in which a three-point lead is worth stopping the clock for and a
+seven-point lead is not.
+
+The rule is now `left <= 90 && g.ballOn >= 45` for the club with the ball: what
+decides it is whether there is something to gain — the ball, time to use it,
+and field position to use it from. It is still gated, and deliberately: deep in
+our own half with 0:50 left there is nothing to buy, and the measurement agrees
+(78.1% doing nothing against 79.4% spending them all).
+
+The same defect sat in `isHurryUp` one function away. `diff <= 7` meant a club
+leading by more than a touchdown played the end of the half at walking pace
+even standing in field-goal range, which is why fixing the timeout alone still
+left 2.6 points on the field at 0:40 on the opponent's 35. A lead is a reason
+to sit on the ball in your own half, not across midfield, so the gate is now
+`diff <= 7 || g.ballOn >= 40`.
+
+What the two are worth, over 400 games an arm, as the win rate of the club with
+the ball and the points it scores before half:
+
+| second-quarter situation | before | after |
+|---|---|---|
+| leading 7, 0:50, opponent 40 | 79.0% (1.00) | **87.0% (3.32)** |
+| leading 7, 1:30, own 30 | 83.1% (0.91) | **86.8% (2.09)** |
+| leading 14, 0:40, opponent 35 | 94.4% (0.16) | **96.9% (2.77)** |
+| leading 3, 0:50, opponent 40 | 79.6% (3.32) | 80.1% (3.32) |
+| tied, 0:50, opponent 40 | 73.3% (3.58) | 74.0% (3.58) |
+
+The rows where the old rule already fired barely move, which is the check that
+matters: this adds the cases it was wrong to skip rather than changing the ones
+it had right. And the new rule beats spending indiscriminately in three of the
+five rows — judgement still beats a reflex. League scoring rises from 44.5 to
+46.0 points a game between the two clubs, because more halves now end with
+somebody kicking.
+
 ### Who is having the game, while it is still being had
 
 The box score already handled a game in progress — `#/box/live` renders it and
@@ -1394,13 +1481,13 @@ the matrix rather than the ratings.
 
 | yards/play | Base | Stack the Box | Blitz | Deep Shell |
 |---|---|---|---|---|
-| Inside Run | 4.42 | **2.84** | 4.91 | 6.36 |
-| Outside Run | 4.64 | **3.29** | 6.33 | 6.72 |
-| Screen | 5.42 | 6.29 | **9.17** | 4.62 |
-| Short Pass | 6.24 | 7.14 | 6.85 | 6.50 |
-| Medium Pass | 8.14 | 9.99 | 8.92 | 6.91 |
-| Deep Shot | 10.38 | **14.24** | 10.70 | **5.26** |
-| Play Action | 9.23 | 12.48 | 8.91 | 8.27 |
+| Inside Run | 4.84 | **3.13** | 5.07 | 7.37 |
+| Outside Run | 4.96 | **3.57** | 6.65 | **7.74** |
+| Screen | 5.45 | 6.27 | **9.46** | 4.74 |
+| Short Pass | 6.53 | 7.28 | 7.03 | 6.64 |
+| Medium Pass | 8.48 | 10.25 | 9.18 | 7.49 |
+| Deep Shot | 11.11 | **15.47** | 11.79 | **6.10** |
+| Play Action | 9.72 | 12.49 | 9.16 | 7.61 |
 
 The rock-paper-scissors is real: the run dies against a stacked box and eats a
 two-high shell, the screen is the answer to a blitz, and the deep ball punishes
@@ -1422,21 +1509,21 @@ eleven slight, five decisive. Over 40 simulated games that works out at 53%
 straight, 42% a slight or even read, and 5% decisive: a real moment about seven
 times a game rather than wallpaper.
 
-Two things the measurement turned up that are balance problems, not display
-problems, and are deliberately left alone because changing `MATRIX` moves every
-simulated game in every league:
+The measurement turned up one balance problem serious enough to fix — no
+defensive look rewarded running, so at first down there was never a reason to
+hand the ball off — and that is dealt with under **A look that rewards the run**
+below. What remains is the short pass, whose four cells span 0.75 yards: no
+defensive call meaningfully changes it. It is not dominant at 6.9 yards, just
+inert, and there is no read to make against it either way.
 
-- **The medium pass beats both runs against every defence.** Its floor (6.91,
-  into a deep shell) is above the inside run's ceiling (6.36, against that same
-  shell). The running game's whole case is a 0.6% turnover rate against 3.0%,
-  and keeping the clock moving.
-- **The short pass has no counter.** Its four cells span 0.90 yards, so no
-  defensive call meaningfully changes it. It is not dominant at 6.7 yards, just
-  inert — there is no read to make against it either way.
-
-Play-action is the call to watch but not, in the end, dominant: it beats the
-medium pass into three looks and ties it against the blitz within the noise of
-the measurement.
+The first version of this table was wrong, and how it was wrong is worth
+keeping. `scripts/call-grid.mjs` reset the down, distance and spot before every
+snap but not the possession, so a single fumble handed the ball over and every
+snap after it was measured from the other side — in one cell, 2,388 of 3,000.
+Each cell carried a different mixture, so the whole table was depressed by an
+amount that varied per row. The grid also ran at a home site, which is not what
+a league-average reference should be. Both are fixed; the numbers above are the
+corrected ones.
 
 ### Autoplay, paced by what is at stake
 
@@ -1505,8 +1592,10 @@ actually watching and calling. Every skip-ahead path — `stepDrive`,
 `delegated` helper, so a **Sim to end** is managed exactly as it always was and a
 simmed season is bit-for-bit unchanged. A test pins that: twenty games simmed
 with the clock held come out with identical scores and identical timeout
-spending to twenty simmed without it. The game fingerprint is unchanged at
-`fff8872cea59867e`, because with nothing set the overrides are inert.
+spending to twenty simmed without it. The game fingerprint did not move when
+this shipped, because with nothing set the overrides are inert; it has moved
+since, for the reasons recorded above and under the second-quarter clock rules
+below, which change what the engine does on its own.
 
 What the levers are worth, over 400 seeds per arm, as the coaching club's win
 rate:

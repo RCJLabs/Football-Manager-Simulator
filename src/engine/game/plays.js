@@ -17,13 +17,13 @@ import { pickReceiver, primaryDefender, pickTackler, pickRusher, pickBallhawk, p
 
 const MATRIX = {
   // offense call -> defense call -> modifiers
-  run_in:     { base: {}, run_stop: { run: -1.6, stuff: 0.09 }, blitz: { run: -0.3, stuff: 0.04, breakaway: 0.02 }, deep: { run: 1.2, stuff: -0.05 } },
-  run_out:    { base: {}, run_stop: { run: -1.2, stuff: 0.07 }, blitz: { run: 0.4, stuff: 0.03, breakaway: 0.03 }, deep: { run: 1.4, stuff: -0.05 } },
+  run_in:     { base: {}, run_stop: { run: -1.6, stuff: 0.09 }, blitz: { run: -0.3, stuff: 0.04, breakaway: 0.02 }, deep: { run: 2.0, stuff: -0.06 } },
+  run_out:    { base: {}, run_stop: { run: -1.2, stuff: 0.07 }, blitz: { run: 0.4, stuff: 0.03, breakaway: 0.03 }, deep: { run: 2.2, stuff: -0.06 } },
   screen:     { base: {}, run_stop: { comp: 0.02, yac: 1 }, blitz: { comp: 0.06, yac: 4, pressure: -0.1 }, deep: { comp: 0.03, yac: -1 } },
   pass_short: { base: {}, run_stop: { comp: 0.05, cov: -4 }, blitz: { pressure: 0.12, cov: -3, yac: 1.5 }, deep: { comp: 0.05, cov: -6, yac: -1 } },
   pass_med:   { base: {}, run_stop: { comp: 0.07, cov: -6 }, blitz: { pressure: 0.14, cov: -6, yac: 2 }, deep: { comp: -0.05, cov: 4 } },
   pass_deep:  { base: {}, run_stop: { comp: 0.08, cov: -8 }, blitz: { pressure: 0.16, cov: -8, yac: 3 }, deep: { comp: -0.12, cov: 8, int: 0.02 } },
-  pa_pass:    { base: {}, run_stop: { comp: 0.1, cov: -9, pressure: -0.04 }, blitz: { pressure: 0.12, cov: -5 }, deep: { comp: -0.04, cov: 3 } },
+  pa_pass:    { base: {}, run_stop: { comp: 0.1, cov: -9, pressure: -0.04 }, blitz: { pressure: 0.12, cov: -5 }, deep: { comp: -0.08, cov: 6 } },
 };
 
 /**

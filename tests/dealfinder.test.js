@@ -102,19 +102,37 @@ test('the finder agrees with a brute-force count of what exists', () => {
   const u = userTeamIndex(lg);
   const base = lineupStrength(lg.teams[u].slots, byId, lg);
   const plan = dealPlan(lg, byId);
-  // Every candidate the plan holds, checked the long way round.
-  let truth = 0;
+  // Every candidate the plan holds that stands on the players alone, checked
+  // the long way round. The finder also closes deals the club would otherwise
+  // refuse by adding a draft pick, which this recount does not model — so it is
+  // a floor on what the finder must find, not a total. An earlier version
+  // asserted equality and passed only because no league it happened to build
+  // had a pick-sweetened deal in it.
+  const plain = new Set();
   for (const entry of plan.clubs) {
     for (const c of entry.candidates) {
       if (!validateTrade(lg, entry.club, u, c.gives, c.wants, byId, PLAYERS).ok) continue;
       if (!evaluateTrade(lg, entry.club, c.gives, c.wants, byId, PLAYERS).accept) continue;
       const out = slotsAfterTrade(lg, u, c.wants, c.gives, PLAYERS, byId);
-      if (out && lineupStrength(out.slots, byId, lg) - base >= DEAL_FLOOR) truth++;
+      // Rounded the way the finder rounds it. The number it shows is the number
+      // it promises, so a gain of 0.05 that displays as +0.1 is at the floor.
+      if (out && Math.round((lineupStrength(out.slots, byId, lg) - base) * 10) / 10 >= DEAL_FLOOR) {
+        plain.add(`${entry.club}|${c.gives.join(',')}|${c.wants.join(',')}`);
+      }
     }
   }
   const all = [];
   for (let i = 0; i < plan.clubs.length; i++) all.push(...scanClub(lg, byId, PLAYERS, plan, i));
-  assert.equal(all.length, truth, 'the finder and the long way round disagree');
+  const key = (d) => `${d.club}|${d.gives.join(',')}|${d.wants.join(',')}`;
+  const found = new Set(all.map(key));
+  assert.ok(plain.size > 0, 'no plain deals to check against');
+  for (const k of plain) assert.ok(found.has(k), `the finder missed a deal that stands on its own: ${k}`);
+  // Nothing invented: every deal beyond the plain ones is explained by a pick.
+  for (const d of all) {
+    if (plain.has(key(d))) continue;
+    assert.ok(d.userPicks.length + d.aiPicks.length > 0,
+      `the finder offered a deal the long way round rejects, with no pick to explain it: ${key(d)}`);
+  }
 });
 
 test('every transaction a league writes has a shape the log can read', () => {

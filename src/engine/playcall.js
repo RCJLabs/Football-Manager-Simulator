@@ -35,8 +35,11 @@ export const DEFENSE_CALLS = {
  * completion, coverage, yards after catch and pressure, which is the right
  * shape for the engine and no use at all to a person choosing a call. This is
  * the same thing measured from the outside: 3,000 snaps per cell, every one a
- * neutral 1st & 10 at our own 25, two evenly matched 84-rated clubs, penalties
- * off so a flag before the snap cannot stand in for the matchup.
+ * neutral 1st & 10 at our own 25, two evenly matched 84-rated clubs at a
+ * neutral site, penalties off so a flag before the snap cannot stand in for
+ * the matchup, and the offence pinned — the first published version of this
+ * table let a fumble hand the ball over and went on measuring from the other
+ * side, which in one cell was 2,388 of 3,000 snaps.
  *
  * It is a league-average reference, not a prediction for the two clubs on the
  * field — the magnitudes move with the rosters. What holds is the ordering,
@@ -47,13 +50,13 @@ export const DEFENSE_CALLS = {
  * Re-measure with `scripts/call-grid.mjs` if the matrix changes.
  */
 export const CALL_GRID = {
-  run_in:     { base: 4.42, run_stop: 2.84, blitz: 4.91, deep: 6.36 },
-  run_out:    { base: 4.64, run_stop: 3.29, blitz: 6.33, deep: 6.72 },
-  screen:     { base: 5.42, run_stop: 6.29, blitz: 9.17, deep: 4.62 },
-  pass_short: { base: 6.24, run_stop: 7.14, blitz: 6.85, deep: 6.50 },
-  pass_med:   { base: 8.14, run_stop: 9.99, blitz: 8.92, deep: 6.91 },
-  pass_deep:  { base: 10.38, run_stop: 14.24, blitz: 10.70, deep: 5.26 },
-  pa_pass:    { base: 9.23, run_stop: 12.48, blitz: 8.91, deep: 8.27 },
+  run_in:     { base: 4.84, run_stop: 3.13, blitz: 5.07, deep: 7.37 },
+  run_out:    { base: 4.96, run_stop: 3.57, blitz: 6.65, deep: 7.74 },
+  screen:     { base: 5.45, run_stop: 6.27, blitz: 9.46, deep: 4.74 },
+  pass_short: { base: 6.53, run_stop: 7.28, blitz: 7.03, deep: 6.64 },
+  pass_med:   { base: 8.48, run_stop: 10.25, blitz: 9.18, deep: 7.49 },
+  pass_deep:  { base: 11.11, run_stop: 15.47, blitz: 11.79, deep: 6.10 },
+  pa_pass:    { base: 9.72, run_stop: 12.49, blitz: 9.16, deep: 7.61 },
 };
 
 /**
@@ -144,7 +147,12 @@ export function isHurryUp(g, team) {
   if (forced) return forced === 'hurry';
   const left = halfSecondsLeft(g);
   const diff = scoreDiff(g, team);
-  if (g.quarter === 2 && left <= 120 && diff <= 7) return true;
+  // Same defect as the old timeout rule, in the same quarter: `diff <= 7` alone
+  // meant a club leading by more than a touchdown played the end of the half at
+  // walking pace even standing in field-goal range. The lead is a reason to sit
+  // on the ball deep in your own half, not a reason to leave points on the
+  // field when you are already across midfield.
+  if (g.quarter === 2 && left <= 120 && (diff <= 7 || g.ballOn >= 40)) return true;
   if (g.quarter >= 4 && left <= 300 && diff < 0) return true;
   if (g.quarter >= 4 && left <= 150 && diff <= 0) return true;
   return false;
@@ -402,7 +410,14 @@ export function wantsTimeout(g, team) {
   const diff = scoreDiff(g, team);
   const left = halfSecondsLeft(g);
   const onOffense = g.possession === team;
-  if (g.quarter === 2) return onOffense && left <= 45 && diff <= 3 && g.ballOn >= 50;
+  // Before half, the score is not the question. The old rule required
+  // `diff <= 3`, so a club leading by more than a field goal never stopped the
+  // clock and took the two-minute drill off — measured over 400 games at 0:50
+  // on the opponent's 40, leading by seven, that was 1.00 point and a 79.0%
+  // win rate against 3.32 and 89.0% for spending them. What decides it is
+  // whether there is something to gain: the ball, time to use it, and field
+  // position to use it from.
+  if (g.quarter === 2) return onOffense && left <= 90 && g.ballOn >= 45;
   if (g.quarter < 4) return false;
   if (g.quarter >= 5) return onOffense && left <= 60;
   if (onOffense) return diff <= 0 && left <= 120;

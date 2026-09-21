@@ -27,12 +27,20 @@ const LA = buildLineup(A.slots, A.byId);
 const LB = buildLineup(B.slots, B.byId);
 
 function measure(off, def) {
-  const g = createGame({ ...A, lineup: LA }, { ...B, lineup: LB }, { seed: 4242, penalties: false });
+  // Neutral site: HOME_EDGE adds to the home side's blocking, rush, coverage and
+  // tackling, and a league-average reference should not carry it.
+  const g = createGame({ ...A, lineup: LA }, { ...B, lineup: LB }, { seed: 4242, penalties: false, homeAdvantage: false });
   step(g); // clear the opening kickoff
   let yards = 0, plays = 0, success = 0, turnovers = 0;
   while (plays < N && !g.final) {
     g.quarter = 1; g.clock = 900; g.phase = 'play'; g.down = 1; g.toGo = 10;
     g.ballOn = 25; g.score = [0, 0]; g.clockRunning = false; g.drive = null;
+    // Pin the offence. Without this a single fumble hands the ball over and
+    // every snap after it is measured from the other side: in the first
+    // published grid, 2,388 of 3,000 snaps in one cell were taken by the wrong
+    // club, and each cell was a different mixture, so the whole table was
+    // depressed by an amount that varied per row.
+    g.possession = 0;
     const from = g.log.length;
     step(g, { off, def });
     const e = g.log.slice(from).find((x) => x.from != null);
