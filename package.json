@@ -29,7 +29,8 @@
     "market": "node scripts/market-sim.mjs",
     "yardstick": "node scripts/yardstick.mjs",
     "yardstick-fit": "node scripts/yardstick-fit.mjs",
-    "legacy": "node scripts/legacy-check.mjs"
+    "legacy": "node scripts/legacy-check.mjs",
+    "attrs": "node scripts/attribute-leverage.mjs"
   },
   "engines": {
     "node": ">=20"
