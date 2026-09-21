@@ -167,12 +167,27 @@ if (process.argv[1] && process.argv[1].endsWith('attribute-leverage.mjs')) {
     const note = pos === 'EDGE' ? '  — ONE linebacker reshaped into a rusher, against LB.edgeWeights'
       : real === 'LB' ? '  — off-ball backers, against LB.weights' : '';
     console.log(`${pos}  (${starterSlots(real).length} starters)${note}`);
-    console.log('  attr   margin      se    measured   shipped   change');
+    console.log('  attr   margin      se     σ    measured   shipped   change');
+    let weak = 0;
     for (const r of rows.slice().sort((a, b) => b.margin - a.margin)) {
       const got = Math.max(0, r.margin) / total;
       const want = w[r.attr] ?? 0;
+      const sigma = r.se > 0 ? r.margin / r.se : 0;
+      if (sigma < 2) weak++;
       const flag = Math.abs(got - want) >= 0.10 ? '  <<' : '';
-      console.log(`  ${r.attr.padEnd(5)} ${r.margin.toFixed(3).padStart(7)} ±${r.se.toFixed(3)}   ${got.toFixed(3).padStart(8)}  ${want.toFixed(3).padStart(8)}   ${(got - want >= 0 ? '+' : '') + (got - want).toFixed(3)}${flag}`);
+      const soft = sigma < 2 ? ' ?' : '  ';
+      console.log(`  ${r.attr.padEnd(5)} ${r.margin.toFixed(3).padStart(7)} ±${r.se.toFixed(3)} ${sigma.toFixed(1).padStart(5)}${soft} ${got.toFixed(3).padStart(8)}  ${want.toFixed(3).padStart(8)}   ${(got - want >= 0 ? '+' : '') + (got - want).toFixed(3)}${flag}`);
+    }
+    // The normalised column divides by the sum of the margins, so when most of
+    // that sum is noise the share of whatever DID measure is not a measurement
+    // of anything — it is one over the number of attributes that beat the
+    // noise. The tight end read `blk` at 0.656 of his leverage on 6,000 games,
+    // with four attributes indistinguishable from zero underneath it; at 24,000
+    // the same engine read 0.509, and the four underneath had turned into real
+    // numbers. Nothing about the engine had changed. Run more games before
+    // believing a split with `?` in it.
+    if (weak) {
+      console.log(`  ? ${weak} of ${rows.length} reading(s) under 2σ — the normalised split is not trustworthy until they are not.`);
     }
     console.log('');
   }

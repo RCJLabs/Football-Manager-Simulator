@@ -2440,6 +2440,75 @@ particular engine. They search, or mirror, or check their premise now.
 
 **Fictional names.** A settings toggle swaps every real name for a made-up one, one to one, chosen from the hash of the player's id and settled in pool order so it never changes between sessions or versions as long as the name lists only grow at the end and the pool stays append-only. Ids, ratings, saves and league codes are untouched; the real name is kept on the player so the switch reverses. Logs and records keep the names they were written with. Team abbreviations in the pool (the club a player's prime season was with) are left as they are. `applyNameMode` runs at boot from the preference, so a store build can default it to `fictional` by changing one line in `main.js`; the real names still ship in the data file either way, which is a licensing question this toggle does not settle, only sidesteps on screen.
 
+### The tight end, where the two authorities disagree about the job itself
+
+The original sweep noted in passing that a tight end is mostly a blocker. That
+note was several engine changes old and had never been checked. Checked, it is
+true, and it is the deepest disagreement in this document — not about a number
+but about what the position is.
+
+#### The instrument was lying, in a way worth understanding
+
+The first reading, on 6,000 games, said `blk` was **0.656** of a tight end's
+leverage against a shipped 0.250, with `cth` at 0.044 and `rte` at 0.035. That
+looks decisive. It is not a measurement.
+
+The tight end is one starter, so the harness lifts one player and the margins
+are small: `cth` came in at 0.055 ± 0.139 and `rte` at 0.043 ± 0.140. Both are
+indistinguishable from zero. And the normalised column divides each margin by
+the sum of all of them — so when four of five are noise, the share of the one
+that measured is not a fact about the engine, it is roughly one over the number
+of attributes that beat the noise.
+
+The proof came free. Lowering the tight end's blocking share in `composites`
+cut `blk`'s absolute margin from 0.813 to 0.540 — and its normalised share went
+*up*, to 0.670. A number that does not move when the thing it measures is
+halved is not measuring it.
+
+Run at 24,000 games the standard errors halve and the picture changes:
+
+| TE | priced | at 6k | at 24k | σ |
+| --- | --- | --- | --- | --- |
+| `blk` | 0.250 | 0.656 | **0.509** | 8.3 |
+| `cth` | 0.250 | 0.044 | **0.143** | 1.9 |
+| `spd` | 0.100 | 0.076 | **0.132** | 1.7 |
+| `rac` | 0.200 | 0.189 | **0.128** | 2.4 |
+| `rte` | 0.200 | 0.035 | **0.087** | 1.1 |
+
+About half a blocker, with the receiving attributes splitting the rest fairly
+evenly — a believable picture, and a different one from "two thirds blocker with
+worthless hands". `npm run attrs` now prints a σ column and refuses to let a
+sub-2σ split pass without saying so, because this repo came within one commit of
+repricing a position on noise.
+
+#### One thing was genuinely wrong, and it was not the weights
+
+`runBlock` gave the tight end **0.20** while five linemen shared 0.80 — 0.16
+each. The tight end was the single most important run blocker on the field. He
+is one of six blockers and usually the least central of them. At 0.12 he is
+worth about two thirds of a lineman, which is the right end of the order, and
+because the shares still sum to one the calibration does not move. Realism stays
+clean; `runs stopped at or behind` came the rest of the way into band with it.
+
+#### The weights do not move, and this time that is the answer
+
+There is no free move. Not a small one: f = 0.125 already costs Brock Bowers,
+and it escalates — half way costs Winslow and Gates too, all the way costs
+Shannon Sharpe as well. Four of the position's defining names, and every one of
+them a receiving tight end.
+
+That is not the record being fussy about an edge case, the way it was about one
+power back or one instincts corner. It is the record saying that the great tight
+ends of this sport are pass catchers, while the simulation says the job is
+mostly blocking. Both are coherent. A tight end in this engine blocks on sixty
+snaps and is thrown to six times, and the arithmetic of that is not wrong — it
+is simply a different game from the one the hall of fame was voted on.
+
+So the weights stay where they are, and the disagreement is recorded rather than
+split. Of everything in this document this is the one where "measure it again"
+is least likely to help: the measurement is now solid, and it is the premise
+underneath that the two authorities do not share.
+
 ### The receiver, and the time the engine turned out to be right
 
 The last disagreement left was the receiver: `spd` measured 0.396 of his

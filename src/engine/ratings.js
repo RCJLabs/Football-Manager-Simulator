@@ -155,8 +155,14 @@ export function composites(lineup) {
     rb1: rb[0], rb2: rb[1],
     te, wr, ol, dl, lb, cb, s, k, p,
     // offense
-    passBlock: 0.85 * mean(ol, 'pbk') + 0.15 * teBlk,
-    runBlock: 0.8 * mean(ol, 'rbk') + 0.2 * teBlk,
+    // The tight end used to count for 0.20 of the run block against 0.80 shared
+    // by five linemen — 0.16 each — which made him the single most important run
+    // blocker on the field. He is one of six blockers and usually the least
+    // central of them. At 0.12 he is worth about two thirds of a lineman, which
+    // is the right end of the order. Level is untouched on a uniform roster,
+    // since the shares still sum to one.
+    passBlock: 0.90 * mean(ol, 'pbk') + 0.10 * teBlk,
+    runBlock: 0.88 * mean(ol, 'rbk') + 0.12 * teBlk,
     olAwr: mean(ol, 'awr'),
     // defense
     // A defence sends four. Two linemen always go; the other two seats are
