@@ -59,7 +59,13 @@ export const RUN_OUT = 4.2;     // the same outside, where the spread is wider
 // nothing or lose ground, which is 16 to 22% in the real league — the rate
 // itself is lower than that share, because the branch that is *not* stuffed
 // still produces the occasional nothing.
-export const STUFF_RATE = 0.1415;  // 0.145 before power began resisting the stuff, which pushed runs stopped to 22.3 against a real ceiling of 22
+// 0.145 before power began resisting the stuff, then 0.1415, and 0.1370 once
+// the linebacker and defensive-line weights were refitted toward what the field
+// measures — a front that fits the run better stops more runs behind it, which
+// pushed the share back to 22.2 against a real ceiling of 22. Mean run holds at
+// 4.51 against a 4.2-4.6 range, so this buys the share without softening the
+// ground game.
+export const STUFF_RATE = 0.1370;
 
 /**
  * What a broken tackle and a breakaway are worth, and how often they happen.
@@ -222,13 +228,34 @@ export function callVerb(call) {
   return { screen: 'screen pass', pass_short: 'short pass', pass_med: 'pass', pass_deep: 'deep pass', pa_pass: 'play-action pass' }[call] || 'pass';
 }
 
+/**
+ * How far the ball travels in the air.
+ *
+ * Re-fitted after the only realism metric that had never been diagnosed —
+ * `yards / completion` at 12.10 against a 10.8-12.0 range — turned out to be
+ * the visible tip of a composition error. Decomposed, a completion in this
+ * engine was 8.93 air and 3.81 after the catch; the real game is nearer 6.0 and
+ * 5.3. The two errors mostly cancel, which is why the total was only a fraction
+ * out while the shape underneath was a downfield passing game where football is
+ * a short one.
+ *
+ * The clamp on `pass_short` was the clearest single wrong thing: a floor of 1
+ * meant this offence could not throw a checkdown at or behind the line of
+ * scrimmage, which is a large share of real short passing. It goes to -1.
+ *
+ * Moved part of the way rather than all of it. The direction is solid — air was
+ * about seventy per cent of a completion here against a bit over half in the
+ * real game — but the exact targets are league averages held to a precision
+ * this document cannot justify, so the numbers below aim for the shape and stop
+ * short of claiming the destination.
+ */
 export function airYards(rng, call, qb, target) {
   switch (call) {
     case 'screen': return clamp(rng.normal(0, 2.2), -4, 4);
-    case 'pass_short': return clamp(rng.normal(6, 2.4), 1, 11);
-    case 'pass_med': return clamp(rng.normal(12.5, 3.5), 8, 21);
+    case 'pass_short': return clamp(rng.normal(4.5, 2.6), -1, 11);
+    case 'pass_med': return clamp(rng.normal(11.8, 3.5), 7, 20);
     case 'pass_deep': return clamp(rng.normal(27 + (qb.r.thp - 85) * 0.15, 7), 17, 52);
-    case 'pa_pass': return clamp(rng.normal(14, 5.5), 4, 32);
+    case 'pa_pass': return clamp(rng.normal(13, 5.5), 3, 31);
     default: return 6;
   }
 }
@@ -402,7 +429,12 @@ export function resolvePass(g, rng, call, defCall) {
   const tSkill = target.pos === 'RB' ? target.r.rec : 0.45 * target.r.rte + 0.55 * target.r.cth;
   // Chemistry reaches the passing game as timing with receivers he knows.
   const skill = qb.r.tha * 0.6 + tSkill * 0.4 + comp.chem - (pressured ? 9 : 0);
-  const baseComp = { screen: 0.78, pass_short: 0.745, pass_med: 0.615, pass_deep: 0.425, pa_pass: 0.625 }[call];
+  // `pass_short` completes more often than it used to because it IS shorter
+  // now: its air yards came down from a mean of 6 to 4.5 when the passing game
+  // was re-composed, and completion probability here is per call rather than
+  // per yard, so the rate has to move with it or the shorter throw is priced as
+  // though it were still the longer one.
+  const baseComp = { screen: 0.78, pass_short: 0.775, pass_med: 0.615, pass_deep: 0.425, pa_pass: 0.625 }[call];
   let compP = baseComp + (skill - cov) * 0.008 + (m.comp || 0);
   if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003;
   // Arm strength, by how far the ball has to travel.
@@ -468,7 +500,9 @@ export function resolvePass(g, rng, call, defCall) {
   }
 
   // Completion.
-  const yacMean = { screen: 5.9, pass_short: 2.9, pass_med: 2.3, pass_deep: 3.4, pa_pass: 3.0 }[call] + (m.yac || 0);
+  // Raised with the air yards above: the ball is caught shorter now, and the
+  // real game makes up the difference after the catch rather than before it.
+  const yacMean = { screen: 5.9, pass_short: 4.6, pass_med: 3.0, pass_deep: 3.4, pa_pass: 3.4 }[call] + (m.yac || 0);
   const rac = target.r.rac ?? (target.r.elu ? (target.r.elu * 0.6 + target.r.pow * 0.4) : 70);
   let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09)) * (1 - squeeze(g.ballOn) * SQUEEZE_YAC);
   yac = Math.max(0, yac - sticks(g.down, g.toGo) * STICKS_YAC);

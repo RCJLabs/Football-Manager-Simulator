@@ -60,10 +60,15 @@ test('the arm term is centred so the league does not drift', () => {
   // A CALIBRATION PIN, and the reason for one: `ARM_MID` decides where the new
   // term is worth nothing, so getting it wrong shifts every completion in the
   // game rather than only the ones it should. Centred on 82, the mean of the
-  // synthetic population the constants were fitted against, the league throws
-  // 63.30%. At 70 it throws 64.45% and at 92, 62.54% — a full point either way,
-  // and BOTH of those sit inside any sane realistic range, so a loose band
-  // cannot catch it. Hence the narrow one.
+  // synthetic population the constants were fitted against. At 70 the league
+  // throws about a point higher and at 92 about a point lower, and BOTH of
+  // those sit inside any sane realistic range, so a loose band cannot catch it.
+  // Hence the narrow one.
+  //
+  // Re-measured at 64.90% when the passing game was re-composed: `pass_short`
+  // was shortened by a yard and a half and its completion rate moved with it,
+  // which lifts the league. That is the deliberate change this comment said to
+  // re-measure for. The number moved; the band did not widen.
   //
   // Centring on the wrong population has happened twice in this engine's
   // history. If this fails after a deliberate change, re-measure and move the
@@ -78,7 +83,7 @@ test('the arm term is centred so the league does not drift', () => {
     for (const t of [0, 1]) { att += g.stats[t].team.passAtt || 0; cmp += g.stats[t].team.passCmp || 0; }
   }
   const pct = 100 * cmp / att;
-  assert.ok(pct > 62.9 && pct < 63.8, `league completion drifted to ${pct.toFixed(2)}%, expected 63.30%`);
+  assert.ok(pct > 64.5 && pct < 65.4, `league completion drifted to ${pct.toFixed(2)}%, expected 64.90%`);
 });
 
 test('ball security counts on a catch, not only on a carry', () => {

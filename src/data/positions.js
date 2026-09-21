@@ -52,7 +52,7 @@ export const POSITIONS = {
         weights:     { tck: 0.27, cov: 0.23, rsd: 0.23, awr: 0.13, spd: 0.09, prs: 0.05 },
         edgeWeights: { prs: 0.45, rsd: 0.19, tck: 0.17, spd: 0.11, awr: 0.08, cov: 0.00 } },
   CB: { name: 'Cornerback',    attrs: ['spd', 'cov', 'bal', 'tck', 'awr'],
-        weights: { cov: 0.59, spd: 0.14, bal: 0.13, tck: 0.09, awr: 0.05 } },
+        weights: { cov: 0.57, spd: 0.13, bal: 0.11, awr: 0.11, tck: 0.08 } },
   S:  { name: 'Safety',        attrs: ['spd', 'cov', 'bal', 'tck', 'rsd', 'awr'],
         weights: { cov: 0.34, tck: 0.24, spd: 0.14, bal: 0.12, rsd: 0.12, awr: 0.04 } },
   K:  { name: 'Kicker',        attrs: ['kpw', 'kac'],

@@ -2440,6 +2440,93 @@ particular engine. They search, or mirror, or check their premise now.
 
 **Fictional names.** A settings toggle swaps every real name for a made-up one, one to one, chosen from the hash of the player's id and settled in pool order so it never changes between sessions or versions as long as the name lists only grow at the end and the pool stays append-only. Ids, ratings, saves and league codes are untouched; the real name is kept on the player so the switch reverses. Logs and records keep the names they were written with. Team abbreviations in the pool (the club a player's prime season was with) are left as they are. `applyNameMode` runs at boot from the preference, so a store build can default it to `fictional` by changing one line in `main.js`; the real names still ship in the data file either way, which is a licensing question this toggle does not settle, only sidesteps on screen.
 
+### The one realism miss nobody had diagnosed
+
+`yards / completion` had sat outside its range for as long as the realism check
+has existed — 12.10 against 10.8-12.0 — and had never been looked at, because
+0.8% over the top of a judgement call is easy to leave.
+
+**The metric was measured correctly, which took checking first.** There is an
+arithmetic inconsistency in the output that looks like a bug: pass yards over
+attempts gives 7.21, and completion percentage implies 11.36 yards a completion,
+not 12.10. The two differ because `yards / attempt` runs off team `passYds`,
+which is net of sack yardage, while `yards / completion` is the mean of the
+completed-pass log entries, which is gross. Gross is the right convention for
+comparing to the real range, so the instrument was sound and the engine really
+was high.
+
+**Decomposed, the small miss was the tip of a composition error.** Air yards and
+run-after-catch are fitted separately, so splitting them says which to look at:
+
+| | engine | real game, approximately |
+| --- | --- | --- |
+| air yards / completion | **8.93** | ~6.0 |
+| after the catch | **3.81** | ~5.3 |
+
+A completion here was seventy per cent air where the real game is a bit over
+half. The two errors mostly cancel, which is exactly why only a derived ratio
+poked out while the shape underneath was a downfield passing game in a sport
+that mostly throws short and runs after it.
+
+The clearest single wrong thing was a clamp: `pass_short` air yards were
+`normal(6, 2.4)` bounded to **[1, 11]**, so this offence could not throw a
+checkdown at or behind the line of scrimmage — a large share of real short
+passing simply did not exist. `pass_short` is 47% of completions.
+
+#### Getting it back without breaking the rest
+
+Lowering air yards alone cost 3 points a game and took scoring drives, total
+points and overtime frequency out of band: three new misses to fix one. Raising
+run-after-catch to compensate recovered most of it but left the ratio straddling
+its boundary, because `yards / completion` and total points are coupled through
+the same pass yards — you cannot lower one and hold the other by moving yards
+around.
+
+What broke the coupling was noticing that completion probability in this engine
+is **per call, not per yard**. `pass_short` was made a yard and a half shorter
+and went on completing at the same 0.745 it had when it was longer. Moving that
+rate with the throw adds completions rather than yards: it lifts completion
+percentage into the middle of its range, restores the points, and *lowers* yards
+per completion, because the completions it adds are short ones.
+
+One more thing had to move with it. `runs stopped at or behind` had sat on its
+boundary all session and went 0.2 over it — not from anything in the passing
+game, but because the linebacker and line weights had been refitted toward what
+the field measures, and a front that fits the run better stops more runs behind
+it. `STUFF_RATE` has been fought over before (0.145, then 0.1415, per its own
+comment) and went to 0.1370, which puts the share at 21.9 while mean run holds
+at 4.51 against a 4.2-4.6 range.
+
+Result: **none of 44 metrics wholly outside**, the first fully clean run this
+check has had. Composition moved from 70% air to 63%, which is about halfway to
+the real game and deliberately not further — the direction is solid but the
+targets are league averages quoted to a precision this document cannot justify.
+
+#### What it dragged with it, which is the real lesson
+
+Changing what a drive is worth invalidates everything fitted on top of drives.
+The expected-points curve re-fitted from 0.0539 to 0.0528 and settled on the
+second pass, as `winprob.js` says it does. The turnover price moved 58 yards to
+56. The playbook equilibrium was re-run and its shape held: two live defensive
+calls, two dead ones.
+
+And then the awkward one. The cornerback weights in the section below were
+fitted an hour earlier **against a passing game this section then changed**.
+Re-measured, CB `awr` had gone from 0.048 to 0.106 — the shipped 0.05 was now
+wrong by more than the gap that justified moving it in the first place, and
+wrong in the direction that had cost Ronde Barber his bar. It has been re-fitted
+against the engine as it now stands.
+
+The ordering rule that falls out: **fit weights after the engine has stopped
+moving, not before.** Every leverage number is a measurement of a specific
+engine, and this session changed that engine four times.
+
+Left open rather than chased: the receiver wants a re-measure too — `spd` now
+reads 0.405 against a shipped 0.270, the largest remaining disagreement in the
+game — and the safety was fitted in the same stale pass as the corner, though
+its gaps were small enough that the shift is inside the noise. Both are the next
+piece of work, not this one.
+
 ### Deep coverage is a footrace, and nothing said so
 
 The corner was the last position where the price and the field plainly

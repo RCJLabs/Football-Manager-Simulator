@@ -48,9 +48,15 @@ export function Phi(z) {
  * gives a slightly different answer again. It settles quickly — 0.0547 then
  * 0.0539, which is eight hundredths of a point at midfield — and the second
  * pass is what ships.
+ *
+ * Re-fitted again when the passing game was re-composed: a completion in this
+ * engine was 8.93 air yards and 3.81 after the catch, against a real game
+ * nearer 6.0 and 5.3, and moving it part of the way changed what a drive is
+ * worth. 0.0539 to 0.0528, about a tenth of a point at midfield. Same loop,
+ * same rule: re-run and ship the pass that has stopped moving.
  */
-export const EP_PER_YARD = 0.0539;
-export const EP_AT_OWN_GOAL = -0.215;
+export const EP_PER_YARD = 0.0528;
+export const EP_AT_OWN_GOAL = -0.269;
 
 export function expectedPoints(ballOn, down = 1, toGo = 10) {
   let ep = ballOn * EP_PER_YARD + EP_AT_OWN_GOAL;

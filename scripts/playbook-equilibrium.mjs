@@ -23,7 +23,7 @@
  * on every snap, which is nonsense. A play is worth its yards less its turnover
  * rate times what a giveaway costs, and that price is now measured rather than
  * asserted: `npm run turnover` fits it from the engine's own behaviour and puts
- * it at 58 yards for this grid's situation — first and ten from the 25 — which
+ * it at 56 yards for this grid's situation — first and ten from the 25 — which
  * is where every snap here is taken.
  *
  * It used to say 40, on the reasoning that a giveaway is worth four points and
@@ -45,7 +45,7 @@ import { createGame, step } from '../src/engine/game.js';
 import { CALL_GRID, DEFENSE_CALLS } from '../src/engine/playcall.js';
 
 const N = Number(process.argv[2] || 2500);
-const TURNOVER_YDS = Number(process.argv[3] || 58);
+const TURNOVER_YDS = Number(process.argv[3] || 56);
 const OFF = Object.keys(CALL_GRID);
 const DEF = Object.keys(DEFENSE_CALLS);
 const A = syntheticTeam('alpha', 84, 3, 1);

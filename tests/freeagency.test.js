@@ -87,12 +87,28 @@ test('the market settles, the best offer wins, and the loser is told', () => {
     const bid = Math.min(biddingRoom(lg, u), Math.round(marketSalary(p) * 1.9));
     if (bid >= marketSalary(p)) {
       assert.equal(submitOffer(lg, u, target, bid, byId).ok, true);
+      // What the market owes is that the BEST offer wins, not that this one
+      // does. Asserting the user wins assumed 1.9x market outbid every club,
+      // which is a fact about a seed rather than about the market: a reweight
+      // elsewhere in the game moved what the clubs thought he was worth, one of
+      // them bid past $77, and a test named "the best offer wins" failed
+      // because the best offer won.
+      const bids = Object.entries(lg.freeAgency.offers)
+        .map(([team, o]) => ({ team: Number(team), amount: o[target] }))
+        .filter((x) => Number.isFinite(x.amount));
+      const top = Math.max(...bids.map((x) => x.amount));
+      const topTeams = bids.filter((x) => x.amount === top).map((x) => x.team);
       closeFreeAgency(lg, PLAYERS, byId);
-      const rep = freeAgencyReport(lg, u);
-      const got = rep.won.find((w) => w.id === target);
-      assert.ok(got, `the top bid of $${bid} did not win ${p.name}`);
-      assert.ok(ROSTER_SLOTS.some((s) => lg.teams[u].slots[s.id] === target), 'he was not put on the roster');
-      assert.equal(lg.contracts[target].salary, bid);
+      const owner = lg.teams.findIndex((t) => ROSTER_SLOTS.some((sl) => t.slots[sl.id] === target));
+      assert.ok(owner >= 0, `${p.name} went unsigned though ${bids.length} club(s) bid for him`);
+      assert.ok(topTeams.includes(owner),
+        `${p.name} went to club ${owner}, who bid ${bids.find((x) => x.team === owner)?.amount}, over a top bid of ${top}`);
+      assert.equal(lg.contracts[target].salary, top, 'he is paid what won him');
+      // And when the winner IS the user, he is told so and put on the roster.
+      if (owner === u) {
+        const rep = freeAgencyReport(lg, u);
+        assert.ok(rep.won.find((w) => w.id === target), 'the user won him but was not told');
+      }
       return;
     }
   }
