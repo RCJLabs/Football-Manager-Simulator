@@ -1,4 +1,4 @@
-import { html, render, raw } from '../../util.js';
+import { html, render, raw, textOn } from '../../util.js';
 import { step, stepDrive, stepQuarter, simulateGame, decisionNeeded, spot, downText, callTimeout, timeoutLegal, takeClock, setTempo } from '../../engine/game.js';
 import { OFFENSE_CALLS, DEFENSE_CALLS, fgDistance, fgProbability, halfSecondsLeft, matchup } from '../../engine/playcall.js';
 import { fmtClock, fmtQuarter } from '../../engine/stats.js';
@@ -371,7 +371,7 @@ export function view(root, params, ctx) {
         <div class="sb-team ${off === 1 && !g.final ? 'poss' : ''}"><span class="name">${teamChip(away, { responsive: true })}</span><span class="score">${g.score[1]}</span><span class="to">${'●'.repeat(g.timeouts[1])}${'○'.repeat(Math.max(0, 3 - g.timeouts[1]))}</span></div>
       </div>
       <div class="fieldbar" aria-hidden="true">
-        <div class="ez left" style="background:${home.color}">${home.abbr}</div><div class="ez right" style="background:${away.color}">${away.abbr}</div>
+        <div class="ez left" style="background:${home.color};color:${textOn(home.color)}">${home.abbr}</div><div class="ez right" style="background:${away.color};color:${textOn(away.color)}">${away.abbr}</div>
         ${raw([10, 20, 30, 40, 50, 60, 70, 80, 90].map((x) => `<div class="tick ${x === 50 ? 'half' : ''}" style="left:${6 + x * 0.88}%"></div>`).join(''))}
         ${raw([20, 40, 50, 60, 80].map((x) => `<div class="yard" style="left:${6 + x * 0.88}%">${x > 50 ? 100 - x : x}</div>`).join(''))}
         ${driveFrom != null && driveTo - driveFrom > 0.5

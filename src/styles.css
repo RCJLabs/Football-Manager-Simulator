@@ -114,6 +114,11 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn.primary { background: var(--accent); color: #1a1a1a; border-color: transparent; }
+/* `.muted` assumes the dark page behind it. On an accent-filled surface it was
+   grey-green on gold at 1.34:1 — the "N sold" counter inside the auction's
+   room button, and the same in the draft. Dimmed ink instead: 0.72 alpha over
+   the gold measures 5.26:1. */
+.btn.primary .muted, .tab.active .muted, .tab.active small { color: rgba(26, 26, 26, 0.72); }
 .btn.primary:hover { background: #f0d080; }
 .btn.danger { background: transparent; color: var(--bad); border-color: var(--bad); }
 .btn.ghost { background: transparent; }
@@ -223,7 +228,12 @@ details.fold[open] > summary { margin-bottom: .25rem; }
 .chart.wp { height: 72px; }
 .wpnow { font-size: .78rem; color: var(--accent); font-weight: 700; margin-top: .15rem; }
 .ovr { display: inline-flex; align-items: center; justify-content: center; min-width: 2.3rem; height: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: 6px; background: #333; color: #fff; flex: none; }
-.ovr.o95 { background: #d4a017; color: #1a1a1a; } .ovr.o90 { background: #3a9d5a; } .ovr.o85 { background: #2f7d9a; } .ovr.o80 { background: #5b6b7a; } .ovr.o0 { background: #444; }
+/* Badge greens/blues carry white text at 16px bold, so each needs 4.5:1 to
+   clear WCAG AA. Measured: o95 7.33, o85 4.65, o80 5.48, o0 9.74 — and o90 was
+   3.41 on #3a9d5a, the one tier that failed, on the badge worn by every player
+   rated 90 to 94. Darkened 15% to #31854d, which reads 4.57 and stays plainly
+   green against the blue below it. `scripts/smoke.mjs` measures this now. */
+.ovr.o95 { background: #d4a017; color: #1a1a1a; } .ovr.o90 { background: #31854d; } .ovr.o85 { background: #2f7d9a; } .ovr.o80 { background: #5b6b7a; } .ovr.o0 { background: #444; }
 .attr { font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .attr b { color: var(--text); font-weight: 700; }
 .attr.hi b { color: var(--good); } .attr.lo b { color: var(--bad); }
@@ -310,7 +320,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .fieldbar { position: relative; height: 46px; margin: 0.5rem 0 0.15rem; background: repeating-linear-gradient(90deg, var(--field) 0 10%, var(--field-dark) 10% 20%); border-radius: 6px; overflow: hidden; border: 1px solid #1f4a2a; }
 /* Ground this drive has covered, in the attacking side's colour. */
 .fieldbar .gained { position: absolute; top: 0; bottom: 0; opacity: 0.22; transition: left 0.3s ease, width 0.3s ease; }
-.fieldbar .yard { position: absolute; top: 3px; transform: translateX(-50%); font-family: var(--mono); font-size: 0.6rem; color: rgba(255,255,255,0.4); pointer-events: none; }
+.fieldbar .yard { position: absolute; top: 3px; transform: translateX(-50%); font-family: var(--mono); font-size: 0.6rem; color: rgba(255,255,255,0.55); pointer-events: none; }
 .fieldbar .tick.half { background: rgba(255,255,255,0.35); width: 2px; }
 /* Which way they are going, so a strip with two end zones is not ambiguous. */
 .fieldbar .going { position: absolute; bottom: 2px; transform: translateX(-50%); font-size: 0.7rem; color: rgba(255,255,255,0.75); transition: left 0.3s ease; }
@@ -397,7 +407,16 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .pbp li.drive { background: var(--bg-3); color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .pbp li.quarter, .pbp li.final { background: #0b1410; font-weight: 700; text-align: center; }
 .pbp li.latest { animation: flash 0.6s ease; }
-@keyframes flash { from { background: rgba(233, 196, 106, 0.35); } to { background: transparent; } }
+/* The newest play flashes a RING rather than washing the row gold.
+   At the old `rgba(233,196,106,0.35)` the `.sit` line under a penalty read
+   3.10:1 — so the one play you are most likely reading was the hardest to read
+   for the moment it appeared. A ring is a stronger cue than a wash and costs
+   the text nothing; the tint that remains keeps `.sit` at 4.97:1. Same idiom
+   the draft board already uses for a fresh pick. */
+@keyframes flash {
+  from { box-shadow: inset 0 0 0 2px rgba(233, 196, 106, 0.9); background: rgba(233, 196, 106, 0.12); }
+  to { box-shadow: inset 0 0 0 2px rgba(233, 196, 106, 0); background: transparent; }
+}
 
 .standings td:first-child { font-weight: 700; }
 .matchup { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.4rem; padding: 0.55rem 0.6rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); }
@@ -489,6 +508,9 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
   .board .bc.fresh, .pick-line.fresh, .board .onclock { animation: none; }
   .spinner { animation: none; border-top-color: #3c6b4d; }
   .board .bc.fresh { box-shadow: inset 0 0 0 2px var(--accent); }
+  /* The play-by-play flash was left out of this block: somebody who asked for
+     reduced motion still got the newest play animating at them every snap. */
+  .pbp li.latest { animation: none; box-shadow: inset 0 0 0 2px var(--accent); }
 }
 
 /* Depth-chart furniture: a jump bar and a header per position group. Twenty-seven

@@ -201,7 +201,9 @@ function renderNav() {
   const isActive = (i) => path === i.match
     || (i.match !== '/' && path.startsWith(i.match))
     || (i.owns || []).some((p) => path.startsWith(p));
-  navEl.innerHTML = items.map((i) => `<a href="${i.href}" class="${isActive(i) ? 'active' : ''}">${i.label}</a>`).join('');
+  // `aria-current="page"` as well as the class: the highlight tells a sighted
+  // reader where they are and told a screen reader nothing at all.
+  navEl.innerHTML = items.map((i) => `<a href="${i.href}" class="${isActive(i) ? 'active' : ''}"${isActive(i) ? ' aria-current="page"' : ''}>${i.label}</a>`).join('');
   renderTabs(items, isActive);
   fitNav();
 }
@@ -231,7 +233,7 @@ function renderTabs(items, isActive) {
       shown.push(active);
     }
   }
-  const tab = (i) => `<a href="${i.href}" class="tabitem ${isActive(i) ? 'active' : ''}">${icon(i.icon)}<span>${i.label}</span></a>`;
+  const tab = (i) => `<a href="${i.href}" class="tabitem ${isActive(i) ? 'active' : ''}"${isActive(i) ? ' aria-current="page"' : ''}>${icon(i.icon)}<span>${i.label}</span></a>`;
   tabEl.innerHTML = shown.map(tab).join('')
     + (spilled.length ? `<button type="button" class="tabitem" id="tabMore" aria-haspopup="true" aria-expanded="false">${icon('more')}<span>More</span></button>` : '');
   // One menu serves both bars; the bottom one opens it against the bottom bar.
@@ -240,7 +242,7 @@ function renderTabs(items, isActive) {
     const btn = tabEl.querySelector('#tabMore');
     const open = menuEl.hidden;
     if (!open) { closeNavMenu(); return; }
-    menuEl.innerHTML = spilled.map((i) => `<a href="${i.href}" role="menuitem" class="${isActive(i) ? 'active' : ''}">${i.label}</a>`).join('');
+    menuEl.innerHTML = spilled.map((i) => `<a href="${i.href}" role="menuitem" class="${isActive(i) ? 'active' : ''}"${isActive(i) ? ' aria-current="page"' : ''}>${i.label}</a>`).join('');
     placeNavMenu(btn, true);
     btn.setAttribute('aria-expanded', 'true');
   });

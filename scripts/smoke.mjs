@@ -75,7 +75,7 @@ async function checkNav(where) {
  */
 async function checkA11y(where) {
   const bad = await page.evaluate(() => {
-    const out = { unnamed: [], dupes: [], live: null };
+    const out = { unnamed: [], dupes: [], live: null, current: [] };
     const name = (el) => (el.getAttribute('aria-label') || el.getAttribute('title')
       || (el.getAttribute('aria-labelledby') ? 'labelledby' : '') || el.textContent || '').trim();
     for (const el of document.querySelectorAll('button, a[href]')) {
@@ -88,11 +88,134 @@ async function checkA11y(where) {
     }
     const live = document.getElementById('srlive');
     out.live = live && !live.hidden && live.getAttribute('aria-live') === 'polite';
+    // Where you are has to be announced, not just highlighted. Exactly one
+    // destination per navigation region may claim it.
+    for (const [region, sel] of [['nav', '#nav a'], ['tabbar', '#tabbar .tabitem']]) {
+      const links = [...document.querySelectorAll(sel)].filter((a) => a.offsetParent !== null);
+      if (!links.length) continue;
+      const lit = links.filter((a) => a.classList.contains('active'));
+      const said = links.filter((a) => a.getAttribute('aria-current') === 'page');
+      if (lit.length !== said.length) out.current.push(`${region}: ${lit.length} highlighted, ${said.length} announced`);
+      if (said.length > 1) out.current.push(`${region}: ${said.length} claim to be the current page`);
+    }
     return out;
   });
   if (bad.unnamed.length) errors.push(`a11y ${where}: ${bad.unnamed.length} control(s) with no accessible name: ${bad.unnamed.slice(0, 4).join(', ')}`);
   if (bad.dupes.length) errors.push(`a11y ${where}: duplicate id(s): ${[...new Set(bad.dupes)].slice(0, 4).join(', ')}`);
   if (!bad.live) errors.push(`a11y ${where}: the live region is missing or muted`);
+  if (bad.current.length) errors.push(`a11y ${where}: ${bad.current.join('; ')}`);
+}
+
+/**
+ * Colour contrast, measured on what is actually rendered.
+ *
+ * The token table is not the check. Reading the palette off `:root` says which
+ * pairs are POSSIBLE; what matters is which pairs appear, on which background,
+ * at what size — a foreground that fails on the pitch green is fine if nothing
+ * is ever drawn there. So this walks every element that holds visible text,
+ * resolves the background by climbing until it finds something opaque, and
+ * applies the threshold WCAG gives for that text's size: 3:1 for large (24px,
+ * or 18.66px bold), 4.5:1 for everything else.
+ *
+ * It found one thing on its first run and it was a real one: the overall badge
+ * worn by every player rated 90 to 94 was white on #3a9d5a at 3.41:1.
+ */
+async function checkContrast(where) {
+  const bad = await page.evaluate(() => {
+    const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    const parse = (s) => { const m = (s || '').match(/rgba?\(([^)]+)\)/); if (!m) return null;
+      const p = m[1].split(',').map((x) => parseFloat(x)); return { rgb: [p[0], p[1], p[2]], a: p.length > 3 ? p[3] : 1 }; };
+    const blend = (fg, bg, a) => fg.map((c, i) => c * a + bg[i] * (1 - a));
+    // Composite the WHOLE ancestor chain, not just the first translucent layer.
+    // Blending one layer against an assumed page colour reported backgrounds
+    // that no rule in the stylesheet produced, which sent the first search for
+    // the offending element off after a colour that was never on screen.
+    const bgOf = (el) => {
+      const layers = [];
+      for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+        const c = parse(getComputedStyle(n).backgroundColor);
+        if (c && c.a > 0.004) { layers.push({ ...c, who: n }); if (c.a >= 0.999) break; }
+      }
+      let out = [15, 26, 18], src = null;
+      for (let i = layers.length - 1; i >= 0; i--) {
+        out = layers[i].a >= 0.999 ? layers[i].rgb : blend(layers[i].rgb, out, layers[i].a);
+        src = src || layers[i].who;
+      }
+      const top = layers[0] ? layers[0].who : null;
+      return { rgb: out, from: top ? `${top.tagName.toLowerCase()}.${(top.className || '').toString().split(' ').slice(0, 2).join('.')}` : 'page' };
+    };
+    const out = [];
+    for (const el of document.querySelectorAll('body *')) {
+      const txt = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim())
+        .map((n) => n.textContent.trim()).join(' ');
+      if (!txt) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.1) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      const fgc = parse(cs.color);
+      if (!fgc || fgc.a < 0.1) continue;
+      const { rgb: bg, from } = bgOf(el);
+      const fg = fgc.a >= 0.999 ? fgc.rgb : blend(fgc.rgb, bg, fgc.a);
+      const l1 = lum(fg), l2 = lum(bg);
+      const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      const px = parseFloat(cs.fontSize), bold = parseInt(cs.fontWeight, 10) >= 700;
+      const need = (px >= 24 || (bold && px >= 18.66)) ? 3 : 4.5;
+      if (ratio < need - 0.01) {
+        out.push(`${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ').slice(0, 2).join('.')}`
+          + ` ${ratio.toFixed(2)}:1 (needs ${need}) ${cs.color} on rgb(${bg.map(Math.round).join(',')})`
+          + ` from ${from} "${txt.slice(0, 20)}"`);
+      }
+    }
+    return [...new Set(out)];
+  });
+  if (bad.length) errors.push(`contrast on ${where}: ${bad.length} combination(s) below WCAG AA — ${bad.slice(0, 3).join(' | ')}`);
+}
+
+/**
+ * Can the room be played with a keyboard?
+ *
+ * The auction is the one screen where a decision is on a clock, and it is the
+ * one screen nobody had ever driven without a mouse. This presses Tab for real
+ * rather than calling `.focus()`: `:focus-visible` matches on keyboard
+ * interaction, so a programmatic focus does not raise the ring and a check
+ * built on one reports every control in the room as unfocusable. That first
+ * version accused four innocent controls before the stylesheet was read.
+ *
+ * What it asserts: tabbing reaches the controls a bid actually needs, and
+ * whatever holds focus is visibly focused.
+ */
+async function checkKeyboard(where, mustReach = []) {
+  await page.evaluate(() => { document.body.setAttribute('tabindex', '-1'); document.body.focus(); });
+  const seen = [];
+  const noRing = [];
+  for (let i = 0; i < 60; i++) {
+    await page.keyboard.press('Tab');
+    const at = await page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el || el === document.body) return null;
+      const cs = getComputedStyle(el);
+      const ring = (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0)
+        || (cs.boxShadow && cs.boxShadow !== 'none');
+      const id = el.id ? `#${el.id}` : `${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ')[0]}`;
+      return { id, ring, tag: el.tagName.toLowerCase() };
+    });
+    if (!at) break;
+    if (seen.includes(at.id) && seen.length > 3) break;   // wrapped round
+    seen.push(at.id);
+    if (!at.ring) noRing.push(at.id);
+  }
+  await page.evaluate(() => document.body.removeAttribute('tabindex'));
+  const reached = async (sel) => page.evaluate((q) => {
+    const el = document.querySelector(q);
+    return !!el && el.offsetParent !== null && el.tabIndex >= 0 && !el.hasAttribute('disabled');
+  }, sel);
+  const missing = [];
+  for (const sel of mustReach) if (!(await reached(sel))) missing.push(sel);
+  if (!seen.length) errors.push(`keyboard ${where}: tabbing reached nothing at all`);
+  if (noRing.length) errors.push(`keyboard ${where}: no visible focus on ${[...new Set(noRing)].slice(0, 4).join(', ')}`);
+  if (missing.length) errors.push(`keyboard ${where}: cannot reach ${missing.join(', ')}`);
 }
 
 async function checkOverflow(where) {
@@ -115,6 +238,7 @@ async function checkOverflow(where) {
   if (bad) errors.push(`overflow on ${where}: page is ${bad.scrollW}px wide in a ${bad.docW}px viewport — ${bad.offenders.join(', ') || 'no single offender found'}`);
   await checkNav(where);
   await checkA11y(where);
+  await checkContrast(where);
 }
 
 try {
@@ -181,11 +305,17 @@ try {
   await checkOverflow('auction');
   await shot('02-auction');
   let bought = 0;
+  let kbChecked = { nominate: false, bid: false };
   for (let i = 0; i < 24; i++) {
     const nom = await page.$('button[data-nom]');
-    if (nom) { await nom.click(); await sleep(30); await checkOverflow('auction bidding'); continue; }
+    if (nom) {
+      if (!kbChecked.nominate) { await checkKeyboard('auction, nominating', ['button[data-nom]']); kbChecked.nominate = true; }
+      await nom.click(); await sleep(30); await checkOverflow('auction bidding'); continue;
+    }
     const bid = await page.$('#bid');
     if (bid) {
+      // The three controls a bid actually needs: raise, commit, and get out.
+      if (!kbChecked.bid) { await checkKeyboard('auction, a lot on the block', ['#bid', '#pass']); kbChecked.bid = true; }
       // Alternate between bidding the slider value and passing.
       if (bought % 2 === 0) { await bid.click(); bought++; } else { await page.click('#pass'); bought++; }
       await sleep(30);

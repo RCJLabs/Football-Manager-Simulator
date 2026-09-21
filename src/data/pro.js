@@ -13,7 +13,7 @@ export const PRO_TEAMS = [
   // American North
   { name: 'Pittsburgh Forge',      abbr: 'PIT', city: 'Pittsburgh',   color: '#f2b705', conf: 0, div: 1 },
   { name: 'Baltimore Clippers',    abbr: 'BAL', city: 'Baltimore',    color: '#4b2a8a', conf: 0, div: 1 },
-  { name: 'Cleveland Rockers',     abbr: 'CLE', city: 'Cleveland',    color: '#c8531f', conf: 0, div: 1 },
+  { name: 'Cleveland Rockers',     abbr: 'CLE', city: 'Cleveland',    color: '#c6521f', conf: 0, div: 1 },
   { name: 'Cincinnati Riverboats', abbr: 'CIN', city: 'Cincinnati',   color: '#e0521b', conf: 0, div: 1 },
   // American South
   { name: 'Houston Wildcatters',   abbr: 'HOU', city: 'Houston',      color: '#8b1a2b', conf: 0, div: 2 },

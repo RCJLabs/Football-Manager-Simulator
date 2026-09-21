@@ -2765,6 +2765,85 @@ name that wrapped to two lines pushed its badge a line clear of the other
 player's, so the one pair of numbers most worth reading together did not line
 up.
 
+### Colour, focus and where you are (`scripts/smoke.mjs`)
+
+Three things were left undone when the accessibility pass first went in, all
+with the same excuse: nobody had measured them. Colour contrast had never been
+checked, the auction had never been driven without a mouse, and the nav told a
+screen reader nothing about which page you were on. Measuring each one found a
+real defect, and in two cases the first instrument was wrong before the code
+was.
+
+**Contrast is measured on what renders, not on the palette.** Reading the tokens
+off `:root` says which pairs are *possible*; it cannot say which appear, on what
+background, at what size. So `checkContrast` walks every element holding visible
+text on every screen the smoke test already visits, resolves the background by
+compositing the ancestor chain, and applies the threshold WCAG gives for that
+text's size — 3:1 for large, 4.5:1 otherwise. Five things came back:
+
+| | was | now |
+| --- | --- | --- |
+| `.ovr.o90`, the badge on every player rated 90–94 | white on `#3a9d5a`, 3.41:1 | `#31854d`, 4.57:1 |
+| `.muted` inside a gold primary button — the auction's "N sold" | 1.34:1 | dimmed ink, 5.26:1 |
+| yard numbers on the field strip | white at 0.4 alpha, 3.81:1 | 0.55, 6.08:1 |
+| end-zone label on a club colour | 3.56:1, no ink chosen at all | `textOn`, 4.53:1 worst |
+| the newest play's flash | `.sit` at 3.10:1 under it | a ring, 4.97:1 |
+
+The last one is the one worth reading twice. The play-by-play flashed the newest
+row gold at `rgba(233,196,106,0.35)`, so the single play you are most likely to
+be reading was the hardest to read for the moment it arrived. It flashes a ring
+now, which is a stronger cue and costs the text nothing. While in there: the
+flash had been left out of the `prefers-reduced-motion` block, so somebody who
+had asked for less motion still got the newest play animating at them every
+snap.
+
+**`textOn` was wrong for everybody, not just the end zone.** The helper that
+picks ink for a club colour weighted the raw 0–255 channels and switched at 150.
+That is the usual shortcut and it is wrong near the boundary, because sRGB is
+gamma-encoded and the channels mean nothing until they are linearised. It put
+white on `#e63946` for 4.17:1 where black gives 4.53, and white on `#2a9d8f` for
+3.32:1 where black gives 5.68 — on labels that name a team, everywhere a chip
+appears. It now measures both inks and takes the better. One club colour could
+not be saved by either, topping out at 4.46, and was darkened one per cent in
+the data. All 48 clear AA; the worst is 4.54.
+
+**Where you are is announced, not only highlighted.** All three nav renderers
+now set `aria-current="page"` alongside the class, and the smoke test asserts
+the two agree — exactly as many destinations announced as highlighted, and never
+more than one.
+
+**The room can be played with a keyboard**, and that is now pressed rather than
+assumed. `checkKeyboard` tabs through the auction at the two moments a decision
+is live, and asserts that tabbing reaches what a bid needs and that whatever
+holds focus is visibly focused.
+
+#### Both instruments were wrong before the code was
+
+The contrast probe blended the first translucent layer it found against an
+*assumed* page colour rather than compositing the chain, so it reported
+backgrounds no rule in the stylesheet produces, and the hunt for the offending
+element went after a colour that was never on screen. It composites properly now
+and names the element that supplied the background, which identified
+`li.penalty.latest` — two stacked yellows — immediately.
+
+The keyboard probe called `.focus()` and asked whether anything changed.
+`:focus-visible` matches on keyboard interaction, so a programmatic focus raises
+no ring, and the check accused four perfectly good controls before anybody read
+the stylesheet and found the global rule that had been there all along. It
+presses Tab now.
+
+And the verification for `textOn` imported `TEAMS` from `data/teams.js`, which
+exports `AI_TEAMS`. The destructure quietly yielded `undefined`, a `|| []`
+fallback swallowed it, and the check silently measured the 32 pro clubs while
+reporting confidently on all of them. The sixteen fantasy clubs were never
+looked at until a test file failed to import the same name. All three mistakes
+are the same mistake: an instrument that returns a plausible number is not the
+same as an instrument that is measuring the right thing.
+
+Each check is mutation-tested: restoring the old badge green, dropping
+`aria-current`, and removing the focus ring each fail smoke, on the intended
+line.
+
 ### Reachable without a mouse
 
 The audit counted 154 buttons against 18 aria attributes, zero live regions and
