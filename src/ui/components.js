@@ -165,7 +165,7 @@ export function playerModal(p, extra = '') {
   const editing = !!getState().prefs?.ratingEditor;
   const rows = def.attrs.map((a) => `<div class="slider-row"><div class="lbl"><span>${ATTR_NAMES[a] || a}${p.baseR && p.baseR[a] !== p.r[a] ? ` <small class="muted">(was ${p.baseR[a]})</small>` : ''}</span>${editing ? `<input type="number" class="rating-edit" data-attr="${a}" min="40" max="99" value="${p.r[a]}" style="width:4.5rem;padding:.2rem .4rem;text-align:right">` : `<b>${p.r[a]}</b>`}</div><div class="bar"><i style="width:${p.r[a]}%"></i></div></div>`).join('');
   const m = modal(html`
-    <div class="row between"><h2 style="margin:0">${p.name}</h2><button class="btn sm ghost" data-close>✕</button></div>
+    <div class="row between"><h2 style="margin:0">${p.name}</h2><span class="row" style="gap:.35rem">${raw(compareButton(p))}<button class="btn sm ghost" data-close>✕</button></span></div>
     <p class="muted">${def.name} · ${p.generated ? `generated rookie, class of ${p.season}` : `${p.season} ${p.team} · ${eraOf(p.season)}`} · Overall <span id="ovrNow">${ovrBadge(p)}</span></p>
     ${p.retired ? html`<p class="muted" style="margin:-.3rem 0 0">Retired at ${p.age}. He stays in the record books; he cannot be signed.</p>`
       : p.age != null ? html`<p class="muted" style="margin:-.3rem 0 0">Age ${p.age}, ${careerPhase(p.pos, p.age)}${p.base && overall(p) !== overall(p.base) ? ` · ${overall(p) > overall(p.base) ? 'up' : 'down'} ${Math.abs(overall(p) - overall(p.base))} from the ${p.base.season} version you signed` : ''}.</p>` : ''}
@@ -173,6 +173,19 @@ export function playerModal(p, extra = '') {
     ${editing ? html`<small class="muted">Rating editor is on (settings). Edits apply everywhere at once and export as a diff.</small>` : ''}
     ${raw(extra)}
   `);
+  // Comparing is a two-tap gesture: arm it on one player, and the next player
+  // modal you open offers to finish it. Deliberately not a route and not app
+  // state — it is a half-finished gesture, so it dies with the session.
+  m.el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-cmp-start]')) { setPendingCompare(p); m.close(); toast(`Now pick someone to compare with ${p.name}`); return; }
+    if (e.target.closest('[data-cmp-cancel]')) { clearPendingCompare(); m.close(); return; }
+    if (e.target.closest('[data-cmp-with]')) {
+      const other = pendingCompare();
+      clearPendingCompare();
+      m.close();
+      if (other && other.id !== p.id) compareModal(other, p);
+    }
+  });
   if (editing) {
     m.el.addEventListener('change', (e) => {
       const input = e.target.closest('.rating-edit');
@@ -197,3 +210,8 @@ export function colorStyle(team) {
 }
 
 export { esc, raw, html };
+
+// Imported at the foot on purpose. compare.js imports from this file, so the
+// two form a cycle; both sides only touch the other inside function bodies,
+// which is what keeps it safe.
+import { compareButton, compareModal, pendingCompare, setPendingCompare, clearPendingCompare } from './compare.js';

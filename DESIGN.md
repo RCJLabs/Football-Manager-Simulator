@@ -2201,6 +2201,48 @@ particular engine. They search, or mirror, or check their premise now.
 
 **Fictional names.** A settings toggle swaps every real name for a made-up one, one to one, chosen from the hash of the player's id and settled in pool order so it never changes between sessions or versions as long as the name lists only grow at the end and the pool stays append-only. Ids, ratings, saves and league codes are untouched; the real name is kept on the player so the switch reverses. Logs and records keep the names they were written with. Team abbreviations in the pool (the club a player's prime season was with) are left as they are. `applyNameMode` runs at boot from the preference, so a store build can default it to `fictional` by changing one line in `main.js`; the real names still ship in the data file either way, which is a licensing question this toggle does not settle, only sidesteps on screen.
 
+### Two players, side by side (`ui/compare.js`)
+
+The pool is fifteen hundred deep and every position rates on its own
+attributes, so choosing between two backs meant opening one modal, holding six
+numbers in your head, closing it and opening another. This is that decision on
+one screen.
+
+It is deliberately not a route. The button lives in `playerModal`, so every
+place a player can be tapped — the pool, a roster, the draft board, the auction
+room, a box score — starts one for free, and arming it is a two-tap gesture:
+`Compare…` on one player, then `Compare with <name>` on the next. The pending
+player is module state rather than app state, because a half-finished gesture is
+not something a save should remember.
+
+Attributes are mirrored about their own name, bars growing outward from the
+centre, so the eye reads the difference as the gap between two bars rather than
+as two lengths to measure separately. The side leading a row takes the accent.
+
+**The fog is the constraint that shaped it.** `attrList` coarsens an unscouted
+rookie's attributes on purpose and `ovrBadge` shows him as a range, because a
+precise number is not scoutable before he plays. A comparison that subtracted
+true ratings would hand back exactly what those two withhold — the same leak
+that made list *ordering* rank on `shownOverall` rather than on the truth. So
+every number here comes through `coarseAttrs`, the same path the player list
+uses, a delta is computed from what is shown rather than from what is true, and
+where either side is an estimate the row is marked with a tilde. The scouting
+view is injected rather than read, which is what makes that testable.
+
+Two smaller decisions worth recording. A row an attribute's owner does not carry
+reads as absent, not as zero: a tight end has no pass rush, which is not the
+same as being bad at it. And a verdict needs at least three shared attributes —
+a back and a quarterback share only awareness, and "right leads 1–0 of 1" reads
+like a finding while saying nothing, so the cross-position note about leverage
+carries that case instead. Overalls of different positions are not the same
+currency and the note says so: a running back is worth 9.39 against a
+quarterback's 15.89.
+
+The overall badge sits above the name rather than below it. With it below, a
+name that wrapped to two lines pushed its badge a line clear of the other
+player's, so the one pair of numbers most worth reading together did not line
+up.
+
 ## UI
 
 Vanilla ES modules, hash router, one persisted state object (`store.js`). Views re-render from state; the live game view manages its own DOM and autoplay timer. Everything is relative-path so it deploys to a GitHub Pages subpath. Service worker: network-first for HTML, cache-first for assets (bump `CACHE` in `sw.js` on every release or installed clients keep the old CSS).

@@ -552,3 +552,40 @@ details > summary { cursor: pointer; }
   /* The full-screen board covers the bar; it has its own way out. */
   .board-full { z-index: 60; }
 }
+
+/* Compare: two players, mirrored about the attribute name. Bars grow outward
+   from the centre so the eye reads the difference as the gap between them
+   rather than as two lengths to measure separately. */
+.cmp-head { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin: 0.2rem 0 0.7rem; }
+.cmp-who { min-width: 0; }
+.cmp-who:last-child { text-align: right; }
+.cmp-who .nm { display: flex; align-items: center; gap: 0.3rem; font-weight: 700; font-size: 0.95rem; overflow-wrap: anywhere; }
+.cmp-who:last-child .nm { justify-content: flex-end; }
+.cmp-who .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem; color: var(--muted); font-size: 0.76rem; margin-top: 0.15rem; }
+.cmp-who:last-child .meta { justify-content: flex-end; }
+.cmp-who .ovr-wrap { margin-bottom: 0.25rem; }
+.cmp-who:last-child .ovr-wrap { display: flex; justify-content: flex-end; }
+
+.cmp-rows { display: flex; flex-direction: column; gap: 0.3rem; }
+.cmp-row { display: grid; grid-template-columns: 1.9rem 1fr minmax(4.5rem, auto) 1fr 1.9rem; align-items: center; gap: 0.3rem; font-size: 0.8rem; }
+.cmp-row .lbl { text-align: center; color: var(--muted); font-size: 0.72rem; line-height: 1.1; overflow-wrap: anywhere; }
+.cmp-row .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+.cmp-row .v.a { text-align: right; }
+.cmp-row .v.b { text-align: left; }
+.cmp-row .na { color: var(--muted); font-weight: 400; }
+.cmp-row .track { display: flex; height: 0.5rem; background: var(--bg-3); border-radius: 999px; overflow: hidden; }
+.cmp-row .track.a { justify-content: flex-end; }
+.cmp-row .track i { display: block; height: 100%; background: var(--muted); border-radius: 999px; }
+.cmp-row .track i.none { background: transparent; }
+/* The side that leads this row is the one that gets the colour. */
+.cmp-row.a-up .track i.a, .cmp-row.a-up .v.a { color: var(--accent); }
+.cmp-row.a-up .track i.a { background: var(--accent); }
+.cmp-row.b-up .track i.b, .cmp-row.b-up .v.b { color: var(--accent); }
+.cmp-row.b-up .track i.b { background: var(--accent); }
+.cmp-note { font-size: 0.78rem; margin: 0.7rem 0 0; }
+
+@media (max-width: 420px) {
+  .cmp-row { grid-template-columns: 1.7rem 1fr minmax(3.6rem, auto) 1fr 1.7rem; gap: 0.2rem; font-size: 0.75rem; }
+  .cmp-row .lbl { font-size: 0.65rem; }
+  .cmp-who .nm { font-size: 0.85rem; }
+}
