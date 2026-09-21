@@ -2440,6 +2440,69 @@ particular engine. They search, or mirror, or check their premise now.
 
 **Fictional names.** A settings toggle swaps every real name for a made-up one, one to one, chosen from the hash of the player's id and settled in pool order so it never changes between sessions or versions as long as the name lists only grow at the end and the pool stays append-only. Ids, ratings, saves and league codes are untouched; the real name is kept on the player so the switch reverses. Logs and records keep the names they were written with. Team abbreviations in the pool (the club a player's prime season was with) are left as they are. `applyNameMode` runs at boot from the preference, so a store build can default it to `fictional` by changing one line in `main.js`; the real names still ship in the data file either way, which is a licensing question this toggle does not settle, only sidesteps on screen.
 
+### The receiver, and the time the engine turned out to be right
+
+The last disagreement left was the receiver: `spd` measured 0.396 of his
+leverage against a shipped 0.270. Re-measured first, against the settled engine
+rather than the one it was taken on, because the section below had just been
+caught fitting weights to a passing game that then changed.
+
+Two hypotheses, both wrong, and both wrong in a way worth keeping.
+
+**Speed is counted twice in deep targeting.** `picks.js` puts `spd` at 0.2 of a
+`skill` term that goes through `Math.exp((skill - 82) / 9)`, and then multiplies
+again by `Math.exp((spd - 88) / 10)` on deep throws. `rte` gets only the shared
+amplifier. At 90 against 82 that second multiplier alone is worth about 2.2x the
+deep-target share, compounding on the first, which looks exactly like the kind
+of double count that inflates a measurement.
+
+Removing it moved `spd` from 0.396 to **0.375**. Real, and about five per cent
+of the total — nowhere near enough to explain the gap. The reason is the
+harness: it lifts all three receivers at once, and a multiplier that decides
+which of *them* gets the ball barely moves when they all move together.
+
+**The pass breakaway is over-sensitive to speed.** `PASS_BREAKAWAY` is 0.024 and
+the speed term, `max(0, spd - defSpeed) / 300`, is additive and unscaled, so
+eight points of edge more than doubles the rate — against the run breakaway,
+where the same shaped term sits inside a `BREAKAWAY_RATE` multiplier. An
+asymmetry, plainly.
+
+Measured, the asymmetry runs the other way. Eight points of speed multiplies the
+run breakaway by 2.90 and the pass breakaway by 2.11, and is worth 1.92 yards a
+carry against 0.80 a completion. The run game is the more speed-sensitive of the
+two. There is no artifact here to remove.
+
+**So the engine is right, and that is the finding.** Speed measures 0.446 at
+running back and 0.396 at receiver — the dominant skill-position attribute in
+both cases — because explosive plays drive scoring and explosive plays key off
+speed, and the explosive rate itself is calibrated (3.84 twenty-yard plays a
+team against a real 3.5-5.5). It is a coherent property of the model rather than
+a bug in one position, and nothing was changed.
+
+#### The rule worked, for once
+
+Every reweight before this one ran into the same wall: the record allowed no
+free move, so the rule said stop and stopping meant shipping a known
+mis-pricing. The receiver has one. Moving a quarter of the way to the
+measurement — `spd` 0.27 to 0.30 — costs nothing the record notices; three
+eighths costs Tom Fears; three quarters costs Raymond Berry as well. Both are
+1950s and 60s possession receivers, hands and route craft rather than legs,
+which is a coherent thing for a speed-heavy vector to punish rather than an
+arbitrary one.
+
+So: the free move, and stop. Re-measured under its own new weights the reading
+holds at 0.402, which says the loop settles rather than chasing itself.
+
+That leaves a **residual of 0.102** on the largest single attribute gap in the
+game, and it is left deliberately. The engine is not wrong, the measurement is
+not an artifact, and the record will not have it — which is a different kind of
+open question from the others in this document, and not one more measurement
+will settle.
+
+Not done: the tight end has never been re-measured against the current engine at
+all, and the original sweep's note that he is mostly a blocker is now several
+engine changes old.
+
 ### The one realism miss nobody had diagnosed
 
 `yards / completion` had sat outside its range for as long as the realism check

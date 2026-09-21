@@ -37,7 +37,7 @@ export const POSITIONS = {
   RB: { name: 'Running Back',  attrs: ['spd', 'elu', 'pow', 'awr', 'rec', 'car'],
         weights: { spd: 0.30, elu: 0.19, awr: 0.19, pow: 0.14, car: 0.08, rec: 0.10 } },
   WR: { name: 'Wide Receiver', attrs: ['spd', 'cth', 'rte', 'rac'],
-        weights: { spd: 0.27, cth: 0.27, rte: 0.26, rac: 0.20 } },
+        weights: { spd: 0.30, cth: 0.26, rte: 0.25, rac: 0.19 } },
   TE: { name: 'Tight End',     attrs: ['spd', 'cth', 'rte', 'rac', 'blk'],
         weights: { cth: 0.25, blk: 0.25, rte: 0.20, rac: 0.20, spd: 0.10 } },
   OL: { name: 'Offensive Line', attrs: ['pbk', 'rbk', 'awr'],
