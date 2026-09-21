@@ -1319,6 +1319,37 @@ Two engine fields make it possible, added to every scrimmage play and every pena
 
 Two things about the plumbing are worth knowing, because both were wrong first. The bar reads the last entry in the log that carries `from`, not `g.lastEvent`: a play that changes hands calls `changePossession` inside the same step, and that logs the new drive's header on top of it, so punts, interceptions, fumbles, missed field goals and turnovers on downs all had their bar overwritten before it could draw. And the phase is no authority either — a touchdown flips to `pat` and a made field goal to `kickoff` the moment they score, so gating on `phase === 'play'` hid the bar for exactly the plays most worth seeing. Nothing but a snap logs `from`, so the bar clears itself at the next kickoff or quarter break. A test pins all of it: every scrimmage type carries the fields, nothing else claims them, the drawn span stays on the field, and on a clean snap `from + yards` still equals the entry's own `ballOn`.
 
+### Drive headers that are headers again
+
+The play-by-play runs newest first, so the play that just happened is at the
+top of the page. A drive header is logged *before* the plays it introduces, so
+reversing the list put it underneath them — and that is not merely upside down.
+An interception ends one possession and starts another, so the header for the
+club that took the ball landed between the kneel it led to and the interception
+that caused it:
+
+    kneel    a. QB1 kneels.
+    drive    Team alpha ball at BRA 37.
+    int      b. QB1 deep pass is INTERCEPTED by a. CB1.
+
+Causation inverted twice in three lines. `pbpOrder` groups by possession
+instead of ordering by event: newest drive first, its header on top of its own
+plays — a header labels a possession, it is not a moment inside one — and the
+plays under it newest first, which keeps the play that just happened second
+from the top. A kickoff is logged before the drive header it produces, so it is
+carried down into the drive it started rather than stranded under the previous
+one; eight of nineteen headers in a sample game had one. The final whistle is
+hoisted clear of the last drive, because it is the result of the game rather
+than a line inside somebody's possession.
+
+A quarter break needed no special handling and got none: it happens mid-drive,
+and reversing within the group puts it in its right chronological place between
+the plays before and after it.
+
+One consequence worth knowing: the `latest` flash could no longer key off row
+zero, since row zero is now a header. It keys off the log's own event index
+instead, so the animation lands on the play that just happened.
+
 ### What was called, and whether it was a good call
 
 `Last: Medium Pass vs Base` named the two calls and said nothing about whether

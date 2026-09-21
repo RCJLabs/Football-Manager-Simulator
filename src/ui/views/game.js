@@ -14,6 +14,57 @@ const PLAY_HELP = {
 };
 
 /**
+ * The play-by-play, newest first, without the drive headers reading as footers.
+ *
+ * The list is reversed so the latest play is at the top, and a drive header is
+ * logged *before* the plays it introduces, so reversing put it underneath them.
+ * That is not merely upside down: an interception ends one drive and starts
+ * another, so the header for the club that took the ball landed between the
+ * kneel it led to and the interception that caused it, inverting the causation
+ * twice in three lines.
+ *
+ * So the order is by drive rather than by event. Newest drive first, its header
+ * on top of its own plays — a header is a label for the possession, not a
+ * moment inside it — and the plays under it newest first, which keeps the play
+ * that just happened second from the top of the page.
+ *
+ * A kickoff is logged before the drive header it produces, so it is pulled down
+ * into the drive it started rather than left hanging under the previous one.
+ * Everything before the first header (the opening-kickoff note) keeps its own
+ * headerless group at the bottom. The final whistle is hoisted clear of the
+ * last drive: it is the result of the game, not a line inside somebody's
+ * possession, and it belongs at the top of the page.
+ */
+export function pbpOrder(log) {
+  if (!Array.isArray(log) || !log.length) return [];
+  const groups = [[]];
+  for (const e of log) {
+    if (e.type === 'drive') {
+      // Carry any kickoff already sitting at the end of the last group forward:
+      // it belongs to the possession it handed the ball to.
+      const prev = groups[groups.length - 1];
+      const carried = [];
+      while (prev.length && prev[prev.length - 1].type === 'kickoff') carried.unshift(prev.pop());
+      groups.push([e, ...carried]);
+    } else {
+      groups[groups.length - 1].push(e);
+    }
+  }
+  const out = [];
+  const last = groups[groups.length - 1];
+  const whistle = last.length && last[last.length - 1].type === 'final' ? last.pop() : null;
+  if (whistle) out.push(whistle);
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const g = groups[i];
+    if (!g.length) continue;
+    // The header stays at the top of its group; everything else reverses.
+    if (g[0].type === 'drive') { out.push(g[0]); out.push(...g.slice(1).reverse()); }
+    else out.push(...g.slice().reverse());
+  }
+  return out;
+}
+
+/**
  * What the chip means in words, from the offence's side.
  *
  * Measured against the neutral base look, so a defence that does not commit
@@ -280,9 +331,10 @@ export function view(root, params, ctx) {
     } : null;
     const wpNow = g.lastEvent && typeof g.lastEvent.wp === 'number' ? g.lastEvent.wp : null;
     const story = g.final ? gameStory({ teams: g.teams, score: g.score, final: true, overtime: g.quarter >= 5, log: g.log, players: [g.stats[0].players, g.stats[1].players], injuries: g.teams.map((t) => t.injuries || []) }, ctx.byId) : [];
-    const logItems = g.log.slice().reverse().map((e, i) => {
+    const newest = g.log.length - 1;
+    const logItems = pbpOrder(g.log).map((e) => {
       const cls = e.type === 'drive' ? 'drive' : e.type === 'injury' ? 'injury' : e.flag && !e.scoring ? 'penalty' : e.type === 'quarter' || e.type === 'final' || e.type === 'info' ? 'quarter' : e.scoring ? 'scoring' : (e.type === 'int' || e.type === 'fumble' || /Turnover on downs/.test(e.text)) ? 'turnover' : '';
-      return `<li class="${cls} ${i === 0 ? 'latest' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`;
+      return `<li class="${cls} ${e.i === newest ? 'latest' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`;
     }).join('');
 
     render(root, html`
