@@ -8,6 +8,7 @@ import { autoCompleteAll } from '../src/engine/auction.js';
 import {
   makeAiOffers, liveOffers, acceptOffer, declineOffer, pruneOffers, initOffers, advanceWeekWithMoves,
   lineupStrength, rostersValid, ownerMap, aiGreed, slotOf, tradeDeadlineWeek, MAX_LIVE_OFFERS, OFFER_FAIR_MARGIN, OFFER_LOPSIDED,
+  validateTrade,
 } from '../src/engine/transactions.js';
 
 function league(seed, n = 8) {
@@ -128,6 +129,13 @@ test('taking every offer never breaks a roster and stays inside the rules', () =
   while (lg.phase === 'season') {
     for (const o of liveOffers(lg)) {
       if (o.answered) continue;
+      // Taking one offer can legitimately kill another in the same batch: fill
+      // a room and the next man offered into it no longer makes the roster.
+      // `acceptOffer` only marks an offer stale when it names a player who has
+      // just moved, so this is the case it cannot see, and the screen handles
+      // it the same way — the button throws and the toast says why.
+      const sides = { aPicks: o.wantsNext || [], bPicks: o.givesNext || [] };
+      if (!validateTrade(lg, u, o.from, o.wants, o.gives, byId, PLAYERS, sides).ok) continue;
       acceptOffer(lg, o.id, byId, PLAYERS);
       taken++;
       assert.ok(rostersValid(lg, byId).ok, rostersValid(lg, byId).reason);

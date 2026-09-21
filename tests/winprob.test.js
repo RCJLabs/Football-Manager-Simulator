@@ -10,6 +10,26 @@ import { PLAYERS_BY_ID } from '../src/data/db.js';
 const tf = (t) => ({ id: t.id, name: t.name, abbr: t.abbr, color: t.color, strategy: t.strategy, lineup: buildLineup(t.slots, t.byId) });
 const A = syntheticTeam('a', 85, 2, 1), B = syntheticTeam('b', 85, 2, 2);
 
+/**
+ * A true mirror of a roster, player for player, under its own ids.
+ *
+ * Two synthetic teams drawn at the same mean are not equal — they are two
+ * draws — and `teamPower` reads the difference. 'even' here used to mean
+ * whatever prior seeds 1 and 2 happened to produce, which held until the
+ * rating weights moved and it became 0.61. Distinct ids matter because
+ * `overall` caches by id.
+ */
+function mirror(t, id) {
+  const byId = new Map(), slots = {};
+  for (const [slot, pid] of Object.entries(t.slots)) {
+    const p = t.byId.get(pid);
+    if (!p) continue;
+    const twin = { ...p, id: `${id}-${p.id}`, r: { ...p.r } };
+    byId.set(twin.id, twin); slots[slot] = twin.id;
+  }
+  return { ...t, id, name: `Team ${id}`, abbr: id.toUpperCase().slice(0, 3), slots, byId };
+}
+
 test('the normal CDF and expected points behave', () => {
   assert.ok(Math.abs(Phi(0) - 0.5) < 1e-6);
   assert.ok(Math.abs(Phi(1.96) - 0.975) < 1e-3);
@@ -20,9 +40,11 @@ test('the normal CDF and expected points behave', () => {
 });
 
 test('win probability starts near even, follows the score, and settles at the final', () => {
-  const g = createGame(tf(A), tf(B), { seed: 5, homeAdvantage: false });
+  // Against a mirror of itself, so 'near even' is a claim about the model
+  // rather than about which way two random draws happened to fall.
+  const g = createGame(tf(A), tf(mirror(A, 'am')), { seed: 5, homeAdvantage: false });
   const p0 = winProbability(g);
-  assert.ok(p0 > 0.4 && p0 < 0.6, `kickoff ${p0}`);
+  assert.ok(p0 > 0.45 && p0 < 0.55, `kickoff ${p0}`);
   assert.equal(typeof g.log[0].wp, 'number', 'the opening event carries a probability');
   // A lead helps, more so late.
   const lead = { ...g, score: [10, 0], phase: 'play', possession: 1, ballOn: 25, down: 1, toGo: 10 };

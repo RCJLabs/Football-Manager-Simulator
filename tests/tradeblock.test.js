@@ -156,16 +156,20 @@ test('an executed uneven trade leaves both rosters legal and logs its paperwork'
 });
 
 test('a deal that buys a player only to cut him is refused', () => {
-  const lg = league(7, 12);
-  const u = user(lg), me = lg.teams[u];
-  const floor = Math.min(...at(me, 'WR').map((id) => overall(byId.get(id))));
-  let found = null;
-  for (let i = 0; i < lg.teams.length && !found; i++) {
-    if (i === u) continue;
-    const dud = at(lg.teams[i], 'WR').find((id) => overall(byId.get(id)) < floor);
-    if (dud) found = { team: i, id: dud };
+  // Searched rather than pinned: whether any club carries a receiver beneath
+  // our worst depends on how the draft fell, which depends on the rating
+  // weights. Seed 7 stopped having one when they moved.
+  let lg = null, u = 0, me = null, found = null;
+  for (let seed = 7; seed < 40 && !found; seed++) {
+    lg = league(seed, 12); u = user(lg); me = lg.teams[u];
+    const floor = Math.min(...at(me, 'WR').map((id) => overall(byId.get(id))));
+    for (let i = 0; i < lg.teams.length && !found; i++) {
+      if (i === u) continue;
+      const dud = at(lg.teams[i], 'WR').find((id) => overall(byId.get(id)) < floor);
+      if (dud) found = { team: i, id: dud };
+    }
   }
-  assert.ok(found, 'somebody carries a receiver who would not crack our room');
+  assert.ok(found, 'somebody in thirty-three leagues carries a receiver who would not crack our room');
   const v = validateTrade(lg, u, found.team, [at(me, 'QB')[1]], [found.id], byId, PLAYERS);
   assert.equal(v.ok, false);
   assert.match(v.reason, /would not make/);

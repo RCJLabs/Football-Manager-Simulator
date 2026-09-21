@@ -84,11 +84,20 @@ test('careers advance in the offseason, and only for players under contract', ()
 
 test('a player signed at his prime declines slowly, not off a cliff', () => {
   const lg = league(52);
+  // Careers are created on the first advance, so this runs one to bring them
+  // into being before choosing a man. A real player enters within two years
+  // EITHER SIDE of his prime, so the first name on the roster may still be
+  // climbing and is entitled to improve; this took whatever landed in slot one
+  // and called it a prime, which held only for as long as the draft kept
+  // putting the same man there.
+  advanceCareers(lg, index(lg), { season: 1 }); lg.season++;
+  const id = ROSTER_SLOTS.map((s) => lg.teams[0].slots[s.id]).filter(Boolean)
+    .find((pid) => lg.dev[pid] && lg.dev[pid].age >= primeAge(PLAYERS_BY_ID.get(pid).pos));
+  assert.ok(id, 'somebody on the roster is at or past his prime');
   const byId = index(lg);
-  const id = ROSTER_SLOTS.map((s) => lg.teams[0].slots[s.id]).find(Boolean);
   const base = PLAYERS_BY_ID.get(id);
-  const before = overall(base);
-  for (let i = 0; i < 3; i++) { advanceCareers(lg, index(lg), { season: i + 1 }); lg.season++; }
+  const before = overall(byId.get(id) || base);
+  for (let i = 0; i < 3; i++) { advanceCareers(lg, index(lg), { season: i + 2 }); lg.season++; }
   const after = overall(index(lg).get(id) || base);
   assert.ok(after <= before, `should not have improved past his prime: ${before} -> ${after}`);
   assert.ok(before - after <= 8, `three seasons cost ${before - after}, which is a cliff rather than a decline`);

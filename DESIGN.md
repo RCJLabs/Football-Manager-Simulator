@@ -2094,6 +2094,111 @@ It reported 141 violations, the worst of them 27 points. Three override passes l
 
 **Five tests fell over, and none of them was a regression.** Four were seed-pinned in ways that only held for one particular pool — a trade test that named two players and hoped both clubs would take them, a waiver test that assumed seed 4 produced a live wire, an offer test that wanted more than thirty offers from thirty fixed seeds and got twenty-nine. They search now instead of assuming. The fifth was better: `jobs.test.js` asserted that after a decade every club has a coach, and the decade ended with the user sacked and unhireable at reputation 11. `fillVacancies` skips `isUser` on purpose — the club you ran stays yours and the carousel will not hand it to somebody else — so a coachless club was the correct state and the assertion had quietly assumed the career never ends. It now asserts the sharper thing: the only club that may sit empty is your own.
 
+### Two authorities, and where they disagree
+
+The game holds two weight vectors and nothing kept them in agreement.
+`POSITIONS[pos].weights` builds `overall`, which prices the auction, ranks the
+draft board, values every trade and sorts every depth chart. `composites()` is
+what the simulation actually reads. A weight that disagrees with the field is a
+player the economy misprices, and clubs are robbed in the direction of the
+error.
+
+`npm run attrs` measures the second one: lift a single attribute eight points
+across a position's starters, mirrored rosters, no home edge, twenty thousand
+games a reading. It is `leverage-sim`'s method narrowed from a position to an
+attribute, with two corrections. That harness advanced the seed and the flip
+together, so the two halves of a swap never played the same game and a mirrored
+roster — worth exactly nothing by construction — left 0.6 points of residue to
+average away; paired, the baseline is exactly 0.000. And with the games paired
+the error has to be taken over pairs, not games, which is what separates a
+defensive lineman's awareness at ±0.265 from the ±0.615 the old estimator gave
+it.
+
+**The premise this started from was half wrong.** The audit said edge rushers
+were suppressed by the weights, reasoning from `composites` reading a
+linebacker's pass rush at 0.40 of `blitzRush`. Measured, a linebacker's `prs` is
+worth 0.122 against the 0.150 he was priced at — slightly *over*weighted, because
+a defence rarely blitzes and the coefficient is not the frequency. The defensive
+lineman was the real case: 0.548 measured against 0.400 priced.
+
+**Three attributes did nothing at all.** `defAwr` was gathered in `composites`
+and consumed by no one, so two corners eight points apart in awareness played
+games identical to the character — 0.000 ± 0.000 over twenty thousand of them —
+while awareness was fifteen per cent of what a corner costs. A back's
+elusiveness measured 0.000 and his power 0.000, thirty-five per cent of his
+rating between them, because both reached the field only through a break-tackle
+term worth eight hundredths of a yard a carry, while speed nearly tripled the
+breakaway rate and owned the long run behind a hard floor at the defence's
+speed. Across the eleven positions, 9.5% of the average rating bought nothing
+measurable.
+
+So the weights could not simply be set to the measurement: that would have
+priced power, elusiveness and every defensive awareness at zero and made them
+decoration. They were wired in first. Awareness now reaches the field through
+the thing it improves and its own group's — `covOf` and `fitOf`, so a smart
+corner covers better and a smart front fits the run. Power resists the stuff,
+which `stuffP` did not previously consult the carrier to decide. Elusiveness
+has its own path to the long run. Measured after: RB `elu` 0.000 → 0.189, RB
+`pow` 0.000 → 0.097, CB `awr` 0.000 → 0.078, S 0.000 → 0.064, LB 0.013 → 0.060,
+DL 0.016 → 0.035.
+
+**Centred on the wrong population, first time.** These terms centre so the rates
+themselves do not move, and centring them on the pool's starting players —
+elusiveness 89, defensive awareness 88 — halved the breakaway rate: mean run
+4.61 → 4.15, explosive plays 3.66 → 3.30, points 43.1 → 41.5, three of
+forty-four realism metrics outside the real league's range where none had been.
+Every constant in `plays.js` was fitted against synthetic teams at mean 82, and
+that is the population that has to hold still. Centred there they recover — mean
+run 4.47, explosives 3.62, points 43.1, the baseline exactly. A league of
+all-time greats then runs hotter than the reference, which is correct: they are
+better than the reference.
+
+**Then the reweight, and the second authority.** Setting the weights three
+quarters of the way to the measurement took `npm run legacy` from 16 violations
+to 31. The regression was not spread evenly: DL improved (gap 16 → 7) while QB
+went 1 → 7, WR 0 → 3 and TE 0 → 3. The reason is legible in the flagged names —
+strong-armed pre-merger quarterbacks, receiving tight ends, possession
+receivers. The simulation rewards accuracy over arm, blocking over receiving at
+tight end, and speed over hands and routes, more than the historical record
+does.
+
+That disagreement is the finding. Following the field blindly imports the
+simulation's blind spots into the economy; ignoring it leaves clubs paying for
+what does not win. So each position moves **as far toward the measured vector as
+the record will allow**: the largest blend that leaves `legacy-check` no worse at
+that position, floored at 0.05 so nothing on screen is purely decorative.
+
+| position | blend taken | what moved |
+| --- | --- | --- |
+| DL | all of it | `prs` .40 → .55, `rsd` .35 → .27 |
+| S | all of it | `cov` .30 → .38, `awr` .15 → .06 |
+| P | all of it | `ppw` .50 → .69 |
+| CB | 40% | `cov` .40 → .48 |
+| WR | 40% | `spd` .20 → .27 |
+| K | no change measured | — |
+| QB, RB, TE, OL, LB | none | the record blocks it |
+
+Five positions taking nothing is not a null result. It says the simulation and
+the record disagree there, and names where: a tight end who is mostly a blocker,
+a quarterback whose arm barely matters, a linebacker whose pass rush the field
+does not reward the way history did. All twelve of the linebacker violations are
+edge rushers and neither direction of reweighting helps them, because the
+disagreement is in the simulation, not the formula. That is the next piece of
+work, and it is engine work.
+
+Safety awareness dropping to 0.06 is not the wiring being wasted. Before it, the
+correct weight was 0.00.
+
+**What it cost.** Run-stuffing nose tackles lose ground — Ted Washington 79 → 75
+— because `rsd` fell with `prs` rising, which is what the field says. The
+fingerprint moved twice: `64ff480a39db399a` → `01e4d68b83544a38` for the wiring,
+then → `7cbe66ddb0bfd37c` for the weights, that second one with the log line
+count unchanged at 48,315, because weights reach the log through `teamPower` and
+the win-probability prior rather than through any play. Six tests broke across
+the two changes and none was a regression: every one had pinned a fixture — a
+seed, a slot, a pair of "equal" synthetic teams — that only held for one
+particular engine. They search, or mirror, or check their premise now.
+
 **Fictional names.** A settings toggle swaps every real name for a made-up one, one to one, chosen from the hash of the player's id and settled in pool order so it never changes between sessions or versions as long as the name lists only grow at the end and the pool stays append-only. Ids, ratings, saves and league codes are untouched; the real name is kept on the player so the switch reverses. Logs and records keep the names they were written with. Team abbreviations in the pool (the club a player's prime season was with) are left as they are. `applyNameMode` runs at boot from the preference, so a store build can default it to `fictional` by changing one line in `main.js`; the real names still ship in the data file either way, which is a licensing question this toggle does not settle, only sidesteps on screen.
 
 ## UI

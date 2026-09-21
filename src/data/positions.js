@@ -15,29 +15,45 @@
 //   kpw  kick power / range            kac  kick accuracy
 //   ppw  punt power / distance         pac  punt accuracy / hang / placement
 
+// These are fitted against two authorities that do not agree.
+//
+// `npm run attrs` measures what the field rewards: lift one attribute eight
+// points across a position's starters, read the margin. `npm run legacy`
+// measures what the record rewards: 443 seasons of MVPs, major awards and
+// records, each setting a floor the rating has to clear. A weight wants to
+// follow the first — `overall` prices the auction, ranks the board and sorts
+// every depth chart, so pricing what does not win games is how a club is
+// robbed. But following it blindly imports the simulation's own blind spots
+// into the economy, and the record is the thing that catches those.
+//
+// So each position moves as far toward the measured vector as the record will
+// allow: the largest blend that leaves `legacy-check` no worse at that
+// position. Some take all of it, some take none, and where a position takes
+// none that is a finding about the simulation rather than about the weights —
+// see DESIGN.md, "Two authorities, and where they disagree".
 export const POSITIONS = {
   QB: { name: 'Quarterback',   attrs: ['thp', 'tha', 'awr', 'mob'],
         weights: { tha: 0.40, awr: 0.35, thp: 0.17, mob: 0.08 } },
   RB: { name: 'Running Back',  attrs: ['spd', 'elu', 'pow', 'awr', 'rec', 'car'],
-        weights: { spd: 0.20, elu: 0.20, pow: 0.15, awr: 0.20, rec: 0.10, car: 0.15 } },
+        weights: { spd: 0.20, elu: 0.20, awr: 0.20, pow: 0.15, car: 0.15, rec: 0.10 } },
   WR: { name: 'Wide Receiver', attrs: ['spd', 'cth', 'rte', 'rac'],
-        weights: { cth: 0.30, rte: 0.30, spd: 0.20, rac: 0.20 } },
+        weights: { spd: 0.27, cth: 0.27, rte: 0.26, rac: 0.20 } },
   TE: { name: 'Tight End',     attrs: ['spd', 'cth', 'rte', 'rac', 'blk'],
-        weights: { cth: 0.25, rte: 0.20, blk: 0.25, spd: 0.10, rac: 0.20 } },
+        weights: { cth: 0.25, blk: 0.25, rte: 0.20, rac: 0.20, spd: 0.10 } },
   OL: { name: 'Offensive Line', attrs: ['pbk', 'rbk', 'awr'],
         weights: { pbk: 0.45, rbk: 0.45, awr: 0.10 } },
   DL: { name: 'Defensive Line', attrs: ['prs', 'rsd', 'tck', 'awr'],
-        weights: { prs: 0.40, rsd: 0.35, tck: 0.15, awr: 0.10 } },
+        weights: { prs: 0.55, rsd: 0.27, tck: 0.11, awr: 0.07 } },
   LB: { name: 'Linebacker',    attrs: ['spd', 'tck', 'rsd', 'cov', 'prs', 'awr'],
-        weights: { tck: 0.20, rsd: 0.20, cov: 0.20, prs: 0.15, spd: 0.10, awr: 0.15 } },
+        weights: { tck: 0.20, rsd: 0.20, cov: 0.20, prs: 0.15, awr: 0.15, spd: 0.10 } },
   CB: { name: 'Cornerback',    attrs: ['spd', 'cov', 'bal', 'tck', 'awr'],
-        weights: { cov: 0.40, spd: 0.20, bal: 0.20, tck: 0.05, awr: 0.15 } },
+        weights: { cov: 0.48, spd: 0.17, bal: 0.17, awr: 0.12, tck: 0.06 } },
   S:  { name: 'Safety',        attrs: ['spd', 'cov', 'bal', 'tck', 'rsd', 'awr'],
-        weights: { cov: 0.30, bal: 0.15, tck: 0.15, rsd: 0.10, spd: 0.15, awr: 0.15 } },
+        weights: { cov: 0.38, tck: 0.20, spd: 0.13, bal: 0.12, rsd: 0.11, awr: 0.06 } },
   K:  { name: 'Kicker',        attrs: ['kpw', 'kac'],
-        weights: { kpw: 0.40, kac: 0.60 } },
+        weights: { kac: 0.60, kpw: 0.40 } },
   P:  { name: 'Punter',        attrs: ['ppw', 'pac'],
-        weights: { ppw: 0.50, pac: 0.50 } },
+        weights: { ppw: 0.69, pac: 0.31 } },
 };
 
 export const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K', 'P'];
