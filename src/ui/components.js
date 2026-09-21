@@ -223,6 +223,7 @@ export function playerModal(p, extra = '') {
     <p class="muted">${def.name} · ${p.generated ? `generated rookie, class of ${p.season}` : `${p.season} ${p.team} · ${eraOf(p.season)}`} · Overall <span id="ovrNow">${ovrBadge(p)}</span></p>
     ${p.retired ? html`<p class="muted" style="margin:-.3rem 0 0">Retired at ${p.age}. He stays in the record books; he cannot be signed.</p>`
       : p.age != null ? html`<p class="muted" style="margin:-.3rem 0 0">Age ${p.age}, ${careerPhase(p.pos, p.age)}${p.base && overall(p) !== overall(p.base) ? ` · ${overall(p) > overall(p.base) ? 'up' : 'down'} ${Math.abs(overall(p) - overall(p.base))} from the ${p.base.season} version you signed` : ''}.</p>` : ''}
+    ${p.knocks ? html`<p class="muted" style="margin:.2rem 0 0">Came back from ${p.knocks === 1 ? 'a season-ending injury' : `${p.knocks} season-ending injuries`} — a step slower, and ${p.knocks === 1 ? 'a year' : `${p.knocks} years`} off the end of his career.</p>` : ''}
     ${raw(rows)}
     ${editing ? html`<small class="muted">Rating editor is on (settings). Edits apply everywhere at once and export as a diff.</small>` : ''}
     ${raw(extra)}

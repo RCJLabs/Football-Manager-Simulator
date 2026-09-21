@@ -57,6 +57,36 @@ const CURVE = {
 };
 
 /** Seasons past prime a player lasts before hanging them up, before jitter. */
+/**
+ * What a season-ending injury costs a career.
+ *
+ * Until now an injury cost weeks and nothing else, so a torn ACL was a bad
+ * month and a thirty-four-year-old back was an arithmetic slope. These are the
+ * two things that make it a decision instead: he comes back a step slower, and
+ * he has one year less in him.
+ *
+ * Weighted to the legs on purpose. PHYSICAL is where a knee goes, so a running
+ * back loses two and a bit points of overall and a quarterback loses one — a
+ * back's career ends at a knee and a quarterback's mostly does not. The smaller
+ * across-the-board figure is the rest of it: everybody comes back a little
+ * less.
+ *
+ * Scaled by age past prime, because a twenty-three-year-old walks it off and a
+ * thirty-three-year-old does not.
+ *
+ * The split between the two figures was set by measuring what it came to per
+ * position. At 3.0 and 0.8 a punter lost more than a running back — `ppw` is
+ * physical and carries most of his rating — while an offensive lineman lost
+ * almost nothing, because `pbk`, `rbk` and `awr` are none of them physical and
+ * a knee does not care. Moving weight into the general figure closes both gaps
+ * without flattening the one that should be there: a back still loses half
+ * again what a quarterback does.
+ */
+export const KNOCK_PHYSICAL = 2.6;
+export const KNOCK_GENERAL = 1.3;
+export const KNOCK_YEARS = 1;
+export const KNOCK_AGE_SCALE = 0.15;
+
 export const CAREER_LENGTH = 9;
 /** Nobody plays below this. */
 export const RETIRE_OVERALL = 52;
@@ -141,7 +171,8 @@ export function developed(p, c) {
   for (const a of POSITIONS[src.pos].attrs) {
     r[a] = clamp(Math.round((src.r[a] ?? 60) + (c.d[a] || 0)), 40, 99);
   }
-  return { ...src, base: src, r, age: c.age, dev: true, ovr: rawOverall(src.pos, r) };
+  // `knocks` rides along so a screen can say why a man is not what he was.
+  return { ...src, base: src, r, age: c.age, dev: true, knocks: c.knocks || 0, ovr: rawOverall(src.pos, r) };
 }
 
 /**
@@ -192,11 +223,25 @@ function viewOf(p, careers, retired) {
  * ceiling smoothly rather than jumping over it: a season that would cross the
  * ceiling has its gains scaled back to land on it.
  */
-export function stepCareer(league, src, c, season) {
+export function stepCareer(league, src, c, season, knocks = 0) {
   const prime = primeAge(src.pos);
   const rng = new RNG(hashSeed(`dev:${league.seed >>> 0}:${src.id}:${season}`));
   const before = overall(developed(src, c));
   const next = { ...c, age: c.age + 1, d: { ...c.d } };
+  if (knocks > 0) {
+    // Paid before the year's development, so a man who tears a knee at
+    // twenty-four can still grow through it — just from further back.
+    const wear = knocks * (1 + Math.max(0, next.age - prime) * KNOCK_AGE_SCALE);
+    for (const a of POSITIONS[src.pos].attrs) {
+      const cost = (PHYSICAL.includes(a) ? KNOCK_PHYSICAL : KNOCK_GENERAL) * wear;
+      next.d[a] = (next.d[a] || 0) - cost;
+    }
+    next.retireAt = Math.max(next.age, (next.retireAt ?? prime + CAREER_LENGTH) - KNOCK_YEARS * knocks);
+    next.knocks = (c.knocks || 0) + knocks;
+    // A ceiling he can no longer reach is not a ceiling. Without this the
+    // development code would spend the next few seasons handing the loss back.
+    if (next.ceiling != null) next.ceiling = Math.min(next.ceiling, overall(developed(src, next)));
+  }
   const gain = {};
   for (const a of POSITIONS[src.pos].attrs) {
     gain[a] = step(CLASS_OF[a] || 'skill', next.age - prime, next.growth, rng);
@@ -233,6 +278,7 @@ export function advanceCareers(league, byId, { season = league.season } = {}) {
   const retired = [];
   const risers = [];
   const fallers = [];
+  const hurt = [];
 
   for (const id of owned) {
     if (league.dev && league.dev[id]) continue;
@@ -245,24 +291,30 @@ export function advanceCareers(league, byId, { season = league.season } = {}) {
     const p = byId.get(id);
     if (!p) { delete careers[id]; continue; }
     const src = p.base || p;
-    const { career: next, before, after } = stepCareer(league, src, c, season);
+    const knocks = (league.knocks && league.knocks[id]) || 0;
+    const { career: next, before, after } = stepCareer(league, src, c, season, knocks);
     if (retires(next, after)) {
-      retired.push({ id, name: src.name, pos: src.pos, age: next.age, ovr: after, owned: owned.has(id) });
+      retired.push({ id, name: src.name, pos: src.pos, age: next.age, ovr: after, owned: owned.has(id), knocks: next.knocks || 0 });
       delete careers[id];
       continue;
     }
     careers[id] = next;
     if (!owned.has(id)) continue;
+    if (knocks) hurt.push({ id, name: src.name, pos: src.pos, age: next.age, from: before, to: after, knocks });
     const move = after - before;
     if (move >= 3) risers.push({ id, name: src.name, pos: src.pos, age: next.age, from: before, to: after });
     else if (move <= -3) fallers.push({ id, name: src.name, pos: src.pos, age: next.age, from: before, to: after });
   }
 
+  // The ledger is settled once. Leaving it would charge the same knee every
+  // offseason until the man retired of it.
+  league.knocks = {};
   league.dev = careers;
   if (retired.length) league.retired = [...(league.retired || []), ...retired.map((r) => r.id)];
   risers.sort((a, b) => (b.to - b.from) - (a.to - a.from));
   fallers.sort((a, b) => (a.to - a.from) - (b.to - b.from));
-  return { retired, risers, fallers, aged: Object.keys(careers).length };
+  hurt.sort((a, b) => (a.to - a.from) - (b.to - b.from));
+  return { retired, risers, fallers, hurt, aged: Object.keys(careers).length };
 }
 
 /** Drop retired players from every roster, bench and injured-reserve list. */

@@ -14,6 +14,7 @@ import { createDraft, assignGms } from './draft.js';
 import { signablePool, scheduleDrain } from './proleague.js';
 import { squadList, agedOutOfSquad } from './squad.js';
 import { createAuction, TRUE_LEVERAGE, spreadBudgets, DEFAULT_BUDGET} from './auction.js';
+import { shownOverall } from './scouting.js';
 import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats, fantasyPoints } from './stats.js';
 import { buildLineup, teamPower, overall } from './ratings.js';
 import { ROSTER_SLOTS } from '../data/positions.js';
@@ -559,6 +560,46 @@ export function fitUserStrategy(league, byId) {
   const read = strategyRead(league, u, byId);
   if (read) team.strategy.passRate = read.rate;
   team.strategyFitted = true;
+}
+
+/**
+ * Put one club's best men in its starting slots, on demand.
+ *
+ * `sortDepthCharts` below does this to the AI clubs on every roster move and
+ * leaves yours alone once you have touched it, which is right — a depth chart
+ * is a decision, and having it quietly reordered under you is the opposite of
+ * one. This is the button that asks for it.
+ *
+ * Ordered by `shownOverall` rather than `overall`, so it ranks a player the way
+ * the rest of the game shows him to you. Sorting an unscouted rookie by his
+ * true rating would put the number back on screen as his place on the chart,
+ * which is the same leak the player pool and the draft board already avoid.
+ *
+ * Injury is deliberately not considered. The chart says who is ahead when
+ * everyone is fit; `buildLineup` already sits the hurt man and moves the next
+ * one up, and demoting him for being injured would leave him behind when he
+ * comes back.
+ */
+export function autoDepth(league, teamIdx, byId) {
+  const t = league.teams[teamIdx];
+  if (!t) return 0;
+  const rank = (id) => {
+    const p = byId.get(id);
+    return p ? shownOverall(league, p, teamIdx) : -1;
+  };
+  let moved = 0;
+  const groups = {};
+  for (const slot of ROSTER_SLOTS) (groups[slot.pos] ??= []).push(slot.id);
+  for (const ids of Object.values(groups)) {
+    const before = ids.map((id) => t.slots[id]);
+    const filled = before.filter(Boolean).slice().sort((x, y) => rank(y) - rank(x));
+    ids.forEach((id, i) => { t.slots[id] = filled[i]; });
+    ids.forEach((id, i) => { if (before[i] !== t.slots[id]) moved++; });
+  }
+  // A chart you have arranged yourself stays arranged; asking for this is
+  // still you arranging it, so the flag stays set either way.
+  t.depthSorted = true;
+  return moved;
 }
 
 export function sortDepthCharts(league, byId) {

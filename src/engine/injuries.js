@@ -117,6 +117,13 @@ export function recordGameInjuries(league, g, sides, since) {
     for (const inj of g.teams[side].injuries || []) {
       if (inj.weeks <= 0) continue;
       league.injuries[inj.id] = { weeks: inj.weeks, kind: inj.kind, since, season: league.season, team: teamIdx };
+      // The worst band is the one that follows a man into next season. Noted
+      // here and paid in the offseason, because that is when a career moves;
+      // `advanceCareers` reads this ledger and clears it.
+      if (inj.weeks >= SEASON_ENDING) {
+        league.knocks ??= {};
+        league.knocks[inj.id] = (league.knocks[inj.id] || 0) + 1;
+      }
     }
   });
 }

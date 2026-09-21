@@ -1194,7 +1194,9 @@ A keeper run is three seasons, which costs about 1.3 overall — noticeable when
 
 **Both settings default on for a new league and stay off for an old one.** An absent setting is not a false one: it means the save was written before the feature existed. Turning chemistry on mid-season moves every club by up to two points at once, measured, which is changing the rules under somebody halfway through a season. So a league from before this keeps playing exactly as it did, and the settings screen says so and offers the switch.
 
-Not built: injuries that shorten a career, positional decline that forces a move, or any scouting fog over a rookie's growth curve. The curve is hidden but its effects are immediate and exact, so a patient manager can read a breakout after one season.
+Injuries that shorten a career are built — see **What a knee costs** below.
+Still not built: positional decline that forces a move, or any scouting fog over
+a rookie's growth curve. The curve is hidden but its effects are immediate and exact, so a patient manager can read a breakout after one season.
 
 ## Difficulty (`difficulty.js`)
 
@@ -1953,6 +1955,73 @@ If more variety is ever wanted, the one lever that measured worth having is
 setup screen, auction only, off by default. See **Unequal cap room** below,
 which re-measures it and corrects one half of what this paragraph used to
 claim.
+
+### What a knee costs
+
+An injury used to cost weeks and nothing else, which made a thirty-four-year-old
+star an arithmetic slope: he declined on schedule whatever happened to him, and
+a torn ACL was a bad month. Now the worst band — torn ACL, ruptured Achilles,
+broken leg, neck — leaves a mark. `recordGameInjuries` notes it in
+`league.knocks`; `advanceCareers` settles that ledger in the offseason and
+clears it, because the same knee must not be charged every year until the man
+retires of it.
+
+The toll is two things: he comes back a step slower, and he has a year less in
+him. It is weighted to `PHYSICAL`, which is where a knee goes, so it costs a
+running back half again what it costs a quarterback — a back's career ends at a
+knee and a quarterback's mostly does not. It scales with age past prime, because
+a twenty-three-year-old walks it off. And a ceiling he can no longer reach is
+lowered to match, or the development code would spend the next three seasons
+handing the loss back.
+
+**The split between the two figures was measured, not chosen.** At 3.0 physical
+and 0.8 general a *punter* lost more than a running back — `ppw` is physical and
+carries most of his rating — while an offensive lineman lost almost nothing,
+because `pbk`, `rbk` and `awr` are none of them physical and a knee does not
+care about that. Moving weight into the general figure (2.6 / 1.3) closes both
+gaps without flattening the one that should be there:
+
+| position | overall lost to one knock | years lost |
+| --- | --- | --- |
+| P | 2.69 | 1 |
+| RB, DL | 2.38 | 1 |
+| WR, K | 2.1 | 1 |
+| QB, LB, TE | 1.9 | 1 |
+| CB, S | 1.8 | 1 |
+| OL | 1.59 | 1 |
+
+The punter is still top and that is not ideal; what makes it tolerable is that
+`POS_RISK` puts a specialist at 0.12, an eighth of a linebacker, so he is barely
+ever hurt in the first place.
+
+**Frequency, measured over 23 league-seasons of a 32-club pro league**: about
+5.0 marked careers a season, 0.16 a club — a club sees one roughly every six
+seasons. That is 0.58% of the 864 men under contract, so the league-wide drag is
+arithmetically nil and the ageing drift in a long save (84.9 down to 78.4 over
+eight seasons) is the pre-existing one, not this. The toll is a per-player
+event, which is what it should be: rare enough to be news, heavy enough to
+change a keeper decision.
+
+`npm run knocks` measures both halves. A control arm was tried first and
+abandoned — `simulateAhead('nextSeason')` runs the season and the offseason
+inside one call, so there is no seam to clear a ledger in, and both arms came
+back identical. Stepping the same career twice, once with the knock and once
+without, isolates the toll exactly and is what the table above comes from.
+
+### Auto-ordering a depth chart
+
+`sortDepthCharts` puts the best men in the starting slots for every AI club on
+every roster move, and leaves yours alone the moment you touch it — a depth
+chart is a decision, and having it reordered under you is the opposite of one.
+`autoDepth` is the button that asks for it, on the depth tab of your own team.
+
+It ranks by `shownOverall` rather than `overall`, so it orders a player the way
+the rest of the game shows him. Sorting an unscouted rookie by his true rating
+would put the number back on screen as his place on the chart, which is the leak
+the player pool and the draft board already avoid. Injury is deliberately not
+considered: the chart says who is ahead when everyone is fit, `buildLineup`
+already sits the hurt man and moves the next one up, and demoting him for being
+injured would leave him behind when he came back.
 
 ### Unequal cap room
 

@@ -8,6 +8,7 @@ import { squadList, squadCapacity, squadOn, canStash, stash, promote, releaseFro
 import { fantasyPoints } from '../../engine/stats.js';
 import { chemistryFor, describeChemistry, MAX_BONUS } from '../../engine/chemistry.js';
 import { strategyRead } from '../../engine/strategy.js';
+import { autoDepth } from '../../engine/season.js';
 
 // Grouped by what each one was measured to be worth, because presenting five
 // dials as five equal decisions is not what the numbers say. See strategy.js.
@@ -186,7 +187,7 @@ export function view(root, params, ctx) {
         <button type="button" class="btn sm ghost" id="density" aria-pressed="${showAttrs ? 'false' : 'true'}">${showAttrs ? 'Compact' : 'Show ratings'}</button>
       </div>
       ${raw(jumpBar)}
-      ${canEdit ? html`<p class="muted" style="font-size:.78rem;margin:.1rem 0 .4rem">▲▼ reorders players within a position.</p>` : ''}
+      ${canEdit ? html`<p class="muted" style="font-size:.78rem;margin:.1rem 0 .4rem">▲▼ reorders players within a position. <button type="button" class="btn sm" id="autoDepth" style="margin-left:.3rem">Auto-order</button></p>` : ''}
       ${raw(depthChart)}
     </div>${psCard}</div>`,
     squad: html`<div class="grid grid-2">
@@ -305,6 +306,15 @@ export function view(root, params, ctx) {
       const m = modal(html`<h2>Release ${p.name}?</h2><p class="muted">He goes back into the pool and anyone can claim him.</p>
         <div class="row"><button class="btn danger" id="yes">Release</button><button class="btn" data-close>Cancel</button></div>`);
       m.el.querySelector('#yes').addEventListener('click', () => { m.close(); ctx.update((s) => { releaseFromIr(s.league, idx, p.id); }); toast(`${p.name} released`); });
+      return;
+    }
+    if (e.target.closest('#autoDepth') && canEdit) {
+      // Best men into the starting slots, ranked the way the rest of the game
+      // shows them — a scouted player by his number, an unscouted rookie by the
+      // estimate, never by a truth the screen is withholding.
+      let moved = 0;
+      ctx.update((s) => { moved = autoDepth(s.league, idx, ctx.byId); });
+      toast(moved ? `Depth chart reordered — ${moved} slot${moved === 1 ? '' : 's'} changed` : 'Already in order');
       return;
     }
     const mv = e.target.closest('[data-move]');

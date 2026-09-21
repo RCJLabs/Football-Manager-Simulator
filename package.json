@@ -33,7 +33,8 @@
     "attrs": "node scripts/attribute-leverage.mjs",
     "budgets": "node scripts/budget-spread.mjs",
     "turnover": "node scripts/turnover-price.mjs",
-    "playbook": "node scripts/playbook-equilibrium.mjs"
+    "playbook": "node scripts/playbook-equilibrium.mjs",
+    "knocks": "node scripts/knock-sim.mjs"
   },
   "engines": {
     "node": ">=20"

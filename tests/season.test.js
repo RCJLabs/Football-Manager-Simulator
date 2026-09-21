@@ -5,8 +5,9 @@ import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
 import {
   buildSchedule, buildProSchedule, createLeague, gameSeed, playoffFieldSize, powerRankings,
-  userTeamIndex, isPro, FANTASY_SIZES, PRO_SIZE, LEAGUE_VERSION,
+  userTeamIndex, isPro, autoDepth, FANTASY_SIZES, PRO_SIZE, LEAGUE_VERSION,
 } from '../src/engine/season.js';
+import { overall } from '../src/engine/ratings.js';
 
 const fantasy = (n, seed = 3) => createLeague({ name: 'T', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: n, seed, draftType: 'auction' });
 const pro = (seed = 4) => createLeague({ name: 'P', mode: 'pro', numTeams: PRO_SIZE, franchise: 12, seed, draftType: 'snake', user: {} });
@@ -145,4 +146,61 @@ test('a new league is internally consistent before anything is drafted', () => {
   assert.equal(isPro(pro()), true);
   assert.equal(new Set(lg.teams.map((t) => t.abbr)).size, 10, 'no two clubs share an abbreviation');
   for (const t of lg.teams) assert.deepEqual(t.record, { w: 0, l: 0, t: 0, pf: 0, pa: 0 });
+});
+
+/** A club filled with real players, deliberately in a bad order. */
+function stocked(seed = 51) {
+  const lg = fantasy(8, seed);
+  const pool = [...byId.values()];
+  const t = lg.teams[userTeamIndex(lg)];
+  for (const pos of new Set(ROSTER_SLOTS.map((x) => x.pos))) {
+    const slots = ROSTER_SLOTS.filter((x) => x.pos === pos).map((x) => x.id);
+    // Worst first, which is exactly what the button is for.
+    const men = pool.filter((p) => p.pos === pos).sort((a, b) => overall(a) - overall(b)).slice(0, slots.length);
+    slots.forEach((id, i) => { t.slots[id] = men[i].id; });
+  }
+  return { lg, t, u: userTeamIndex(lg) };
+}
+
+test('auto-order puts the best man in the starting slot', () => {
+  const { lg, t, u } = stocked();
+  const before = ROSTER_SLOTS.map((s) => t.slots[s.id]);
+  const moved = autoDepth(lg, u, byId);
+  assert.ok(moved > 0, 'a chart built worst-first had nothing to fix');
+  for (const pos of new Set(ROSTER_SLOTS.map((x) => x.pos))) {
+    const ids = ROSTER_SLOTS.filter((x) => x.pos === pos).map((x) => t.slots[x.id]);
+    for (let i = 1; i < ids.length; i++) {
+      assert.ok(overall(byId.get(ids[i - 1])) >= overall(byId.get(ids[i])), `${pos}: ${ids[i - 1]} sits above a better man`);
+    }
+  }
+  // Nobody gained, lost or cloned on the way.
+  const after = ROSTER_SLOTS.map((s) => t.slots[s.id]);
+  assert.deepEqual(new Set(after), new Set(before), 'the same men are on the roster');
+  assert.equal(new Set(after).size, after.length, 'and each of them once');
+});
+
+test('auto-order is idempotent and says so', () => {
+  const { lg, u } = stocked(52);
+  assert.ok(autoDepth(lg, u, byId) > 0);
+  assert.equal(autoDepth(lg, u, byId), 0, 'a chart already in order reports no changes');
+});
+
+test('auto-order leaves an injured man where he is', () => {
+  // The chart says who is ahead when everyone is fit. `buildLineup` already
+  // sits the hurt man; demoting him here would leave him behind on his return.
+  const { lg, t, u } = stocked(53);
+  autoDepth(lg, u, byId);
+  const qb1 = t.slots.QB1;
+  lg.injuries = { [qb1]: { weeks: 4 } };
+  autoDepth(lg, u, byId);
+  assert.equal(t.slots.QB1, qb1, 'the injured starter keeps his place on the chart');
+});
+
+test('auto-order only touches the club it was asked about', () => {
+  const { lg, u } = stocked(54);
+  const other = u === 0 ? 1 : 0;
+  const before = ROSTER_SLOTS.map((s) => lg.teams[other].slots[s.id]);
+  autoDepth(lg, u, byId);
+  assert.deepEqual(ROSTER_SLOTS.map((s) => lg.teams[other].slots[s.id]), before, 'the neighbours are untouched');
+  assert.equal(autoDepth(lg, 99, byId), 0, 'and a club that does not exist is not an error');
 });
