@@ -404,7 +404,27 @@ export function resolvePass(g, rng, call, defCall) {
   const skill = qb.r.tha * 0.6 + tSkill * 0.4 + comp.chem - (pressured ? 9 : 0);
   const baseComp = { screen: 0.78, pass_short: 0.745, pass_med: 0.615, pass_deep: 0.425, pa_pass: 0.625 }[call];
   let compP = baseComp + (skill - cov) * 0.008 + (m.comp || 0);
-  if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003 + (qb.r.thp - 85) * 0.003;
+  if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003;
+  // Arm strength, by how far the ball has to travel.
+  //
+  // This used to be a deep-ball term and nothing else, which is why `thp`
+  // measured 0.052 of a quarterback's leverage against the 0.170 he was priced
+  // at: deep shots are a tenth of the throws, so the attribute was very nearly
+  // decorative and the fix looked like dropping its price. That would have been
+  // wrong for the same reason it was wrong for `defAwr` — an attribute can read
+  // as worthless because it is barely wired, not because it does not matter.
+  // Velocity gets the ball to a covered man before the defender closes, and
+  // that is a sideline out as much as a post.
+  //
+  // Centred on 82, the mean of the synthetic population the engine's constants
+  // were fitted against, so a league of average arms is left exactly where the
+  // calibration put it. The deep coefficient keeps its own 85 and its own
+  // magnitude: it was fitted there, and re-centring it would move deep-ball
+  // completion for no reason connected to this change.
+  const ARM_MID = 82;
+  const ARM_BY_CALL = { screen: 0, pass_short: 0.0008, pass_med: 0.0018, pa_pass: 0.0018, pass_deep: 0 };
+  compP += (qb.r.thp - ARM_MID) * (ARM_BY_CALL[call] ?? 0);
+  if (call === 'pass_deep') compP += (qb.r.thp - 85) * 0.003;
   if (pressured) compP -= 0.08;
   compP -= squeeze(g.ballOn) * SQUEEZE_PASS * (SQUEEZE_COMP[call] ?? 1);
   compP = clamp(compP, 0.12, 0.93);
@@ -467,7 +487,12 @@ export function resolvePass(g, rng, call, defCall) {
   if (tackler) statFor(g.stats[defT], tackler.id).def.tkl++;
   const oob = rng.chance(call === 'pass_deep' ? 0.3 : call === 'screen' ? 0.15 : 0.22);
   // Fumble after catch.
-  if (!td && rng.chance(0.005 * (1 + (def.tackling - 80) / 40))) {
+  // Ball security counts here too, on the same shape as the run fumble above.
+  // It read only the defence's tackling, so a back who coughed it up carrying
+  // never did catching, which is `car` meaning two different things on two
+  // plays. Only backs carry the attribute; a receiver's `car` is undefined and
+  // defaults to the centre, leaving him exactly where he was.
+  if (!td && rng.chance(0.005 * (1 + (82 - (target.r.car ?? 82)) / 22) * (1 + (def.tackling - 80) / 40))) {
     ts.rush.fum++;
     if (tackler) statFor(g.stats[defT], tackler.id).def.ff++;
     if (rng.chance(0.5)) {

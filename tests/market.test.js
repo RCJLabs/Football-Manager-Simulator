@@ -56,11 +56,18 @@ test('the gain is measured against the man he would actually replace', () => {
   const p = byId.get(row.id);
   const room = ROSTER_SLOTS.filter((s) => s.pos === p.pos).map((s) => me.slots[s.id]).filter(Boolean);
   assert.ok(room.includes(row.drop), 'the man he replaces is in that room');
-  const weakest = room.slice().sort((a, b) => overall(byId.get(a)) - overall(byId.get(b)))[0];
   // Availability weights a hurt man down, so the weakest by raw rating is only
   // the answer when nobody in that room is injured.
+  //
+  // Taken as a SET, because ratings tie. Sorting and taking [0] picked one of
+  // the tied men by array order while the market code broke the tie its own
+  // way, so this passed on the luck of the draft: two safeties both rated 86
+  // and a reweight elsewhere in the game was enough to swap which came first.
   if (!Object.keys(lg.injuries || {}).some((id) => room.includes(id))) {
-    assert.equal(row.drop, weakest);
+    const low = Math.min(...room.map((id) => overall(byId.get(id))));
+    const weakest = room.filter((id) => overall(byId.get(id)) === low);
+    assert.ok(weakest.includes(row.drop),
+      `dropped ${row.drop} (${overall(byId.get(row.drop))}), weakest in the room is ${low}`);
   }
   // Filling an empty room is pure gain, and replacing nobody replaces nobody.
   const rooms = { WR: [] };

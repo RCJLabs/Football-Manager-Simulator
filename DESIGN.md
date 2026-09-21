@@ -2440,6 +2440,94 @@ particular engine. They search, or mirror, or check their premise now.
 
 **Fictional names.** A settings toggle swaps every real name for a made-up one, one to one, chosen from the hash of the player's id and settled in pool order so it never changes between sessions or versions as long as the name lists only grow at the end and the pool stays append-only. Ids, ratings, saves and league codes are untouched; the real name is kept on the player so the switch reverses. Logs and records keep the names they were written with. Team abbreviations in the pool (the club a player's prime season was with) are left as they are. `applyNameMode` runs at boot from the preference, so a store build can default it to `fictional` by changing one line in `main.js`; the real names still ship in the data file either way, which is a licensing question this toggle does not settle, only sidesteps on screen.
 
+### Two attributes worth nothing, and why only one of them was
+
+After the linebacker, the two remaining ratings the record disputed were Larry
+Csonka, who wants more from `pow`, and George Blanda, who wants more from `thp`.
+Measuring the positions rather than arguing about the players turned up two
+attributes priced far above what they were worth:
+
+| | priced | measured |
+| --- | --- | --- |
+| RB `car` | 0.150 | **0.007** |
+| QB `thp` | 0.170 | **0.052** |
+
+Fifteen per cent of a running back's price for under one per cent of his effect,
+and seventeen of a quarterback's for five. The obvious move is to cut both
+prices. That was right for one and wrong for the other, and the difference is
+the one `defAwr` taught this engine already: **an attribute can measure as
+worthless because it is barely wired, not because it does not matter.**
+
+**Arm strength was under-wired.** `thp` appeared in exactly two places, both of
+them `pass_deep` — the throw distance and the deep completion. Deep shots are
+about a tenth of attempts, so the attribute was very nearly decorative, and
+cutting its price would have locked that in. In the sport a strong arm is
+velocity into a closing window, which is a sideline out as much as a post. It
+now scales with how far the ball has to travel, centred on 82 so a league of
+ordinary arms sits exactly where the calibration left it. Re-measured, `thp`
+went **0.052 → 0.131** against its 0.170 price: inside the noise band the other
+attributes sit in. The wiring was the fix, and the QB weights did not need to
+move at all.
+
+**Ball security was not.** `car` reaches every carry through the fumble rate and
+it plainly works — measured directly, 0.810 fumbles a game at `car` 60 against
+0.427 at 99. It is simply that fumbles are rare and the offence recovers half of
+them, so that whole 39-point swing buys 0.55 points of margin. One genuine gap
+was closed for consistency — the fumble after a catch read only the defence's
+tackling, so a back who coughed it up carrying never did catching — which lifted
+`car` from 0.007 to **0.020**. Still an eighth of its price. Here the price was
+the thing that was wrong.
+
+#### Where the constrained fit ran out
+
+The rule this document has used for every reweight is *the largest move toward
+the measurement that leaves the record no worse*. At running back it had no
+answer. Every move from `spd` 0.25 to 0.45 costs **exactly one** extra violation
+— John Riggins joining Csonka, the same power-back archetype — and the count is
+flat the whole way; only the severity grows. So the rule says move nothing, and
+moving nothing leaves the largest mis-pricing in the game in place.
+
+The call was to take a partial move, `spd` 0.20 → 0.30 and `car` 0.15 → 0.08,
+and to say plainly that it is a partial move. It closes most of both gaps and
+stops short of the measurement's own answer, because `spd` at 0.446 is a
+faithful measurement of *this engine's* breakaway model and a much weaker claim
+about football. Going further would have bought agreement with a number this
+document is not confident enough in to deepen a hall of famer's miss for.
+
+Violations go 2 → 3. Csonka -5 → -7, Riggins joins at -4, and both are the same
+thing: a slow, punishing back in a simulation that pays for speed. That is
+recorded rather than fixed.
+
+#### The fit was wrong the first time, and the way it was wrong is the point
+
+The first constrained fit tested ten quarterbacks and ten backs chosen by hand
+and reported that a full move to the measurement broke nobody. Applied, it took
+the violations from 2 to 10: it had missed an entire cohort of 1960s and 70s MVP
+quarterbacks — Lamonica, Namath, Van Brocklin, Morrall, Brodie, Rypien — every
+one of them rated on the arm that had just been made to matter.
+
+The fix was to stop sampling and fit against `auditLegacy` itself, mutating the
+weight vector in memory and clearing the rating cache between candidates, so the
+constraint is the whole record rather than the part of it that came to mind. A
+yardstick you check against a list you wrote yourself is not a yardstick.
+
+#### Not done
+
+The defensive line has an interior-versus-edge spread — Freeney and Gastineau
+rush thirty points better than they hold up against the run — and it was looked
+at and deliberately left alone, which is a change from what this document said
+before. `runStop` reads `fitOf(dl)` and `passRush` reads `prs`, so a speed
+rusher *already* trades run defence for pass rush. That is the tradeoff, already
+expressed. The linebacker needed a role because the engine contradicted itself,
+counting one man as a rusher and a coverer at once; a lineman genuinely plays
+both downs, so there is no contradiction to remove and a DL role would be a
+concept added for nothing.
+
+Csonka and Blanda stay. Both are cases where the record and the simulation
+disagree about football rather than cases where the game is wrong about itself,
+and the legacy check's own output says so every time it runs: *caps at 78 with
+pow 99 — the weights, not the rating.*
+
 ### One linebacker position, two jobs (`edgeness` in `positions.js`)
 
 Derrick Thomas is in the hall of fame, holds the single-game sack record with
@@ -2627,12 +2715,13 @@ nuisance most of the time and occasionally an instrument.
 
 #### Not done
 
-The defensive line has the same interior-versus-edge split — Freeney and
-Gastineau are undersized speed rushers whose `rsd` drags them — and it is
-deliberately left alone. The simulation makes no distinction between a run-down
-and a pass-down lineman, so a rating split there would be a change with no
-engine counterpart, which is the exact disagreement this section is about
-removing. It needs the engine half first.
+The defensive line has an interior-versus-edge spread — Freeney and Gastineau
+are undersized speed rushers whose `rsd` drags them — and it is deliberately
+left alone. *Looked at properly afterwards, and the reasoning above was wrong:
+the line needs no role at all. See **Two attributes worth nothing** below. The
+tradeoff is already expressed through `prs` feeding the rush and `rsd` feeding
+run defence, and a lineman really does play both downs, so unlike the linebacker
+there is no double-charge to undo.*
 
 ### Two players, side by side (`ui/compare.js`)
 
