@@ -1206,9 +1206,19 @@ A keeper run is three seasons, which costs about 1.3 overall — noticeable when
 
 **Both settings default on for a new league and stay off for an old one.** An absent setting is not a false one: it means the save was written before the feature existed. Turning chemistry on mid-season moves every club by up to two points at once, measured, which is changing the rules under somebody halfway through a season. So a league from before this keeps playing exactly as it did, and the settings screen says so and offers the switch.
 
+**How soon, as against how high.** The feature asked for here was scouting fog over a rookie's growth curve, and measurement said it could not be built as specified: there was nothing to be uncertain about. Among rookies who gained a similar total (8 to 16 points), the season they reached their ceiling ran p10 = 3, median 4, p90 = 5. A two-season spread across the whole class is a noisier number, not a decision.
+
+The cause is structural rather than a tuning miss. `ceilingFor` sets a prospect's room in proportion to `growth`, and `step` climbs at a rate also proportional to `growth`. Distance and speed both scale with the same draw, so the time to cover it cancels. Measured directly: room ran 7.2 points for the slowest developers to 18.1 for the fastest, two and a half times as far, while years-to-ceiling sat at 5.0, 4.8, 5.0, 4.5, 5.1. Flat. Every prospect in the game arrived in about five seasons whoever he was.
+
+So the two were separated. `pace` is drawn independently at `normal(1, 0.28)` clamped to 0.5–1.8, and multiplies the climb only — the ceiling is still drawn from `growth` alone, which is what lets them vary independently. Measured by pace band afterwards: room stays flat at 11 to 13 points while years run 6.7 down to 3.3. That is the decision the fog needed — a quick study is worth something different to a club contending now than to one building, and at the same projected ceiling they are now different players.
+
+It defaults to 1 where absent, so a career stored before this develops exactly as it did, and a test holds that. League drift is unchanged: the same dynasty's mean starter went 85.1 → 76.3 against 85.0 → 75.8 before, so nothing about the aggregate arc moved.
+
+**One dead end worth recording.** The first attempt gave each player a per-position peak offset (`peakShift`), on the theory that arrival is when the curve turns. It moved almost nothing — p90 arrival went from 5 seasons to 6 — and was reverted. The reason is that the *ceiling* binds before the curve turns: a player stops climbing because he has run out of room, not because he has aged past his prime, so moving the prime does not move arrival. Worth knowing before anyone tries it again.
+
 Injuries that shorten a career are built — see **What a knee costs** below.
-Still not built: positional decline that forces a move, or any scouting fog over
-a rookie's growth curve. The curve is hidden but its effects are immediate and exact, so a patient manager can read a breakout after one season.
+Scouting fog over the growth curve is built too — see **The band says where, and now also when** under Scouting.
+Still not built: positional decline that forces a squad move.
 
 ## Difficulty (`difficulty.js`)
 
@@ -1290,6 +1300,16 @@ The low end leans conservative on purpose and the high end does not. A first pas
 **Attributes coarsen rather than disappear.** A scout can tell you the shape of a player — fast, hands of stone — without giving you the number, and the rookie generator makes lopsided players on purpose, so hiding the shape would throw away the most interesting part. Unscouted rookies show attributes rounded to the nearest five with a `~`.
 
 **A rookie is known once he has been on a roster through a completed season**, marked by his career entry in `league.dev`. Statistics count too, and they count for every club, since season totals accumulate for every player in every game. That is a correction: this document and the code both used to say the opposite, that a rookie could start three years for a computer club with no games to his name, measured at 50 rookies on rosters and not one with a recorded game. The measurement was real and the reading of it was wrong — the zeroes came from `closeSeasonBooks` writing through a stale module-level player index that held no generated players, so rookies were dropped from the books in silence. `bookIndex()` in `season.js` rebuilds that index from the league itself and the same dynasty now shows about half its rookies with a career record after one season, the rest being the ones who did not play. The career entry stays the primary marker because it is the honest test of "has been somewhere for a season": a rookie who sat all year has still been watched in practice for twelve months.
+
+**The band says where, and now also when.** A scouted rookie reads as a range and an arrival: "61-74, real upside, 2-4 yrs away" against "70-86, real upside, 7-9 yrs away". The second is the better player and the first may win you a division this decade. That second question did not exist before the careers work above made it exist — see **How soon, as against how high** — because until then every prospect arrived in about five seasons whoever he was.
+
+`ARRIVE_AT_PACE_1` is 5.2 seasons, measured rather than chosen, and years scale as the reciprocal of pace, running 3.3 to 6.7 across the draw. The read is fogged by the same scouting error as the rating, at `PACE_ERROR` = 0.16 years per rating point, so a poor scout reads "two to seven" and a good one "three to four". A player already on a roster returns no arrival at all rather than a confident one, which is the same rule the rating band follows.
+
+Measured over a class: arrival spans 3 to 8 seasons, band widths run 1 to 4 with a median of 2. It appears in the overall badge's tooltip and as its own line in the player modal.
+
+**Two instrument mistakes, both caught before shipping.** The first label bucketed arrival into phrases, and read "a long way off" for 7 of 12 prospects in a class — the buckets were wider than the signal and swallowed exactly the variation the feature was built to create. It shows the range instead.
+
+The second is the more useful one. Four mutations were run against the new tests; three were caught and the fourth escaped. Collapsing the scouted arrival band to a single point — the precise failure the test existed to catch — did not fail it, because the assertion was `late > soon` and `late` is clamped to `soon + 1`. The test was measuring the clamp, not the projection, and would have passed against a completely deterministic scout. It now asserts a mean band width above 1.5 seasons and, separately, that the width responds to who is doing the scouting, so a fog that ignores savvy fails too. With those in, the mutation is caught.
 
 **The payoff is an annual report card.** Last year's class, one season on, with what you projected against where they actually are. Fog is only worth having if you find out afterwards whether you were right. The verdict is about the first year's movement rather than arrival, because the top of a band is a career ceiling four to six seasons away and judging a rookie against it after one year would make almost everyone read as a bust.
 

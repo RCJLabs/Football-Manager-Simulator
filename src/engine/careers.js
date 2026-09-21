@@ -128,9 +128,27 @@ export function startCareer(league, p) {
   else if (rng.chance(0.1)) growth -= 0.45;
   const g = Math.round(clamp(growth, 0.15, 2.2) * 100) / 100;
   const entry = overall(p);
+  // HOW SOON, as against how high — and they have to be drawn separately or
+  // there is no such thing as how soon.
+  //
+  // `ceilingFor` sets a prospect's room to `growth * 13 * …` and `step` climbs
+  // at a rate also proportional to `growth`, so the distance and the speed
+  // cancel and the time to arrive is the same for everybody. Measured before
+  // this existed: room ran 7.2 points for the slowest developers to 18.1 for
+  // the fastest, a two-and-a-half-fold spread, while the years to reach the
+  // ceiling sat at 5.0, 4.8, 5.0, 4.5, 5.1. Flat. Every prospect in the game
+  // arrived in about five seasons whoever he was, which is why there was
+  // nothing for a scout to be uncertain ABOUT.
+  //
+  // `pace` multiplies the climb and leaves the ceiling alone, so the two come
+  // apart: a quick study is useful to a club that is contending now, a slow
+  // one to a club that is building. It defaults to 1, so a career stored
+  // before this develops exactly as it did.
+  const pace = Math.round(clamp(rng.normal(1, 0.28), 0.5, 1.8) * 100) / 100;
   return {
     age,
     growth: g,
+    pace,
     retireAt: prime + CAREER_LENGTH + rng.int(-2, 3),
     entry,
     ceiling: ceilingFor(entry, g, rng, p.pos),
@@ -290,7 +308,9 @@ export function stepCareer(league, src, c, season, knocks = 0) {
   const baseD = { ...next.d };
   const gain = {};
   for (const a of POSITIONS[src.pos].attrs) {
-    gain[a] = step(CLASS_OF[a] || 'skill', next.age - prime, next.growth, rng);
+    // `pace` scales the climb only. The ceiling is drawn from `growth` alone,
+    // which is what lets the two vary independently.
+    gain[a] = step(CLASS_OF[a] || 'skill', next.age - prime, next.growth * (next.pace ?? 1), rng);
     next.d[a] = (next.d[a] || 0) + gain[a];
   }
   let after = overall(developed(src, next));

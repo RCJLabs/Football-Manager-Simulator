@@ -5,7 +5,7 @@ import { getState, update } from '../store.js';
 import { setOverride } from '../data/tuning.js';
 import { POSITIONS, eraOf, edgeness, ratedAsEdge } from '../data/positions.js';
 import { careerPhase } from '../engine/careers.js';
-import { scoutReport, coarseAttrs, scoutLabel, shownOverall } from '../engine/scouting.js';
+import { scoutReport, coarseAttrs, scoutLabel, shownOverall, readyLabel } from '../engine/scouting.js';
 
 export function ovrClass(o) {
   return o >= 95 ? 'o95' : o >= 90 ? 'o90' : o >= 85 ? 'o85' : o >= 80 ? 'o80' : 'o0';
@@ -25,7 +25,8 @@ export function ovrBadge(p) {
   const v = scoutView();
   const rep = v ? scoutReport(v.league, p, v.observer) : null;
   if (rep && !rep.known) {
-    return html`<span class="ovr range" title="Projection, not a measurement: ${scoutLabel(rep)}. He has not played yet.">${rep.low}–${rep.high}</span>`;
+    const when = readyLabel(rep);
+    return html`<span class="ovr range" title="Projection, not a measurement: ${scoutLabel(rep)}${when ? `, ${when}` : ''}. He has not played yet.">${rep.low}–${rep.high}</span>`;
   }
   const o = overall(p);
   return html`<span class="ovr ${ovrClass(o)}">${o}</span>`;
@@ -229,6 +230,22 @@ function roleLine(p) {
   return html`<p class="muted" style="margin:.2rem 0 0">${how} — rated on getting to the quarterback rather than on coverage, and he rushes instead of dropping on a passing down.</p>`;
 }
 
+/**
+ * How soon a prospect arrives, which is the half of a projection the band has
+ * never carried. Two men can read 70-86 and be four years apart; before `pace`
+ * existed they could not, because every prospect arrived in about five seasons
+ * whoever he was. Shown only while he is still a projection.
+ */
+function scoutPaceLine(p) {
+  const v = scoutView();
+  if (!v) return '';
+  const rep = scoutReport(v.league, p, v.observer);
+  const when = readyLabel(rep);
+  if (!when) return '';
+  const sure = rep.late - rep.soon <= 1;
+  return html`<p class="muted" style="margin:.2rem 0 0">Your scouts have him ${when}${sure ? ' and are fairly sure of it' : ''} — the range is how little anyone knows, not how good he is.</p>`;
+}
+
 export function playerModal(p, extra = '') {
   const def = POSITIONS[p.pos];
   const editing = !!getState().prefs?.ratingEditor;
@@ -240,6 +257,7 @@ export function playerModal(p, extra = '') {
       : p.age != null ? html`<p class="muted" style="margin:-.3rem 0 0">Age ${p.age}, ${careerPhase(p.pos, p.age)}${p.base && overall(p) !== overall(p.base) ? ` · ${overall(p) > overall(p.base) ? 'up' : 'down'} ${Math.abs(overall(p) - overall(p.base))} from the ${p.base.season} version you signed` : ''}.</p>` : ''}
     ${p.knocks ? html`<p class="muted" style="margin:.2rem 0 0">Came back from ${p.knocks === 1 ? 'a season-ending injury' : `${p.knocks} season-ending injuries`} — a step slower, and ${p.knocks === 1 ? 'a year' : `${p.knocks} years`} off the end of his career.</p>` : ''}
     ${roleLine(p)}
+    ${scoutPaceLine(p)}
     ${raw(rows)}
     ${editing ? html`<small class="muted">Rating editor is on (settings). Edits apply everywhere at once and export as a diff.</small>` : ''}
     ${raw(extra)}

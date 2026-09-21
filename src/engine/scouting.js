@@ -50,6 +50,11 @@ export const UPSIDE_WEIGHT = 0.35;
  */
 export const MIN_WIDTH = 5;
 
+/** Seasons an average developer takes to reach his ceiling. Measured, not chosen. */
+export const ARRIVE_AT_PACE_1 = 5.2;
+/** How much of the rating error carries into the arrival read, in years per point. */
+export const PACE_ERROR = 0.16;
+
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export function scoutingOn(league) {
@@ -115,7 +120,8 @@ export function scoutReport(league, p, observerIdx = -1, { force = false } = {})
   const src = (p && p.base) || p;
   const truth = overall(p);
   if (!scoutingOn(league) || (!force && isScouted(league, src)) || !src.generated) {
-    return { known: true, floor: truth, ceiling: truth, low: truth, high: truth, mid: truth, estimate: truth, width: 0 };
+    return { known: true, floor: truth, ceiling: truth, low: truth, high: truth, mid: truth, estimate: truth, width: 0,
+      soon: 0, late: 0, ready: 0 };
   }
   const arc = startCareer(league, src);
   const floor = truth;
@@ -128,7 +134,25 @@ export function scoutReport(league, p, observerIdx = -1, { force = false } = {})
   const low = clamp(Math.round(floor - Math.abs(rng.normal(0, err)) * 0.5), 40, 95);
   const high = clamp(Math.round(ceiling + rng.normal(0, err) * 0.7), low + MIN_WIDTH, 99);
   const estimate = clamp(Math.round(low + (high - low) * UPSIDE_WEIGHT), 40, 99);
-  return { known: false, floor, ceiling, low, high, mid: Math.round((low + high) / 2), estimate, width: high - low };
+  // HOW SOON, fogged the same way as how high.
+  //
+  // The band above says where he ends up and has never said when he gets
+  // there, because until `pace` existed he got there in about five seasons
+  // whoever he was — measured flat at 5.0, 4.8, 5.0, 4.5, 5.1 across the whole
+  // range of development. There was no second question to ask.
+  //
+  // Now there is, and it is the one a dynasty actually turns on: a prospect
+  // four years away is worth something quite different to a club contending
+  // now than to one building. Years scale as the reciprocal of pace, measured
+  // at 5.2 seasons for an average developer and running 3.3 to 6.7 across the
+  // draw. Widened by the same scouting error as the rating, so a poor scout
+  // reads "two to seven" and a good one "three to four".
+  const yrs = clamp(Math.round(ARRIVE_AT_PACE_1 / (arc.pace ?? 1)), 1, 9);
+  const slip = Math.abs(rng.normal(0, err * PACE_ERROR)) + 0.4;
+  const soon = clamp(Math.round(yrs - slip), 1, 9);
+  const late = clamp(Math.round(yrs + slip), soon + 1, 10);
+  return { known: false, floor, ceiling, low, high, mid: Math.round((low + high) / 2), estimate, width: high - low,
+    soon, late, ready: Math.round((soon + late) / 2) };
 }
 
 /**
@@ -178,6 +202,20 @@ export function scoutLabel(report) {
   if (report.width >= 12) return 'real upside';
   if (report.width >= 5) return 'some room';
   return 'what you see';
+}
+
+/**
+ * When a scout thinks he arrives. '' once he is known.
+ *
+ * The RANGE is the answer, for the same reason it is on the rating: a phrase
+ * that buckets him — "a long way off" — swallows exactly the variation this
+ * exists to show. A first pass did that and read "a long way off" for seven
+ * prospects in twelve, which is a label doing the opposite of its job.
+ */
+export function readyLabel(report) {
+  if (!report || report.known || !report.late) return '';
+  if (report.late <= 2) return 'ready now';
+  return `${report.soon}-${report.late} yrs away`;
 }
 
 /**
