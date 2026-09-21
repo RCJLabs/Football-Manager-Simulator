@@ -1512,14 +1512,15 @@ neither side can be predicted. `scripts/playbook-equilibrium.mjs` runs
 fictitious play over the matrix and prints it, and it also prices the payoff
 properly. Scored in raw yards the answer is degenerate: the offence should throw
 deep on every snap and the defence should sit in a shell on every snap. Yards
-are not what a play is worth. A giveaway costs about four points and four points
-is about forty yards of field position, so a play is worth its yards less its
-turnover rate times that. Scored that way, the deep ball leaves the mix
-altogether — it is the riskiest throw on the field — and the equilibrium is:
+are not what a play is worth. A play is worth its yards less its turnover rate
+times what a giveaway costs, and that price is measured rather than asserted —
+see **What a giveaway is actually worth** below; it is 58 yards at this grid's
+situation. Scored that way, the deep ball leaves the mix altogether — it is the
+riskiest throw on the field — and the equilibrium is:
 
-    defence   base 20%, shell 80%, stacked box 0%, blitz 0%
-    offence   outside run 35%, play action 65%
-    worth     7.10 yards a play
+    defence   base 30%, shell 70%, stacked box 0%, blitz 0%
+    offence   outside run 28%, play action 72%
+    worth     6.67 yards a play
 
 So the shell is not pathologically strong. Base and the shell are near-tied
 best replies, which is why the defence mixes them; the split between the two
@@ -1989,6 +1990,57 @@ A safety property worth stating because it is the auction's one promise: a club
 always keeps $1 per unfilled slot, so every roster completes however poor it
 started. A club on $160 with twenty-seven seats to fill is exactly where that
 would break, and a test drives one to make sure it does not.
+
+### What a giveaway is actually worth
+
+The payoff grid above prices a turnover, and for a long time that price was a
+sentence rather than a measurement: *a giveaway is worth about four points and
+four points is about forty yards*. Both halves were wrong, in opposite
+directions.
+
+Four points is not forty yards. `EP_PER_YARD` is 0.0539, so four points is
+seventy-four. And the swing is not four points: under a linear expected-points
+curve what you lose and what the other side gains move oppositely at the same
+rate, so
+
+    EP(x) + EP(100 - x) = (0.0539x - 0.215) + (5.175 - 0.0539x) = 4.96
+
+constant in field position. A test in `winprob.test.js` pins that constancy,
+because the whole idea of pricing a grid off one number depends on it.
+
+`npm run turnover` fits the real thing from the engine instead of arguing about
+it. For every snap it takes the offence's whole position value — score plus
+expected points, the same quantity `winProbability` reads — before and after,
+regresses that change on yards over plays that kept the ball, averages it over
+plays that lost it, and reports the gap in yards. Over 120,000 snaps:
+
+| situation | cost in points | in yards |
+| --- | --- | --- |
+| pooled over the down tree | 4.04 | 43 |
+| 1st down | 4.33 | 56 |
+| 2nd down | 4.11 | 41 |
+| 3rd down | 2.95 | 18 |
+| **1st and 10 from the 25** | **4.32** | **58** |
+
+Two things fall out. The price is not one number: on third down a giveaway
+costs a fifth of what it costs on first, because on third down you were likely
+to lose the ball anyway and the turnover is only taking what a punt would have.
+And the grid takes every snap at first and ten from the 25, so 58 is the figure
+it needs — not the pooled 43 and certainly not 40.
+
+The other finding is that **a yard gained on a play is worth about 0.093
+points, not `EP_PER_YARD`'s 0.0539**. Both are correct and they are not the same
+quantity: the constant prices field position, while a yard gained also converts
+downs, which the EP model charges at 0.45 a down. That is written down here
+because the two numbers look like a contradiction and somebody will eventually
+try to make one match the other. A test says so too.
+
+**The conclusion survives the correction**, which is the reassuring part and the
+reason this was worth doing rather than worth worrying about. At 40 the defence
+mixes base 17% with the shell 83% and the offence outside run 39% with play
+action 61%; at 58 it is 27/73 and 37/63. Two live defensive calls and two dead
+ones either way, deep ball out of the mix either way. The run-game, short-pass
+and shell rebalances all rest on that shape, and the shape did not move.
 
 ### What the strategy dials are actually worth
 

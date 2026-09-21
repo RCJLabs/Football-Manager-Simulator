@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { syntheticTeam } from '../scripts/synthetic.mjs';
 import { createGame, simulateGame, step } from '../src/engine/game.js';
 import { buildLineup } from '../src/engine/ratings.js';
-import { winProbability, Phi, expectedPoints, priorMargin } from '../src/engine/winprob.js';
+import { winProbability, Phi, expectedPoints, priorMargin, EP_PER_YARD} from '../src/engine/winprob.js';
 import { wpChart, driveChart, gameStory, wpLabel } from '../src/ui/charts.js';
 import { PLAYERS_BY_ID } from '../src/data/db.js';
 
@@ -131,4 +131,34 @@ test('a logged event carries no more than it has to', () => {
   // Bytes, so a regression here is visible rather than theoretical.
   const bytes = JSON.stringify(g.log).length / g.log.length;
   assert.ok(bytes < 260, `an event should stay under 260 bytes, got ${bytes.toFixed(0)}`);
+});
+
+test('a giveaway costs the same wherever it happens, which is the curve being straight', () => {
+  // The expected-points curve is linear, so what you lose and what the other
+  // side gains move in opposite directions at the same rate and the swing is
+  // constant in field position. A lot leans on that — `playbook-equilibrium`
+  // prices a whole payoff grid off one number for a giveaway — so it is pinned
+  // here. Make the curve bend and this is the test that should object.
+  const swing = (x) => expectedPoints(x, 1, 10) + expectedPoints(100 - x, 1, 10);
+  const atMidfield = swing(50);
+  for (const x of [10, 20, 30, 40, 50, 60, 70, 80, 90]) {
+    assert.ok(Math.abs(swing(x) - atMidfield) < 1e-9, `the swing moved at the ${x}: ${swing(x)} against ${atMidfield}`);
+  }
+  assert.ok(atMidfield > 4.5 && atMidfield < 5.5, `a giveaway is worth ${atMidfield.toFixed(2)} points`);
+});
+
+test('EP_PER_YARD prices field position and nothing else', () => {
+  // It is the slope of the curve in yards, full stop. A yard GAINED on a play
+  // is worth more than this, because it also converts downs — `npm run turnover`
+  // fits that at roughly double. The two numbers are both right and are not the
+  // same number, which is worth stating where somebody might "fix" one to match
+  // the other.
+  for (const x of [20, 55, 80]) {
+    assert.ok(Math.abs((expectedPoints(x + 1, 1, 10) - expectedPoints(x, 1, 10)) - EP_PER_YARD) < 1e-9);
+  }
+  // A down costs the same wherever you are, and long yardage costs more.
+  const lostDown = expectedPoints(50, 1, 10) - expectedPoints(50, 2, 10);
+  assert.ok(lostDown > 0, 'second down is worse than first');
+  assert.ok(Math.abs((expectedPoints(30, 1, 10) - expectedPoints(30, 2, 10)) - lostDown) < 1e-9);
+  assert.ok(expectedPoints(50, 2, 20) < expectedPoints(50, 2, 10), 'and second and twenty is worse still');
 });

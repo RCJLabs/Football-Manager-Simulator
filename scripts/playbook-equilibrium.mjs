@@ -20,12 +20,24 @@
  *
  * The second is that yards are not the payoff. Priced in yards alone the
  * offence should throw deep on every snap and the defence should play the shell
- * on every snap, which is nonsense. A giveaway is worth about four points and
- * four points is about forty yards of field position, so a play is worth its
- * yards less its turnover rate times that. Scoring the same grid that way puts
- * the deep ball out of the mix entirely and hands it to the run and play
- * action, which is recognisable football. The default is 40; pass another
- * number to see how much the answer leans on it.
+ * on every snap, which is nonsense. A play is worth its yards less its turnover
+ * rate times what a giveaway costs, and that price is now measured rather than
+ * asserted: `npm run turnover` fits it from the engine's own behaviour and puts
+ * it at 58 yards for this grid's situation — first and ten from the 25 — which
+ * is where every snap here is taken.
+ *
+ * It used to say 40, on the reasoning that a giveaway is worth four points and
+ * four points is forty yards. Both halves were out. The swing measures 4.32
+ * points, and a yard is not worth EP_PER_YARD here: that constant prices field
+ * position, while a yard gained on a play also converts downs, which the fit
+ * puts at about 0.093 points a yard. Four points was therefore never forty
+ * yards.
+ *
+ * The answer barely leans on it, which is the reassuring part. At 40 the
+ * defence mixes base 17% with the shell 83% and the offence run_out 39% with
+ * play action 61%; at 58 that is 27/73 and 37/63. Same two live defensive
+ * calls, same two dead ones, deep ball out of the mix either way. Pass another
+ * number to see for yourself.
  */
 import { syntheticTeam } from './synthetic.mjs';
 import { buildLineup } from '../src/engine/ratings.js';
@@ -33,7 +45,7 @@ import { createGame, step } from '../src/engine/game.js';
 import { CALL_GRID, DEFENSE_CALLS } from '../src/engine/playcall.js';
 
 const N = Number(process.argv[2] || 2500);
-const TURNOVER_YDS = Number(process.argv[3] || 40);
+const TURNOVER_YDS = Number(process.argv[3] || 58);
 const OFF = Object.keys(CALL_GRID);
 const DEF = Object.keys(DEFENSE_CALLS);
 const A = syntheticTeam('alpha', 84, 3, 1);
