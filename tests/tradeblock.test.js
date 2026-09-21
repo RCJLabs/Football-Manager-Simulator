@@ -97,6 +97,28 @@ test('a deal may not restructure a roster: unmatched positions are capped', () =
 });
 
 /** A club holding a receiver who would improve the user's room, and that man. */
+// Find a club that would take one of our spare `givePos` men and holds a
+// `getPos` man we would take. Both halves matter: the engine refuses a deal
+// that hands a club somebody who would not make its roster, so a test that
+// names two players and hopes is a test that breaks the next time the pool
+// moves — which it did.
+function swapPair(lg, u, givePos, getPos) {
+  const me = lg.teams[u];
+  const ovr = (id) => overall(byId.get(id));
+  const mine = at(me, givePos).slice().sort((x, y) => ovr(x) - ovr(y));
+  const myFloor = Math.min(...at(me, getPos).map(ovr));
+  for (let i = 0; i < lg.teams.length; i++) {
+    if (i === u) continue;
+    const them = lg.teams[i];
+    const theirFloor = Math.min(...at(them, givePos).map(ovr));
+    const want = at(them, getPos).slice().sort((x, y) => ovr(y) - ovr(x))[0];
+    if (!want || ovr(want) <= myFloor) continue;
+    const give = mine.find((id) => ovr(id) > theirFloor);
+    if (give) return { team: i, give, get: want };
+  }
+  return null;
+}
+
 function upgradeAt(lg, u, pos) {
   const floor = Math.min(...at(lg.teams[u], pos).map((id) => overall(byId.get(id))));
   for (let i = 0; i < lg.teams.length; i++) {
@@ -110,10 +132,9 @@ function upgradeAt(lg, u, pos) {
 test('an executed uneven trade leaves both rosters legal and logs its paperwork', () => {
   const lg = league(7, 12);
   const u = user(lg), me = lg.teams[u];
-  const up = upgradeAt(lg, u, 'WR');
-  assert.ok(up, 'somebody in a twelve-club league has a receiver we would want');
-  const other = up.team, wr = up.id;
-  const qb = at(me, 'QB')[1] || at(me, 'QB')[0];
+  const up = swapPair(lg, u, 'QB', 'WR');
+  assert.ok(up, 'somebody in a twelve-club league will swap a receiver for a quarterback');
+  const other = up.team, wr = up.get, qb = up.give;
   const before = new Set(at(me, 'QB'));
   const tx = executeTrade(lg, u, other, [qb], [wr], byId, PLAYERS);
   const v = rostersValid(lg, byId);
@@ -254,9 +275,10 @@ test('parting cost tracks leverage: a kicker goes cheap, a quarterback does not'
 
 test('a user-facing uneven deal reports the lineup it would leave behind', () => {
   const lg = league(18, 12);
-  const u = user(lg), other = u === 0 ? 1 : 0;
-  const me = lg.teams[u], them = lg.teams[other];
-  const give = at(me, 'S')[1] || at(me, 'S')[0], getId = at(them, 'LB')[2];
+  const u = user(lg);
+  const up = swapPair(lg, u, 'S', 'LB');
+  assert.ok(up, 'somebody will swap a linebacker for a safety');
+  const other = up.team, give = up.give, getId = up.get;
   const v = validateTrade(lg, u, other, [give], [getId], byId, PLAYERS);
   assert.ok(v.ok, v.reason);
   const outcome = slotsAfterTrade(lg, u, [give], [getId], PLAYERS, byId);

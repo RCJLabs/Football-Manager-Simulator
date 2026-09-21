@@ -74,11 +74,17 @@ test('contested claims go by waiver priority and the winner drops to the back', 
 });
 
 test('AI clubs file claims that improve their lineups and never break a roster', () => {
-  const league = fantasyLeague(4);
-  const before = league.teams.map((t) => lineupStrength(t.slots, byId));
-  aiFileClaims(league, PLAYERS, byId, null);
-  const claims = league.claims.slice();
+  // Whether any club fancies a free agent depends on what the draft left over,
+  // which depends on the pool. Search for a league with a live wire rather than
+  // pinning a seed; everything below is the part actually under test.
+  let league = null, claims = [];
+  for (let seed = 4; seed < 40 && !claims.length; seed++) {
+    league = fantasyLeague(seed);
+    aiFileClaims(league, PLAYERS, byId, null);
+    claims = league.claims.slice();
+  }
   assert.ok(claims.length > 0, 'somebody worked the wire');
+  const before = league.teams.map((t) => lineupStrength(t.slots, byId));
   for (const c of claims) {
     assert.ok(!league.teams[c.team].isUser, 'AI only');
     assert.equal(byId.get(c.add).pos, byId.get(c.drop).pos);

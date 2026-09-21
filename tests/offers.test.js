@@ -164,8 +164,12 @@ test('a club does not hand over a deal worth far more to you than to it', () => 
   // 2.8 points of lineup strength but the 90th percentile reached 130. That is
   // a free win button, not a decision. A general manager asks more for a man
   // who is worth more to you than to him.
+  // Seeds are searched, not pinned: how many offers a league throws up depends
+  // on the pool, and the pool changes. The claim under test is the ceiling, so
+  // keep drawing leagues until enough offers exist to make the claim mean
+  // something.
   let seen = 0, worst = -Infinity;
-  for (let seed = 40; seed < 70; seed++) {
+  for (let seed = 40; seed < 200 && seen <= 40; seed++) {
     const lg = league(seed);
     for (const o of makeAiOffers(lg, byId, null, { max: 8 })) {
       seen++;

@@ -28,8 +28,11 @@
     "picks": "node scripts/draft-sim.mjs",
     "market": "node scripts/market-sim.mjs",
     "yardstick": "node scripts/yardstick.mjs",
-    "yardstick-fit": "node scripts/yardstick-fit.mjs"
+    "yardstick-fit": "node scripts/yardstick-fit.mjs",
+    "legacy": "node scripts/legacy-check.mjs"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "license": "MIT"
 }

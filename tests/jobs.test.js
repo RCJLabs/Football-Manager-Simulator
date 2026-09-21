@@ -237,10 +237,19 @@ test('a decade of coaching runs without corrupting anything', () => {
   assert.ok(valid.ok, valid.reason);
   // Exactly one club is yours, always.
   assert.equal(lg.teams.filter((t) => t.isUser).length, 1);
-  // Every club has a coach and no coach has two clubs.
+  // No coach holds two clubs, and the only club that may sit empty is your own:
+  // `fillVacancies` skips `isUser` on purpose, so once nobody will hire you the
+  // club you used to run stays yours and stays coachless. Asserting every club
+  // has a coach quietly assumed the career never ends.
   const held = lg.teams.map((t) => t.coach);
-  assert.ok(held.every(Boolean), 'a club was left without a coach');
-  assert.equal(new Set(held).size, held.length, 'a coach is in two jobs at once');
+  const empty = lg.teams.map((t, i) => (t.coach ? null : i)).filter((i) => i != null);
+  if (lg.jobs.status === 'retired') {
+    assert.deepEqual(empty, [userTeamIndex(lg)], 'only your old club is left without a coach');
+  } else {
+    assert.deepEqual(empty, [], 'a club was left without a coach');
+  }
+  const taken = held.filter(Boolean);
+  assert.equal(new Set(taken).size, taken.length, 'a coach is in two jobs at once');
   const c = careerSummary(lg);
   assert.ok(c.seasons >= 9, `only ${c.seasons} seasons coached`);
   assert.ok(c.w + c.l > 100, 'a decade should be a lot of games');
