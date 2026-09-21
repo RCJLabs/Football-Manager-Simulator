@@ -343,6 +343,22 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .skipahead > summary::before { content: '▸ '; }
 .skipahead[open] > summary::before { content: '▾ '; }
 
+/* What was called, and how much of the result was the guess rather than the
+   play. The chip is the glanceable part — at the paced default a snap is on
+   screen for under a second — and the sentence under it is for when you stop. */
+/* Not `.matchup` — the season hub already owns that name for its game cards,
+   and being defined later it won, turning this row into a bordered grid. */
+.callvs { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.82rem; margin-top: 0.15rem; }
+.callvs .calls { color: var(--text); }
+.callvs .calls b { font-weight: 600; }
+.callvs .sep { color: var(--muted); font-weight: 400; padding: 0 0.1rem; }
+.callvs .edge { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.78rem; padding: 0.1rem 0.4rem; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+.callvs .edge.v-won { color: var(--good); border-color: rgba(87, 204, 153, 0.45); background: rgba(87, 204, 153, 0.1); }
+.callvs .edge.v-edge { color: var(--good); opacity: 0.85; }
+.callvs .edge.v-even { color: var(--muted); }
+.callvs .edge.v-pinched { color: var(--bad); opacity: 0.85; }
+.callvs .edge.v-lost { color: var(--bad); border-color: rgba(239, 100, 97, 0.45); background: rgba(239, 100, 97, 0.1); }
+
 /* The clock controls, shown only in the last five minutes of a half. The
    timeout sits on its own row because it is the urgent one and wants a thumb;
    the four tempo pills share the row below it and only appear with the ball. */

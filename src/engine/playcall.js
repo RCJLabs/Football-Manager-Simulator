@@ -28,6 +28,65 @@ export const DEFENSE_CALLS = {
   deep:     { label: 'Deep Shell',    desc: 'Two-high, protect against the big play. Soft vs runs and short passes.' },
 };
 
+/**
+ * What each pairing of calls is actually worth, in yards per play.
+ *
+ * The modifiers that decide a snap live in `game/plays.js` as coefficients on
+ * completion, coverage, yards after catch and pressure, which is the right
+ * shape for the engine and no use at all to a person choosing a call. This is
+ * the same thing measured from the outside: 3,000 snaps per cell, every one a
+ * neutral 1st & 10 at our own 25, two evenly matched 84-rated clubs, penalties
+ * off so a flag before the snap cannot stand in for the matchup.
+ *
+ * It is a league-average reference, not a prediction for the two clubs on the
+ * field — the magnitudes move with the rosters. What holds is the ordering,
+ * because it comes from the matrix rather than from the ratings: the run dies
+ * against a stacked box and eats a two-high shell, the screen is the answer to
+ * a blitz, and the deep ball punishes a defence that crowded the line.
+ *
+ * Re-measure with `scripts/call-grid.mjs` if the matrix changes.
+ */
+export const CALL_GRID = {
+  run_in:     { base: 4.42, run_stop: 2.84, blitz: 4.91, deep: 6.36 },
+  run_out:    { base: 4.64, run_stop: 3.29, blitz: 6.33, deep: 6.72 },
+  screen:     { base: 5.42, run_stop: 6.29, blitz: 9.17, deep: 4.62 },
+  pass_short: { base: 6.24, run_stop: 7.14, blitz: 6.85, deep: 6.50 },
+  pass_med:   { base: 8.14, run_stop: 9.99, blitz: 8.92, deep: 6.91 },
+  pass_deep:  { base: 10.38, run_stop: 14.24, blitz: 10.70, deep: 5.26 },
+  pa_pass:    { base: 9.23, run_stop: 12.48, blitz: 8.91, deep: 8.27 },
+};
+
+/**
+ * How the call that was made fared against the call that met it.
+ *
+ * `delta` is this cell against the *base* look, not against the row's average,
+ * and the difference matters. Base is the neutral defence — it is the one row
+ * of the matrix with no modifiers at all — and it is also what a defence calls
+ * most of the time. Measured against a row average it came out slightly
+ * negative for nearly every call, because the three committed looks are
+ * generous to passing and drag the mean up, so playing it straight read as a
+ * defensive win on almost every snap. Against base as the reference, a defence
+ * that commits gets credit or blame for committing, and one that does not gets
+ * neither, which is the honest reading of a neutral call.
+ *
+ * Positive is the offence's gain. The thresholds come from the spread of the 21
+ * committed cells — a quarter sit inside 0.78 yards, half inside 1.23, three
+ * quarters inside 1.94 — so 0.75 and 2 split them roughly five, eleven, five.
+ * Returns null for a kick, a kneel or a spike, which nobody defends.
+ */
+export function matchup(offCall, defCall) {
+  const row = CALL_GRID[offCall];
+  if (!row || row[defCall] == null) return null;
+  const vals = Object.values(row);
+  const yds = row[defCall];
+  const delta = yds - row.base;
+  const sorted = vals.slice().sort((a, b) => b - a);
+  const verdict = defCall === 'base' ? 'straight'
+    : delta >= 2 ? 'won' : delta >= 0.75 ? 'edge'
+    : delta <= -2 ? 'lost' : delta <= -0.75 ? 'pinched' : 'even';
+  return { yds, delta, base: row.base, verdict, rank: sorted.indexOf(yds) + 1, of: vals.length };
+}
+
 export const DEFAULT_STRATEGY = {
   passRate: 0.55,
   aggression: 0.4,

@@ -1319,6 +1319,68 @@ Two engine fields make it possible, added to every scrimmage play and every pena
 
 Two things about the plumbing are worth knowing, because both were wrong first. The bar reads the last entry in the log that carries `from`, not `g.lastEvent`: a play that changes hands calls `changePossession` inside the same step, and that logs the new drive's header on top of it, so punts, interceptions, fumbles, missed field goals and turnovers on downs all had their bar overwritten before it could draw. And the phase is no authority either — a touchdown flips to `pat` and a made field goal to `kickoff` the moment they score, so gating on `phase === 'play'` hid the bar for exactly the plays most worth seeing. Nothing but a snap logs `from`, so the bar clears itself at the next kickoff or quarter break. A test pins all of it: every scrimmage type carries the fields, nothing else claims them, the drawn span stays on the field, and on a clean snap `from + yards` still equals the entry's own `ballOn`.
 
+### What was called, and whether it was a good call
+
+`Last: Medium Pass vs Base` named the two calls and said nothing about whether
+either was any good, which is the only part of a play a person can learn from.
+The information existed — `MATRIX` in `game/plays.js` decides every snap — but
+as coefficients on completion, coverage, yards after catch and pressure. That is
+the right shape for the engine and no use at all to somebody choosing a call.
+
+`CALL_GRID` in `playcall.js` is the same thing measured from outside: 3,000
+snaps per cell, every one a neutral 1st & 10 at our own 25, two evenly matched
+84-rated clubs, penalties off so a flag before the snap cannot stand in for the
+matchup. `scripts/call-grid.mjs` regenerates it and prints the literal to paste
+back. It is a league-average reference, not a prediction for the two clubs on
+the field; what holds across rosters is the ordering, because that comes from
+the matrix rather than the ratings.
+
+| yards/play | Base | Stack the Box | Blitz | Deep Shell |
+|---|---|---|---|---|
+| Inside Run | 4.42 | **2.84** | 4.91 | 6.36 |
+| Outside Run | 4.64 | **3.29** | 6.33 | 6.72 |
+| Screen | 5.42 | 6.29 | **9.17** | 4.62 |
+| Short Pass | 6.24 | 7.14 | 6.85 | 6.50 |
+| Medium Pass | 8.14 | 9.99 | 8.92 | 6.91 |
+| Deep Shot | 10.38 | **14.24** | 10.70 | **5.26** |
+| Play Action | 9.23 | 12.48 | 8.91 | 8.27 |
+
+The rock-paper-scissors is real: the run dies against a stacked box and eats a
+two-high shell, the screen is the answer to a blitz, and the deep ball punishes
+a defence that crowded the line — and walks into an interception against the
+shell, where its turnover rate jumps from 4.4% to 7.9%.
+
+The chip on the live screen measures a pairing against the **base** look, not
+against the row's average, and that choice was made twice. Against a row average
+it came out slightly negative for nearly every call, because the three committed
+looks are generous to passing and drag the mean up — so a defence playing it
+straight read as a defensive win on almost every snap, and base is what a
+defence calls 53% of the time. Against base as the reference, a defence that
+commits gets credit or blame for committing and one that does not gets neither,
+which is the honest reading of a neutral call. Base shows no chip at all, just
+the sentence: playing it straight is not a number worth rendering as +0.0.
+Thresholds come from the spread of the 21 committed cells — a quarter inside
+0.78 yards, half inside 1.23 — so 0.75 and 2 split them roughly five even,
+eleven slight, five decisive. Over 40 simulated games that works out at 53%
+straight, 42% a slight or even read, and 5% decisive: a real moment about seven
+times a game rather than wallpaper.
+
+Two things the measurement turned up that are balance problems, not display
+problems, and are deliberately left alone because changing `MATRIX` moves every
+simulated game in every league:
+
+- **The medium pass beats both runs against every defence.** Its floor (6.91,
+  into a deep shell) is above the inside run's ceiling (6.36, against that same
+  shell). The running game's whole case is a 0.6% turnover rate against 3.0%,
+  and keeping the clock moving.
+- **The short pass has no counter.** Its four cells span 0.90 yards, so no
+  defensive call meaningfully changes it. It is not dominant at 6.7 yards, just
+  inert — there is no read to make against it either way.
+
+Play-action is the call to watch but not, in the end, dominant: it beats the
+medium pass into three looks and ties it against the blitz within the noise of
+the measurement.
+
 ### Autoplay, paced by what is at stake
 
 Autoplay was a flat `setInterval`, so a kneel-down got the same 900ms as a

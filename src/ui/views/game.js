@@ -1,6 +1,6 @@
 import { html, render, raw } from '../../util.js';
 import { step, stepDrive, stepQuarter, simulateGame, decisionNeeded, spot, downText, callTimeout, timeoutLegal, takeClock, setTempo } from '../../engine/game.js';
-import { OFFENSE_CALLS, DEFENSE_CALLS, fgDistance, fgProbability, halfSecondsLeft } from '../../engine/playcall.js';
+import { OFFENSE_CALLS, DEFENSE_CALLS, fgDistance, fgProbability, halfSecondsLeft, matchup } from '../../engine/playcall.js';
 import { fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { currentWeek, simulateWeekAi, recordResult, weekNumber, userTeamIndex } from '../../engine/season.js';
 import { teamChip } from '../components.js';
@@ -14,15 +14,23 @@ const PLAY_HELP = {
 };
 
 /**
- * The snap the field strip should draw: the most recent play in the log, which
- * is not always the most recent *event*.
+ * What the chip means in words, from the offence's side.
  *
- * A play that changes possession logs itself and then, inside the same step,
- * logs the new drive's header on top of it — so walking back past a drive
- * header (and the asides that can follow a play) is how you find the snap that
- * just happened. A kickoff, quarter break or extra point means the last snap is
- * over and the bar should clear, so the walk stops at anything else.
+ * Measured against the neutral base look, so a defence that does not commit
+ * gets neither credit nor blame and the sentence says exactly that instead of
+ * showing a chip reading +0.0. Of the 21 committed cells, a quarter sit inside
+ * 0.78 yards of base and half inside 1.23, so the two thresholds land at 0.75
+ * and 2: roughly five even, eleven slight, five decisive.
  */
+const VERDICT = {
+  won: 'The defence committed the wrong way — this call punishes that look.',
+  edge: 'A little in the offence\u2019s favour.',
+  straight: 'The defence played it straight.',
+  even: 'Committing that way changed almost nothing.',
+  pinched: 'A little in the defence\u2019s favour.',
+  lost: 'The defence committed the right way — this call walks into that look.',
+};
+
 /** Short enough for four of them to sit across a 360px phone. */
 const TEMPO_LABEL = { auto: 'Auto', hurry: 'Hurry', normal: 'Normal', kill: 'Bleed' };
 const TEMPO_HELP = {
@@ -70,6 +78,16 @@ export function paceDelay(base, delta, beat) {
 /** Worth a beat whatever the number says. */
 export const isBeat = (e) => !!e && ((e.scoring && e.type !== 'xp') || e.type === 'int' || e.type === 'fumble' || e.type === 'quarter');
 
+/**
+ * The snap the field strip should draw: the most recent play in the log, which
+ * is not always the most recent *event*.
+ *
+ * A play that changes possession logs itself and then, inside the same step,
+ * logs the new drive's header on top of it — so walking back past a drive
+ * header (and the asides that can follow a play) is how you find the snap that
+ * just happened. A kickoff, quarter break or extra point means the last snap is
+ * over and the bar should clear, so the walk stops at anything else.
+ */
 const SKIP_BACK = new Set(['drive', 'injury', 'timeout', 'info']);
 function lastSnap(log) {
   if (!Array.isArray(log)) return null;
@@ -246,7 +264,20 @@ export function view(root, params, ctx) {
       </div>` : ''}
     </div>`;
 
-    const last = g.lastCall && g.phase !== 'kickoff' && !g.final ? `Last: ${OFFENSE_CALLS[g.lastCall.off]?.label || g.lastCall.off} vs ${DEFENSE_CALLS[g.lastCall.def]?.label || g.lastCall.def}` : '';
+    // `Last: Medium Pass vs Base` said what was called and nothing about whether
+    // it was a good call, which is the only part a player can learn from. The
+    // grid says what the pairing is worth; the chip says how much of that was
+    // the defence's guess. It is about the call, not this snap — a good call
+    // still loses three yards sometimes — so the line is labelled that way.
+    const lc = g.lastCall && g.phase !== 'kickoff' && !g.final ? g.lastCall : null;
+    const mu = lc ? matchup(lc.off, lc.def) : null;
+    const last = lc ? {
+      off: OFFENSE_CALLS[lc.off]?.label || lc.off,
+      def: DEFENSE_CALLS[lc.def]?.label || lc.def,
+      mu,
+      note: mu ? VERDICT[mu.verdict] : '',
+      tip: mu ? `${mu.yds.toFixed(1)} yards a play league-wide, against ${mu.base.toFixed(1)} for this call into a base look — ${mu.rank === 1 ? 'the best' : mu.rank === mu.of ? 'the worst' : `number ${mu.rank}`} of the ${mu.of} defences it could have met.` : '',
+    } : null;
     const wpNow = g.lastEvent && typeof g.lastEvent.wp === 'number' ? g.lastEvent.wp : null;
     const story = g.final ? gameStory({ teams: g.teams, score: g.score, final: true, overtime: g.quarter >= 5, log: g.log, players: [g.stats[0].players, g.stats[1].players], injuries: g.teams.map((t) => t.injuries || []) }, ctx.byId) : [];
     const logItems = g.log.slice().reverse().map((e, i) => {
@@ -281,7 +312,11 @@ export function view(root, params, ctx) {
       <div class="card tight" style="margin-bottom:.75rem">
         ${clockbar}
         ${controls}
-        ${last ? html`<small class="muted">${last}</small>` : ''}
+        ${last ? html`<div class="callvs">
+          <span class="calls"><b>${last.off}</b> <span class="sep">vs</span> <b>${last.def}</b></span>
+          ${last.mu && last.mu.verdict !== 'straight' ? html`<span class="edge v-${last.mu.verdict}" title="${last.tip}">${last.mu.delta >= 0 ? '▲ +' : '▼ −'}${Math.abs(last.mu.delta).toFixed(1)}</span>` : ''}
+        </div>
+        ${last.note ? html`<small class="muted">${last.note}</small>` : ''}` : ''}
       </div>
       ${g.log.length > 2 ? html`<div class="card tight" style="margin-bottom:.75rem">
         <div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span><span class="teamdot" style="background:${home.color}"></span>${home.abbr} above the line · <span class="teamdot" style="background:${away.color}"></span>${away.abbr} below</span></div>
