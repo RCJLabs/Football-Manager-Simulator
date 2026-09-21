@@ -134,6 +134,11 @@ export function composites(lineup) {
    * floor, not a free pass. Fielding three rushers is still a coverage problem,
    * which is the trade-off this is supposed to create.
    */
+  // Deep coverage's footrace term; see `covDeep` below.
+  const DB_SPD_MID = 82;
+  const DEEP_SPD = 0.30;
+  const dbSpeed = () => 0.6 * mean(cb, 'spd') + 0.4 * mean(s, 'spd');
+
   const OFF_BALL_MIN = 0.5;
   const covOfLb = () => {
     if (!lb.length) return 60;
@@ -172,7 +177,21 @@ export function composites(lineup) {
     runStop: 0.45 * fitOf(dl) + 0.35 * fitOf(lb) + 0.1 * mean(s, 'rsd') + 0.1 * mean(lb, 'tck'),
     covShort: 0.4 * covOf(cb) + 0.35 * covOfLb() + 0.25 * covOf(s),
     covMed: 0.5 * covOf(cb) + 0.2 * covOfLb() + 0.3 * covOf(s),
-    covDeep: 0.5 * covOf(cb) + 0.4 * covOf(s) + 0.1 * covOfLb(),
+    // Deep coverage is partly a footrace, and none of the above says so.
+    //
+    // A corner's `spd` reached the simulation only through `defSpeed`, and every
+    // use of it is clamped — `Math.max(0, receiver.spd - defSpeed)` — so once a
+    // secondary is fast enough, more speed does nothing at all. Measured on the
+    // calibration population, the receiver is the faster man in 38% of matchups,
+    // which leaves a corner's speed inert in the other 62%. The one unclamped
+    // channel is deep completion, about a tenth of throws. That is why `spd`
+    // measured 0.094 of a corner's leverage against the 0.170 he was priced at.
+    //
+    // What was missing is that speed never helped him COVER: two corners with
+    // the same `cov` and four tenths between them covered a post identically.
+    // Centred on 82, the mean of the population the constants were fitted
+    // against, so an ordinary secondary is left where the calibration put it.
+    covDeep: 0.5 * covOf(cb) + 0.4 * covOf(s) + 0.1 * covOfLb() + (dbSpeed() - DB_SPD_MID) * DEEP_SPD,
     ballSkills: 0.6 * mean(cb, 'bal') + 0.4 * mean(s, 'bal'),
     tackling: 0.2 * mean(dl, 'tck') + 0.4 * mean(lb, 'tck') + 0.15 * mean(cb, 'tck') + 0.25 * mean(s, 'tck'),
     defSpeed: 0.45 * mean(cb, 'spd') + 0.35 * mean(s, 'spd') + 0.2 * mean(lb, 'spd'),

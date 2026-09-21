@@ -2440,6 +2440,72 @@ particular engine. They search, or mirror, or check their premise now.
 
 **Fictional names.** A settings toggle swaps every real name for a made-up one, one to one, chosen from the hash of the player's id and settled in pool order so it never changes between sessions or versions as long as the name lists only grow at the end and the pool stays append-only. Ids, ratings, saves and league codes are untouched; the real name is kept on the player so the switch reverses. Logs and records keep the names they were written with. Team abbreviations in the pool (the club a player's prime season was with) are left as they are. `applyNameMode` runs at boot from the preference, so a store build can default it to `fictional` by changing one line in `main.js`; the real names still ship in the data file either way, which is a licensing question this toggle does not settle, only sidesteps on screen.
 
+### Deep coverage is a footrace, and nothing said so
+
+The corner was the last position where the price and the field plainly
+disagreed: `cov` measured 0.611 of his leverage against a shipped 0.480, and
+`spd` 0.094 against 0.170. The `spd` half is the same question `thp` raised —
+genuinely cheap, or barely wired? — and the answer was the same.
+
+**A corner's speed reached the simulation through one composite, and every use
+of it is clamped.** `defSpeed` appears three times, and twice as
+`Math.max(0, receiver.spd - defSpeed)`: once the secondary is fast enough, more
+speed does nothing whatever. Measured on the calibration population, the
+receiver is the faster man in **38% of matchups**, so a corner's legs are inert
+in the other 62%. The one unclamped channel is deep completion, about a tenth of
+throws.
+
+What was missing is more basic: speed never helped him *cover*. `covDeep` read
+`covOf(cb)`, `covOf(s)` and `covOfLb()`, all of which are coverage and awareness
+— so two corners with identical `cov` and four tenths of a second between them
+covered a post identically. That is not a debatable modelling choice, it is a
+gap.
+
+`covDeep` now carries a footrace term, weighted 0.6 to the corner and 0.4 to the
+safety, because the corner is the man on the receiver and the safety is help.
+Short and intermediate coverage are deliberately untouched: a quick slant is not
+a footrace. Centred on 82 so an ordinary secondary sits exactly where the
+calibration put it.
+
+Re-measured, the wiring did what it was supposed to and nothing more:
+
+| | before | after | priced |
+| --- | --- | --- | --- |
+| CB `spd` | 0.094 | **0.141** | 0.170 |
+| S `spd` | 0.090 | **0.143** | 0.130 |
+
+Both inside the band everything else sits in. As with arm strength, the fix was
+wiring, not price.
+
+#### The reweight, and the man it costs
+
+What remained was a genuine mis-pricing: `cov` under-priced by 0.114, `awr` over
+by 0.072. The safety moved 0.75 of the way to the measurement, which is the
+largest move the record allows for free. The corner has no free move — the cost
+is **one violation at every blend from 0.05 to 1.00**, flat, so there is nothing
+to buy by stopping early.
+
+It went the whole way, and this is the point where the judgement differs from
+the running back. There the partial move was chosen because `spd` at 0.446 was a
+faithful measurement of this engine's breakaway model and a weak claim about
+football. Here there is no such reservation: `cov` at 0.594 came in at fourteen
+sigma, and coverage being about sixty per cent of a cornerback is not a
+contentious statement about the sport.
+
+The cost is **Ronde Barber**, and he is a recognisable archetype rather than a
+rounding error: `awr` 90 with `cov` 80 and `spd` 78, both under the median for
+the position — the instincts corner, in an engine that measures a corner's
+awareness at 0.048. The legacy check says it plainly: *caps at 81 with awr 99 —
+the weights, not the rating.* He cannot reach his bar with perfect awareness,
+which means the disagreement is about what the simulation rewards, not about
+what he was worth.
+
+That makes four recorded violations, and all four are the same kind of thing: a
+power back who cannot run (Csonka, Riggins), a quarterback whose case is
+longevity (Blanda), and an instincts corner. None of them is a bug; each is a
+place where the record and this simulation disagree about football, and the
+check names the weights as the binding constraint every time it runs.
+
 ### Two attributes worth nothing, and why only one of them was
 
 After the linebacker, the two remaining ratings the record disputed were Larry
