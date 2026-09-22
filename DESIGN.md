@@ -1115,9 +1115,9 @@ Measured over twelve 8-team seasons per setting (`scripts/ir-sim.mjs`):
 
 | injuries | placements a season | activations | club-weeks with somebody on IR | let go at the offseason |
 |---|---|---|---|---|
-| low | 4.8 | 1.4 | 21% | 3.0 |
-| normal | 8.3 | 2.8 | 31% | 5.3 |
-| high | 14.0 | 5.8 | 49% | 7.3 |
+| low | 4.3 | 2.3 | 17% | 1.7 |
+| normal | 7.7 | 3.1 | 27% | 4.3 |
+| high | 14.8 | 5.8 | 53% | 8.5 |
 
 At the default setting that is about one placement per club per season and over a quarter of club-weeks with somebody parked, which is the rate the four-week minimum was chosen to produce. The players let go are not lost to the league; they return to the pool and are bought again in the offseason auction.
 
@@ -1203,12 +1203,12 @@ Three mutations confirm the probe is not just agreeing with itself: restoring th
 
 | | |
 |---|---|
-| Signed at his prime, after 1 / 3 / 5 / 10 seasons | +0.0 / −1.3 / −3.4 / −10.0 overall |
-| Career length | median 10 seasons, range 5–14 |
+| Signed at his prime, after 1 / 3 / 5 / 10 seasons | −0.1 / −1.7 / −4.1 / −11.9 overall |
+| Career length | median 9 seasons, range 5–14 |
 | Rookie entry → peak, median | 63 → 72 |
-| Rookie peak, 90th / 99th percentile | 83 / 91, best in 600 was 96 |
-| Class that peaks at 80+ / 88+ | 19.8% / 3.2% |
-| Class that never gains 5 | 27.7% |
+| Rookie peak, 90th / 99th percentile | 83 / 91, best in 600 was 95 |
+| Class that peaks at 80+ / 88+ | 19.0% / 3.2% |
+| Class that never gains 5 | 33.3% |
 
 A keeper run is three seasons, which costs about 1.3 overall — noticeable when you are paying a raise for it, and not a cliff. The rookie numbers are the ones that matter most, because they fix the honest limitation the intake shipped with: an eight-club league's worst starter is an 88, so a class whose median peaks at 72 still mostly does not matter, but 3.2% peaking at 88 or better means roughly one genuine prospect per class instead of none. In the pro league, where the cutoff is 75, a fifth of every class becomes a starter somewhere.
 
@@ -3524,13 +3524,48 @@ headline instead of the row, in the middle of an exercise whose entire purpose
 was checking numbers carefully. Both changes are reverted, and the script now
 says in its own comments which row it wants.
 
-**What the audit did not do.** There is no standing check. Re-running everything
-by hand found real rot in a few hours, but nothing stops the same rot
-accumulating again, and the two worst findings — a constant quoted after it
-changed, and a number that moved because a *different* measurement was acted on
-— are both the kind a script could catch mechanically. Registering the
+**And now there is a standing check.** `npm run audit` registers the
 load-bearing numbers against the scripts that produce them, so drift is reported
-rather than discovered, is the obvious next piece of work and is not built.
+rather than stumbled on. Thirteen entries, and each is a three-way comparison
+rather than a two-way one:
+
+- **the engine** — what the script prints now, or what the module exports;
+- **the registry** — what `scripts/audit.mjs` expects, the last agreed answer;
+- **the document** — what DESIGN.md tells a reader, pulled out by a regex
+  anchored on the passage that carries it.
+
+Comparing all three is the point, and it is what makes the check worth having.
+Engine against registry catches the simulation moving. Document against registry
+catches prose going stale, or somebody editing prose without re-measuring. A
+check comparing only the first two would have passed contentedly through the
+whole period in which this file said 0.0539.
+
+Two entries exist purely because of what the audit found. One asserts that the
+expected-points *fit* still lands on the `EP_PER_YARD` the engine ships, because
+the constant is a cached measurement and the refit is what came apart from it.
+The other holds the corner's yardstick correlation, which is the number that
+moved because a different measurement was acted on.
+
+`--quick` runs only the checks that cost nothing — reading a module, reading the
+file — which is a couple of seconds and still catches a constant drifting away
+from the paragraph quoting it. The full run takes about twenty minutes because
+it re-runs most of `scripts/`, and naming words on the command line
+(`npm run audit -- turnover yardstick`) narrows it.
+
+Four mutations, all four caught: moving the engine's constant, editing the
+document without re-measuring, changing a script's output format so the check
+silently stops checking anything, and a registry expectation nobody re-measured.
+A fifth was attempted and turned out to be a no-op — the string I tried to break
+is built by interpolation and the literal I edited was never there — which is
+the same class of mistake as reading a pooled headline for a situational row,
+made twice in one day.
+
+**What it is not.** Thirteen numbers out of the several hundred in this file. It
+covers the ones a decision rests on and leaves the rest to the next person who
+goes looking. A failing check is also not automatically a bug: a number moving
+because the engine was deliberately changed is the system working, and the
+answer then is to re-measure, update the prose and update the expectation in the
+same commit. What it exists to prevent is a number moving and nobody knowing.
 
 ## Roadmap: ten audited recommendations
 

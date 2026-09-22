@@ -1,0 +1,220 @@
+// Does this repository still believe what it says about itself?
+//
+//   npm run audit            every check, which runs most of scripts/ (~20 min)
+//   npm run audit -- --quick only the checks that cost nothing (~2s)
+//   npm run audit -- turnover yardstick     only checks matching these words
+//
+// Every number in DESIGN.md was measured once, and for a long time nothing ever
+// measured them again. The first full re-run found a constant quoted in three
+// places after it had been refitted, a measuring script printing that same old
+// constant as a literal, an injury table out by a factor of two, and a
+// correlation that had moved because a DIFFERENT measurement was acted on and
+// nobody re-ran this one. None of that was found by anybody noticing. It was
+// found by going and looking, months late.
+//
+// So each entry below is a three-way check rather than a two-way one:
+//
+//   the engine     what the script prints now, or what the module exports
+//   the registry   what this file expects, which is the last agreed answer
+//   the document   what DESIGN.md tells a reader
+//
+// Comparing all three is the point. Engine against registry catches the
+// simulation moving. Document against registry catches prose going stale, or
+// somebody editing the prose without re-measuring. A check that only compared
+// the first two would have passed happily while DESIGN.md said 0.0539.
+//
+// Tolerances are per entry and deliberately explicit. Some of these scripts are
+// deterministic and some are not, and writing `tol: 0` where it is earned says
+// something a shared default cannot.
+
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const DESIGN = readFileSync(join(ROOT, 'DESIGN.md'), 'utf8');
+
+/**
+ * `cost` is what it takes to answer: 'free' reads a module or a file, 'slow'
+ * runs a simulation. `--quick` keeps the free ones, which is enough to catch a
+ * constant drifting away from the paragraph that quotes it.
+ */
+const CHECKS = [
+  {
+    name: 'EP_PER_YARD is what the document says it is',
+    cost: 'free',
+    from: async () => (await import('../src/engine/winprob.js')).EP_PER_YARD,
+    doc: /`EP_PER_YARD` is ([\d.]+)/,
+    expect: 0.0528, tol: 0,
+    why: 'refitted 0.0539 -> 0.0528, and three passages went on quoting the old value',
+  },
+  {
+    name: 'the expected-points fit still lands on EP_PER_YARD',
+    cost: 'slow',
+    script: 'expected-points', extract: /ep = ballOn \* ([\d.]+)/,
+    doc: /`EP_PER_YARD` is ([\d.]+)/,
+    expect: 0.0528, tol: 0.002,
+    why: 'the constant is a cached fit; if the curve moves and the constant does not, everything priced off it is wrong',
+  },
+  {
+    name: 'a giveaway at 1st and 10 from the 25',
+    cost: 'slow',
+    script: 'turnover-price', extract: /1&10@25\s+\d+\s+[\d.]+\s+(\d+)/,
+    doc: /it is (\d+) yards at this grid's/,
+    expect: 58, tol: 4,
+    why: "the playbook grid prices every snap with this. NOT the pooled headline the script leads with, which is a different number and reading it instead is a mistake already made once",
+  },
+  {
+    name: 'the auction beats the draft for spread',
+    cost: 'slow',
+    script: 'auction-sim',
+    extract: /=== AUCTION[\s\S]*?best-built team wins ([\d.]+) of \d+/,
+    doc: /under the auction the same gap is nearly three wins \(([\d.]+) to/,
+    expect: 8.6, tol: 0.4,
+    why: 'the number the auction exists to produce; it had drifted from 7.4 to 8.6 unnoticed',
+  },
+  {
+    name: 'overall predicts production at quarterback',
+    cost: 'slow',
+    script: 'yardstick-fit', args: ['QB', '400', '24'],
+    extract: /overall vs points produced:\s+r = ([\d.]+)/,
+    doc: /\| QB \| \*\*r = ([\d.]+)\*\*/,
+    expect: 0.989, tol: 0.015,
+    why: 'the table under "do not rebuild it"',
+  },
+  {
+    name: 'overall predicts production at cornerback',
+    cost: 'slow',
+    script: 'yardstick-fit', args: ['CB', '400', '24'],
+    extract: /overall vs points produced:\s+r = ([\d.]+)/,
+    doc: /\| CB \| r = ([\d.]+)/,
+    expect: 0.818, tol: 0.04,
+    why: 'this one fell 0.926 -> 0.818 because the corner\'s weights and its coverage model were changed and only the other instrument was re-run',
+  },
+  {
+    name: 'overall predicts production on the line',
+    cost: 'slow',
+    script: 'yardstick-fit', args: ['OL', '400', '24'],
+    extract: /overall vs points produced:\s+r = ([\d.]+)/,
+    doc: /\| OL \| r = ([\d.]+)/,
+    expect: 0.962, tol: 0.04,
+    why: 'at the document\'s old sample of 160 this reads 0.770 — the tolerance is wide because the measurement is, and 400 games is the point',
+  },
+  {
+    name: 'injuries per game at the default setting',
+    cost: 'slow',
+    script: 'injury-sim', extract: /normal\s+([\d.]+) injuries/,
+    doc: /\| normal \| ([\d.]+) \| [\d.]+ \| [\d.]+ \| [\d.]+% of weeks \|/,
+    expect: 1.16, tol: 0.15,
+    why: 'the left-hand column of the injury table, which is the injury model itself',
+  },
+  {
+    name: 'how much of a club is missing at the default setting',
+    cost: 'slow',
+    script: 'injury-sim', extract: /normal\s+([\d.]+) rostered players out per club-week/,
+    doc: /\| normal \| [\d.]+ \| [\d.]+ \| ([\d.]+) \| [\d.]+% of weeks \|/,
+    expect: 0.34, tol: 0.08,
+    why: 'the right-hand column, which measures how well clubs cope rather than how violent the game is — it had halved while the left-hand column stood still',
+  },
+  {
+    name: 'what five seasons past signing costs',
+    cost: 'slow',
+    script: 'career-sim', extract: /\+5 seasons: (-?[\d.]+) overall/,
+    doc: /Signed at his prime[^|]*\| [\u2212+\d.]+ \/ [\u2212+\d.]+ \/ \u2212([\d.]+)/,
+    expect: -4.1, tol: 0.5, docSign: -1,
+    why: 'the keeper decision is priced on this',
+  },
+  {
+    name: 'the game still looks like football',
+    cost: 'slow',
+    script: 'realism', extract: /(none|\d+) of 44 wholly outside/,
+    expect: 0, tol: 0,
+    map: (v) => (v === 'none' ? 0 : Number(v)),
+    why: 'the standing guardrail; anything above zero is a metric outside the real league\'s range',
+  },
+  {
+    name: 'the record still supports the ratings',
+    cost: 'slow',
+    script: 'legacy-check', extract: /(\d+) rating\(s\) off by 3\+/,
+    expect: 4, tol: 0,
+    why: 'four known violations, each recorded with a reason; a fifth means something moved',
+  },
+  {
+    name: 'the simulation fingerprint',
+    cost: 'slow',
+    script: 'game-fingerprint', extract: /fingerprint: ([0-9a-f]+)/,
+    expect: '9bdd8b3cabb95381', text: true,
+    why: 'changes whenever the game engine does, which is what makes a careers-only change provable',
+  },
+];
+
+const argv = process.argv.slice(2);
+const quick = argv.includes('--quick');
+const words = argv.filter((a) => !a.startsWith('--'));
+const wanted = CHECKS.filter((c) => (!quick || c.cost === 'free')
+  && (!words.length || words.some((w) => c.name.toLowerCase().includes(w.toLowerCase())
+    || (c.script || '').includes(w))));
+
+const num = (s) => Number(String(s).trim());
+const near = (a, b, tol) => Math.abs(a - b) <= tol + 1e-9;
+
+function runScript(name, args = []) {
+  return execFileSync(process.execPath, [join(ROOT, 'scripts', `${name}.mjs`), ...args],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, cwd: ROOT });
+}
+
+const problems = [];
+const ran = [];
+console.log(`${wanted.length} check(s)${quick ? ', free ones only' : ''}\n`);
+
+for (const c of wanted) {
+  let measured;
+  try {
+    if (c.from) {
+      measured = await c.from();
+    } else {
+      const out = runScript(c.script, c.args || []);
+      const m = out.match(c.extract);
+      if (!m) { problems.push(`${c.name}: could not find the figure in ${c.script}'s output — the script's format has changed, so this check is not checking anything`); continue; }
+      measured = c.map ? c.map(m[1]) : (c.text ? m[1] : num(m[1]));
+    }
+  } catch (e) {
+    problems.push(`${c.name}: ${c.script || 'the module'} failed to run — ${String(e.message).split('\n')[0]}`);
+    continue;
+  }
+
+  // The engine against the last agreed answer.
+  const engineOk = c.text ? measured === c.expect : near(measured, c.expect, c.tol ?? 0);
+  if (!engineOk) problems.push(`${c.name}: the engine now says ${measured}, this file expects ${c.expect}${c.tol ? ` ± ${c.tol}` : ''}\n    ${c.why}`);
+
+  // The document against the same answer, where the document claims to say it.
+  let documented = null;
+  if (c.doc) {
+    const d = DESIGN.match(c.doc);
+    if (!d) problems.push(`${c.name}: DESIGN.md no longer carries this figure where the check expects it — either the prose moved or the check is stale`);
+    else {
+      // `docSign` is for a figure the prose writes with the sign outside the
+      // number, e.g. a table of losses rendered as −4.1 rather than -4.1.
+      documented = c.text ? d[1] : num(d[1]) * (c.docSign ?? 1);
+      const docOk = c.text ? documented === c.expect : near(documented, c.expect, c.tol ?? 0);
+      if (!docOk) problems.push(`${c.name}: DESIGN.md says ${documented}, this file expects ${c.expect} — the prose and the measurement have come apart`);
+    }
+  }
+  ran.push({ name: c.name, measured, documented, ok: engineOk });
+  console.log(`  ${engineOk ? 'ok  ' : 'DRIFT'}  ${c.name}: ${measured}${documented !== null ? ` (document: ${documented})` : ''}`);
+}
+
+console.log();
+if (!problems.length) {
+  console.log(`${ran.length} check(s) agree: the engine, this file and DESIGN.md all say the same thing.`);
+  process.exit(0);
+}
+console.log(`${problems.length} problem(s):\n`);
+for (const p of problems) console.log(`  - ${p}`);
+console.log(`
+Nothing here is automatically a bug. A number moving because the engine was
+deliberately changed is the system working; the answer then is to re-measure,
+update DESIGN.md, and update the expectation in this file in the same commit.
+The failure this exists to prevent is a number moving and NOBODY KNOWING.`);
+process.exit(1);
