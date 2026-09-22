@@ -224,9 +224,25 @@ const wanted = CHECKS.filter((c) => (!quick || c.cost === 'free')
 const num = (s) => Number(String(s).trim());
 const near = (a, b, tol) => Math.abs(a - b) <= tol + 1e-9;
 
+/**
+ * Run a measuring script, once per distinct invocation.
+ *
+ * Several checks read different figures out of the same script's output, and
+ * without the memo each one paid for its own run. `injury-sim` was registered
+ * four times with identical arguments, and it had just grown a pro-league block
+ * that multiplied what it costs — so three quarters of the slowest thing in
+ * this audit was re-deriving an answer it already had. These scripts are
+ * deterministic for a given argument list, which is what makes the memo safe:
+ * a second run cannot say anything the first did not.
+ */
+const scriptCache = new Map();
 function runScript(name, args = []) {
-  return execFileSync(process.execPath, [join(ROOT, 'scripts', `${name}.mjs`), ...args],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, cwd: ROOT });
+  const key = `${name} ${args.join(' ')}`;
+  if (!scriptCache.has(key)) {
+    scriptCache.set(key, execFileSync(process.execPath, [join(ROOT, 'scripts', `${name}.mjs`), ...args],
+      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, cwd: ROOT }));
+  }
+  return scriptCache.get(key);
 }
 
 const problems = [];
