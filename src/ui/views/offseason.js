@@ -5,7 +5,7 @@ import { userTeamIndex, newSeasonSameRosters, standings } from '../../engine/sea
 import { PLAYERS } from '../../data/db.js';
 import {
   keeperCost, keeperEligible, keeperLimit, validateKeepers, enterOffseason, aiKeepers, confirmKeepers, closeFreeAgency, seasonSummary, MAX_KEEPS,
-  tagCost, setTag, tagOf, RESIGN_PREMIUM,
+  tagCost, setTag, tagOf, RESIGN_PREMIUM, TERMS, TERM_PRICE, termFor, setTerm,
 } from '../../engine/offseason.js';
 import { marketSalary, VET_YEARS } from '../../engine/cap.js';
 import { playerItem, playerModal, teamChip, toast, esc, modal } from '../components.js';
@@ -67,6 +67,18 @@ export function view(root, params, ctx) {
   const tagHeld = capped ? tagOf(league, u) : null;
   const isTagged = (id) => tagHeld === id;
 
+  // Length is the other half of the price, so it sits in the same sentence as
+  // the price rather than off in the buttons. A short deal costs more a year
+  // and owes nothing later; a long one is cheap and `DEAD_SHARE` makes being
+  // wrong about it expensive.
+  const termSelect = (p, c) => {
+    if (!capped || !c.expiring) return `${VET_YEARS}y`;
+    const chosen = termFor(league, p.id);
+    return `<select class="term" data-term="${esc(p.id)}" aria-label="Contract length for ${esc(p.name)}">${
+      TERMS.map((t) => `<option value="${t}" ${t === chosen ? 'selected' : ''}>${t}y · $${Math.ceil(marketSalary(p) * TERM_PRICE[t])}/yr</option>`).join('')
+    }</select>`;
+  };
+
   const rowFor = ({ p, c }) => {
     const on = ui.picked.has(p.id);
     const eligible = keeperEligible(c, league);
@@ -81,7 +93,7 @@ export function view(root, params, ctx) {
         // A deal that has run out is the whole decision on this screen: he is
         // still yours, and he now costs what he is worth rather than what he
         // was paid on a rookie contract.
-        ? ` · <b>$${c.salary ?? 1}</b>${c.expiring ? ` · <span class="badge out">deal up</span> ${isTagged(p.id) ? `<span class="badge">tagged</span> one year at <b>$${cost}</b>` : `re-sign at <b>$${cost}</b> for ${VET_YEARS}y`}` : ` · ${c.years ?? '?'}y left`}`
+        ? ` · <b>$${c.salary ?? 1}</b>${c.expiring ? ` · <span class="badge out">deal up</span> ${isTagged(p.id) ? `<span class="badge">tagged</span> one year at <b>$${cost}</b>` : `re-sign at <b>$${cost}</b> for ${termSelect(p, c)}`}` : ` · ${c.years ?? '?'}y left`}`
         : ` · round ${c.round ?? '—'}${c.kept ? ` · kept ${c.kept}×` : ''}`;
     // The tag is only ever a choice about an expiring deal, and only one a year,
     // so every other row is left alone rather than carrying a dead button.
@@ -200,6 +212,12 @@ export function view(root, params, ctx) {
       else ui.picked.add(id);
       redraw();
     }
+  });
+  el.addEventListener('change', (e) => {
+    const t = e.target.closest('[data-term]');
+    if (!t) return;
+    ctx.update((st) => { setTerm(st.league, t.dataset.term, Number(t.value)); }, { silent: true });
+    redraw();
   });
   el.querySelector('#clear').addEventListener('click', () => { ui.picked.clear(); redraw(); });
   el.querySelector('#autoKeep').addEventListener('click', () => {

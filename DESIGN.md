@@ -1981,6 +1981,71 @@ measurement, and the same trap as a test asserting what a clamp guarantees. The
 keeper round and the market have to be observed separately, which means
 stopping at `offseason` rather than running through to `nextSeason`.
 
+### Every veteran contract was three years
+
+`VET_YEARS` is 3, and until now that was every veteran deal in the game:
+re-signings, free-agency signings, all of them, for everybody. The franchise
+tag added at one year was the only exception in the whole system. So the cap
+was a budgeting exercise — you knew what a man cost and you knew you had him
+three years, and there was nothing to decide about either.
+
+There is no signing-bonus proration here, so length cannot move the early cap
+hit the way it does in the real league. What it can move is the annual price,
+in the direction that security is worth something to a player and flexibility
+is worth something to a club:
+
+| term | price | on a $20 man |
+|---|---|---|
+| 1 year (the tag) | 1.60 | $32, one a club |
+| 2 years | 1.22 | $25 a year, $50 committed |
+| 3 years | **1.04** | $21 a year, $63 committed |
+| 4 years | 0.96 | $20 a year, $80 committed |
+| 5 years | 0.90 | $18 a year, $90 committed |
+
+**The three-year figure IS `RESIGN_PREMIUM`**, not a number that happens to
+equal it, so a league that ignores the control prices exactly as it did before
+and the registered check on that constant still holds.
+
+**The menu starts at two on purpose.** One year is the tag — 1.6 and limited to
+one man a club — and a freely available one-year deal at anything less would
+make the tag a strictly worse version of itself. That is the dominated-option
+defect this file has now had twice, and a test pins it rather than a comment.
+
+**The AI chooses too**, by the same signal the tag uses read the other way: a
+man past his position's peak is bought a year or two at a time, one still
+climbing is locked up while he is cheap. Without that the human would hold a
+lever the league does not, which is the asymmetry the injury work refused for
+the same reason. A league with careers off has no ages, so every club offers
+three years and the feature is inert — honest, since with nobody ageing there
+is no reason to prefer a length.
+
+Over 32 clubs and seven seasons, what clubs actually signed:
+
+| term | share | average age |
+|---|---|---|
+| 2 years | 52% | 33.0 |
+| 3 years | 30% | 29.4 |
+| 4 years | 16% | 28.0 |
+| 5 years | 2% | 25.7 |
+
+An ageing league buys short, which is the right direction. Roster continuity is
+**80.2%** against 80.4% without the control, and the share of expiring men kept
+is 37.6% against 38.7% — both inside noise. The decision is added without
+moving the dynasty balance.
+
+**A five-year deal looked like dead code and was not.** Over four seasons it was
+chosen exactly zero times, and the obvious reading is that the trigger is too
+narrow. The real reason is that a rookie deal runs four years, so a four-season
+run can barely produce a man young enough to want one. At seven seasons it
+appears, thirteen times, at an average age of 25.7 — precisely the players
+coming off rookie scale. Widening the trigger would have been fitting a
+measurement artefact.
+
+Not built: length in free agency. Offers there are a flat `{ player: salary }`
+map, and a term would touch `committed`, `biddingRoom`, `resolveFreeAgency` and
+the bidding arithmetic. It is a larger change than this one and belongs on its
+own.
+
 ### The franchise tag, which could not be the real one
 
 The NFL's tag exists because a club cannot simply re-sign a player: he has to

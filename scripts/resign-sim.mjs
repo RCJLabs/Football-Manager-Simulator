@@ -33,7 +33,7 @@ import { leaguePool, leagueIndex } from '../src/engine/rookies.js';
 import { applyCareers, careerIndex } from '../src/engine/careers.js';
 import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { overall } from '../src/engine/ratings.js';
-import { RESIGN_PREMIUM, TAG_PREMIUM, tagCost, tagged } from '../src/engine/offseason.js';
+import { RESIGN_PREMIUM, TAG_PREMIUM, tagCost, tagged, termFor, TERMS } from '../src/engine/offseason.js';
 
 registerPlayers(PLAYERS_BY_ID);
 const SEASONS = Number(process.argv[2] || 8);
@@ -51,6 +51,7 @@ const declinedShare = [], lostShare = [], continuity = [], lostOvr = [], keptOvr
 const BANDS = [[90, 'star 90+'], [85, 'good 85-89'], [0, 'rest <85']];
 const band = (o) => BANDS.find(([lo]) => o >= lo)[1];
 const tally = {};
+const termCount = {}; const termAge = {}; for (const t of TERMS) { termCount[t] = 0; termAge[t] = []; }
 const tagAges = [], tagOvr = [], tagOverpay = [], tagPast = [], tagMarket = [], tagRate = [], tagPaid = [];
 let tagsUsed = 0, clubOffseasons = 0;
 for (const [, name] of BANDS) tally[name] = { declined: 0, rival: 0, unsigned: 0, kept: 0 };
@@ -92,6 +93,19 @@ for (let L = 0; L < LEAGUES; L++) {
         upNow.push({ id, team: i, declined: !keeping.has(id) });
       }
     });
+
+    // What lengths clubs chose, and on whom.
+    for (const [i, ids] of Object.entries(lg.offseason.keepers || {})) {
+      for (const id of ids) {
+        if (!lg.contracts[id]?.expiring) continue;
+        const t = termFor(lg, id);
+        const p = byIdBefore.get(id);
+        if (termCount[t] == null) continue;
+        termCount[t]++;
+        if (p?.age != null) termAge[t].push(p.age);
+      }
+      void i;
+    }
 
     // Who got tagged, and what the club paid over simply re-signing him.
     const tags = { ...tagged(lg) };
@@ -162,3 +176,11 @@ else console.log(`  used ${tagsUsed} times in ${clubOffseasons} club-offseasons 
   the tagged man averages ${mean(tagOvr).toFixed(1)} overall, age ${mean(tagAges).toFixed(1)}, ${mean(tagPast).toFixed(1)} years past his position's peak
   and costs $${mean(tagOverpay).toFixed(1)} more than simply re-signing him would
   market $${mean(tagMarket).toFixed(1)} · position rate $${mean(tagRate).toFixed(1)} · tag paid $${mean(tagPaid).toFixed(1)} (the rate binds ${(100 * tagRate.filter((r, i) => r > Math.ceil(tagMarket[i] * TAG_PREMIUM)).length / Math.max(1, tagRate.length)).toFixed(0)}% of the time)`);
+
+console.log('\nContract lengths chosen on re-signings');
+const totalTerms = Object.values(termCount).reduce((a, b) => a + b, 0);
+if (!totalTerms) console.log('  nothing was re-signed');
+else for (const t of TERMS) {
+  const ages = termAge[t];
+  console.log(`  ${t}y  ${String(termCount[t]).padStart(4)}  ${(100 * termCount[t] / totalTerms).toFixed(0).padStart(3)}%  ${ages.length ? `average age ${mean(ages).toFixed(1)}` : ''}`);
+}

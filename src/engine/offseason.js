@@ -75,6 +75,53 @@ export const BIRD_IN_HAND = 1.15;
 export const RESIGN_PREMIUM = 1.04;
 
 /**
+ * What a re-signing costs by the length of the deal.
+ *
+ * Every veteran contract in this game was three years — `VET_YEARS`, flat, for
+ * everybody, with the franchise tag the single exception. So the cap was a
+ * budgeting exercise: you knew what a man cost and you knew you had him for
+ * three years, and there was nothing to decide about either.
+ *
+ * There is no signing-bonus proration here, so length cannot move the early
+ * cap hit the way it does in the real league. What it can move is the annual
+ * price, in the direction security is worth something to a player and
+ * flexibility is worth something to a club: a short deal costs more a year, a
+ * long one less.
+ *
+ *   2 years   1.22   a man on the way down, bought a year at a time
+ *   3 years   1.04   the old default, so a league that ignores this is unchanged
+ *   4 years   0.96
+ *   5 years   0.90   cheap, and `DEAD_SHARE` makes it expensive to be wrong
+ *
+ * The three-year figure IS `RESIGN_PREMIUM`, not a number that happens to match
+ * it, so the default path prices exactly as it did before.
+ *
+ * The short end stops at two on purpose. One year is the franchise tag, which
+ * costs 1.6 and is limited to one man a club, and a freely available one-year
+ * deal at anything less would make the tag a strictly worse version of itself —
+ * which is the defect this file has now had twice.
+ */
+export const TERM_PRICE = { 2: 1.22, 3: RESIGN_PREMIUM, 4: 0.96, 5: 0.90 };
+
+/** The lengths a club may offer its own expiring men. */
+export const TERMS = Object.keys(TERM_PRICE).map(Number).sort((a, b) => a - b);
+
+/** The length this club has chosen for this man, defaulting to the old flat three. */
+export function termFor(league, playerId) {
+  const t = league.offseason?.terms?.[playerId];
+  return TERM_PRICE[t] ? t : VET_YEARS;
+}
+
+/** Choose one. Anything not on the menu falls back to the default rather than throwing. */
+export function setTerm(league, playerId, years) {
+  league.offseason ??= {};
+  league.offseason.terms ??= {};
+  if (TERM_PRICE[years]) league.offseason.terms[playerId] = years;
+  else delete league.offseason.terms[playerId];
+  return league.offseason.terms;
+}
+
+/**
  * The franchise tag: one man a year kept on a one-year deal at the going rate
  * for his position.
  *
@@ -184,7 +231,7 @@ export function keeperCost(contract, player = null, league = null) {
   if (league && capOn(league)) {
     if (contract?.expiring) {
       if (player && tagged(league)[player.id] != null) return tagCost(league, player);
-      return Math.ceil(marketSalary(player) * RESIGN_PREMIUM);
+      return Math.ceil(marketSalary(player) * TERM_PRICE[termFor(league, player?.id)]);
     }
     return contract?.salary ?? MIN_SALARY;
   }
@@ -393,6 +440,31 @@ export function freshGuide(league, pool) {
  * honest answer rather than a guess: with no ageing there IS no decline to
  * avoid, and the tag would be a pure overpay.
  */
+/**
+ * How long an AI club offers its own expiring men.
+ *
+ * The same signal the tag uses, read the other way: a man past the peak for his
+ * position is bought a year or two at a time, and one still climbing is worth
+ * locking up while he is cheap. In between is the three-year default, which is
+ * what every contract in this game used to be.
+ *
+ * Without this the human would hold a lever the league does not, which is the
+ * asymmetry the injury work refused for the same reason — difficulty here lives
+ * in explicit levers, not in options only one side gets.
+ *
+ * A league with careers switched off has no ages, so every club offers three
+ * years and the feature is inert. That is honest: with nobody ageing there is
+ * no reason to prefer one length over another.
+ */
+export function aiTerm(league, player) {
+  if (!player || player.age == null) return VET_YEARS;
+  const past = player.age - primeAge(player.pos);
+  if (past >= 3) return 2;
+  if (past >= 1) return 3;
+  if (past <= -3) return 5;
+  return 4;
+}
+
 export function aiTagChoice(league, teamIdx, roster, byId) {
   if (!capOn(league) || !league.offseason) return null;
   let best = null;
@@ -421,6 +493,12 @@ export function aiKeepers(league, teamIdx, pool, byId, rng = null) {
   const cap = (capOn(league) ? (league.cap ?? PRO_CAP) : (league.auction?.budget ?? DEFAULT_BUDGET))
     - (capOn(league) ? deadHit(league, teamIdx) : 0);
   const floor = capOn(league) ? SLOT_RESERVE : MIN_BID;
+  // Terms are chosen before anything is priced, because the term IS the price.
+  // The tag learned this the hard way: deciding after the cap test let a club
+  // commit to something its own arithmetic then rejected.
+  if (capOn(league) && league.offseason) {
+    for (const p of roster) if (league.contracts[p.id]?.expiring) setTerm(league, p.id, aiTerm(league, p));
+  }
   const scored = roster.map((p) => {
     const c = league.contracts[p.id];
     const cost = keeperCost(c, p, league);
@@ -534,7 +612,7 @@ export function confirmKeepers(league, userIds, pool, byId) {
           // One year on the tag. Re-signing writes a fresh VET_YEARS deal and
           // `DEAD_SHARE` makes leaving it early expensive, which is exactly
           // what a club pays the tag premium to avoid.
-          years: tagged(league)[id] != null ? 1 : (c.expiring ? VET_YEARS : (c.years ?? VET_YEARS)),
+          years: tagged(league)[id] != null ? 1 : (c.expiring ? termFor(league, id) : (c.years ?? VET_YEARS)),
           round: c.round ?? ROSTER_SLOTS.length,
           kept: (c.kept ?? 0) + 1,
           since: c.since ?? league.season,
