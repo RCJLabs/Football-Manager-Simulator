@@ -1015,7 +1015,7 @@ Injuries feed the same yardstick: a player on the ledger counts for the share of
 
 Measured over twenty 8-team seasons (`scripts/offer-sim.mjs`): 4.3 offers a season, one in roughly a quarter of weeks, and 40 of 85 of them improved the human's lineup on the yardstick, the rest costing a little. That is the shape the gate is meant to produce: about half the calls are worth taking, so reading one is a decision rather than a formality. The same caveat as every trade applies, and it is the reason the screen quotes the number rather than a verdict: the yardstick is built on overall ratings, so an offer that reads as even may still be bad in the simulation.
 
-Measured on the 8-team auction league (`scripts/moves-sim.mjs`, 12 seasons, injuries off): AI clubs land about two claims a season between them, worth about +8 lineup strength per club, because the pool left after an auction is the talent tail and few swaps clear the +2 overall bar. With injuries at the default setting the same clubs file about eleven a season, most of them cover for a starter lost for the year: the wire is an injury market first. On 4,000 random one-for-one offers the AI accepted 29%, and on every accepted deal the human had given up the higher-rated player; the AI gained +12 on average and the human lost 14. That is the intended shape: an AI club cannot be talked into a bad trade on its own yardstick. What it does not rule out is a trade that is even on the overall-based yardstick but not in the simulation — a receiver whose overall is carried by an attribute the play resolution weights lightly. That stood unmeasured for a long time and is measured now; see **Is the yardstick sound** below.
+Measured on the 8-team auction league (`scripts/moves-sim.mjs`, 12 seasons, injuries off): AI clubs land about two claims a season between them, worth about +8 lineup strength per club, because the pool left after an auction is the talent tail and few swaps clear the +2 overall bar. With injuries at the default setting the same clubs file about eleven a season, most of them cover for a starter lost for the year: the wire is an injury market first. On 4,000 random one-for-one offers the AI accepted 29%, and on every accepted deal the human had given up the higher-rated player; the AI gained +12 of **lineup strength** on average and the human lost 14. Those are model units and not points — see **What `lineupStrength` is worth** for how far they can be trusted on a single deal, which is less far than one decimal place implies. That is the intended shape: an AI club cannot be talked into a bad trade on its own yardstick. What it does not rule out is a trade that is even on the overall-based yardstick but not in the simulation — a receiver whose overall is carried by an attribute the play resolution weights lightly. That stood unmeasured for a long time and is measured now; see **Is the yardstick sound** below.
 
 ### Is the yardstick sound
 
@@ -1158,6 +1158,73 @@ under-read him — but 0.82 against a kicker's 2.10 is a bigger inversion than
 that explains. Left open: the two tables disagree about two of eleven positions,
 and nothing in the game turns on it until somebody is deciding what to bid for a
 punter.
+
+### What `lineupStrength` is worth, which nothing had ever asked
+
+Every trade, waiver claim, draft pick and market screen in this game is judged
+by `lineupStrength` — the sum over a roster of `overall` x `TRUE_LEVERAGE`. Six
+scripts in `scripts/` report their results in its units and **not one of them
+ever looks at a scoreboard**: `trade-sim`, `moves-sim`, `draft-sim`,
+`market-sim`, `pickcurve` and `playthrough`. This document quotes their output
+as though it were an outcome — "the AI gained +12 on average and the human lost
+14" — and those are units of a model, not points.
+
+Both of the model's inputs have now been measured. `overall` predicts a man's
+point differential at 0.87 or better for nine of eleven positions, and
+`TRUE_LEVERAGE` agrees with the yardstick at r = 0.968. What had never been
+checked is the **sum**: that a roster is the sum of its parts, with no
+interaction between them. `npm run strength` asks it, in two halves that have
+different answers.
+
+**The level: does a stronger roster win by more? Yes, and solidly.** Across
+rosters whose every position is drawn independently — so a side can be elite at
+quarterback and replacement level on the line — r = **0.935**, over a
+differential range of about eighty points. Built the easy way instead, by
+walking the ranked pool so every roster is uniformly good or uniformly bad, it
+reads 0.995; that number flatters the model, because it confounds strength with
+quality by construction and never builds the lopsided side where additivity
+would break. The 0.935 is the honest one.
+
+**But it is not exactly additive, and the error is structural.** The residual
+around the fit is **2.14 points rms**, worst cases −5.1 and +5.0. Quadrupling
+the sample from 150 games a roster to 600 left it at 2.14 and moved the
+correlation from 0.934 to 0.935, so none of it is game noise: two rosters the
+model calls equal really do differ by a couple of points, and sometimes ten,
+according to how the talent is spread.
+
+At the fitted slope a point of differential is worth about 25 strength, so that
+residual is **roughly 53 strength units** — against a typical accepted trade of
+12 to 14. The model's shape error is about four times the size of the thing it
+is most often used to judge.
+
+**The delta: when it says a swap gained you N, did it?** This is the question
+the six scripts actually lean on, and it is a kinder one, because the shape
+error is a property of the roster and largely cancels when you compare the same
+roster before and after. Measured with paired seeds — the same games either side
+of the swap, so nothing moves but the man — r = **0.806** over ninety swaps.
+
+It is kinder, not kind. Among the swaps the model called significant it got the
+**sign wrong 9 times in 58**, about one in six: it said the roster improved and
+the roster got worse, or the reverse. And among trade-sized swaps, the 5-to-30
+strength range the economy actually deals in, the correlation falls to
+**0.686** — the model is least reliable exactly where it is used most.
+
+**What to do about it is nothing, for now, and the reason is worth stating.**
+`lineupStrength` ranks rosters well, which is what the auction, the draft board
+and the AI's roster building need. It judges a single deal considerably less
+well than a number quoted to one decimal place suggests, which is a caveat on
+how this document reports `trade-sim` and `moves-sim` rather than a defect to
+fix. Making it additive would mean modelling interactions between positions, and
+nothing measured here says which interactions those are — only that they are
+worth about two points of differential in total. The honest change is the one
+made: the figures are labelled as model units, and there is now a script that
+will say if that ever stops being true.
+
+Not registered in `npm run audit`, deliberately. The level check is 12,000 games
+and the delta check another 54,000, which would roughly quadruple a check that
+already takes twenty minutes and is only useful if somebody runs it. The numbers
+live here with their samples printed beside them, the same treatment the line,
+the receiver and the punter get in the yardstick table.
 
 ### The shipped pool has fewer dimensions than it looks like it has
 
