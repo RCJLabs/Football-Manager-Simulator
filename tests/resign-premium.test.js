@@ -128,3 +128,21 @@ test('the AI tags a man past his peak, not its best player', () => {
   const pick = aiTagChoice(lg, 0, [young, old], PLAYERS_BY_ID);
   assert.equal(pick, 'o', 'the tag went to the man with his best years still ahead');
 });
+
+test('a league saved before the tag existed does not throw on the keeper screen', () => {
+  // An offseason written by an older version has no `rates` and no `tagged`.
+  // The screen prices every expiring man through tagCost to label the button,
+  // so a throw here would be a blank keeper round on somebody's live save.
+  const lg = pro();
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(4));
+  startSeason(lg, PLAYERS_BY_ID);
+  lg.offseason = { step: 'keepers', keepers: {} };
+  const p = someone('QB', 10);
+  assert.equal(tagOf(lg, 0), null, 'no tag is held in a save that never had them');
+  const cost = tagCost(lg, p);
+  assert.equal(cost, Math.ceil(marketSalary(p) * TAG_PREMIUM),
+    'with no cached rates the floor simply drops out rather than breaking the price');
+  assert.ok(cost > keeperCost({ expiring: true }, p, lg), 'and it is still dearer than re-signing');
+  // aiTagChoice must decline rather than throw when there is nothing to read.
+  assert.doesNotThrow(() => aiTagChoice(lg, 0, [], PLAYERS_BY_ID));
+});
