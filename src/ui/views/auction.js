@@ -1,6 +1,6 @@
 import { html, render, raw } from '../../util.js';
 import { valuePanel, valueHint } from '../value-panel.js';
-import { POSITION_ORDER, ROSTER_SLOTS } from '../../data/positions.js';
+import { POSITION_ORDER, ROSTER_SLOTS, POSITIONS } from '../../data/positions.js';
 import { ERAS } from '../../data/db.js';
 import { overall, buildLineup } from '../../engine/ratings.js';
 import { RNG } from '../../engine/rng.js';
@@ -10,7 +10,7 @@ import {
   currentNominator, nominatable, autoCompleteAll, autoUserMax, canRoster, MIN_BID, TOTAL_SLOTS,
 } from '../../engine/auction.js';
 import { lotAdvice, lotNote, positionScarcity } from '../../engine/market.js';
-import { playerItem, playerModal, teamChip, toast, ovrBadge, esc, posBadge, withBusy } from '../components.js';
+import { playerItem, playerModal, teamChip, toast, announce, ovrBadge, esc, posBadge, withBusy } from '../components.js';
 import { draftBoard, boardOverlay, auctionRows, scrollToPick, lastName } from '../draft-board.js';
 import { SPEEDS, DEFAULT_SPEED } from './draft.js';
 
@@ -27,7 +27,51 @@ const ui = { pos: 'ALL', era: 'ALL', q: '', minAsk: 85, bid: null, limit: 60, bo
 // fire into a screen the player has already left.
 let lotTimer = null;
 let freshLot = null;   // sold-index of the lot that just went, for the flash
+// What has already been said out loud, keyed by the lot it was said about.
+//
+// Not by the text and not cleared on teardown, both of which were tried and
+// both of which are wrong for the same reason: this view is re-mounted by the
+// store on every change and again on the lot timer, and `mount` runs a view's
+// teardown before each of those re-mounts as well as on the way out. Anything
+// reset from there is reset several times a second. Keying on the lot is what
+// makes "once per lot" mean once per lot.
+let saidFor = null;
 export function stopAuction() { clearTimeout(lotTimer); lotTimer = null; }
+
+/**
+ * What the room says to a screen reader.
+ *
+ * A sale was already announced, through the toast `placeBid` raises — but only
+ * for the lots the human was part of, and only once they were over. What was
+ * never said is the part a bidder needs *before* deciding: who is on the block,
+ * and whose turn it is. A sighted player reads both off the panel in a glance;
+ * there was nothing at all to hear, on the one screen in the game with a clock.
+ *
+ * It says only the moments the room stops and waits for you. Announcing every
+ * sale instead would be unusable: a full auction sells two hundred-odd lots,
+ * most of them while the room runs itself, and `aria-live="polite"` queues
+ * rather than drops — at the fast speeds that is minutes of backlog for
+ * information the ticker already carries for anyone who wants it.
+ *
+ * Guarded on the lot rather than on the text, for the reason `saidFor` gives:
+ * unguarded it would read the same line several times a second, and guarding on
+ * the text instead meant a lot whose sentence happened to shorten — because the
+ * purse had just been read out — was announced twice.
+ */
+function say(key, build) {
+  if (key == null || key === saidFor) return;
+  saidFor = key;
+  announce(build());
+}
+
+// The purse as it was last read out, so it is only read out again when it moves.
+let lastPurse = null;
+function purseIfChanged(budget, left) {
+  const now = `${budget}:${left}`;
+  if (now === lastPurse) return '';
+  lastPurse = now;
+  return ` You have $${budget} and ${left} ${left === 1 ? 'slot' : 'slots'} to fill.`;
+}
 
 export function view(root, params, ctx) {
   const { league } = ctx.getState();
@@ -129,6 +173,11 @@ export function view(root, params, ctx) {
     </div>`;
 
   let main;
+  // What the room will say out loud once it is drawn, built where the lot's
+  // details are already to hand rather than dug back out of the DOM. A function
+  // rather than a string, so the purse is only marked as read out on the render
+  // that actually says it.
+  let onBlock = null;
   if (reason === 'nominate') {
     const cands = nominatable(a, league, ctx.players, u);
     const q = ui.q.trim().toLowerCase();
@@ -163,6 +212,13 @@ export function view(root, params, ctx) {
     if (ui.bid == null) ui.bid = Math.min(cap, Math.max(MIN_BID, ask));
     const presets = [...new Set([MIN_BID, Math.round(ask * 0.7), ask, Math.round(ask * 1.3), cap])]
       .filter((v) => v >= MIN_BID && v <= cap).sort((x, y) => x - y);
+    // What you have to spend goes on the end only when it has changed since it
+    // was last said. It moves when you win a lot, and that is announced on its
+    // own, so repeating it on every lot is a third of the sentence spent on
+    // something the listener was told a moment ago.
+    onBlock = () => `On the block: ${p.name}, ${POSITIONS[p.pos].name}, ${overall(p)} overall, asking $${ask}.`
+      + (mine ? ' Your nomination.' : ` Nominated by ${league.teams[a.current.nominator].name}.`)
+      + purseIfChanged(a.budgets[u], left);
     main = html`
       <div class="card stack">
         <div class="row between"><h2 style="margin:0">On the block</h2><small class="muted">${mine ? 'Your nomination' : `Nominated by ${league.teams[a.current.nominator].abbr}`}</small></div>
@@ -200,6 +256,16 @@ export function view(root, params, ctx) {
     </details>
     <div class="grid grid-3" style="margin-top:.75rem">${main}${board}</div>
   </div>`);
+
+  if (reason === 'bid' && a.current) say(`lot:${a.current.playerId}`, onBlock);
+  else if (reason === 'nominate') {
+    say(`nom:${a.sold.length}`, () => {
+      // The purse always goes with the nomination: it is the moment you choose
+      // what to spend on, so it is news whether or not it has moved.
+      lastPurse = `${a.budgets[u]}:${left}`;
+      return `Your nomination. $${a.budgets[u]} left, ${left} ${left === 1 ? 'slot' : 'slots'} to fill. Pick anyone at a position you still need.`;
+    });
+  }
 
   const el = root.querySelector('#auction-view');
   el.querySelector('.speed')?.addEventListener('click', (e) => {

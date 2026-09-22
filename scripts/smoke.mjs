@@ -218,6 +218,32 @@ async function checkKeyboard(where, mustReach = []) {
   if (missing.length) errors.push(`keyboard ${where}: cannot reach ${missing.join(', ')}`);
 }
 
+/**
+ * Does the room actually say anything?
+ *
+ * `checkA11y` asserts the live region exists and is not muted — and a region
+ * nobody ever writes to passes that perfectly. Which is exactly how the auction
+ * came through a whole session of accessibility work running its entire length
+ * in silence: a screen reader was told who won each lot, after the fact, and
+ * never once told who was on the block or that it was your turn to nominate.
+ *
+ * So this watches what actually lands in the region, and checks it against the
+ * player the screen says is up. Matching on the name rather than the sentence
+ * keeps it a test of whether you are told, not of how it is worded.
+ */
+async function listenLive() {
+  await page.evaluate(() => {
+    window.__said = [];
+    const live = document.getElementById('srlive');
+    if (!live) return;
+    new MutationObserver(() => {
+      const t = (live.textContent || '').replace(/\u200b/g, '').trim();
+      if (t && window.__said[window.__said.length - 1] !== t) window.__said.push(t);
+    }).observe(live, { childList: true, characterData: true, subtree: true });
+  });
+}
+const heard = () => page.evaluate(() => window.__said || []);
+
 async function checkOverflow(where) {
   const bad = await page.evaluate(() => {
     const docW = document.documentElement.clientWidth;
@@ -269,6 +295,7 @@ try {
 
   // Auction room: nominate, bid, pass, then hand the rest to the AI.
   await page.waitForSelector('#auction-view');
+  await listenLive();
 
   // The board: the room used to sell most of its lots in silence. It opens full
   // screen from a button rather than living in a banner.
@@ -306,16 +333,34 @@ try {
   await shot('02-auction');
   let bought = 0;
   let kbChecked = { nominate: false, bid: false };
+  const blocked = [];   // who the screen said was up for auction
   for (let i = 0; i < 24; i++) {
     const nom = await page.$('button[data-nom]');
     if (nom) {
       if (!kbChecked.nominate) { await checkKeyboard('auction, nominating', ['button[data-nom]']); kbChecked.nominate = true; }
       await nom.click(); await sleep(30); await checkOverflow('auction bidding'); continue;
     }
-    const bid = await page.$('#bid');
+    let bid = await page.$('#bid');
+    if (!bid && !nom) {
+      // The room needs a moment to call the next lot. Breaking the instant a
+      // control is missing ended the walk after a single lot, which left every
+      // check below with one sample and nothing to fail on.
+      await page.waitForSelector('#bid, button[data-nom]', { timeout: 1500 }).catch(() => {});
+      bid = await page.$('#bid');
+      if (!bid && !(await page.$('button[data-nom]'))) break;
+      if (!bid) continue;
+    }
     if (bid) {
       // The three controls a bid actually needs: raise, commit, and get out.
       if (!kbChecked.bid) { await checkKeyboard('auction, a lot on the block', ['#bid', '#pass']); kbChecked.bid = true; }
+      const up = await page.evaluate(() => {
+        const el = document.querySelector('#auction-view .card.stack div[style*="font-weight:800"]');
+        return el ? el.textContent.replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ') : null;
+      });
+      // Read the transcript AS THE LOT STANDS, not at the end. The sale is
+      // announced too and names the same player, so asking whether his name was
+      // ever said is a question that answers itself once the lot is over.
+      if (up) blocked.push({ up, saidByThen: await heard() });
       // Alternate between bidding the slider value and passing.
       if (bought % 2 === 0) { await bid.click(); bought++; } else { await page.click('#pass'); bought++; }
       await sleep(30);
@@ -324,6 +369,20 @@ try {
     break;
   }
   await shot('03-auction-bid');
+  {
+    const said = await heard();
+    if (!said.length) errors.push('auction: the room ran its whole length without saying anything to a screen reader');
+    if (blocked.length < 3) errors.push(`auction: only ${blocked.length} lot(s) reached a bid — the room was not exercised enough to check what it says`);
+    const mute = blocked.filter(({ up, saidByThen }) => !saidByThen.some((line) => line.includes(up)));
+    if (mute.length) {
+      errors.push(`auction: ${mute.length} of ${blocked.length} lot(s) went up without being announced — a bidder is not told who he is bidding on until after it sells (${mute.map((m) => m.up).slice(0, 3).join(', ')})`);
+    }
+    // The purse is worth saying when it moves, and grating on every lot.
+    const purses = said.filter((l) => /You have \$\d+ and \d+ slots?/.test(l)).length;
+    if (purses > Math.max(2, Math.ceil(blocked.length / 3))) {
+      errors.push(`auction: what you have left was read out ${purses} times over ${blocked.length} lots — it should be said when it moves, not every lot`);
+    }
+  }
   await checkOverflow('auction after bids');
   await page.click('#autoAll');
   await page.waitForSelector('#start');

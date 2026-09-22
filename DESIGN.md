@@ -3390,6 +3390,28 @@ Two smaller things fell out of the measurement. `showAttrs` had been in the pref
 
 The four section tabs come to 339px at the default `.tab` padding, which is 3px more than a 360px phone has, so `.tabs.sections` trims it; and the injury tab carries a dot rather than a count, since " (3)" put the strip back over the edge. Placing a man on injured reserve navigates to the Injuries tab, because otherwise he vanishes from the depth chart and reappears on a screen you are not looking at.
 
+### The auction room, out loud
+
+**The room was played in silence, and the check for that passed.** The auction is the one screen in this game where the state changes under you: lots go up while the room runs itself, a price moves, and the thing you are being asked about is replaced every few seconds. A sighted player reads that off the panel. A screen-reader user was told none of it.
+
+What was announced, through the toast `placeBid` raises, was the *result*: "You bought Jerry Rice for $31", "ORC took Tom Brady for $27". Both come after the fact, and only for lots the human was part of. What was never said is the part a bidder needs before deciding — who is on the block, what he costs, and whose turn it is to nominate.
+
+**Why a session of accessibility work walked straight past it.** `checkA11y` asserts that the live region exists and is not muted, and a live region nobody ever writes to passes that perfectly. The room was visited by every probe — contrast and a11y on six auction states, keyboard on two — and every one of them came back clean, because none of them listened.
+
+`say()` now announces the two moments the room stops and waits for you: a lot going up (name, position, overall, asking price, who nominated), and your turn to nominate. Not every sale. A full auction sells two hundred-odd lots, mostly while the room runs itself, and `aria-live="polite"` queues rather than drops — announcing all of them is minutes of backlog for something the ticker already carries. What you have left to spend goes on the end only when it has moved, because it moves when you win a lot and that is announced on its own.
+
+**One thing measured and found not to be true.** The first reading said focus was dropped to `<body>` on every action, which would mean a keyboard user is thrown to the top of the page on every bid. It is not: the probe was pressing controls that legitimately destroy themselves — committing a maximum closes the lot, so of course the button is gone. Measured against a control that must survive its own action, the bid slider nudged with an arrow key, focus is kept 6 times out of 6. There is no focus bug.
+
+**Three tries to get the guard right, and the third is the one that counts.** The first version of the probe asked whether the player's name was ever said during the auction. It can never fail: the sale is announced too and names the same man, so once the lot is over the question answers itself. It now snapshots what had been said *at the moment the lot stood*, which is the property — you are told who you are bidding on before you bid, not after.
+
+The second problem was that it had nothing to work with. Smoke's auction walk broke the instant a control was missing, which ended it after a single lot, so every check ran on one sample. Waiting for the room to call the next lot takes it to twenty-one or twenty-two, and the checks have something to fail on.
+
+Four mutations, all four now caught: silencing the room, reading the purse out on every lot, announcing the lot without naming the player, and breaking the once-per-lot key so it speaks once and never again. Before the fix all four passed.
+
+**And the same mistake inside the feature.** Saying a thing "once" in this view is harder than it looks, because the store re-mounts it on every change and again on the lot timer, and `mount` runs a view's teardown before each re-mount as well as on the way out. Guarding on the text was tried and announced a lot twice whenever its sentence shortened; clearing the memory from the teardown was tried and cleared it several times a second, which is how the purse came to be read out on every single lot after being written to say it only when it moves. The key is the lot.
+
+Not built: announcing the room's own sales as they happen, for the volume reason above; and the sale toast reads its club as an abbreviation, so a screen reader says "eff zed tee took John Hannah" — fixing that means either changing text the toast shows visually or announcing a second, longer version of the same event, and neither is clearly right.
+
 ### Reading order is DOM order
 
 A two-column `.grid-2` collapses to one column under 820px, so on a phone the **whole** first column renders before the **whole** second. That is easy to forget and it quietly broke the season hub: a 32-club league lists sixteen matchups, and with the slate, the table and the full schedule filling the first column, every decision on the screen — trade offers with a deadline, injured players, the owner's patience, the simulate-ahead buttons — sat below them. The app had started apologising for its own layout with a toast reading "2 clubs have trade offers for you", because the card saying so was off-screen.
