@@ -10,7 +10,14 @@
 //
 //   node scripts/yardstick.mjs WR 300
 //   node scripts/yardstick.mjs QB 250
-const R = '/home/user/Football-Manager-Simulator';
+// Resolved from this file rather than written down. It used to be the absolute
+// path of one particular checkout, which meant a copy of this script running
+// anywhere else — a git worktree at an older commit, a clone in another
+// directory, CI — silently measured THAT tree's engine instead of its own and
+// reported the answer as though it were the local one. It cost a whole
+// experiment: four runs against a 59-commit-old checkout, every one of them
+// quietly importing today's engine and agreeing with it to three decimals.
+const R = new URL('..', import.meta.url).href.replace(/\/$/, '');
 const { syntheticTeam } = await import(`${R}/scripts/synthetic.mjs`);
 const { createGame, simulateGame } = await import(`${R}/src/engine/game.js`);
 const { buildLineup, overall } = await import(`${R}/src/engine/ratings.js`);

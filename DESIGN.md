@@ -1031,13 +1031,19 @@ Every market in the game — trades, the waiver wire, keepers, the auction advic
 
 `overall` explains 98% of the variance at quarterback, and it beats every single attribute taken on its own (awareness 0.972, throw accuracy 0.964, arm 0.878, mobility 0.475) — the blend is doing real work, not riding one number.
 
-**These are 400-game runs, and the table used to be 160.** That is not a detail. Re-measured at 160, the line came out at r = 0.770 and at 400 it is 0.962, so the figure this table carried for a long time — 0.901, quoted to three decimals — was a coin landing in the middle of its own noise. The document guessed at the cause and got it right, saying the lower figures "are mostly the narrow points range", and then went on quoting them anyway. A lineman swings the scoreboard by about two and a half points from worst to best, so at 160 games noise is most of what is left.
+**These are 400-game runs, and the table used to be 160.** That is not a detail, and neither is the fourth column. The correlation is only worth reading when a position moves the scoreboard enough to carry a signal: a quarterback swings it by seventeen points from worst to best and lands at r = 0.989, stable at any sample. A lineman swings it by three, and his entry swung from r = 0.770 at 160 games to 0.962 at 400 — the 0.901 this table carried for a long time, quoted to three decimals, was a coin landing in the middle of its own noise. The document guessed the cause right, saying the lower figures "are mostly the narrow points range", and then used that to excuse the numbers instead of to distrust them.
 
-**The corner is the one that genuinely moved**, and it is the one number here that got worse: 0.926 to 0.818, stable across 160 and 400 games, so it is not the sampling. The likely cause is this repo's two-authority problem eating itself. The corner's weights were pushed toward what `attribute-leverage` measures — `cov` from 0.48 to 0.57 — and `covDeep` gained a footrace term, both in the same sitting, and nobody re-ran the instrument that asks whether `overall` still predicts what a man produces. A change made to satisfy one measurement moved a number a different measurement owns.
+**The corner's old entry was never real, and finding that out took running the old engine.** DESIGN.md claimed r = 0.926 over a 62–96 rating range. Checked out at the commit that first recorded it and re-run there, that engine gives r = 0.803 at 160 games and **r = 0.413 at 400** — not a number that had drifted, a number that never existed. The reason it could not settle is in the points column: on that engine a corner rated 96 produced **0.8 points a game** more than one rated 70, so there was almost no signal for the correlation to find and it landed wherever the sample threw it.
+
+What changed since is the opposite of a regression. The footrace term in `covDeep` and the move of `cov` to 0.57 between them took the corner's spread from 0.8 points to **3.3**, roughly quadrupling how much the position is worth, and the correlation now sits at 0.818 whether measured over 160 games or 400. The instrument did not get worse; it got something to measure.
+
+This also corrects what the previous commit said here. That one reported the corner as having fallen 0.926 to 0.818 and blamed this repo's two-authority problem — a change made to satisfy `attribute-leverage` moving a number the yardstick owns. It read well and it was wrong in every part. The weights were tested directly afterwards: the pre-footrace vector gives r = 0.807 against today's 0.818, so they are not the cause of anything, and the only honest verdict on the corner work is that it helped.
 
 **The caveat is real and it is small.** Among players the yardstick calls *identical* — eight quarterbacks and eight receivers, all at the most populous rating tier — production spreads by **0.88 points a game at quarterback and 1.07 at receiver**, against noise floors of 0.73 and 0.33 measured by replaying the same man with different seeds. At quarterback that is now barely above the floor: two men the market prices the same very nearly are the same. It used to read 1.81 against a floor of 0.47, so the rating has got more faithful there, not less. The receiver tier has moved from 87 to 86 as the pool changed, so that half is not a like-for-like comparison with what this paragraph used to say.
 
-**Recommendation: do not rebuild it, and the reasoning now has to be positional.** Moving `lineupStrength` off `overall` would move every auction price, every trade valuation and every draft order in the game, and it would put a second "how good is he" number next to the one the player can see. At quarterback and on the line that would be chasing 2% and 8% of the variance, which is not worth any of that. At corner it is now 33%, and the honest answer there is not a second rating but a re-measure: the corner's weights and the corner's coverage model both moved recently and only one of the two instruments that watch them was re-run.
+**Recommendation: do not rebuild it.** Moving `lineupStrength` off `overall` would move every auction price, every trade valuation and every draft order in the game, and it would put a second "how good is he" number next to the one the player can see. At quarterback that is chasing 2% of the variance and on the line 8%, which is not worth any of that.
+
+At corner the residual is 33%, and that reads like the one place a rebuild might pay — but it is the wrong reading of a narrow column rather than a fault in the blend. A corner is worth 3.3 points from worst to best against a quarterback's seventeen, so a third of a small number is still a small number, and the attributes are so collinear there that no reweighting could separate them anyway: across the 24 men tested, `spd` and `cov` correlate at **0.88** with each other. Single-attribute correlations at that position cannot rank causes, and `spd` reading 0.847 against `overall`'s 0.818 is not evidence that speed matters more — it is two views of nearly the same variable.
 
 ### What a free agent is worth (`market.js`)
 
@@ -3559,6 +3565,27 @@ A fifth was attempted and turned out to be a no-op — the string I tried to bre
 is built by interpolation and the literal I edited was never there — which is
 the same class of mistake as reading a pooled headline for a situational row,
 made twice in one day.
+
+**The check found its own blind spot, once.** `scripts/yardstick.mjs` and
+`scripts/yardstick-fit.mjs` both opened with `const R =
+'/home/user/Football-Manager-Simulator'` — the absolute path of one particular
+checkout — and imported the engine, the weights and the player pool through it.
+A copy of either script running anywhere else therefore measured *that* tree and
+reported the answer as its own, silently, with no error and no warning.
+
+It cost a whole experiment. Checking the corner's old correlation meant checking
+out a 59-commit-old worktree and re-running the harness there, and four runs
+came back agreeing with today's engine to three decimal places — which is what
+"the engine has not moved this in a year" looks like, and is also exactly what
+"you are running today's engine" looks like. The tell was that the fingerprints
+differed while the yardstick numbers did not, and the proof was a marker line
+added to the worktree's engine that never printed.
+
+Both scripts resolve their root from `import.meta.url` now, and `npm run audit`
+carries a free check that fails if any script in `scripts/` hardcodes a path
+under `/home`, `/Users` or `/root`. The whole point of the two yardstick scripts
+is to say whether a number is real; a measuring tool that reports on somebody
+else's checkout is worse than no measuring tool, because it is confident.
 
 **What it is not.** Thirteen numbers out of the several hundred in this file. It
 covers the ones a decision rests on and leaves the rest to the next person who

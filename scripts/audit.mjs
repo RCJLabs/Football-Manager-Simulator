@@ -50,6 +50,19 @@ const CHECKS = [
     why: 'refitted 0.0539 -> 0.0528, and three passages went on quoting the old value',
   },
   {
+    name: 'no script measures a tree other than its own',
+    cost: 'free',
+    from: async () => {
+      const { readdirSync } = await import('node:fs');
+      const dir = join(ROOT, 'scripts');
+      const bad = readdirSync(dir).filter((f) => f.endsWith('.mjs') && f !== 'audit.mjs')
+        .filter((f) => /['"`]\/(?:home|Users|root)\/[^'"`\n]*['"`]/.test(readFileSync(join(dir, f), 'utf8')));
+      return bad.length ? bad.join(', ') : 'none';
+    },
+    expect: 'none', text: true,
+    why: "both yardstick scripts opened with `const R = '/home/user/...'`, so a copy running anywhere else — a worktree at an older commit, a clone, CI — silently imported THAT tree's engine and reported the answer as its own. It cost four runs against a 59-commit-old checkout that were all quietly measuring today's code",
+  },
+  {
     name: 'the expected-points fit still lands on EP_PER_YARD',
     cost: 'slow',
     script: 'expected-points', extract: /ep = ballOn \* ([\d.]+)/,
@@ -90,7 +103,7 @@ const CHECKS = [
     extract: /overall vs points produced:\s+r = ([\d.]+)/,
     doc: /\| CB \| r = ([\d.]+)/,
     expect: 0.818, tol: 0.04,
-    why: 'this one fell 0.926 -> 0.818 because the corner\'s weights and its coverage model were changed and only the other instrument was re-run',
+    why: "the entry this replaced, r = 0.926, was never reproducible: the engine that recorded it gives 0.803 at 160 games and 0.413 at 400, because a corner was worth only 0.8 points from worst to best and there was no signal to correlate. It is stable now because the corner is worth 3.3",
   },
   {
     name: 'overall predicts production on the line',
