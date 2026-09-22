@@ -1,6 +1,6 @@
 // Service worker: precache the app shell, network-first for HTML so deploys
 // show up, cache-first for everything else. Bump CACHE on each release.
-const CACHE = 'gridiron-eras-v93';
+const CACHE = 'gridiron-eras-v94';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './src/styles.css', './src/main.js',
   './src/router.js', './src/store.js', './src/util.js',

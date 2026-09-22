@@ -1564,9 +1564,16 @@ saying what actually decides, which is the cap and the length of a deal.
 
 The setting is still stored and still round-trips through a league code, because
 a fantasy league needs it and nothing is gained by breaking compatibility to
-delete a field that is simply not read.
+delete a field that is simply not read. What it stores changed, though:
+`defaultKeepers('pro')` returned 18, so a pro league recorded — and shared, and
+showed to anything that looked — a quota different from the one it enforces. It
+returns the roster size now, and a fifth test asserts that a fresh pro league's
+stored figure equals `keeperLimit`'s, so the two cannot drift apart again. The
+same pass removed the branch the fix had orphaned: `keeperLimit` still read
+`league.mode === 'pro' ? 18 : 6` on the line after `capOn` had already returned
+for exactly that case.
 
-Four tests pin it, and all four mutations are caught: restoring the direct read,
+Five tests pin it, and every mutation is caught: restoring the direct read,
 setting the pro depth to the full draft, letting `keeperLimit` honour the
 setting under a cap, and letting the pro branch leak into fantasy. The smoke
 test checks the control is genuinely not on screen in pro mode and that the
@@ -1576,9 +1583,9 @@ explanation is, rather than trusting a `hidden` attribute.
 
 A season ends at the final; the offseason starts from the hub. Every rostered player carries a contract from the moment a season starts: the price he went for at auction (or the round he was drafted in), how many seasons running he has been kept, and when it started. A player claimed off the wire is on a $1 deal. Contracts are keyed by player, so a trade moves the deal with the man.
 
-**Keepers.** Each club keeps up to `settings.keepers` players (6 in a fantasy league, 18 in the pro league, changeable at setup or in settings, 0 for a full re-auction every year). An auction keeper costs last year's price plus the greater of $3 or 15%, compounding each year; a player can be kept three seasons running and then must return to the pool. Keepers plus a dollar for every open slot must fit under the $200 cap. In a draft league keepers simply hold their slots. Everyone not kept returns to the pool with the players nobody rostered.
+**Keepers.** A fantasy club keeps up to `settings.keepers` players (6 by default, changeable at setup or in settings, 0 for a full re-auction every year). A pro club has no quota at all — the cap and the length of a deal decide, and `keeperLimit` returns the whole roster under a cap; see *The pro league offered a keeper quota it has never used* above. An auction keeper costs last year's price plus the greater of $3 or 15%, compounding each year; a player can be kept three seasons running and then must return to the pool. Keepers plus a dollar for every open slot must fit under the $200 cap. In a draft league keepers simply hold their slots. Everyone not kept returns to the pool with the players nobody rostered.
 
-**The market.** The auction reopens with each club's leftover cap and the worst club nominating first; the price guide re-prices the thinner pool and the smaller pot on its own. A draft league drafts worst to first, and the pointer skips clubs whose rosters are already full, so a club that kept 18 sits out the last nine rounds. Whether the order turns round on itself each round depends on what is being drafted — see the two-pools section. Either way the existing auction and draft screens run the market, and the season starts from their finish button. The hub's history card keeps every season's champion and your own finish.
+**The market.** The auction reopens with each club's leftover cap and the worst club nominating first; the price guide re-prices the thinner pool and the smaller pot on its own. A draft league drafts worst to first, and the pointer skips clubs whose rosters are already full, so a fantasy club that set its quota to 18 and filled it sits out the last nine rounds. Whether the order turns round on itself each round depends on what is being drafted — see the two-pools section. Either way the existing auction and draft screens run the market, and the season starts from their finish button. The hub's history card keeps every season's champion and your own finish.
 
 **AI keepers.** A club ranks its eligible players by surplus: what the fresh price guide says the player would fetch (true value for a savvy GM, reputation for the rest, through the GM's positional taste) times a bird-in-hand premium of 15%, minus the keeper cost. It keeps the best bargains that fit under the cap. The premium is there because an auction is a risk and a known price is not; without it a club kept fewer than two players a year, because a fair-price buy plus a raise is by definition slightly over market.
 

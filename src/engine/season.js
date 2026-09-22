@@ -177,9 +177,17 @@ export function migrateLeague(league) {
   return league;
 }
 
-/** How many players a club carries into the next season by default: a real re-auction in a fantasy league, a mostly stable roster in the pro league. */
+/**
+ * How many players a club carries into the next season by default: a real
+ * re-auction in a fantasy league, the whole roster in the pro one.
+ *
+ * The pro figure is not a quota any more — `keeperLimit` returns the roster
+ * size outright under a cap, because the contract decides there. It is written
+ * into settings anyway so a saved pro league reads back what actually happens
+ * rather than the eighteen the quota used to impose.
+ */
 export function defaultKeepers(mode) {
-  return mode === 'pro' ? 18 : 6;
+  return mode === 'pro' ? ROSTER_SLOTS.length : 6;
 }
 
 /**

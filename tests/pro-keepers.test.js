@@ -65,3 +65,13 @@ test('a fantasy league still sets its own quota', () => {
   assert.equal(futureDepth(fantasy(12)), ROSTER_SLOTS.length - 12);
   assert.equal(defaultKeepers('fantasy'), 6, 'the fantasy default is unchanged');
 });
+
+test('what a pro league stores agrees with what it does', () => {
+  // The stored setting is inert in pro mode, so 18 sat there harmlessly and
+  // untruthfully: a share code carried it, the settings screen had to special-
+  // case it, and anything reading it later would have read a quota that no
+  // longer exists. Store the figure that is actually enforced instead.
+  assert.equal(defaultKeepers('pro'), ROSTER_SLOTS.length);
+  assert.equal(pro().settings.keepers, keeperLimit(pro()),
+    'a fresh pro league must not record a limit different from the one it enforces');
+});

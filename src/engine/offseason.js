@@ -51,7 +51,8 @@ export function keeperLimit(league) {
   // quarter of a roster a year, which is close to what the eighteen-of-
   // twenty-seven quota was doing on its own.
   if (capOn(league)) return ROSTER_SLOTS.length;
-  return league.settings?.keepers ?? (league.mode === 'pro' ? 18 : 6);
+  // Only the fantasy league reaches here — `capOn` is the pro mode test.
+  return league.settings?.keepers ?? 6;
 }
 
 export function keeperEligible(contract, league = null) {
