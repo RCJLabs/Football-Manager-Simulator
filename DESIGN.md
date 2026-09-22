@@ -1528,9 +1528,73 @@ hole, so less of a club is missing at any given moment for the same number of
 injuries. Worth knowing before reading the right-hand columns as a measure of
 how violent the game is; they measure how well clubs cope.
 
-The real league runs at roughly three to four times "normal" by adjusted games lost, so even High is a gentle version. That is deliberate: a 13-game season is short enough that injury luck at real rates would decide more leagues than the auction does. What a missing quarterback costs, on one auction roster against every opponent in the league with no other injuries: 50% with the starter, 44% with the backup the auction bought for him, 4% with a replacement-level fill-in. The backup is worth roughly six points of win probability per week he plays, which is what the QB2 slot is for and why the auction AI pays about a third of starter money for one.
+The real league runs at roughly three to four times "normal" by adjusted games lost, so even High is a gentle version. That is deliberate: a 13-to-14-game season is short enough that injury luck at real rates would decide more leagues than the auction does. (Thirteen is what leagues of ten or twelve play; the eight-team default every measurement here uses plays everyone twice, so fourteen. `buildSchedule` says so precisely and this paragraph used to round it to thirteen.) What a missing quarterback costs, on one auction roster against every opponent in the league with no other injuries: 50% with the starter, 44% with the backup the auction bought for him, 4% with a replacement-level fill-in. The backup is worth roughly six points of win probability per week he plays, which is what the QB2 slot is for and why the auction AI pays about a third of starter money for one.
 
-Established: the rates and the effects above. Speculation: how the dial should sit for the pro league, where 17 games and 64 quarterbacks drafted out of 103 make backups much weaker; the same setting will bite harder there, and nothing yet re-measures it.
+Established: the rates and the effects above.
+
+#### The same dial in the pro league
+
+This paragraph carried a labelled guess for a long time — that seventeen games
+and a thinner quarterback pool "make backups much weaker; the same setting will
+bite harder there, and nothing yet re-measures it". Nothing did, until now. The
+guess was right about the conclusion and wrong about which half does the work.
+
+Per club-season, 10 fantasy seasons and 12 pro (`scripts/injury-sim.mjs`, and
+per season rather than per club-week for a reason given below):
+
+| mode | setting | games a club | starter-weeks lost | QB1 misses | season-enders |
+|---|---|---|---|---|---|
+| fantasy | low | 14.0 | 2.0 | 0.28 | 0.11 |
+| pro | low | 17.0 | 2.4 | 0.25 | 0.09 |
+| fantasy | normal | 14.0 | 4.8 | 0.35 | 0.10 |
+| pro | normal | 17.0 | 5.5 | 0.53 | 0.16 |
+| fantasy | high | 14.0 | 10.3 | 0.72 | 0.33 |
+| pro | high | 17.0 | 11.7 | 1.07 | 0.37 |
+
+**The rate cannot differ between the modes, and does not.** Injury risk is
+`BASE_PER_PLAY` per snap, so a game is a game whichever league it is played in,
+and any figure quoted per club-week is blind to season length by construction —
+which is why the first attempt at this measured per club-week, found the two
+modes identical, and had measured something that could not have come out any
+other way. Per season the seventeen-game schedule shows up exactly as
+arithmetic predicts: starter-weeks lost run 1.20, 1.15 and 1.14 times the
+fantasy figure against an exposure ratio of 17/14 = 1.21. That agreement is
+itself the evidence the per-game rates match.
+
+**What actually bites is the bench.** Thirty-two clubs roster 64 of the pool's
+128 quarterbacks where eight clubs roster 16, so a pro club's QB2 is drawn from
+very much further down:
+
+| mode | clubs | QB1 | QB2 | backup gap | sd |
+|---|---|---|---|---|---|
+| fantasy | 64 | 93.9 | 90.7 | 3.3 | 1.4 |
+| pro | 256 | 90.0 | 84.3 | **5.8** | **3.8** |
+
+Both ends are diluted and the backup end far more. The spread matters as much
+as the mean: at sd 1.4 a fantasy club is near-certain to be well covered at
+quarterback, while at sd 3.8 a pro club's cover is a lottery. Measured over
+every club in eight leagues per mode, because the first attempt read one club's
+QB1/QB2 pair as a finding and a single pair is one draw from a wide
+distribution.
+
+So the dial bites harder in the pro league because each injury costs more, not
+because more of them happen — the opposite emphasis to the guess this replaces.
+
+**Two cautions on reading the table.** The season-enders column is
+under-sampled at the shipped sample size: fantasy reads 0.10 over 10 seasons
+and 0.17 over 40, which is 8 events against 54, so pro-against-fantasy on that
+column is not a safe comparison. Starter-weeks lost is the high-count figure
+and the one to read. And what the backup gap is worth in wins is **not
+measured**: the only conversion to hand is a single fantasy roster where a
+3.2-point drop at quarterback cost 12.1 points of win rate, and carrying that
+to 5.8 points across a different league size would be inventing a number.
+
+**A correction this forced.** The sentence replaced above said the pool holds
+103 quarterbacks. It holds 128. "64 drafted" was right, and the contrast worth
+stating is 64 of 128 against 16 of 128.
+
+Speculation: nothing here argues the pro default should move. This measures
+what the setting does, not where it ought to sit.
 
 ### The pro league offered a keeper quota it has never used
 

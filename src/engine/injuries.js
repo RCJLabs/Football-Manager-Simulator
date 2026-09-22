@@ -2,9 +2,13 @@
 // roll, replacement-level fill-ins for a position group left short, and the
 // league ledger of who is out and for how long.
 //
-// Rates sit below the real league's on purpose. A 13-game fantasy season is
-// short enough that injury luck would otherwise swamp roster quality, so the
-// default costs a club about one starter a week and the dial goes both ways.
+// Rates sit below the real league's on purpose. A 13-to-14-game fantasy season
+// is short enough that injury luck would otherwise swamp roster quality, so the
+// dial goes both ways and the default leaves about a third of a starter missing
+// in an average week — 0.32 of them, or 4.8 starter-weeks over a season. That
+// figure used to read "about one starter a week" here, which was true before
+// injured reserve and the waiver wire got better at refilling a hole and
+// roughly halved it; the comment outlived the measurement by a long way.
 
 import { POSITIONS, ROSTER_SLOTS } from '../data/positions.js';
 import { overall } from '../engine/ratings.js';

@@ -2,7 +2,9 @@
 // player-weeks a club loses over a season, how often the starting quarterback
 // is missing, and what a missing quarterback costs in win probability. Then the
 // same dial in the pro league, where the season is longer and the bench thinner.
-// Usage: node scripts/injury-sim.mjs   (PRO_SEASONS=12 for a tighter pro sample)
+// Usage: node scripts/injury-sim.mjs   (PRO_SEASONS lowers the pro sample; the
+//        figures in DESIGN.md are this file's defaults, so lowering it will not
+//        reproduce them)
 import { PLAYERS, PLAYERS_BY_ID as byId } from '../src/data/db.js';
 import { RNG } from '../src/engine/rng.js';
 import { createGame, simulateGame } from '../src/engine/game.js';
@@ -105,7 +107,7 @@ console.log('\nCost of a missing QB1 (one 8-team auction league, user club vs. e
 // drawn from much further down. That is measured below over every club rather
 // than one, because a single club's QB1/QB2 pair is one draw from a wide
 // distribution and the first attempt at this read it as a finding.
-const PRO_SEASONS = Number(process.env.PRO_SEASONS || 6);
+const PRO_SEASONS = Number(process.env.PRO_SEASONS || 12);
 console.log(`\nPer club-season, so season length counts (${PRO_SEASONS} pro seasons, 10 fantasy):`);
 for (const mode of ['fantasy', 'pro']) {
   const seasons = mode === 'pro' ? PRO_SEASONS : 10;
