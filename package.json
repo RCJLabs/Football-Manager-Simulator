@@ -37,7 +37,8 @@
     "knocks": "node scripts/knock-sim.mjs",
     "playthrough": "node scripts/playthrough.mjs",
     "audit": "node scripts/audit.mjs",
-    "strength": "node scripts/strength-fit.mjs"
+    "strength": "node scripts/strength-fit.mjs",
+    "gm": "node scripts/gm-sim.mjs"
   },
   "engines": {
     "node": ">=20"

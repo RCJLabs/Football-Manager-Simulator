@@ -1159,6 +1159,83 @@ that explains. Left open: the two tables disagree about two of eleven positions,
 and nothing in the game turns on it until somebody is deciding what to bid for a
 punter.
 
+### What the general managers' decisions are worth (`npm run gm`)
+
+`overall`, `TRUE_LEVERAGE` and `lineupStrength` have all now been checked
+against a scoreboard. The layer above them — the clubs deciding what to bid —
+never had been. Everything measuring the AI measured it against itself:
+`auction-sim` reports how the best-built roster does, and both `strategy-sim`
+and the difficulty table measure what savvy does to the **human's** win total.
+Nothing had asked what a club's own savvy does for the club.
+
+**Held to one persona, with savvy the only difference** (30 leagues, 240
+club-seasons — the personalities vary in savvy, a positional bias and the
+play-calling sliders all at once, so comparing Analytics with Air Raid cannot
+say which of the three did the work):
+
+| savvy | roster strength | wins of 14 |
+|---|---|---|
+| 0.10 | 8526 | 5.33 |
+| 0.20 | 8545 | 5.40 |
+| 0.30 | 8557 | 6.07 |
+| 0.40 | 8573 | 7.13 |
+| 0.50 | 8588 | 7.20 |
+| 0.60 | 8597 | 7.90 |
+| 0.70 | 8606 | **8.47** |
+| 0.85 | 8605 | 8.20 |
+
+It works, and it works the way it is supposed to: savvy buys roster strength
+(r = 0.815) and roster strength buys wins (r = 0.517), for about **three wins of
+fourteen** across the range. The causal chain the whole economy assumes is
+measured end to end for the first time.
+
+**It flattens above 0.70**, where the shipped table happens to stop — 0.85 is no
+better than 0.70 and slightly worse. Whether that ceiling was known when `SAVVY`
+was written or is a coincidence, the table is not leaving anything on the floor.
+
+**As shipped, the personalities are a savvy ladder** (40 leagues, 40 titles):
+
+| general manager | savvy | roster strength | wins | titles |
+|---|---|---|---|---|
+| Analytics | 0.70 | 8601 | 8.37 | **14** |
+| Trenches | 0.62 | 8583 | 7.86 | 4 |
+| *the user's club* | 0.30 | 8584 | 7.28 | 4 |
+| Defense Wins | 0.50 | 8582 | 7.08 | 4 |
+| Balanced | 0.34 | 8579 | 7.03 | 5 |
+| Ground & Pound | 0.16 | 8554 | 6.84 | 4 |
+| Gambler | 0.26 | 8553 | 6.47 | 2 |
+| Old School | 0.18 | 8552 | 6.13 | 3 |
+| Air Raid | 0.10 | 8509 | 5.51 | **0** |
+
+Savvy against wins across the personalities is **r = 0.899**. The positional
+biases and the play-calling sliders — the parts a player can actually see, and
+the parts the blurbs describe — barely offset it at all. The table is in savvy
+order with two swaps.
+
+**This is the documented intent, and this is its size.** The design says the
+Analytics GM chases value while the Air Raid GM chases names, so the market is
+"beatable without being free money", and that is exactly what happens. What was
+never measured is how far it goes: Analytics takes **fourteen of forty titles**
+where an even share of an eight-club league is five, and Air Raid takes **none
+in forty seasons**, at 5.51 wins.
+
+Worth knowing rather than worth fixing, and the judgement is a design one rather
+than a measurement one. A club run by somebody chasing names *should* be worse,
+and real franchises do go decades without winning. But the blurbs present the
+personalities as taste — *"Loves quarterbacks and receivers"* — and nothing on
+screen says that one of them is three wins a season worse at its job than
+another. A player who learns the ladder can read the final table off the GM
+names before a ball is kicked. If that is not wanted, the fix is to draw savvy
+per club independently of persona, leaving the persona to carry style and the
+difficulty dial to carry skill; it is not built, because it changes how every
+league plays.
+
+One detail the same run turned up: **the user's own club has no `gm`**, so
+`savvyFor` falls through to its `?? 0.3` default. When a league is simulated
+ahead, or the user's roster is auto-completed, it is bidding as a slightly
+below-average general manager. That is a defensible default and it had never
+been written down.
+
 ### What `lineupStrength` is worth, which nothing had ever asked
 
 Every trade, waiver claim, draft pick and market screen in this game is judged
