@@ -1023,27 +1023,100 @@ Every market in the game — trades, the waiver wire, keepers, the auction advic
 
 **How it was measured** (`npm run yardstick` and `npm run yardstick-fit`). Put one man into an otherwise identical synthetic team, play a few hundred games against a fixed opponent, record the points that team scores. Do it across the whole rating range at a position, and correlate production against `overall`.
 
-| position | `overall` vs points produced | rating range | points range |
-| --- | --- | --- | --- |
-| QB | **r = 0.989** | 59–96 | 12.8 → 29.5 |
-| CB | r = 0.818 | 69–95 | 23.6 → 26.4 |
-| OL | r = 0.962 | 72–97 | 22.3 → 25.0 |
+Measured over 300 games a man, 24 men a position, one man swapped into an
+otherwise fixed side. Sorted by how well `overall` predicts him.
 
-`overall` explains 98% of the variance at quarterback, and it beats every single attribute taken on its own (awareness 0.972, throw accuracy 0.964, arm 0.878, mobility 0.475) — the blend is doing real work, not riding one number.
+| position | `overall` vs point differential | of which, his team's points | the opponent's points | differential, worst to best |
+| --- | --- | --- | --- | --- |
+| QB | **r = 0.983** | r = 0.987 | r = −0.912 | 22.0 |
+| CB | **r = 0.972** | r = 0.720 | r = −0.976 | 7.7 |
+| RB | r = 0.916 | r = 0.869 | r = −0.111 | 7.7 |
+| S | r = 0.904 | r = 0.163 | r = −0.909 | 3.4 |
+| LB | r = 0.887 | r = 0.455 | r = −0.798 | 2.7 |
+| DL | r = 0.872 | r = 0.038 | r = −0.945 | 3.9 |
+| OL | r = 0.844 | r = 0.943 | r = −0.121 | 3.6 |
+| K | r = 0.844 | r = 0.867 | r = −0.676 | 2.1 |
+| TE | r = 0.810 | r = 0.819 | r = −0.160 | 3.9 |
+| WR | r = 0.652 | r = 0.385 | r = −0.618 | 4.2 |
+| P | r = 0.570 | r = 0.699 | r = 0.130 | 0.8 |
 
-**These are 400-game runs, and the table used to be 160.** That is not a detail, and neither is the fourth column. The correlation is only worth reading when a position moves the scoreboard enough to carry a signal: a quarterback swings it by seventeen points from worst to best and lands at r = 0.989, stable at any sample. A lineman swings it by three, and his entry swung from r = 0.770 at 160 games to 0.962 at 400 — the 0.901 this table carried for a long time, quoted to three decimals, was a coin landing in the middle of its own noise. The document guessed the cause right, saying the lower figures "are mostly the narrow points range", and then used that to excuse the numbers instead of to distrust them.
+**The instrument was blind to half the team, and that is why the corner looked
+broken.** This harness swaps one man into a fixed side and scores him, and until
+now it scored him by *the points his own team put up*. That is the whole story
+for a quarterback and almost none of it for a defender, who does not score
+points: he stops them. Read the middle two columns down the defensive rows and
+the signature is unmistakable — a defensive lineman's rating correlates with his
+own team's scoring at **r = 0.038**, which is nothing at all, and with the
+opponent's at **−0.945**. A safety reads 0.163 and −0.909. A corner 0.720 and
+−0.976.
 
-**The corner's old entry was never real, and finding that out took running the old engine.** DESIGN.md claimed r = 0.926 over a 62–96 rating range. Checked out at the commit that first recorded it and re-run there, that engine gives r = 0.803 at 160 games and **r = 0.413 at 400** — not a number that had drifted, a number that never existed. The reason it could not settle is in the points column: on that engine a corner rated 96 produced **0.8 points a game** more than one rated 70, so there was almost no signal for the correlation to find and it landed wherever the sample threw it.
+So the corner's long-standing 0.82, and the story built on it about `overall`
+being a poor guide at that position, were an artifact of reading the echo
+instead of the effect. Scored on the differential — which is right for both
+halves of a team — a corner is the **second best predicted position in the
+game**, at 0.972. The two earlier accounts of this in the git history, one
+claiming a drift and one claiming the number was never real, were both chasing a
+number that was measuring the wrong quantity.
 
-What changed since is the opposite of a regression. The footrace term in `covDeep` and the move of `cov` to 0.57 between them took the corner's spread from 0.8 points to **3.3**, roughly quadrupling how much the position is worth, and the correlation now sits at 0.818 whether measured over 160 games or 400. The instrument did not get worse; it got something to measure.
+**Read the last column as what one man is worth, not what a position is worth.**
+Only one player is swapped, so a receiver is one of three on the field and a
+lineman one of five, while a quarterback is the only one of him. That is the
+right thing for an economy where you buy individuals, and it is why the column
+is not a ranking of positional importance on its own.
 
-This also corrects what the previous commit said here. That one reported the corner as having fallen 0.926 to 0.818 and blamed this repo's two-authority problem — a change made to satisfy `attribute-leverage` moving a number the yardstick owns. It read well and it was wrong in every part. The weights were tested directly afterwards: the pre-footrace vector gives r = 0.807 against today's 0.818, so they are not the cause of anything, and the only honest verdict on the corner work is that it helped.
+**The quarterback is not four times a corner, and the old table implied he was.**
+On the honest measure he is 22.0 points worst-to-best against the corner's 7.7 —
+still the most valuable man on the field by a distance, which is what the
+auction's pricing says, but the gap is a factor of three rather than the factor
+of seven the points-scored column made it look.
 
-**The caveat is real and it is small.** Among players the yardstick calls *identical* — eight quarterbacks and eight receivers, all at the most populous rating tier — production spreads by **0.88 points a game at quarterback and 1.07 at receiver**, against noise floors of 0.73 and 0.33 measured by replaying the same man with different seeds. At quarterback that is now barely above the floor: two men the market prices the same very nearly are the same. It used to read 1.81 against a floor of 0.47, so the rating has got more faithful there, not less. The receiver tier has moved from 87 to 86 as the pool changed, so that half is not a like-for-like comparison with what this paragraph used to say.
+**The weakest link is the receiver, at r = 0.652**, and that is now the one
+genuinely open question this table raises. He is the only outfield position
+where `overall` explains under 70% of what a man contributes, and three
+receivers sharing a target count is the obvious suspect. Recorded, not chased.
 
-**Recommendation: do not rebuild it.** Moving `lineupStrength` off `overall` would move every auction price, every trade valuation and every draft order in the game, and it would put a second "how good is he" number next to the one the player can see. At quarterback that is chasing 2% of the variance and on the line 8%, which is not worth any of that.
+### Two instruments that had never been compared
 
-At corner the residual is 33%, and that reads like the one place a rebuild might pay — but it is the wrong reading of a narrow column rather than a fault in the blend. A corner is worth 3.3 points from worst to best against a quarterback's seventeen, so a third of a small number is still a small number, and the attributes are so collinear there that no reweighting could separate them anyway: across the 24 men tested, `spd` and `cov` correlate at **0.88** with each other. Single-attribute correlations at that position cannot rank causes, and `spd` reading 0.847 against `overall`'s 0.818 is not evidence that speed matters more — it is two views of nearly the same variable.
+`TRUE_LEVERAGE` — the table the whole auction economy hangs on — is measured by
+`leverage-sim.mjs`: boost a position group by eight points on an otherwise equal
+team, take the extra *margin*, divide by the number of starters. The yardstick
+above swaps one real player from the actual pool and correlates his rating
+against the differential he produces. Different populations, different
+perturbations, different arithmetic. They had never been checked against each
+other, and it turns out `leverage-sim` had been reading the right column all
+along while the yardstick read the wrong one — which is why they looked like
+they disagreed about the defence.
+
+| position | `TRUE_LEVERAGE` | yardstick spread | starters | spread per starter |
+| --- | --- | --- | --- | --- |
+| QB | 15.89 | 22.02 | 1 | 22.02 |
+| RB | 9.39 | 7.73 | 1 | 7.73 |
+| TE | 5.58 | 3.86 | 1 | 3.86 |
+| CB | 4.39 | 7.68 | 2 | 3.84 |
+| WR | 2.95 | 4.16 | 3 | 1.39 |
+| S | 2.87 | 3.37 | 2 | 1.69 |
+| LB | 2.76 | 2.65 | 3 | 0.88 |
+| DL | 2.46 | 3.86 | 4 | 0.96 |
+| OL | 2.17 | 3.57 | 5 | 0.71 |
+| P | 2.00 | 0.82 | 1 | 0.82 |
+| K | 1.25 | 2.10 | 1 | 2.10 |
+
+`TRUE_LEVERAGE` is already per-starter, so the right comparison is the last
+column: **r = 0.968**, with rank agreement of 0.869. That is the first
+independent corroboration the leverage table has ever had, and it is a strong
+one — two unrelated routes to "what is a position worth" landing on the same
+answer.
+
+**Where they disagree is the specialists, and they disagree by inverting them.**
+`leverage-sim` prices the punter at 2.00 and the kicker at 1.25; the yardstick
+makes the kicker 2.10 and the punter the least valuable man on the field at
+0.82, with the weakest correlation of any position at 0.570. Both cannot be
+right. The punter is the one position whose contribution is almost entirely
+field position rather than points, so a points-based instrument is expected to
+under-read him — but 0.82 against a kicker's 2.10 is a bigger inversion than
+that explains. Left open: the two tables disagree about two of eleven positions,
+and nothing in the game turns on it until somebody is deciding what to bid for a
+punter.
 
 ### What a free agent is worth (`market.js`)
 
@@ -3499,24 +3572,32 @@ document survived. Several of the numbers underneath them did not.**
 - Waiver activity, trade acceptance, the budget-spread table and the ageing
   drift had all drifted by small amounts.
 
-**The one that matters, because a recommendation rests on it.** The yardstick
-table — how well `overall` predicts what a player actually produces — moved in
-both directions. At quarterback it improved, r 0.979 to 0.989, and the spread
-among identically-rated men fell from 1.81 points to 0.88 against a noise floor
-of 0.73. At corner it fell from 0.926 to 0.818 and stayed there across 2.5x the
-sample, which is not sampling. The likely cause is this repo's two-authority
-problem eating itself: the corner's weights were moved toward what
-`attribute-leverage` measures and `covDeep` gained a footrace term in the same
-sitting, and the instrument that asks whether `overall` still predicts
-production was never re-run. **A change made to satisfy one measurement moved a
-number a different measurement owns, and nothing noticed for a month.**
+**The one that mattered turned out to be the instrument, after three tries.**
+The yardstick table — how well `overall` predicts what a player produces —
+appeared to have fallen at cornerback, from r = 0.926 to 0.818, and the audit
+blamed this repo's two-authority problem: a change made to satisfy
+`attribute-leverage` moving a number the yardstick owns. That was written up
+confidently and was wrong. Testing the weights directly showed the pre-change
+vector was *worse*, 0.807. Running the old engine showed 0.926 was never
+reproducible at any sample size. And running the old engine at all required
+first finding that both yardstick scripts hardcoded an absolute path and had
+been importing the live tree throughout.
 
-**A finding about the instrument rather than the engine.** The line's entry in
-that table swings from r = 0.770 at 160 games to 0.962 at 400. The documented
-0.901 was a coin landing in the middle of its own noise, quoted to three
-decimals. The document had even guessed the cause correctly — "mostly the narrow
-points range" — and then kept quoting the number anyway. That table is now
-measured at 400.
+The real answer was underneath all three: **the harness scored every man by the
+points his own team put up**, which is most of a quarterback and almost none of
+a corner. Scored on the differential, a corner reads 0.972 and is the second
+best predicted position in the game. There was never a weakness — see **The
+instrument was blind to half the team** above, and the eleven-position table
+that came out of it.
+
+**A finding about sampling rather than the engine.** The line's entry swings
+from r = 0.770 at 160 games to 0.962 at 400 on the old measure, and 0.844 to
+0.910 on the new one. The documented 0.901 was a coin landing in the middle of
+its own noise, quoted to three decimals. The document had even guessed the cause
+correctly — "mostly the narrow points range" — and then kept quoting the number
+anyway. The line is still the least stable row in the table, and `npm run audit`
+now carries that instability as its tolerance rather than pretending to three
+decimals of precision.
 
 **And one finding that was my own error, which is worth recording because the
 mistake is the instructive part.** I reported that the price of a giveaway had
