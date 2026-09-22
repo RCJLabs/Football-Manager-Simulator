@@ -90,30 +90,27 @@ const CHECKS = [
   {
     name: 'overall predicts production at quarterback',
     cost: 'slow',
-    script: 'yardstick-fit', args: ['QB', '300', '24'],
+    script: 'yardstick-fit', args: ['QB', '500', '24'],
     extract: /overall vs point differential:\s+r = ([\d.]+)/,
     doc: /\| QB \| \*\*r = ([\d.]+)\*\*/,
-    expect: 0.983, tol: 0.02,
+    expect: 0.988, tol: 0.015,
     why: 'the table under "do not rebuild it"',
   },
   {
     name: 'overall predicts production at cornerback',
     cost: 'slow',
-    script: 'yardstick-fit', args: ['CB', '300', '24'],
+    script: 'yardstick-fit', args: ['CB', '500', '24'],
     extract: /overall vs point differential:\s+r = ([\d.]+)/,
     doc: /\| CB \| \*\*r = ([\d.]+)\*\*/,
-    expect: 0.972, tol: 0.02,
+    expect: 0.984, tol: 0.02,
     why: "for most of this file's life the harness scored a man by his own team's points, which a corner barely affects — he read 0.72 there and 0.82 overall, and two commits were written about a weakness that was the instrument. Against the opponent's points he reads -0.976",
   },
-  {
-    name: 'overall predicts production on the line',
-    cost: 'slow',
-    script: 'yardstick-fit', args: ['OL', '300', '24'],
-    extract: /overall vs point differential:\s+r = ([\d.]+)/,
-    doc: /\| OL \| r = ([\d.]+)/,
-    expect: 0.844, tol: 0.08,
-    why: 'the least stable entry in the table by some way: 0.844 at 300 games and 0.910 at 400, because a lineman moves the scoreboard by under four points and one of five is swapped. The tolerance is wide because the measurement is',
-  },
+  // Deliberately not registered: the line, the receiver and the punter. Their
+  // entries in the yardstick table need 1500 games a man before they hold still
+  // — the punter swings 0.59 between 250 and 500 — and running that here would
+  // add most of an hour to a check nobody would then run. Their numbers live in
+  // DESIGN.md with the sample size and the swing printed beside them, which is
+  // the honest way to carry a figure this check cannot afford to verify.
   {
     name: 'injuries per game at the default setting',
     cost: 'slow',

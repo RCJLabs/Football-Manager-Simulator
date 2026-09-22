@@ -1023,32 +1023,69 @@ Every market in the game — trades, the waiver wire, keepers, the auction advic
 
 **How it was measured** (`npm run yardstick` and `npm run yardstick-fit`). Put one man into an otherwise identical synthetic team, play a few hundred games against a fixed opponent, record the points that team scores. Do it across the whole rating range at a position, and correlate production against `overall`.
 
-Measured over 300 games a man, 24 men a position, one man swapped into an
-otherwise fixed side. Sorted by how well `overall` predicts him.
+One man swapped into an otherwise fixed side, 24 men a position. The sample is
+stated per row because it has to be: at 250 games this table said things that
+were not true, and the 250/500 swing column is why.
 
-| position | `overall` vs point differential | of which, his team's points | the opponent's points | differential, worst to best |
+| position | `overall` vs point differential | games | swing, 250 vs 500 | differential, worst to best |
 | --- | --- | --- | --- | --- |
-| QB | **r = 0.983** | r = 0.987 | r = −0.912 | 22.0 |
-| CB | **r = 0.972** | r = 0.720 | r = −0.976 | 7.7 |
-| RB | r = 0.916 | r = 0.869 | r = −0.111 | 7.7 |
-| S | r = 0.904 | r = 0.163 | r = −0.909 | 3.4 |
-| LB | r = 0.887 | r = 0.455 | r = −0.798 | 2.7 |
-| DL | r = 0.872 | r = 0.038 | r = −0.945 | 3.9 |
-| OL | r = 0.844 | r = 0.943 | r = −0.121 | 3.6 |
-| K | r = 0.844 | r = 0.867 | r = −0.676 | 2.1 |
-| TE | r = 0.810 | r = 0.819 | r = −0.160 | 3.9 |
-| WR | r = 0.652 | r = 0.385 | r = −0.618 | 4.2 |
-| P | r = 0.570 | r = 0.699 | r = 0.130 | 0.8 |
+| QB | **r = 0.988** | 500 | 0.005 | 22.0 |
+| CB | **r = 0.984** | 500 | 0.034 | 7.7 |
+| OL | r = 0.972 | 1500 | 0.065 | 3.6 |
+| S | r = 0.956 | 1500 | 0.064 | 3.4 |
+| DL | r = 0.952 | 1500 | 0.136 | 3.9 |
+| LB | r = 0.928 | 1500 | 0.132 | 2.7 |
+| RB | r = 0.889 | 500 | 0.000 | 7.7 |
+| TE | r = 0.889 | 1500 | 0.105 | 3.9 |
+| K | r = 0.872 | 500 | 0.013 | 2.1 |
+| WR | r = 0.722 | 1500 | 0.197 | 4.2 |
+| P | r = 0.425 | 1500 | 0.590 | 0.8 |
+
+**`overall` is a better guide than this file has ever claimed, and the reason it
+looked otherwise was sampling.** Nine of eleven positions sit at 0.87 or above
+once measured properly. An earlier version of this table, run at 300 games,
+reported the line at 0.844, the defensive line at 0.872 and the tight end at
+0.810; at 1500 those are 0.972, 0.952 and 0.889. Every one of them was being
+dragged down by noise, and the ordering the table implied was largely an
+artifact of which positions happened to draw a bad sample.
+
+**The swing column is the part to keep.** It is the difference between the same
+measurement at 250 games and at 500, and it ranges from 0.005 at quarterback to
+**0.590 at punter**. Any row with a swing above about a tenth was never saying
+anything at 300 games, and three separate conclusions in this repo's history —
+about the line, about the corner, about the receiver — were drawn from rows in
+exactly that state. A correlation quoted to three decimals without a stability
+figure beside it is a number pretending to be a measurement.
+
+**Two positions are genuinely poorly predicted, and they are the two the fewest
+decisions turn on.** The receiver reads 0.722 and the punter 0.425. The punter's
+is barely a measurement at all: he is worth 0.8 points from worst to best, which
+is close enough to the noise floor that the correlation cannot settle even at
+1500 games a man. The receiver's is real, and it survived being chased — see
+below.
+
+**No weight move rescues the receiver.** Three receivers share the field, his
+`cth` and `rte` are 0.97 correlated in the shipped pool so half his formula is
+one number, and `rac` predicts him better (0.732) than `overall` does while
+carrying the lowest weight of the four at 0.19. That looks like an obvious
+mis-pricing and it is not a free one. Shifting weight from the hands pair to
+`rac` moves the correlation by at most 0.03 and costs the record every time:
+`rac` at 0.27 puts three receivers into violation, at 0.35 it is five, and
+raising `spd` instead costs three and makes the correlation worse. The shipped
+vector is the only one on that line that leaves `legacy-check` where it is, so
+it stays — the same verdict the tight end got, reached the same way.
 
 **The instrument was blind to half the team, and that is why the corner looked
 broken.** This harness swaps one man into a fixed side and scores him, and until
 now it scored him by *the points his own team put up*. That is the whole story
 for a quarterback and almost none of it for a defender, who does not score
-points: he stops them. Read the middle two columns down the defensive rows and
-the signature is unmistakable — a defensive lineman's rating correlates with his
-own team's scoring at **r = 0.038**, which is nothing at all, and with the
-opponent's at **−0.945**. A safety reads 0.163 and −0.909. A corner 0.720 and
-−0.976.
+points: he stops them. Split out, the signature is unmistakable — a defensive
+lineman's rating correlates with his own team's scoring at **r = 0.038**, which
+is nothing at all, and with the opponent's at **−0.945**. A safety reads 0.163
+and −0.909, a corner 0.720 and −0.976, a linebacker 0.455 and −0.798. All four
+defensive positions were being read through a channel that barely carries them.
+`yardstick-fit` prints all three columns now and correlates against the
+differential.
 
 So the corner's long-standing 0.82, and the story built on it about `overall`
 being a poor guide at that position, were an artifact of reading the echo
@@ -1070,10 +1107,14 @@ still the most valuable man on the field by a distance, which is what the
 auction's pricing says, but the gap is a factor of three rather than the factor
 of seven the points-scored column made it look.
 
-**The weakest link is the receiver, at r = 0.652**, and that is now the one
-genuinely open question this table raises. He is the only outfield position
-where `overall` explains under 70% of what a man contributes, and three
-receivers sharing a target count is the obvious suspect. Recorded, not chased.
+**That paragraph and this one are both corrections to what stood here a commit
+ago**, when the table was measured at 300 games and said the receiver was the
+weakest outfield position at r = 0.652 and called it the one open question. He
+is still the weakest, but at 0.722, and the number moved because the sample did
+rather than because anything was learned. It is recorded here rather than
+quietly fixed because it is the third conclusion in this file to have been drawn
+from an unstable row, after the line and the corner, and the pattern is more
+useful than any of the three findings were.
 
 ### Two instruments that had never been compared
 
@@ -1117,6 +1158,84 @@ under-read him — but 0.82 against a kicker's 2.10 is a bigger inversion than
 that explains. Left open: the two tables disagree about two of eleven positions,
 and nothing in the game turns on it until somebody is deciding what to bid for a
 punter.
+
+### The shipped pool has fewer dimensions than it looks like it has
+
+Chasing why `overall` predicts a receiver worse than anyone else turned up
+something underneath it that is not about receivers at all. **Every outfield
+position in the shipped pool contains a pair of attributes that are very nearly
+the same number.** Correlation across the real players at each position, against
+the same pair measured on a generated rookie class:
+
+| position | the pair | real pool | generated rookies |
+|---|---|---|---|
+| S | `tck` / `rsd` | **0.99** | 0.72 |
+| QB | `tha` / `awr` | **0.98** | 0.73 |
+| TE | `cth` / `rte` | **0.98** | 0.76 |
+| LB | `tck` / `rsd` | **0.98** | 0.71 |
+| WR | `cth` / `rte` | **0.97** | 0.73 |
+| RB | `spd` / `elu` | 0.95 | 0.77 |
+| DL | `tck` / `awr` | 0.95 | 0.75 |
+| CB | `cov` / `awr` | 0.95 | 0.74 |
+| OL | `rbk` / `awr` | 0.88 | 0.76 |
+| P | `ppw` / `pac` | 0.67 | 0.80 |
+| K | `kpw` / `kac` | 0.60 | 0.74 |
+
+A real quarterback's accuracy and awareness are the same number to within two
+per cent. A real safety's tackling and run defence are the same number to within
+one. The ratings were written by hand, one player at a time, and a good player
+was given good attributes across the board — so within a position the shipped
+pool is close to one-dimensional. The two specialists are the exception, and
+they are the only positions where somebody clearly sat down and decided that leg
+and placement were different things.
+
+**The generated rookies are not like this.** `makeRookie` scatters each
+attribute independently around a target, so a generated class lands at 0.71 to
+0.80 — genuinely lopsided players, which is what the rookie generator's comment
+promises and what makes an intake interesting. The two populations in this game
+have different shapes, and the game has never said so.
+
+**The consequence is that a position's weights are underdetermined by the
+players they price.** Take each position's most duplicated pair, delete one
+attribute outright and give its entire weight to its twin, then ask how far a
+rating moves:
+
+| position | move | real players | generated rookies |
+|---|---|---|---|
+| QB | all of `awr` onto `tha` | **0.85** | 2.25 |
+| RB | all of `elu` onto `spd` | 0.76 | 1.20 |
+| TE | all of `rte` onto `cth` | 0.74 | 1.30 |
+| WR | all of `rte` onto `cth` | 0.60 | 1.69 |
+| LB | all of `rsd` onto `tck` | 0.48 | 1.50 |
+| CB | all of `awr` onto `cov` | 0.39 | 0.80 |
+| S | all of `rsd` onto `tck` | 0.32 | 0.81 |
+| DL | all of `awr` onto `tck` | 0.15 | 0.50 |
+
+Deleting awareness from the quarterback formula and handing its 0.35 to accuracy
+moves a real quarterback by **0.85 of a point**, which is under the rounding the
+screen already does. On a defensive lineman the same surgery is worth 0.15. This
+repo has spent a lot of effort moving weights a hundredth at a time, bounded by
+what `legacy-check` allows, and for the real pool most of that argument is about
+a decimal place nobody can see. It matters two to three times more for the
+generated players, which is where the variance actually lives.
+
+**It also explains a line `legacy-check` has been printing all along.** Each
+recorded violation ends "caps at 82 with `awr` 99 — the weights, not the rating",
+meaning that even perfect awareness does not get Ronde Barber to the bar the
+record sets. The reason reweighting cannot rescue him either is here: raise
+awareness's weight and every corner with high awareness rises with him, and
+since awareness and coverage move together at 0.95 across the pool, almost every
+corner is one. His *relative* standing barely changes. A player who is under-
+rated against the record has to be fixed by changing his ratings, not by
+changing what ratings are worth.
+
+Not chased: whether the shipped ratings should be spread out within a position,
+or the rookie generator tightened to match them. Both are large content changes
+with the fingerprint, the legacy check and every league code downstream of them,
+and neither is obviously right — a pool where great players are great at
+everything is a defensible way to write a pool. It is recorded because two
+sessions of weight-fitting would have been read very differently with this table
+next to them.
 
 ### What a free agent is worth (`market.js`)
 
