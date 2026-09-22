@@ -8,6 +8,7 @@
 //
 //   node scripts/yardstick-fit.mjs QB 160 24
 //   node scripts/yardstick-fit.mjs OL 140 18
+//   node scripts/yardstick-fit.mjs QB 160 24 rookies   the generated pool instead
 // Resolved from this file rather than written down. It used to be the absolute
 // path of one particular checkout, which meant a copy of this script running
 // anywhere else — a git worktree at an older commit, a clone in another
@@ -36,6 +37,40 @@ const step = Math.max(1, Math.floor(pool.length / K));
 const men = [];
 for (let i = 0; i < pool.length && men.length < K; i += step) men.push(pool[i]);
 
+// `rookies` swaps the shipped pool for a generated one.
+//
+// Worth having because the two populations are NOT the same shape. A shipped
+// player's attributes run together — a position's most duplicated pair
+// correlates at 0.88 to 0.99 — while `makeRookie` scatters each one
+// independently around a target and lands at 0.71 to 0.80. Every validation of
+// `overall` in this repo was measured on the first population. A dynasty is
+// mostly made of the second, and nothing has ever asked whether the number
+// works there.
+//
+// The rating range is matched to the real sample's on purpose. Correlation is
+// range-sensitive, so a rookie set spanning 20 points against real men spanning
+// 30 would read lower for a reason that has nothing to do with the question.
+const ROOKIES = process.argv[5] === 'rookies';
+if (ROOKIES) {
+  const { makeRookie } = await import(`${R}/src/engine/rookies.js`);
+  const { RNG } = await import(`${R}/src/engine/rng.js`);
+  const lo = Math.min(...men.map(overall)), hi = Math.max(...men.map(overall));
+  const rng = new RNG(20260922);
+  const made = [];
+  // Overshoot and sieve: a target does not land on an overall, because the
+  // scatter moves it and the weights are not a flat mean.
+  for (let i = 0; i < K * 400 && made.length < K * 30; i++) {
+    const p = makeRookie(POS, 40 + (i % 60), 1, `rk${i}`, rng);
+    const o = overall(p);
+    if (o >= lo && o <= hi) made.push(p);
+  }
+  made.sort((a, b) => overall(b) - overall(a));
+  men.length = 0;
+  const rstep = Math.max(1, Math.floor(made.length / K));
+  for (let i = 0; i < made.length && men.length < K; i += rstep) men.push(made[i]);
+  if (men.length < K) console.log(`  (only ${men.length} rookies landed inside ${lo}-${hi})`);
+}
+
 const rows = [];
 for (const p of men) {
   const t = { ...BASE, slots: { ...BASE.slots }, byId: new Map(BASE.byId) };
@@ -63,7 +98,7 @@ const pa = rows.map((r) => r.pa);
 const diff = rows.map((r) => r.pf - r.pa);
 const ovrs = rows.map((r) => r.ovr);
 const span = (a) => Math.max(...a) - Math.min(...a);
-console.log(`${POS}: ${rows.length} men across the rating range, ${N} games each\n`);
+console.log(`${POS}: ${rows.length} ${ROOKIES ? 'GENERATED ROOKIES' : 'shipped players'} across the rating range, ${N} games each\n`);
 console.log(`  overall vs point differential:  r = ${corr(ovrs, diff).toFixed(3)}   over ${span(diff).toFixed(1)} points, worst to best`);
 console.log(`    of which, points his team scores:   r = ${corr(ovrs, pf).toFixed(3).padStart(6)}   over ${span(pf).toFixed(1)}`);
 console.log(`              points the opponent scores: r = ${corr(ovrs, pa).toFixed(3).padStart(6)}   over ${span(pa).toFixed(1)}`);
