@@ -127,7 +127,7 @@ Measured on synthetic equal teams (300 games): 9.6 flags and 79 penalty yards a 
 
 The snake draft had a structural problem: it hands every team a full roster from the
 same pool in alternating order, so total talent equalizes. Measured over twelve
-simulated seasons (`npm run auction`), the best-built roster in a league beats the worst by about a win (7.8 to 6.9 of 14); under the auction the same gap is a win and a half (7.4 to 5.9).
+simulated seasons (`npm run auction`), the best-built roster in a league beats the worst by less than a win (7.3 to 6.5 of 14); under the auction the same gap is nearly three wins (8.6 to 5.9).
 The central activity of the game had almost no consequence.
 
 The auction fixes it with a $200 cap and 27 slots. Teams take turns nominating a
@@ -1015,7 +1015,7 @@ Injuries feed the same yardstick: a player on the ledger counts for the share of
 
 Measured over twenty 8-team seasons (`scripts/offer-sim.mjs`): 4.3 offers a season, one in roughly a quarter of weeks, and 40 of 85 of them improved the human's lineup on the yardstick, the rest costing a little. That is the shape the gate is meant to produce: about half the calls are worth taking, so reading one is a decision rather than a formality. The same caveat as every trade applies, and it is the reason the screen quotes the number rather than a verdict: the yardstick is built on overall ratings, so an offer that reads as even may still be bad in the simulation.
 
-Measured on the 8-team auction league (`scripts/moves-sim.mjs`, 12 seasons, injuries off): AI clubs land about three claims a season between them, worth about +7 lineup strength per club, because the pool left after an auction is the talent tail and few swaps clear the +2 overall bar. With injuries at the default setting the same clubs file about seven a season, most of them cover for a starter lost for the year: the wire is an injury market first. On 4,000 random one-for-one offers the AI accepted 25%, and on every accepted deal the human had given up the higher-rated player; the AI gained +13 on average and the human lost 15. That is the intended shape: an AI club cannot be talked into a bad trade on its own yardstick. What it does not rule out is a trade that is even on the overall-based yardstick but not in the simulation — a receiver whose overall is carried by an attribute the play resolution weights lightly. That stood unmeasured for a long time and is measured now; see **Is the yardstick sound** below.
+Measured on the 8-team auction league (`scripts/moves-sim.mjs`, 12 seasons, injuries off): AI clubs land about two claims a season between them, worth about +8 lineup strength per club, because the pool left after an auction is the talent tail and few swaps clear the +2 overall bar. With injuries at the default setting the same clubs file about eleven a season, most of them cover for a starter lost for the year: the wire is an injury market first. On 4,000 random one-for-one offers the AI accepted 29%, and on every accepted deal the human had given up the higher-rated player; the AI gained +12 on average and the human lost 14. That is the intended shape: an AI club cannot be talked into a bad trade on its own yardstick. What it does not rule out is a trade that is even on the overall-based yardstick but not in the simulation — a receiver whose overall is carried by an attribute the play resolution weights lightly. That stood unmeasured for a long time and is measured now; see **Is the yardstick sound** below.
 
 ### Is the yardstick sound
 
@@ -1025,15 +1025,19 @@ Every market in the game — trades, the waiver wire, keepers, the auction advic
 
 | position | `overall` vs points produced | rating range | points range |
 | --- | --- | --- | --- |
-| QB | **r = 0.979** | 58–96 | 13.0 → 30.5 |
-| CB | r = 0.926 | 62–96 | 22.9 → 25.8 |
-| OL | r = 0.901 | 65–97 | 22.7 → 25.2 |
+| QB | **r = 0.989** | 59–96 | 12.8 → 29.5 |
+| CB | r = 0.818 | 69–95 | 23.6 → 26.4 |
+| OL | r = 0.962 | 72–97 | 22.3 → 25.0 |
 
-`overall` explains 96% of the variance at quarterback, and it beats every single attribute taken on its own (awareness 0.970, throw accuracy 0.969, arm 0.864, mobility 0.528) — the blend is doing real work, not riding one number. The lower figures at corner and on the line are mostly the narrow points range: a lineman swings the scoreboard by two and a half points from worst to best, so noise is a bigger share of what is left.
+`overall` explains 98% of the variance at quarterback, and it beats every single attribute taken on its own (awareness 0.972, throw accuracy 0.964, arm 0.878, mobility 0.475) — the blend is doing real work, not riding one number.
 
-**The caveat is real and it is small.** Among players the yardstick calls *identical* — eight quarterbacks all rated 86, eight receivers all rated 87 — production spreads by **1.81 points a game at quarterback and 0.88 at receiver**, against noise floors of 0.47 and 0.07 measured by replaying the same man with different seeds. So two men the market prices the same are not the same. But that is the residual 4%, not a systematic bias, and it is interaction and shape rather than a mis-weighted attribute.
+**These are 400-game runs, and the table used to be 160.** That is not a detail. Re-measured at 160, the line came out at r = 0.770 and at 400 it is 0.962, so the figure this table carried for a long time — 0.901, quoted to three decimals — was a coin landing in the middle of its own noise. The document guessed at the cause and got it right, saying the lower figures "are mostly the narrow points range", and then went on quoting them anyway. A lineman swings the scoreboard by about two and a half points from worst to best, so at 160 games noise is most of what is left.
 
-**Recommendation: do not rebuild it.** Moving `lineupStrength` off `overall` would move every auction price, every trade valuation and every draft order in the game to chase 4% of the variance, and it would put a second "how good is he" number next to the one printed on every player card. The caveat stays documented; the yardstick stays.
+**The corner is the one that genuinely moved**, and it is the one number here that got worse: 0.926 to 0.818, stable across 160 and 400 games, so it is not the sampling. The likely cause is this repo's two-authority problem eating itself. The corner's weights were pushed toward what `attribute-leverage` measures — `cov` from 0.48 to 0.57 — and `covDeep` gained a footrace term, both in the same sitting, and nobody re-ran the instrument that asks whether `overall` still predicts what a man produces. A change made to satisfy one measurement moved a number a different measurement owns.
+
+**The caveat is real and it is small.** Among players the yardstick calls *identical* — eight quarterbacks and eight receivers, all at the most populous rating tier — production spreads by **0.88 points a game at quarterback and 1.07 at receiver**, against noise floors of 0.73 and 0.33 measured by replaying the same man with different seeds. At quarterback that is now barely above the floor: two men the market prices the same very nearly are the same. It used to read 1.81 against a floor of 0.47, so the rating has got more faithful there, not less. The receiver tier has moved from 87 to 86 as the pool changed, so that half is not a like-for-like comparison with what this paragraph used to say.
+
+**Recommendation: do not rebuild it, and the reasoning now has to be positional.** Moving `lineupStrength` off `overall` would move every auction price, every trade valuation and every draft order in the game, and it would put a second "how good is he" number next to the one the player can see. At quarterback and on the line that would be chasing 2% and 8% of the variance, which is not worth any of that. At corner it is now 33%, and the honest answer there is not a second rating but a re-measure: the corner's weights and the corner's coverage model both moved recently and only one of the two instruments that watch them was re-run.
 
 ### What a free agent is worth (`market.js`)
 
@@ -1115,15 +1119,23 @@ Measured over twelve 8-team seasons per setting (`scripts/ir-sim.mjs`):
 | normal | 8.3 | 2.8 | 31% | 5.3 |
 | high | 14.0 | 5.8 | 49% | 7.3 |
 
-At the default setting that is about one placement per club per season and a third of club-weeks with somebody parked, which is the rate the four-week minimum was chosen to produce. The players let go are not lost to the league; they return to the pool and are bought again in the offseason auction.
+At the default setting that is about one placement per club per season and over a quarter of club-weeks with somebody parked, which is the rate the four-week minimum was chosen to produce. The players let go are not lost to the league; they return to the pool and are bought again in the offseason auction.
 
 The dial is a league setting: Off, Low, Normal (default), High, as a multiplier of 0, 0.5, 1 and 2 on the base per-play chance. Measured with `scripts/injury-sim.mjs`:
 
 | setting | injuries per game (both clubs) | player-weeks lost per club per game | players out per club-week (8-team league) | QB1 missing |
 |---|---|---|---|---|
-| low | 0.65 | 0.5 | 0.3 | 4% of weeks |
-| normal | 1.2 | 1.0 | 0.7 | 6% of weeks |
-| high | 2.5 | 2.1 | 1.2 | 10% of weeks |
+| low | 0.61 | 0.49 | 0.14 | 2.0% of weeks |
+| normal | 1.16 | 0.85 | 0.34 | 2.5% of weeks |
+| high | 2.56 | 2.03 | 0.73 | 5.2% of weeks |
+
+The two right-hand columns used to read 0.3 / 0.7 / 1.2 and 4% / 6% / 10%, and
+they have roughly halved without the injury model moving at all — the two
+left-hand columns are the same figures they always were. What changed is
+downstream: injured reserve and the waiver wire both got better at refilling a
+hole, so less of a club is missing at any given moment for the same number of
+injuries. Worth knowing before reading the right-hand columns as a measure of
+how violent the game is; they measure how well clubs cope.
 
 The real league runs at roughly three to four times "normal" by adjusted games lost, so even High is a gentle version. That is deliberate: a 13-game season is short enough that injury luck at real rates would decide more leagues than the auction does. What a missing quarterback costs, on one auction roster against every opponent in the league with no other injuries: 50% with the starter, 44% with the backup the auction bought for him, 4% with a replacement-level fill-in. The backup is worth roughly six points of win probability per week he plays, which is what the QB2 slot is for and why the auction AI pays about a third of starter money for one.
 
@@ -2181,10 +2193,10 @@ measurement's 6.4 was not counting.
 
 | cap room | power gap | ≈ points a game | corr(budget, power) |
 | --- | --- | --- | --- |
-| even | 1.52 ± 0.08 | 4.9 | — |
-| ±10% (`mild`) | 1.79 ± 0.05 | 5.8 | 0.55 |
-| ±20% (`wide`) | 2.44 ± 0.08 | 7.9 | 0.81 |
-| ±40% | 3.98 ± 0.09 | 12.9 | 0.93 |
+| even | 1.51 ± 0.08 | 4.9 | — |
+| ±10% (`mild`) | 1.93 ± 0.07 | 6.3 | 0.59 |
+| ±20% (`wide`) | 2.56 ± 0.10 | 8.3 | 0.81 |
+| ±40% | 3.73 ± 0.08 | 12.1 | 0.93 |
 
 Half the old claim holds: a fifth either way roughly doubles how far the best
 squad finishes ahead of the worst. The other half does not. "±40% adds nothing
@@ -2206,12 +2218,12 @@ sentence rather than a measurement: *a giveaway is worth about four points and
 four points is about forty yards*. Both halves were wrong, in opposite
 directions.
 
-Four points is not forty yards. `EP_PER_YARD` is 0.0539, so four points is
-seventy-four. And the swing is not four points: under a linear expected-points
+Four points is not forty yards. `EP_PER_YARD` is 0.0528, so four points is
+seventy-six. And the swing is not four points: under a linear expected-points
 curve what you lose and what the other side gains move oppositely at the same
 rate, so
 
-    EP(x) + EP(100 - x) = (0.0539x - 0.215) + (5.175 - 0.0539x) = 4.96
+    EP(x) + EP(100 - x) = (0.0528x - 0.268) + (5.012 - 0.0528x) = 4.74
 
 constant in field position. A test in `winprob.test.js` pins that constancy,
 because the whole idea of pricing a grid off one number depends on it.
@@ -2237,7 +2249,7 @@ And the grid takes every snap at first and ten from the 25, so 58 is the figure
 it needs — not the pooled 43 and certainly not 40.
 
 The other finding is that **a yard gained on a play is worth about 0.093
-points, not `EP_PER_YARD`'s 0.0539**. Both are correct and they are not the same
+points, not `EP_PER_YARD`'s 0.0528**. Both are correct and they are not the same
 quantity: the constant prices field position, while a yard gained also converts
 downs, which the EP model charges at 0.45 a down. That is written down here
 because the two numbers look like a contradiction and somebody will eventually
@@ -3450,6 +3462,75 @@ The smoke test asserts the ordering rather than trusting it, by reading the rend
 Setup had grown to fourteen sections, five of them added in one run of feature work, each with a paragraph of explanation. On a phone the first screen ended in the middle of naming your club. The options with sensible defaults — injuries, keepers, ageing, chemistry, scouting, coach mode — now sit behind one **More options** fold, and the prose above it was cut to what you need to choose with rather than everything true about the choice.
 
 Measured at 360×780, the Create league button moved from roughly four screens down to **1.6**. The smoke test prints that number every run and fails past 2.6, because this is the kind of thing that creeps back one paragraph at a time.
+
+## Keeping this document honest
+
+Every number in this file was measured once. Nothing re-measured them, and the
+engine has moved underneath them continuously — so the question "which of these
+are still true?" had never been asked. It has now been, by re-running every
+script in `scripts/` against the engine as it stands and comparing what each one
+prints with what this document and the source constants claim.
+
+The headline is reassuring and the detail is not. **Every conclusion in this
+document survived. Several of the numbers underneath them did not.**
+
+**What had gone stale.**
+
+- `EP_PER_YARD` was refitted from 0.0539 to 0.0528 and three passages went on
+  quoting the old value, one of them carrying a worked calculation built on it.
+  The document contradicted itself: another section recorded the refit correctly.
+- `scripts/turnover-price.mjs` printed "the model's own `EP_PER_YARD` is 0.0539"
+  as a literal rather than importing it. A measuring tool disagreeing with the
+  thing it measures against is worse than a stale paragraph, because it will
+  keep producing stale paragraphs. It imports the constant now.
+- The injury table's two right-hand columns were out by about a factor of two —
+  0.3 / 0.7 / 1.2 players out per club-week against a measured 0.14 / 0.34 /
+  0.73. The injury model itself had not moved at all; the left-hand columns
+  re-measure exactly. What changed is downstream, injured reserve and the waiver
+  wire getting better at refilling a hole.
+- The auction's own justification was understated. "A win and a half (7.4 to
+  5.9)" is now 8.6 to 5.9, nearly three wins.
+- Waiver activity, trade acceptance, the budget-spread table and the ageing
+  drift had all drifted by small amounts.
+
+**The one that matters, because a recommendation rests on it.** The yardstick
+table — how well `overall` predicts what a player actually produces — moved in
+both directions. At quarterback it improved, r 0.979 to 0.989, and the spread
+among identically-rated men fell from 1.81 points to 0.88 against a noise floor
+of 0.73. At corner it fell from 0.926 to 0.818 and stayed there across 2.5x the
+sample, which is not sampling. The likely cause is this repo's two-authority
+problem eating itself: the corner's weights were moved toward what
+`attribute-leverage` measures and `covDeep` gained a footrace term in the same
+sitting, and the instrument that asks whether `overall` still predicts
+production was never re-run. **A change made to satisfy one measurement moved a
+number a different measurement owns, and nothing noticed for a month.**
+
+**A finding about the instrument rather than the engine.** The line's entry in
+that table swings from r = 0.770 at 160 games to 0.962 at 400. The documented
+0.901 was a coin landing in the middle of its own noise, quoted to three
+decimals. The document had even guessed the cause correctly — "mostly the narrow
+points range" — and then kept quoting the number anyway. That table is now
+measured at 400.
+
+**And one finding that was my own error, which is worth recording because the
+mistake is the instructive part.** I reported that the price of a giveaway had
+moved from 58 yards to 43, and repriced `playbook-equilibrium.mjs` on the
+strength of it. It had not moved. `npm run turnover` leads with a pooled figure
+across the whole down tree — 43 — and then prints a by-situation table
+underneath, where first and ten from the 25 reads 58. The grid takes every snap
+at first and ten from the 25. This document already said so, in terms: "so 58 is
+the figure it needs — not the pooled 43 and certainly not 40." I read the
+headline instead of the row, in the middle of an exercise whose entire purpose
+was checking numbers carefully. Both changes are reverted, and the script now
+says in its own comments which row it wants.
+
+**What the audit did not do.** There is no standing check. Re-running everything
+by hand found real rot in a few hours, but nothing stops the same rot
+accumulating again, and the two worst findings — a constant quoted after it
+changed, and a number that moved because a *different* measurement was acted on
+— are both the kind a script could catch mechanically. Registering the
+load-bearing numbers against the scripts that produce them, so drift is reported
+rather than discovered, is the obvious next piece of work and is not built.
 
 ## Roadmap: ten audited recommendations
 

@@ -21,23 +21,36 @@
  * The second is that yards are not the payoff. Priced in yards alone the
  * offence should throw deep on every snap and the defence should play the shell
  * on every snap, which is nonsense. A play is worth its yards less its turnover
- * rate times what a giveaway costs, and that price is now measured rather than
- * asserted: `npm run turnover` fits it from the engine's own behaviour and puts
- * it at 56 yards for this grid's situation — first and ten from the 25 — which
- * is where every snap here is taken.
+ * rate times what a giveaway costs, and that price is measured rather than
+ * asserted: `npm run turnover` fits it from the engine's own behaviour for this
+ * grid's situation — first and ten from the 25 — which is where every snap here
+ * is taken.
  *
  * It used to say 40, on the reasoning that a giveaway is worth four points and
- * four points is forty yards. Both halves were out. The swing measures 4.32
- * points, and a yard is not worth EP_PER_YARD here: that constant prices field
- * position, while a yard gained on a play also converts downs, which the fit
- * puts at about 0.093 points a yard. Four points was therefore never forty
- * yards.
+ * four points is forty yards. Both halves were out. A yard is not worth
+ * EP_PER_YARD here: that constant prices field position, while a yard gained on
+ * a play also converts downs, which the fit puts higher. Four points was
+ * therefore never forty yards.
  *
- * The answer barely leans on it, which is the reassuring part. At 40 the
- * defence mixes base 17% with the shell 83% and the offence run_out 39% with
- * play action 61%; at 58 that is 27/73 and 37/63. Same two live defensive
- * calls, same two dead ones, deep ball out of the mix either way. Pass another
- * number to see for yourself.
+ * `TURNOVER_YDS` IS THE SITUATIONAL PRICE, NOT THE POOLED ONE. `npm run turnover`
+ * leads with a pooled figure across the whole down tree — 43 yards — and then
+ * prints a by-situation table underneath. The grid takes every snap at first and
+ * ten from the 25, and that row reads 58. Reading the headline instead of the
+ * row is an easy mistake and it prices a giveaway a quarter too cheap; it was
+ * made while auditing this very file. The default was 56, which is the plain
+ * first-down figure rather than this grid's; 58 is the one it needs.
+ *
+ * It is cached here rather than computed, because fitting it costs 60,000 snaps
+ * of its own, so re-run `npm run turnover` and read the 1&10@25 row whenever
+ * the passing game changes.
+ *
+ * The answer barely leans on it, which is the reassuring part, and that has now
+ * been checked across the whole range rather than asserted. At 40 the defence
+ * mixes base 17% with the shell 83% and the offence run_out 39% with play
+ * action 61%; at 43 that is 29/71 and 38/62; at 56, 36/64 and 36/64. Same two
+ * live defensive calls, same two dead ones, deep ball out of the mix at every
+ * price — which is why the 56-against-58 slip above changed nothing. Pass
+ * another number to see for yourself.
  */
 import { syntheticTeam } from './synthetic.mjs';
 import { buildLineup } from '../src/engine/ratings.js';
@@ -45,7 +58,8 @@ import { createGame, step } from '../src/engine/game.js';
 import { CALL_GRID, DEFENSE_CALLS } from '../src/engine/playcall.js';
 
 const N = Number(process.argv[2] || 2500);
-const TURNOVER_YDS = Number(process.argv[3] || 56);
+// The 1&10@25 row of `npm run turnover`, not its pooled headline. See above.
+const TURNOVER_YDS = Number(process.argv[3] || 58);
 const OFF = Object.keys(CALL_GRID);
 const DEF = Object.keys(DEFENSE_CALLS);
 const A = syntheticTeam('alpha', 84, 3, 1);

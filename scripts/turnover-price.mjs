@@ -6,13 +6,19 @@
 // times a price, and that price was asserted rather than measured: "a giveaway
 // is worth about four points and four points is about forty yards". The second
 // half of that does not survive contact with the model it is talking about —
-// EP_PER_YARD is 0.0539, so four points is seventy-four yards, not forty. And
-// the first half is low too: under a linear expected-points curve the swing is
+// at `EP_PER_YARD` four points is far more than forty yards. And the first half
+// is low too: under a linear expected-points curve the swing is
 //
-//     EP(x) + EP(100 - x) = (0.0539x - 0.215) + (5.175 - 0.0539x) = 4.96
+//     EP(x) + EP(100 - x) = (k·x - a) + (b - k·x)
 //
 // constant in field position, because what you lose and what the other side
 // gains move in opposite directions at the same rate.
+//
+// The constant is imported rather than written down here. It used to be spelled
+// out as 0.0539 in this comment and again in the output line below, and when
+// the expected-points curve was refitted to 0.0528 this script went on printing
+// the old number as though it were the model's — a measuring tool disagreeing
+// with the thing it measures against.
 //
 // Rather than trust either arm of that, this fits the price from the engine's
 // own behaviour. For every snap it takes the whole position value from the
@@ -30,7 +36,7 @@
 import { syntheticTeam } from './synthetic.mjs';
 import { buildLineup } from '../src/engine/ratings.js';
 import { createGame, step } from '../src/engine/game.js';
-import { expectedPoints } from '../src/engine/winprob.js';
+import { expectedPoints, EP_PER_YARD } from '../src/engine/winprob.js';
 import { RNG } from '../src/engine/rng.js';
 
 const N = Number(process.argv[2] || 60000);
@@ -101,7 +107,7 @@ const f = fit(keep);
 const t = mean(lost);
 const price = (f.intercept - t) / f.slope;
 console.log(`${snaps} scrimmage snaps, ${lost.length} of them giveaways (${(100 * lost.length / snaps).toFixed(1)}%)\n`);
-console.log(`a yard is worth            ${f.slope.toFixed(4)} points   (the model's own EP_PER_YARD is 0.0539)`);
+console.log(`a yard is worth            ${f.slope.toFixed(4)} points   (the model's own EP_PER_YARD is ${EP_PER_YARD})`);
 console.log(`a play that keeps the ball ${f.intercept.toFixed(3)} points at zero yards`);
 console.log(`a play that loses it       ${t.toFixed(3)} points`);
 console.log(`\nso a giveaway costs        ${(f.intercept - t).toFixed(2)} points = ${price.toFixed(0)} YARDS`);
