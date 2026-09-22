@@ -1,6 +1,6 @@
 // Does this repository still believe what it says about itself?
 //
-//   npm run audit            every check, which runs most of scripts/ (~20 min)
+//   npm run audit            every check, which runs most of scripts/ (~6 min)
 //   npm run audit -- --quick only the checks that cost nothing (~2s)
 //   npm run audit -- turnover yardstick     only checks matching these words
 //
@@ -149,7 +149,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /pro backup gap ([\d.]+)/,
     doc: /\| pro \| 256 \| [\d.]+ \| [\d.]+ \| \*\*([\d.]+)\*\* \|/,
-    expect: 5.8, tol: 0,
+    expect: 5.7, tol: 0,
     why: 'the whole reason the dial bites harder in the pro league. tol 0 is earned: the block draws eight fixed-seed leagues and reads ratings, with no simulation in it, so any movement at all is the draft or the pool changing and is worth hearing about',
   },
   {
@@ -157,7 +157,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /pro\s+normal\s+[\d.]+ games a club · ([\d.]+) starter-weeks/,
     doc: /\| pro \| normal \| 17\.0 \| ([\d.]+) \|/,
-    expect: 5.5, tol: 0.4,
+    expect: 5.4, tol: 0.4,
     why: "the high-count figure in the pro injury table, and the one that shows the 17-game season costing 1.15x the 14-game one. NOT the season-enders column beside it, which reads 0.10 over ten fantasy seasons and 0.17 over forty and is too thin at this sample to compare across modes",
   },
   {
@@ -202,8 +202,8 @@ const CHECKS = [
     name: 'the record still supports the ratings',
     cost: 'slow',
     script: 'legacy-check', extract: /(\d+) rating\(s\) off by 3\+/,
-    expect: 4, tol: 0,
-    why: 'four known violations, each recorded with a reason; a fifth means something moved',
+    expect: 2, tol: 0,
+    why: "two known violations — Csonka and Riggins, both the weight vector refusing to rate a power back — each recorded with a reason; a third means something moved. This expectation sat at 4 long after Barber was corrected and was only caught the first time anybody ran the full audit afterwards, which is the argument for running it",
   },
   {
     name: 'the simulation fingerprint',

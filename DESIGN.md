@@ -1666,11 +1666,11 @@ per season rather than per club-week for a reason given below):
 | mode | setting | games a club | starter-weeks lost | QB1 misses | season-enders |
 |---|---|---|---|---|---|
 | fantasy | low | 14.0 | 2.0 | 0.28 | 0.11 |
-| pro | low | 17.0 | 2.4 | 0.25 | 0.09 |
+| pro | low | 17.0 | 2.4 | 0.22 | 0.08 |
 | fantasy | normal | 14.0 | 4.8 | 0.35 | 0.10 |
-| pro | normal | 17.0 | 5.5 | 0.53 | 0.16 |
+| pro | normal | 17.0 | 5.4 | 0.42 | 0.14 |
 | fantasy | high | 14.0 | 10.3 | 0.72 | 0.33 |
-| pro | high | 17.0 | 11.7 | 1.07 | 0.37 |
+| pro | high | 17.0 | 11.7 | 0.96 | 0.45 |
 
 **The rate cannot differ between the modes, and does not.** Injury risk is
 `BASE_PER_PLAY` per snap, so a game is a game whichever league it is played in,
@@ -1678,7 +1678,7 @@ and any figure quoted per club-week is blind to season length by construction �
 which is why the first attempt at this measured per club-week, found the two
 modes identical, and had measured something that could not have come out any
 other way. Per season the seventeen-game schedule shows up exactly as
-arithmetic predicts: starter-weeks lost run 1.20, 1.15 and 1.14 times the
+arithmetic predicts: starter-weeks lost run 1.20, 1.13 and 1.14 times the
 fantasy figure against an exposure ratio of 17/14 = 1.21. That agreement is
 itself the evidence the per-game rates match.
 
@@ -1689,7 +1689,7 @@ very much further down:
 | mode | clubs | QB1 | QB2 | backup gap | sd |
 |---|---|---|---|---|---|
 | fantasy | 64 | 93.9 | 90.7 | 3.3 | 1.4 |
-| pro | 256 | 90.0 | 84.3 | **5.8** | **3.8** |
+| pro | 256 | 90.0 | 84.3 | **5.7** | **3.7** |
 
 Both ends are diluted and the backup end far more. The spread matters as much
 as the mean: at sd 1.4 a fantasy club is near-certain to be well covered at
@@ -1705,7 +1705,16 @@ because more of them happen — the opposite emphasis to the guess this replaces
 under-sampled at the shipped sample size: fantasy reads 0.10 over 10 seasons
 and 0.17 over 40, which is 8 events against 54, so pro-against-fantasy on that
 column is not a safe comparison. Starter-weeks lost is the high-count figure
-and the one to read. And what the backup gap is worth in wins is **not
+and the one to read.
+
+How thin those columns are was then demonstrated by accident. Correcting one
+quarterback's ratings — George Blanda, two attributes, see above — changed
+where quarterbacks fall in 32 clubs' drafts, and the pro rows moved with it:
+starter-weeks by 0.1, but QB1-misses from 0.53 to 0.42 and season-enders from
+0.16 to 0.14. Those are not perturbations of the same sample, they are a fresh
+sample, because a different draft produces different rosters and therefore
+entirely different injury draws. The high-count column barely noticed. That is
+the whole argument for reading it and not its neighbours. And what the backup gap is worth in wins is **not
 measured**: the only conversion to hand is a single fantasy roster where a
 3.2-point drop at quarterback cost 12.1 points of win rate, and carrying that
 to 5.8 points across a different league size would be inventing a number.
