@@ -78,6 +78,37 @@ export function secondsLeft(g) {
 }
 
 /** Home side's chance of winning from the current state, 0..1. */
+/**
+ * How far win probability must move for a play to be called a turning point,
+ * and the fainter bar a game that never really turned falls back to.
+ *
+ * These live here rather than beside the screen that prints them because
+ * `thinLog` needs the same numbers. A finished season's routine plays are
+ * dropped to save a save from the browser's quota, and the filter that decided
+ * what to drop went by play TYPE — scores, turnovers, flags. Leverage is not a
+ * type. A twenty-two-yard completion is routine in the first quarter and the
+ * whole game with forty seconds left, and measured over sixty games the archive
+ * named different turning points than the live game in half of them, once
+ * missing a swing of 98 points: a fifty-yard field goal missed wide right, which
+ * is neither a score nor a turnover and so was thrown away.
+ *
+ * Sharing the constants is what makes that structural rather than lucky. The
+ * archive keeps every play the story could cite, so it cannot report one thing
+ * during the season and another afterwards.
+ */
+export const TURNING_POINT = 0.05;
+
+/**
+ * The fallback bar, for a game with no swing big enough to clear the one above.
+ *
+ * It was 0.02 and is 0.03 so that `thinLog` can use it as its floor without
+ * paying for the last band: over 300 games the faint branch fires in 40 and
+ * exactly one of those cited a swing between 0.02 and 0.03. That game now says
+ * nothing, which is the truthful answer about a game whose largest swing was
+ * two and a half points.
+ */
+export const FAINT_TURN = 0.03;
+
 export function winProbability(g) {
   if (g.final) return g.score[0] > g.score[1] ? 1 : g.score[0] < g.score[1] ? 0 : 0.5;
   const diff = g.score[0] - g.score[1];

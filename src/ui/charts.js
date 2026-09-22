@@ -2,6 +2,7 @@
 // viewBox, so a chart is as wide as its card on a phone and on a desktop.
 import { esc } from '../util.js';
 import { fmtClock, fmtQuarter } from '../engine/stats.js';
+import { TURNING_POINT, FAINT_TURN } from '../engine/winprob.js';
 
 const clampPct = (p) => Math.max(0, Math.min(1, p));
 
@@ -134,8 +135,11 @@ export function gameStory(box, byId) {
   }
   swings.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
   // The plays that mattered: up to three big swings, or the single biggest in a game that never turned.
-  let top = swings.slice(0, 3).filter((s) => Math.abs(s.delta) >= 0.05);
-  if (!top.length && swings.length && Math.abs(swings[0].delta) >= 0.02) top = swings.slice(0, 1);
+  // The same two numbers `thinLog` keeps its plays by, imported rather than
+  // repeated: if these drifted apart the archive would quietly stop containing
+  // the plays this line wants to name.
+  let top = swings.slice(0, 3).filter((s) => Math.abs(s.delta) >= TURNING_POINT);
+  if (!top.length && swings.length && Math.abs(swings[0].delta) >= FAINT_TURN) top = swings.slice(0, 1);
   if (top.length) {
     out.push(`${top.length > 1 ? 'Turning points' : 'Turning point'}: ${top.map((s) => {
       const gain = s.delta > 0 ? home : away;

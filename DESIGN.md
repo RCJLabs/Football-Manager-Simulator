@@ -1383,6 +1383,65 @@ everything is a defensible way to write a pool. It is recorded because two
 sessions of weight-fitting would have been read very differently with this table
 next to them.
 
+### The archive told a different story than the game did
+
+The box score already names a game's turning points: `gameStory` takes the three
+plays that moved win probability most and prints them with the swing. That has
+been there since the win-probability work. What nobody checked is whether it
+still tells the truth once a season is over.
+
+It did not. `thinCompletedLogs` drops a finished season's routine plays to keep
+a save under the browser's quota, and what survived was chosen by
+`tellsTheStory` — scoring, flags, drives, interceptions, fumbles, injuries.
+**Leverage is not a play type.** A twenty-two-yard completion is routine in the
+first quarter and the whole game with forty seconds left, and the filter cannot
+tell them apart.
+
+Measured over sixty games, the archive named different turning points than the
+live game in **31 of them**. Six understated the decisive play by more than
+three points of win probability and the worst by 78. The single largest swing
+thrown away across the sample:
+
+    -0.98   a. K1 50-yard field goal is NO GOOD (wide right).
+
+Ninety-eight points of win probability — the kick that lost the game — gone,
+because a missed field goal is neither a score nor a turnover. By type, the big
+swings being dropped were 39 passes, 11 runs, 10 sacks, 7 incompletions (one a
+turnover on downs), 4 punts and 3 kicks. It was never mostly about kicks.
+
+**The fix is to keep a play the story could cite, and to make that structural.**
+`TURNING_POINT` (0.05) and `FAINT_TURN` (0.03) now live in `winprob.js`, and
+both `thinLog` and `gameStory` read them. The archive keeps everything at or
+above the lower bar, so it cannot drop a play the line wants to name — not
+because the thresholds were fitted to agree, but because they are the same two
+numbers.
+
+**What it costs, and the cheaper shape that was taken.** A big-swing play does
+not need its whole entry preserved, only what the line reads — quarter, clock,
+text, situation, win probability. Over 120 games:
+
+| what is kept | size | top three right |
+|---|---|---|
+| the old thinning | 1,371 KB | 49 / 120 |
+| every swing ≥ 0.05, whole entry | 1,604 KB | 110 / 120 |
+| every swing ≥ 0.03, whole entry | 1,885 KB (+37%) | **120 / 120** |
+| every swing ≥ 0.03, five fields | **1,599 KB (+17%)** | **120 / 120** |
+
+The last row ships. Seventeen per cent on a thinned log against an archive that
+stops contradicting the game.
+
+**Why 0.03 and not 0.02.** The fallback bar was 0.02, and thinning at 0.02 costs
+43% of the full log against 37%. Over 300 games the faint branch fires in 40 and
+exactly one of those cited a swing between 0.02 and 0.03 — so the bar moved up
+rather than the archive down, and that one game now says nothing about where it
+turned. Which is the honest answer about a game whose largest swing was two and
+a half points of win probability.
+
+**This was found by proposing to build it.** The feature was on a list of five
+ideas as "cheapest, do first"; the check that it did not already exist found
+that it did, and the check that it worked where it mattered — in seasons already
+filed away — found that it did not.
+
 ### The pro keeper round had no cover in a browser
 
 The smoke test drives pro mode as far as its setup screen and no further: the

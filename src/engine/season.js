@@ -25,6 +25,7 @@ import { chemistryBonuses } from './chemistry.js';
 import { jobsOn, initJobs } from './jobs.js';
 import { leagueIndex } from './rookies.js';
 import { careerIndex } from './careers.js';
+import { FAINT_TURN } from './winprob.js';
 import { DEFAULT_DIFFICULTY } from './difficulty.js';
 import { capOn, cutToCap, rookieSalary, draftSize, MIN_SALARY, ROOKIE_YEARS, VET_YEARS } from './cap.js';
 import { strategyRead } from './strategy.js';
@@ -781,8 +782,19 @@ const tellsTheStory = (e) => !!(e.scoring || e.flag
 export function thinLog(log) {
   if (!Array.isArray(log)) return log;
   const out = [];
+  let prev = null;
   for (const e of log) {
+    const swung = typeof e.wp === 'number' && prev != null && Math.abs(e.wp - prev) >= FAINT_TURN;
+    if (typeof e.wp === 'number') prev = e.wp;
     if (tellsTheStory(e)) out.push(e);
+    // A play that moved the game keeps what the turning-point line reads and
+    // nothing else. `tellsTheStory` goes by type, and leverage is not a type —
+    // measured over sixty games the archive named different turning points than
+    // the live game in half of them, the worst being a 98-point swing on a
+    // fifty-yard field goal missed wide right, which is neither a score nor a
+    // turnover. Keeping the whole entry would cost 37% more than the old
+    // thinning; keeping these five fields costs 17% and is just as faithful.
+    else if (swung) out.push({ q: e.q, clock: e.clock, wp: e.wp, text: e.text, situation: e.situation });
     else if (typeof e.wp === 'number') out.push({ q: e.q, wp: e.wp });
   }
   return out;
