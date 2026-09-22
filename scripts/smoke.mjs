@@ -1166,6 +1166,51 @@ try {
       await checkOverflow('pro keeper round with a man tagged');
       await shot('15-pro-keepers');
     }
+
+    // A career line in the player modal, which reads `league.careers` — a table
+    // that has been filled in since awards shipped and that nothing but Hall of
+    // Fame membership ever read. Faked here rather than played for, because
+    // twelve seasons of a 32-club league is not a smoke test.
+    {
+      await page.evaluate(() => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        const key = 'gridiron-eras:slot:' + reg.active;
+        const st = JSON.parse(localStorage.getItem(key));
+        const u = st.league.teams.findIndex((t) => t.isUser);
+        const id = Object.values(st.league.teams[u].slots).find(Boolean);
+        st.league.careers = { [id]: { seasons: 12, games: 174, pts: 4200, passYds: 58211, passTd: 402,
+          rushYds: 1100, rushTd: 12, recYds: 0, recTd: 0, sacks: 0, interceptions: 0, tackles: 0,
+          fieldGoals: 0, mvp: 2, opoy: 0, dpoy: 0, allLeague: 5, leader: 3, titles: 1, teams: [u], last: 12 } };
+        localStorage.setItem(key, JSON.stringify(st));
+        window.__careerId = id;
+      });
+      const { u, id } = await page.evaluate(() => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        const st = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active));
+        const i = st.league.teams.findIndex((t) => t.isUser);
+        return { u: i, id: Object.values(st.league.teams[i].slots).find(Boolean) };
+      });
+      // His own club, not club zero: the career was written onto the user's man
+      // and the user is not always the first seat.
+      await page.goto(`http://localhost:${port}/#/team/${u}`);
+      await page.reload();
+      await sleep(600);
+      const opened = await page.$(`[data-show="${id}"]`);
+      if (!opened) errors.push('could not open a player to look at his career');
+      else {
+        await opened.click();
+        await sleep(300);
+        const txt = await page.evaluate(() => document.body.innerText);
+        if (!/12 seasons, 174 games/.test(txt)) errors.push('the player modal shows no career line for a twelve-season man');
+        if (!/58,211 pass yds/.test(txt)) errors.push('the career line does not carry his passing yards');
+        if (!/2. MVP/.test(txt)) errors.push('the career line does not carry his honours');
+        if (!/Hall of Fame/.test(txt)) errors.push('a two-time MVP with a title is not shown as a Hall of Famer');
+        await checkOverflow('player modal with a career');
+        await shot('16-career');
+        const close = await page.$('[data-close]');
+        if (close) await close.click();
+      }
+    }
   }
 
   // Tablet and desktop widths must stay clean too.

@@ -5,6 +5,7 @@ import { getState, update } from '../store.js';
 import { setOverride } from '../data/tuning.js';
 import { POSITIONS, eraOf, edgeness, ratedAsEdge } from '../data/positions.js';
 import { careerPhase } from '../engine/careers.js';
+import { hallScore, HOF_THRESHOLD, HOF_MIN_SEASONS } from '../engine/awards.js';
 import { scoutReport, coarseAttrs, scoutLabel, shownOverall, readyLabel } from '../engine/scouting.js';
 
 export function ovrClass(o) {
@@ -246,6 +247,56 @@ function scoutPaceLine(p) {
   return html`<p class="muted" style="margin:.2rem 0 0">Your scouts have him ${when}${sure ? ' and are fairly sure of it' : ''} — the range is how little anyone knows, not how good he is.</p>`;
 }
 
+/**
+ * What a man has actually done, out of `league.careers`.
+ *
+ * That table has been filled in since awards shipped — seasons, games, yards,
+ * touchdowns, sacks, interceptions, honours, titles, the clubs he played for —
+ * and until now the only thing that ever read it was Hall of Fame membership.
+ * Twelve seasons into a dynasty you could not look at your own quarterback and
+ * see what he had done for you. Nothing is stored for this; it was all already
+ * there.
+ *
+ * Read from the store rather than threaded through `playerModal`'s ten call
+ * sites, the same way the rating editor and the scouting view already are.
+ */
+const CAREER_LINES = {
+  QB: (c) => [c.passYds && `${c.passYds.toLocaleString()} pass yds`, c.passTd && `${c.passTd} TD`, c.rushYds > 200 && `${c.rushYds.toLocaleString()} rush yds`],
+  RB: (c) => [c.rushYds && `${c.rushYds.toLocaleString()} rush yds`, c.rushTd && `${c.rushTd} TD`, c.recYds > 200 && `${c.recYds.toLocaleString()} rec yds`],
+  WR: (c) => [c.recYds && `${c.recYds.toLocaleString()} rec yds`, c.recTd && `${c.recTd} TD`],
+  TE: (c) => [c.recYds && `${c.recYds.toLocaleString()} rec yds`, c.recTd && `${c.recTd} TD`],
+  OL: (c) => [],
+  DL: (c) => [c.sacks && `${c.sacks} sacks`, c.tackles && `${c.tackles} tackles`],
+  LB: (c) => [c.sacks && `${c.sacks} sacks`, c.tackles && `${c.tackles} tackles`, c.interceptions && `${c.interceptions} INT`],
+  CB: (c) => [c.interceptions && `${c.interceptions} INT`, c.tackles && `${c.tackles} tackles`],
+  S: (c) => [c.interceptions && `${c.interceptions} INT`, c.tackles && `${c.tackles} tackles`],
+  K: (c) => [c.fieldGoals && `${c.fieldGoals} field goals`],
+  P: (c) => [],
+};
+
+export function careerBlock(p) {
+  const lg = getState().league;
+  const c = lg?.careers?.[p.id];
+  if (!c || !c.seasons) return '';
+  const stats = (CAREER_LINES[p.pos] || (() => []))(c).filter(Boolean);
+  const honours = [
+    c.mvp && `${c.mvp}\u00d7 MVP`,
+    c.opoy && `${c.opoy}\u00d7 Offensive Player of the Year`,
+    c.dpoy && `${c.dpoy}\u00d7 Defensive Player of the Year`,
+    c.allLeague && `${c.allLeague}\u00d7 All-League`,
+    c.leader && `led the league ${c.leader}\u00d7`,
+    c.titles && `${c.titles} title${c.titles === 1 ? '' : 's'}`,
+  ].filter(Boolean);
+  const clubs = (c.teams || []).map((i) => lg.teams?.[i]?.abbr).filter(Boolean);
+  const hof = c.seasons >= HOF_MIN_SEASONS && hallScore(c) >= HOF_THRESHOLD;
+  return `<div class="card tight" style="margin:.6rem 0 0">
+    <h3>Career <small class="muted" style="text-transform:none;letter-spacing:0">\u00b7 ${c.seasons} season${c.seasons === 1 ? '' : 's'}, ${c.games} game${c.games === 1 ? '' : 's'}${clubs.length > 1 ? ` \u00b7 ${clubs.join(', ')}` : ''}</small></h3>
+    ${stats.length ? `<p style="margin:.2rem 0 0;font-size:.92rem">${esc(stats.join(' \u00b7 '))}</p>` : ''}
+    ${honours.length ? `<p style="margin:.2rem 0 0;font-size:.92rem"><b>${esc(honours.join(' \u00b7 '))}</b></p>` : ''}
+    ${hof ? '<p class="muted" style="margin:.2rem 0 0;font-size:.85rem">In the Hall of Fame.</p>' : ''}
+  </div>`;
+}
+
 export function playerModal(p, extra = '') {
   const def = POSITIONS[p.pos];
   const editing = !!getState().prefs?.ratingEditor;
@@ -258,6 +309,7 @@ export function playerModal(p, extra = '') {
     ${p.knocks ? html`<p class="muted" style="margin:.2rem 0 0">Came back from ${p.knocks === 1 ? 'a season-ending injury' : `${p.knocks} season-ending injuries`} — a step slower, and ${p.knocks === 1 ? 'a year' : `${p.knocks} years`} off the end of his career.</p>` : ''}
     ${roleLine(p)}
     ${scoutPaceLine(p)}
+    ${raw(careerBlock(p))}
     ${raw(rows)}
     ${editing ? html`<small class="muted">Rating editor is on (settings). Edits apply everywhere at once and export as a diff.</small>` : ''}
     ${raw(extra)}

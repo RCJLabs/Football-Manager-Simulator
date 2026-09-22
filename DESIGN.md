@@ -1383,6 +1383,41 @@ everything is a defensible way to write a pool. It is recorded because two
 sessions of weight-fitting would have been read very differently with this table
 next to them.
 
+### The career table nobody could read
+
+`league.careers` has been filled in since awards shipped. Every season
+`updateCareers` adds a man's games, his passing, rushing and receiving yards and
+touchdowns, his sacks, interceptions, tackles and field goals, and bumps a
+counter for every MVP, Offensive and Defensive Player of the Year, All-League
+selection, league lead and title. It records the clubs he has played for and the
+last season he appeared in. `packCareers` strips the zeroes at the localStorage
+boundary, taking 258 KB down to 94 KB for a pro league's 864 men.
+
+**The only thing that ever read it was Hall of Fame membership.** Twelve seasons
+into a dynasty you could not open your own quarterback and see what he had done
+for you. The data was there, stored, compressed and unpacked on every load, and
+it reached the screen as a single yes-or-no about the hall.
+
+`careerBlock` puts it in the player modal: seasons and games, the clubs if he has
+played for more than one, a stat line chosen for his position, his honours, and
+whether he is in the hall. It is read from the store rather than threaded
+through `playerModal`'s ten call sites, the same way the rating editor and the
+scouting view already are. **Nothing new is stored.** This is a display, not a
+feature — the feature shipped years of commits ago and was invisible.
+
+The stat line is per position because a career line that reads "0 sacks, 0
+tackles, 0 field goals" for a quarterback is worse than none. A lineman and a
+punter get seasons, games and honours only, which is what this simulation
+actually records about them.
+
+**How this was found is the uncomfortable part.** It was proposed as new work —
+"career statistics that accumulate", ranked for the meaning it would give a long
+save, with a caution about save size. The save-size problem had been solved
+already by `packCareers`, and the accumulation had been running the whole time.
+The grep that convinced me otherwise looked for `careerTotals`, `lifetime` and
+`totals` and never for `careers`. That is two proposals out of three — this and
+the turning points below — that were already built.
+
 ### "Expected to miss 3 weeks" was not an expectation
 
 The line under every injury has always read *"Expected to miss 3 weeks"*. What
