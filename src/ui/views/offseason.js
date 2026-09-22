@@ -131,7 +131,7 @@ export function view(root, params, ctx) {
       <div class="card tight">
         <h3>Your keepers <small class="muted" style="text-transform:none;letter-spacing:0">· ${picked.length} of ${limit}</small></h3>
         ${auction ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">A keeper is worth having when he costs less than the room would pay to buy him back. Green saves you money; red is an overpay you should let the auction settle.</p>` : ''}
-        ${capped ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">Men still under contract cost what they are being paid. A deal that has run out is marked, and re-signing him costs what he is now worth — which is where a cap actually hurts.</p>` : ''}
+        ${capped ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">Men still under contract cost what they are being paid. A deal that has run out is marked, and re-signing him now costs what he is worth plus a little over — that little is what certainty costs, because letting him reach free agency means bidding at his plain asking price against everybody else. Worth the gamble for a squad player; a man the league wants is taken about half the time.</p>` : ''}
         ${raw(groups.map((g) => `<div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;margin:.5rem 0 .2rem">${g.pos}</div><ul class="plist">${g.rows.map(rowFor).join('')}</ul>`).join(''))}
       </div>
       <div class="stack">

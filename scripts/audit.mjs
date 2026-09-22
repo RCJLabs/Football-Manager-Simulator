@@ -152,6 +152,17 @@ const CHECKS = [
     why: "the high-count figure in the pro injury table, and the one that shows the 17-game season costing 1.15x the 14-game one. NOT the season-enders column beside it, which reads 0.10 over ten fantasy seasons and 0.17 over forty and is too thin at this sample to compare across modes",
   },
   {
+    name: 'the re-sign premium still un-dominates the keeper round',
+    cost: 'free',
+    from: async () => {
+      const { RESIGN_PREMIUM, BIRD_IN_HAND } = await import('../src/engine/offseason.js');
+      return RESIGN_PREMIUM > 1 && RESIGN_PREMIUM < BIRD_IN_HAND ? RESIGN_PREMIUM : `out of range against BIRD_IN_HAND ${BIRD_IN_HAND}`;
+    },
+    doc: /\| ([\d.]+) \(shipped\) \|/,
+    expect: 1.04, tol: 0,
+    why: 'at 1 the keeper round is arithmetic again — re-signing and declining cost the same and only declining risks the player. At or above BIRD_IN_HAND every AI surplus goes negative and every roster empties into free agency. The window between them is the whole feature',
+  },
+  {
     name: 'what five seasons past signing costs',
     cost: 'slow',
     script: 'career-sim', extract: /\+5 seasons: (-?[\d.]+) overall/,

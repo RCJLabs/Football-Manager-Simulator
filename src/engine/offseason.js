@@ -32,13 +32,55 @@ export const KEEPER_RAISE_PCT = 0.15;
 /** How far over market an AI club will go to keep a player rather than bid for him again. */
 export const BIRD_IN_HAND = 1.15;
 
+/**
+ * What certainty costs: the premium on re-signing a man whose deal is up,
+ * before the market has seen him.
+ *
+ * The keeper round used to hold no decision at all, and the reason is worth
+ * stating exactly, because two likelier-sounding accounts of it are both wrong.
+ * It was NOT that a club could never lose a player — men declined here go into
+ * free agency and are bid for. It was NOT that clubs kept everyone they could
+ * afford — the AI's surplus test already let 64% of expiring men go. It was
+ * that re-signing and declining cost the SAME (`marketSalary` either way) while
+ * only declining carried risk, so declining was strictly dominated. A choice
+ * where one option is worse in every respect is not a choice.
+ *
+ * Pricing the exclusive window fixes that: re-sign him here at this premium, or
+ * decline and try to win him back at plain market with four rounds of sealed
+ * bids in the way. Measured over 32 clubs and four seasons:
+ *
+ *   premium   declined   continuity   stars declined / re-signed   star to a rival
+ *   1.00        64.0%      84.1%            80 / 85                     49%
+ *   1.04        73.1%      80.8%           104 / 73                     49%
+ *   1.08        79.4%      81.1%           104 / 68                     48%
+ *
+ * It is a switch rather than a dial. Everything happens between 1.00 and 1.04;
+ * 1.08 buys no further change in how stars are treated and only sheds more of
+ * the players whose fate nobody notices. So the value is the smallest one that
+ * un-dominates the choice.
+ *
+ * Where the gamble is real: declining a 90+ player means a 48-49% chance a
+ * rival takes him and only ~11% that nobody wants him. Below 85 it inverts —
+ * 87% go unsigned, 7% to a rival — which is attrition rather than a market, and
+ * is what it should be. There are 864 roster places for a pool well past 1,500.
+ *
+ * It MUST sit below `BIRD_IN_HAND`. The AI values keeping a man at market times
+ * 1.15 and weighs that against this cost, so a premium at or above 1.15 makes
+ * every surplus negative and empties every roster into the market.
+ *
+ * `Math.ceil` floors the premium at a dollar, so a cheap man pays proportionally
+ * more than a dear one. Left alone deliberately: the decision is only ever real
+ * for players the market wants, and those are the ones the percentage reaches.
+ */
+export const RESIGN_PREMIUM = 1.04;
+
 /** What keeping a player costs next season. */
 export function keeperCost(contract, player = null, league = null) {
   // Under a cap, a man still under contract costs what he is being paid, and a
   // man whose deal is up costs what he is worth. That second half is the whole
   // squeeze: a cheap rookie deal runs out and the bill arrives at market rate.
   if (league && capOn(league)) {
-    if (contract?.expiring) return marketSalary(player);
+    if (contract?.expiring) return Math.ceil(marketSalary(player) * RESIGN_PREMIUM);
     return contract?.salary ?? MIN_SALARY;
   }
   const salary = contract?.salary ?? MIN_BID;

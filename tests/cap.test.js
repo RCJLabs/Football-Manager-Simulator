@@ -5,7 +5,7 @@ import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, registerPlayers, simulateWeekAi, advanceWeek, userTeamIndex, migrateLeague, LEAGUE_VERSION } from '../src/engine/season.js';
 import { autoDraftAll } from '../src/engine/draft.js';
-import { enterOffseason, confirmKeepers, aiKeepers, takeJob, keeperCost, closeFreeAgency } from '../src/engine/offseason.js';
+import { enterOffseason, confirmKeepers, aiKeepers, takeJob, keeperCost, closeFreeAgency, RESIGN_PREMIUM } from '../src/engine/offseason.js';
 import {
   capOn, capHit, capSpace, overCap, rookieSalary, marketSalary, expireContracts,
   deadCharge, bookDead, deadHit, tickDead, cutToCap,
@@ -60,9 +60,13 @@ test('an expiring contract keeps the player and raises his price', () => {
   assert.ok(ROSTER_SLOTS.some((s) => lg.teams[t].slots[s.id] === id), 'an expiring player was released');
   assert.ok(marked.some((x) => x.id === id), 'his deal was not marked up');
   assert.equal(lg.contracts[id].expiring, true);
-  // And he now costs what he is worth rather than what he was paid.
+  // And he now costs what he is worth rather than what he was paid — plus the
+  // premium on the exclusive window, without which re-signing and declining
+  // cost the same and only declining carried risk, so declining was dominated.
   const cost = keeperCost(lg.contracts[id], byId.get(id), lg);
-  assert.equal(cost, marketSalary(byId.get(id)));
+  const market = marketSalary(byId.get(id));
+  assert.equal(cost, Math.ceil(market * RESIGN_PREMIUM));
+  assert.ok(cost > market, 'the exclusive window has to cost something or it is not a choice');
   const stillUnder = ROSTER_SLOTS.map((s) => lg.teams[t].slots[s.id]).find((x) => x && !lg.contracts[x]?.expiring);
   if (stillUnder) assert.equal(keeperCost(lg.contracts[stillUnder], byId.get(stillUnder), lg), lg.contracts[stillUnder].salary);
   void wasSalary;

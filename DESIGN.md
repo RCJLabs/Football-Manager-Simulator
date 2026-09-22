@@ -1643,11 +1643,67 @@ setting under a cap, and letting the pro branch leak into fantasy. The smoke
 test checks the control is genuinely not on screen in pro mode and that the
 explanation is, rather than trusting a `hidden` attribute.
 
+### The pro keeper round had no decision in it
+
+Re-signing a man whose deal was up cost `marketSalary`. Declining him and
+buying him back in free agency cost `marketSalary` too — his asking price is
+the same number — except that four rounds of sealed bids stood in the way. Same
+price, strictly more risk: **declining was dominated**, so the keeper round was
+arithmetic, not a choice.
+
+Two likelier-sounding accounts of this are both wrong, and both were written
+down here before being measured. It was NOT that a club could never lose a
+player: men declined at the keeper round go into free agency and get bid for.
+It was NOT that clubs kept everyone they could afford: the AI's surplus test
+already let **64%** of expiring men go. The defect was narrower and duller than
+either, and only the third guess survived contact with a measurement.
+
+`RESIGN_PREMIUM` prices the exclusive window, so the two options differ. Over
+32 clubs and four seasons (`scripts/resign-sim.mjs`):
+
+| premium | declined to market | continuity | stars declined / re-signed | star lost to a rival |
+|---|---|---|---|---|
+| 1.00 (before) | 64.0% | 84.1% | 80 / 85 | 49% |
+| 1.04 (shipped) | 73.1% | 80.8% | 104 / 73 | 49% |
+| 1.08 | 79.4% | 81.1% | 104 / 68 | 48% |
+
+**It is a switch, not a dial.** Everything happens between 1.00 and 1.04; going
+on to 1.08 leaves star behaviour identical and only sheds more of the players
+nobody was going to miss. So the value is the smallest one that un-dominates
+the choice, and tuning it for drama is not available.
+
+**The gamble is real exactly where it should be.** Declining a 90+ player means
+a 48–49% chance a rival takes him and about 11% that nobody wants him. Below 85
+it inverts: 87% go unsigned against 7% to a rival, which is attrition rather
+than a market — and correctly so, since there are 864 roster places for a pool
+well past 1,500. A decision that mattered for squad players would be a decision
+about nothing.
+
+Note what the premium does NOT move: the rate at which a declined star is taken
+is 49 / 49 / 48 across all three settings. That is a property of the
+free-agency market, not of this constant. The premium decides who reaches the
+market; the market decides what happens to him.
+
+It must stay below `BIRD_IN_HAND` (1.15), which is what an AI club thinks
+certainty is worth. At or above it every surplus goes negative and every roster
+empties into free agency.
+
+`Math.ceil` floors the premium at a dollar, so a cheap man pays proportionally
+more than a dear one. Left as it is on purpose: the choice is only ever live
+for players the market wants, and those are the ones the percentage reaches.
+
+**A caution about the first version of the measurement.** It inferred "declined"
+from the player not being on the club afterwards, which made "declined and not
+got back" come out at exactly 100% — true by construction rather than by
+measurement, and the same trap as a test asserting what a clamp guarantees. The
+keeper round and the market have to be observed separately, which means
+stopping at `offseason` rather than running through to `nextSeason`.
+
 ## Dynasty loop (`offseason.js`)
 
 A season ends at the final; the offseason starts from the hub. Every rostered player carries a contract from the moment a season starts: the price he went for at auction (or the round he was drafted in), how many seasons running he has been kept, and when it started. A player claimed off the wire is on a $1 deal. Contracts are keyed by player, so a trade moves the deal with the man.
 
-**Keepers.** A fantasy club keeps up to `settings.keepers` players (6 by default, changeable at setup or in settings, 0 for a full re-auction every year). A pro club has no quota at all — the cap and the length of a deal decide, and `keeperLimit` returns the whole roster under a cap; see *The pro league offered a keeper quota it has never used* above. An auction keeper costs last year's price plus the greater of $3 or 15%, compounding each year; a player can be kept three seasons running and then must return to the pool. Keepers plus a dollar for every open slot must fit under the $200 cap. In a draft league keepers simply hold their slots. Everyone not kept returns to the pool with the players nobody rostered.
+**Keepers.** A fantasy club keeps up to `settings.keepers` players (6 by default, changeable at setup or in settings, 0 for a full re-auction every year). A pro club has no quota at all — the cap and the length of a deal decide, and `keeperLimit` returns the whole roster under a cap; see *The pro league offered a keeper quota it has never used* above. An auction keeper costs last year's price plus the greater of $3 or 15%, compounding each year; a pro re-signing costs market plus `RESIGN_PREMIUM`, for the reason in *The pro keeper round had no decision in it* above; a player can be kept three seasons running and then must return to the pool. Keepers plus a dollar for every open slot must fit under the $200 cap. In a draft league keepers simply hold their slots. Everyone not kept returns to the pool with the players nobody rostered.
 
 **The market.** The auction reopens with each club's leftover cap and the worst club nominating first; the price guide re-prices the thinner pool and the smaller pot on its own. A draft league drafts worst to first, and the pointer skips clubs whose rosters are already full, so a fantasy club that set its quota to 18 and filled it sits out the last nine rounds. Whether the order turns round on itself each round depends on what is being drafted — see the two-pools section. Either way the existing auction and draft screens run the market, and the season starts from their finish button. The hub's history card keeps every season's champion and your own finish.
 
