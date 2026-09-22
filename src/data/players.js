@@ -78,7 +78,7 @@ export const RAW = {
     ['Terry Bradshaw', 1978, 'PIT', 96, 84, 86, 72],
     ['Carson Palmer', 2015, 'ARI', 85, 83, 81, 55],
     ['Eddie LeBaron', 1958, 'WAS', 74, 82, 84, 70],
-    ['George Blanda', 1961, 'HOU', 89, 83, 87, 44],
+    ['George Blanda', 1961, 'HOU', 89, 85, 92, 44],
     ['Daryle Lamonica', 1967, 'OAK', 95, 82, 84, 58],
     ['Archie Manning', 1978, 'NO', 84, 80, 78, 80],
     ['Phil Simms', 1986, 'NYG', 85, 81, 81, 57],

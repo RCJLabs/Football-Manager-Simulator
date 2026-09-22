@@ -6,6 +6,9 @@ import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 const require = createRequire(import.meta.url);
+// Resolved from this file, never written down: a copy of this script running in
+// another checkout must smoke-test THAT tree's engine, not this one's.
+const R = new URL('..', import.meta.url).href.replace(/\/$/, '');
 const { chromium } = require('playwright');
 
 const port = 8123;
@@ -1087,6 +1090,83 @@ try {
   if (!warned) errors.push('a browser that refuses saves did not warn the player');
   await checkOverflow('save warning at 360px');
   await shot('14-savewarn');
+
+  // --- the pro keeper round, which nothing else here reaches --------------
+  //
+  // Everything above plays a FANTASY league. Pro mode is checked only as far as
+  // its setup screen, so the keeper round's tag control — the price on the
+  // button, the one-a-club rule, what clicking it does to the list — had no
+  // cover at all in a browser.
+  //
+  // The league is built here in Node and injected rather than played in the
+  // page. Driving 32 clubs through eighteen weeks of a pro season would be by
+  // far the longest thing in this file, and it would be testing the season
+  // loop, which `playthrough.mjs` already runs headlessly over whole dynasties.
+  // What is uncovered is the SCREEN, so the screen is what this sets up for.
+  {
+    const { PLAYERS, PLAYERS_BY_ID } = await import(`${R}/src/data/db.js`);
+    const { RNG } = await import(`${R}/src/engine/rng.js`);
+    const { createLeague, startSeason, registerPlayers } = await import(`${R}/src/engine/season.js`);
+    const { autoDraftAll } = await import(`${R}/src/engine/draft.js`);
+    const { enterOffseason } = await import(`${R}/src/engine/offseason.js`);
+    const { leaguePool, leagueIndex } = await import(`${R}/src/engine/rookies.js`);
+    const { careerIndex } = await import(`${R}/src/engine/careers.js`);
+    registerPlayers(PLAYERS_BY_ID);
+    const lg = createLeague({ name: 'Smoke Pro', mode: 'pro', numTeams: 32, franchise: 3, seed: 7, draftType: 'snake', user: { name: 'Me', abbr: 'ME', color: '#fff' } });
+    autoDraftAll(lg, lg.draft, PLAYERS, new RNG(7));
+    startSeason(lg, PLAYERS_BY_ID);
+    // The season itself is not what is being tested, and `enterOffseason` only
+    // asks that one be finished. Contracts still run down and men still come
+    // out of term, which is what the screen needs. The index carries ages
+    // because that is what `main.js` hands the real one — without them the AI
+    // never tags, and the injected league would not be the app's league.
+    lg.phase = 'complete';
+    enterOffseason(lg, leaguePool(lg, PLAYERS), careerIndex(lg, leagueIndex(lg, PLAYERS_BY_ID)));
+
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto(`http://localhost:${port}/`);
+    await sleep(600); // let the debounced save flush, or it writes over ours
+    await page.evaluate((league) => {
+      const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+      // Adopt a slot the app already made. Inventing a registry entry does not
+      // work: the app rewrites one it does not recognise and lands back on the
+      // new-league screen with the save sitting there unopened.
+      const slot = reg.slots.find((x) => x.id === reg.active) || reg.slots[0];
+      reg.active = slot.id;
+      slot.name = league.name;
+      slot.updated = Date.now();
+      slot.summary = { phase: league.phase, season: league.season, team: 'ME', teams: league.teams.length, record: '' };
+      localStorage.setItem('gridiron-eras:slots:v1', JSON.stringify(reg));
+      localStorage.setItem('gridiron-eras:slot:' + slot.id, JSON.stringify({ league, savedAt: Date.now() }));
+    }, JSON.parse(JSON.stringify(lg)));
+    // A goto that only changes the hash does not reload, so without this the
+    // app never re-reads the slot just written under it.
+    await page.goto(`http://localhost:${port}/#/offseason`);
+    await page.reload();
+    await sleep(600);
+
+    const tagBtns = await page.$$('[data-tag]');
+    if (!tagBtns.length) errors.push('the pro keeper round offers no tag on any expiring man');
+    else {
+      const label = await tagBtns[0].innerText();
+      if (!/^Tag \$\d+$/.test(label.trim())) errors.push(`the tag button reads "${label.trim()}" rather than a price`);
+      const who = await tagBtns[0].getAttribute('data-tag');
+      await tagBtns[0].click();
+      await sleep(250);
+      const after = await page.evaluate((id) => {
+        const b = document.querySelector(`[data-tag="${id}"]`);
+        const keep = document.querySelector(`[data-keep="${id}"]`);
+        return { label: b && b.innerText.trim(), keeping: keep && keep.innerText.trim(), others: document.querySelectorAll('[data-tag]').length };
+      }, who);
+      if (after.label !== 'Tagged') errors.push(`tagging a man left his button reading "${after.label}"`);
+      // A tagged man has to be kept, or confirming throws on his own list.
+      if (after.keeping !== 'Keeping') errors.push(`tagging did not pick the man up: his keep button reads "${after.keeping}"`);
+      // One a club: every other expiring man's tag button goes away.
+      if (after.others !== 1) errors.push(`${after.others} men still offer a tag after one was used; a club gets one`);
+      await checkOverflow('pro keeper round with a man tagged');
+      await shot('15-pro-keepers');
+    }
+  }
 
   // Tablet and desktop widths must stay clean too.
   for (const [w, h, label] of [[768, 1024, 'tablet'], [1280, 900, 'desktop']]) {

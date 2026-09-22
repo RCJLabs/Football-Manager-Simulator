@@ -1383,6 +1383,77 @@ everything is a defensible way to write a pool. It is recorded because two
 sessions of weight-fitting would have been read very differently with this table
 next to them.
 
+### The pro keeper round had no cover in a browser
+
+The smoke test drives pro mode as far as its setup screen and no further: the
+season it plays out and the offseason it walks through are the fantasy ones. So
+the franchise tag's whole screen — the price on the button, the one-a-club rule,
+what clicking it does to the keeper list — was tested only at the engine level,
+where none of those things live.
+
+The league is built in Node and injected rather than played in the page. Driving
+32 clubs through eighteen weeks in a browser would be by far the longest thing
+in that file, and it would be exercising the season loop, which
+`playthrough.mjs` already runs headlessly over whole dynasties. What was
+uncovered is the screen, so the screen is what gets set up for. `enterOffseason`
+only asks that a season be finished, not that it be played, and contracts still
+run down and men still come out of term — which is all the keeper round needs.
+
+Three things about the injection are load-bearing and each cost a run to find:
+
+- **A `goto` that only changes the hash does not reload.** Without an explicit
+  `reload()` the app never re-reads the slot just written under it, and the page
+  sits on whatever it was already showing.
+- **A fabricated registry entry is rejected.** The app rewrites a slot it does
+  not recognise and lands back on the new-league screen with the save sitting
+  there unopened. Adopting a slot the app already made works.
+- **The index has to carry ages.** `main.js` hands the real offseason a
+  `careerIndex`, and `aiTagChoice` reads `p.age`; injected with a raw index the
+  AI never tags, and the league under test is not the league the app builds.
+
+Three mutations, all caught: tagging that does not pick the man up (the state
+`validateKeepers` refuses to confirm), a missing one-a-club rule, and a tag
+button with no price on it.
+
+### The cheapest route is not always the honest one
+
+`legacy-check` reports the cheapest **single-attribute** route to a player's bar,
+and that is the right thing for a diagnostic to report — it is the lower bound on
+what the record costs. It is not automatically the right change to make.
+
+George Blanda's 1961 is the case. The check said `tha` 83 → 89: six points of
+accuracy and he clears 85. But 1961 is the season the record is built on, and in
+it he threw 36 touchdowns against 22 interceptions on a **41.5% completion
+rate**. Twenty-seven of the pool's 128 quarterbacks sit at `tha` 89 or better;
+putting a passer who completed fewer than half his throws among them is buying
+the record's respect with a lie about what he was.
+
+What his career does support is awareness. He played twenty-six seasons, started
+at thirty-four in the season being rated, and kicked and quarterbacked into his
+forties. Two attributes, moved less far each, reach the same bar:
+
+| route | change | overall | what it claims |
+|---|---|---|---|
+| the check's | `tha` 83 → 89 | 85 | top-fifth accuracy for a 41.5% passer |
+| shipped | `tha` 83 → 85, `awr` 87 → 92 | 85 | near-median accuracy, top-15% awareness |
+| `awr` alone | 87 → 93 | 84 | does not reach |
+
+The shipped route leaves him just above the pool's median for accuracy (82) and
+at 92 for awareness, where 23 of 128 quarterbacks already sit. Both halves of
+that are things his record argues for.
+
+**This is why the five-point rule recorded him rather than correcting him.** The
+guarding test treats a violation as a rating to fix when a nudge of five points
+or fewer would clear it, and Blanda's cheapest single move was six — one point
+outside. Split across two attributes the largest move is five. The rule was
+reading a lower bound as though it were the only option.
+
+Csonka and Riggins stay recorded, and the reasoning in the section above is
+unchanged: their routes make bruising fullbacks into sprinters, and no split
+across attributes rescues that, because `spd` is where the whole shortfall
+lives. Two violations remain and both are disagreements about what this
+simulation thinks a running back is.
+
 ### The weights survive the population they were never tested on
 
 The table above leaves an obvious worry unstated. If a position's attributes run
@@ -1454,6 +1525,9 @@ four points of coverage away from his bar.
 | John Riggins '83 | 85 | `spd` 78 → 89 |
 | Larry Csonka '72 | 84 | `spd` 72 → 94 — **twenty-two points** |
 
+(Blanda has since been corrected too, by a route this column cannot see — see
+*The cheapest route is not always the honest one* above.)
+
 That is not four instances of one thing. Csonka's route is making a bruising
 fullback into a sprinter, and Riggins' is the same archetype the same way: those
 two are the weight vector refusing to rate a power back, which is a real finding
@@ -1461,7 +1535,8 @@ about what this simulation thinks a running back is. Blanda's is a quarterback
 whose case in the record is longevity being made accurate, which is arguable.
 Barber's is a four-point nudge on the one skill he is known for.
 
-**So Barber was corrected and the other three stand.** He is a Hall of Famer,
+**So Barber was corrected and the other three stood.** (Blanda has since been
+corrected as well, on the grounds above; two remain.) He is a Hall of Famer,
 three times a first-team All-Pro, with 47 interceptions, and the pool had him at
 `cov` 80 — level with Dre Bly and Aqib Talib, below Johnny Sample. At 84 he sits
 just above Terence Newman and a long way below the elite tier, which is where a
