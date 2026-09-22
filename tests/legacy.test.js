@@ -13,16 +13,24 @@ test('every recorded season in the yardstick is still in the pool', () => {
 test('no rating drifts below what the record supports, except where the weights forbid it', () => {
   const { found } = auditLegacy();
   const bad = found.filter((f) => f.gap >= TOLERANCE);
-  // What is left is not a rating anybody can argue with: for each of these the
-  // position's weight vector cannot reach the floor even with the player's best
-  // attribute at 99. Thirteen are edge rushers — pass rush is 15% of a
-  // linebacker and run defence is 35% of a lineman, so the one thing they were
-  // paid for is the one thing the formula barely counts.
+  // What is left has to be a disagreement, not a rating nobody got round to
+  // fixing. This used to assert that no violation could reach its floor at all,
+  // and it passed for a bad reason: the diagnostic it leaned on perfected the
+  // attribute the player was already HIGHEST at, which is the one with the least
+  // room. Ronde Barber sat here for months looking unreachable and was four
+  // points of `cov` away — the skill he is actually known for.
+  //
+  // So the bar is the price. A violation a small, defensible nudge would fix is
+  // a rating to fix; one that needs six points or more of an attribute the
+  // player was not known for is the weight vector refusing an archetype, which
+  // is a finding and not a chore. Csonka needs `spd` +22, Riggins +11 and
+  // Blanda `tha` +6 — a fullback made into a sprinter, twice, and a quarterback
+  // whose case was longevity made accurate.
   for (const f of bad) {
-    assert.ok(f.ceiling < f.floor,
-      `${f.p.name} '${f.p.season} is ${f.ovr} against a floor of ${f.floor} and could reach ${f.ceiling}; that is the rating, not the weights`);
+    assert.ok(!f.route || f.route.cost >= 6,
+      `${f.p.name} '${f.p.season} is ${f.ovr} against a floor of ${f.floor}, and ${f.route?.attr} ${f.route?.from} → ${f.route?.to} would fix it; that is a rating to correct, not a disagreement to record`);
   }
-  assert.ok(bad.length <= 16, `${bad.length} ratings now miss the record, was 16`);
+  assert.ok(bad.length <= 3, `${bad.length} ratings now miss the record, was 3`);
 });
 
 test('a bust stays a bust', () => {
@@ -46,13 +54,26 @@ test('the yardstick asks for a floor the pool can actually reach', () => {
   }
 });
 
-test('the ceiling diagnostic is computed from the real weights', () => {
-  // Guards the claim the second test leans on: `ceiling` is the player's own
-  // row with his strongest attribute at 99, scored by the same formula.
-  const p = PLAYERS.find((x) => x.name === 'Derrick Thomas' && x.season === 1990);
-  assert.ok(p);
-  const attrs = POSITIONS.LB.attrs;
-  const best = attrs.reduce((a, b) => (p.r[a] >= p.r[b] ? a : b));
-  assert.equal(best, 'prs', 'the pool still knows what he was paid for');
-  assert.equal(rawOverall('LB', { ...p.r, prs: 99 }), auditLegacy().found.find((f) => f.p.id === p.id).ceiling);
+test('the route out of a violation is real and is the cheapest one', () => {
+  // Guards the claim the test above leans on. For every violation the check
+  // reports a route, that route must actually clear the floor, and nothing
+  // cheaper may exist — otherwise the price it prints is not a price.
+  const { found } = auditLegacy();
+  const bad = found.filter((f) => f.gap >= TOLERANCE && f.under);
+  assert.ok(bad.length, 'nothing to check');
+  for (const f of bad) {
+    assert.ok(f.route, `${f.p.name} has no route reported`);
+    const { attr, from, to, cost } = f.route;
+    assert.equal(from, f.p.r[attr], 'the route starts from what he is actually rated');
+    assert.equal(cost, to - from, 'the cost is the distance travelled');
+    assert.ok(rawOverall(f.p.pos, { ...f.p.r, [attr]: to }) >= f.floor,
+      `${f.p.name}: ${attr} → ${to} does not actually reach ${f.floor}`);
+    assert.ok(to === from + 1 || rawOverall(f.p.pos, { ...f.p.r, [attr]: to - 1 }) < f.floor,
+      `${f.p.name}: ${attr} → ${to - 1} would have done, so the route is not the cheapest`);
+    for (const a of POSITIONS[f.p.pos].attrs) {
+      if (a === attr) continue;
+      const cheaper = rawOverall(f.p.pos, { ...f.p.r, [a]: Math.min(99, f.p.r[a] + cost - 1) });
+      assert.ok(cheaper < f.floor, `${f.p.name}: ${a} would reach the floor for less than ${attr}`);
+    }
+  }
 });

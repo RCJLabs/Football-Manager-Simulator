@@ -1257,7 +1257,7 @@ export const RAW = {
     ['Johnny Sample', 1965, 'NYJ', 82, 82, 86, 82, 80],
     ['Josh Norman', 2015, 'CAR', 82, 84, 84, 72, 78],
     ['Terence Newman', 2009, 'DAL', 86, 82, 80, 74, 82],
-    ['Ronde Barber', 2001, 'TB', 78, 80, 84, 80, 90],
+    ['Ronde Barber', 2001, 'TB', 78, 84, 84, 80, 90],
     ['Dre Bly', 2003, 'DET', 81, 81, 87, 65, 77],
     ['Brent Grimes', 2013, 'MIA', 83, 81, 83, 65, 79],
     ['Aqib Talib', 2016, 'DEN', 81, 81, 83, 71, 79],

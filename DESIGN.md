@@ -1219,15 +1219,13 @@ what `legacy-check` allows, and for the real pool most of that argument is about
 a decimal place nobody can see. It matters two to three times more for the
 generated players, which is where the variance actually lives.
 
-**It also explains a line `legacy-check` has been printing all along.** Each
-recorded violation ends "caps at 82 with `awr` 99 — the weights, not the rating",
-meaning that even perfect awareness does not get Ronde Barber to the bar the
-record sets. The reason reweighting cannot rescue him either is here: raise
-awareness's weight and every corner with high awareness rises with him, and
-since awareness and coverage move together at 0.95 across the pool, almost every
-corner is one. His *relative* standing barely changes. A player who is under-
+**It also explains why reweighting never rescues a violation.** Raise awareness's
+weight to lift Ronde Barber and every corner with high awareness rises with him,
+and since awareness and coverage move together at 0.95 across the pool, almost
+every corner is one. His *relative* standing barely changes. A player under-
 rated against the record has to be fixed by changing his ratings, not by
-changing what ratings are worth.
+changing what ratings are worth — which is what the next section turned out to
+be about.
 
 Not chased: whether the shipped ratings should be spread out within a position,
 or the rookie generator tightened to match them. Both are large content changes
@@ -1236,6 +1234,57 @@ and neither is obviously right — a pool where great players are great at
 everything is a defensible way to write a pool. It is recorded because two
 sessions of weight-fitting would have been read very differently with this table
 next to them.
+
+### The check said four ratings were unfixable, and it was testing the wrong attribute
+
+Four recorded violations had sat for a long time, each ending with the same
+line: *caps at 82 with `awr` 99 — the weights, not the rating*. Read as it was
+meant, that says no rating change can reach the record's bar, so the weight
+vector is the thing to argue with and the player is not. All four were parked on
+that basis.
+
+It was testing the wrong attribute. `legacy-check` perfected the attribute the
+player was already **highest** at:
+
+    const best = attrs.reduce((a, b) => (p.r[a] >= p.r[b] ? a : b));
+
+which is by definition the one with the least room left, and in this pool — where
+a position's attributes run together at 0.95 and above, see the section above —
+usually not the one carrying the weight. Ronde Barber's highest is `awr` at 90,
+worth a single point of overall. His `cov` carries 0.57 of the vector and takes
+him from 81 to 92. The check had been reporting a ceiling of 82 for a player
+four points of coverage away from his bar.
+
+**It reports the cheapest route now, and the price is the finding:**
+
+| player | needs | the cheapest way there |
+|---|---|---|
+| Ronde Barber '01 | 84 | `cov` 80 → 84 — **four points** |
+| George Blanda '61 | 85 | `tha` 83 → 89 |
+| John Riggins '83 | 85 | `spd` 78 → 89 |
+| Larry Csonka '72 | 84 | `spd` 72 → 94 — **twenty-two points** |
+
+That is not four instances of one thing. Csonka's route is making a bruising
+fullback into a sprinter, and Riggins' is the same archetype the same way: those
+two are the weight vector refusing to rate a power back, which is a real finding
+about what this simulation thinks a running back is. Blanda's is a quarterback
+whose case in the record is longevity being made accurate, which is arguable.
+Barber's is a four-point nudge on the one skill he is known for.
+
+**So Barber was corrected and the other three stand.** He is a Hall of Famer,
+three times a first-team All-Pro, with 47 interceptions, and the pool had him at
+`cov` 80 — level with Dre Bly and Aqib Talib, below Johnny Sample. At 84 he sits
+just above Terence Newman and a long way below the elite tier, which is where a
+corner of his record belongs. Three violations remain, all of them disagreements
+rather than oversights.
+
+**The test that guarded this was encoding the same bug.** It asserted that every
+remaining violation was unreachable — `f.ceiling < f.floor` — and passed for
+years because `ceiling` was computed from the wrong attribute. It now asserts a
+price instead: any violation a nudge of five points or fewer would fix is a
+rating to correct rather than a disagreement to record, and reverting Barber's
+four points fails it. A second test checks the route is real and is genuinely
+the cheapest, since a price that is not the lowest price is not a price.
 
 ### What a free agent is worth (`market.js`)
 
@@ -3005,6 +3054,14 @@ power back who cannot run (Csonka, Riggins), a quarterback whose case is
 longevity (Blanda), and an instincts corner. None of them is a bug; each is a
 place where the record and this simulation disagree about football, and the
 check names the weights as the binding constraint every time it runs.
+
+> **Corrected later.** The last sentence was true of what the check printed and
+> false about the world. It was perfecting the attribute each player was already
+> highest at, which for Barber is `awr` at 90 and worth one point, while his
+> `cov` carries 0.57 of the vector. He was four points of coverage from his bar,
+> not beyond reach, and he has since been corrected to `cov` 84 — leaving three
+> violations, which genuinely are the disagreement this paragraph describes. See
+> **The check said four ratings were unfixable** above.
 
 ### Two attributes worth nothing, and why only one of them was
 

@@ -508,15 +508,39 @@ export function auditLegacy(players = PLAYERS) {
     const ovr = overall(p);
     const floor = Math.max(...tiers.map((t) => TIERS[t].floor ?? -Infinity));
     const cap = Math.min(...tiers.map((t) => TIERS[t].ceiling ?? Infinity));
-    // What the player could reach if the attribute he is best at were perfect.
-    // When even that falls short of the floor, the weight vector is the binding
-    // constraint and the rating is not the thing to argue with.
+    // THE CHEAPEST WAY TO THE FLOOR, which is not the same question this used to
+    // ask. It used to perfect the attribute the player was already HIGHEST at
+    // and, when that fell short, print "the weights, not the rating" — and every
+    // one of the four recorded violations got that line. It is wrong for all
+    // four. The attribute a player is best at is by definition the one with the
+    // least room left, and in this pool, where a position's attributes run
+    // together at 0.95 and above, it is usually not the one carrying the weight.
+    // Ronde Barber's highest is `awr` at 90, worth a single point of overall;
+    // his `cov` carries 0.57 of the vector and takes him from 81 to 92.
+    //
+    // So this reports what would actually have to move, and by how much. That
+    // turns "unfixable" into a price a reader can judge: Barber needs `cov` 80
+    // to 84, a four-point nudge on the skill he is known for, and Larry Csonka
+    // needs `spd` 72 to 94, which is a bruising fullback made into a sprinter.
+    // One of those is a rating worth arguing with and the other is the weight
+    // vector refusing to rate an archetype — and the old line could not tell
+    // them apart because it never asked.
     const attrs = POSITIONS[p.pos].attrs;
-    const best = attrs.reduce((a, b) => (p.r[a] >= p.r[b] ? a : b));
-    const ceiling = rawOverall(p.pos, { ...p.r, [best]: 99 });
     const short = Number.isFinite(floor) ? floor - ovr : 0;
     const over = Number.isFinite(cap) ? ovr - cap : 0;
-    found.push({ p, ovr, tiers, floor, cap, gap: Math.max(short, over), under: short > 0, over: over > 0, best, ceiling });
+    let route = null;
+    if (short > 0) {
+      for (const a of attrs) {
+        for (let v = p.r[a] + 1; v <= 99; v++) {
+          if (rawOverall(p.pos, { ...p.r, [a]: v }) >= floor) {
+            const cost = v - p.r[a];
+            if (!route || cost < route.cost) route = { attr: a, from: p.r[a], to: v, cost };
+            break;
+          }
+        }
+      }
+    }
+    found.push({ p, ovr, tiers, floor, cap, gap: Math.max(short, over), under: short > 0, over: over > 0, route });
   }
   return { found, missing };
 }
@@ -529,7 +553,9 @@ if (process.argv[1] && process.argv[1].endsWith('legacy-check.mjs')) {
   console.log(`\n${bad.length} rating(s) off by ${TOLERANCE}+ from what the record supports:`);
   for (const f of bad) {
     const why = f.under ? `needs ${f.floor}+` : `should be ${f.cap} or under`;
-    const capped = f.under && f.ceiling < f.floor ? `  (caps at ${f.ceiling} with ${f.best} 99 — the weights, not the rating)` : '';
+    const capped = !f.under ? ''
+      : f.route ? `  (reachable at ${f.route.attr} ${f.route.from} \u2192 ${f.route.to})`
+      : '  (no single attribute reaches it \u2014 the weights, not the rating)';
     console.log(`  ${String(f.gap).padStart(3)}  ${f.p.pos.padEnd(3)} ${f.p.name} '${String(f.p.season).slice(2)}  ${f.ovr}  ${why}  [${f.tiers.join(' ')}]${capped}`);
   }
   if (process.argv.includes('--all')) {
