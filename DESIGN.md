@@ -1372,12 +1372,58 @@ changing what ratings are worth — which is what the next section turned out to
 be about.
 
 Not chased: whether the shipped ratings should be spread out within a position,
-or the rookie generator tightened to match them. Both are large content changes
+or the rookie generator tightened to match them. The half of this that could be
+settled without touching either has been — see *The weights survive the
+population they were never tested on* below, which measures `overall` against
+the generated pool and finds it holds. What remains is a question about what a
+pool should look like, not about whether the number works. Both are large content changes
 with the fingerprint, the legacy check and every league code downstream of them,
 and neither is obviously right — a pool where great players are great at
 everything is a defensible way to write a pool. It is recorded because two
 sessions of weight-fitting would have been read very differently with this table
 next to them.
+
+### The weights survive the population they were never tested on
+
+The table above leaves an obvious worry unstated. If a position's attributes run
+together at 0.95 and above, then almost any monotone weighting ranks the shipped
+pool correctly, and `overall` scoring r = 0.988 against production there is weak
+evidence that the *weights* are right rather than merely harmless. Meanwhile a
+dynasty is mostly made of generated players, whose attributes are scattered
+independently — and nothing had ever measured `overall` against them.
+
+`scripts/yardstick-fit.mjs` takes `rookies` as a fifth argument now and swaps the
+sample, matching the generated set's rating range to the shipped one's because
+correlation is range-sensitive and an unmatched range would answer a different
+question. Three positions, chosen to span the collinearity range, each at the
+sample size the yardstick table specifies for it:
+
+| position | games a man | shipped pool | generated rookies | pair correlation, shipped / generated |
+|---|---|---|---|---|
+| QB | 200 | 0.988 | **0.988** | 0.98 / 0.82 |
+| CB | 500 | 0.984 | **0.991** | 0.96 / 0.79 |
+| DL | 1500 | 0.952 | **0.964** | 0.95 / 0.79 |
+
+**The weights transfer, and that makes the original numbers worth more rather
+than less.** On the generated pool the weight vector is genuinely identified —
+there is no twin attribute to hide behind — and `overall` predicts production at
+least as well there as on the players it was fitted against. The worry above is
+answered: the weights are right, not just unfalsifiable.
+
+It does not license reopening the weight-fitting. What the earlier table says
+about *leverage* still holds — moving a weight a hundredth still moves a real
+player by less than the screen's rounding, and still moves a generated one two
+to three times as much. What is now established is that the vector those
+hundredths sit around is sound at both ends of the population.
+
+**A caution, because it nearly went in as a finding.** The first pass ran DL and
+S at 200 games and read 0.587 and 0.847 against their true 0.952 and 0.956, then
+read the gap against the rookie column as though it meant something. The
+yardstick table's games column is not decoration: a position whose best-to-worst
+differential is under four points needs the 1500 it specifies, and a quick run
+of one is worth nothing at all. The shipped halves above reproduce the published
+figures exactly, which is the check that the harness is reading what it always
+read.
 
 ### The check said four ratings were unfixable, and it was testing the wrong attribute
 

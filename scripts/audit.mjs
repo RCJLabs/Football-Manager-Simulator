@@ -128,6 +128,15 @@ const CHECKS = [
     why: 'the right-hand column, which measures how well clubs cope rather than how violent the game is — it had halved while the left-hand column stood still',
   },
   {
+    name: 'overall predicts production for generated players too',
+    cost: 'slow',
+    script: 'yardstick-fit', args: ['CB', '500', '24', 'rookies'],
+    extract: /overall vs point differential:\s+r = ([\d.]+)/,
+    doc: /\| CB \| 500 \| [\d.]+ \| \*\*([\d.]+)\*\* \|/,
+    expect: 0.991, tol: 0.02,
+    why: "the shipped pool is collinear enough that almost any monotone weighting scores well on it, so the headline yardstick numbers are weak evidence the weights are RIGHT. This is the same fit against independently scattered attributes, where they have to earn it. CB rather than DL because DL needs 1500 games a man and this check runs beside twenty others",
+  },
+  {
     name: 'the quarterback pool is the size the document says',
     cost: 'free',
     from: async () => (await import('../src/data/db.js')).PLAYERS.filter((p) => p.pos === 'QB').length,
