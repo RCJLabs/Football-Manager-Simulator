@@ -1216,6 +1216,31 @@ It defaults to 1 where absent, so a career stored before this develops exactly a
 
 **One dead end worth recording.** The first attempt gave each player a per-position peak offset (`peakShift`), on the theory that arrival is when the curve turns. It moved almost nothing — p90 arrival went from 5 seasons to 6 — and was reverted. The reason is that the *ceiling* binds before the curve turns: a player stops climbing because he has run out of room, not because he has aged past his prime, so moving the prime does not move arrival. Worth knowing before anyone tries it again.
 
+**The quarterback was the one position ageing could not reach.** Every other position on the field runs down: measured peak-to-last across a whole career, a punter falls 17.4 rating points, a defensive lineman 15.9, a receiver 15.4, a back 13.9, and even the offensive line — the position that holds up best after him — falls 8.9. A quarterback fell **4.7**, and 22% of them never declined by three at all.
+
+Season by season, a quarterback signed at his prime got *better* for seven years: +1.1, +1.8, +2.1, +2.0, +1.5, +0.9, +0.4, turning negative only in his eighth season at the age of thirty-seven, which is around when he retires anyway. There was never a year in which a club had to decide anything about him. At the position that decides more games than any other, the dynasty had no question to ask.
+
+**It was a filing error, not a tuning one.** `tha`, throwing accuracy, was classified as a mental attribute alongside `awr`. Those two are 75% of a quarterback's rating — 0.40 and 0.35 — and the mental curve does not turn until *six seasons past the prime*, then declines at 0.40 a year against the physical curve's 0.95. So three quarters of a quarterback was still climbing at thirty-four.
+
+The line that fixes it is the one the rest of the list already draws: reading the game is mental, executing is a skill. Catching, route running, blocking, coverage, tackling and ball skills are all `skill`. Throwing a ball accurately is the same kind of thing — what a quarterback *does*, not what he knows — while awareness, which is what he knows, stays where it was. `tha` now sits with the other execution skills and turns one season past the prime rather than six.
+
+**Nothing was retuned, and nothing else moved.** `tha` is a quarterback attribute and nobody else's, so every other position's ageing is unchanged to the decimal: 13.9, 15.4, 13.2, 8.9, 15.9, 10.9, 10.2, 11.2, 14.7, 17.4, exactly as before. Career length is unchanged at a median of 10, range 5 to 14.
+
+| | before | after |
+|---|---|---|
+| Peak age, against a stated prime of 29 | 31.2 | 30.0 |
+| Peak-to-last across a career | 4.7 | 7.9 |
+| Share who ever decline by three | 78% | 94% |
+| Seasons no worse than the day you signed him | 6.7 | 3.6 |
+
+He is still the best-ageing position in the game, which is the point — 7.9 against the line's 8.9 and everybody else's 10 to 17, and still the safest man to commit three years to. He is simply no longer immune. The arc now reads like a career: a point or so for two seasons, flat at thirty-two, then −1.8 at thirty-four, −4.7 at thirty-seven, −7.2 at thirty-eight. A thirty-three-year-old is worth keeping and a thirty-six-year-old is costing you five points, which is a decision where there was none.
+
+**The alternative was tried and it is worse.** The obvious fix is to retune the mental curve — turn it earlier, drop it faster — and it fails on its own terms. `awr` is carried by nine of the eleven positions, so tightening the curve moves all of them to fix one, and pushed far enough to matter at quarterback it makes him age *worse* than the players whose legs he is supposed to outlast. That is now a test: reverting the classification and retuning `mental` from a start of 6 to 1 instead fails "he still ages better than anybody else". The curve numbers were right; what was wrong was which attributes were being sent down them.
+
+Four tests, four mutations, each caught by the test that should catch it — putting `tha` back with `awr`, filing it as physical instead, leaving it off both lists so it reaches the `skill` default by accident rather than by decision, and retuning the curve in its place.
+
+One consequence worth stating: this changes how an existing save's quarterbacks will age from here. Stored careers keep every point they have already gained — the deltas in `league.dev` are untouched — but a thirty-two-year-old who was going to keep climbing will now start coming down. That is the fix working rather than a migration, and there is nothing to migrate.
+
 **How a man ages, which was not a fact about him at all.** The item this closes was *positional decline that forces a squad move*, and none of the three things that phrase could mean survived measurement.
 
 *A declining player moving position* cannot be built without inventing attributes he has never had. Only three moves keep a man inside his own attribute set — tight end to receiver, linebacker to lineman, safety to corner — and all three get *further* away with age, not closer: own-position rating minus the best kindred one went 0.00 to 0.75 for the tight end and 6.63 to 8.67 for the linebacker between a player's prime and five seasons past it. The safety reads −0.37 at his prime, meaning he is already rated better as a corner, and that is a standing property of two weight vectors rather than anything to do with ageing.

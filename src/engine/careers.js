@@ -35,10 +35,33 @@ export const ROOKIE_AGE = 22;
  */
 export const PRIME_AGE = { QB: 29, RB: 25, WR: 27, TE: 28, OL: 28, DL: 27, LB: 27, CB: 26, S: 28, K: 31, P: 31 };
 
-/** Attributes by how they age. Legs go first, hands next, the head last. */
+/**
+ * Attributes by how they age. Legs go first, hands next, the head last.
+ *
+ * `tha` is a hand and not a head, and putting it with the head made the
+ * quarterback the one position ageing could not touch. He is 75% mental by
+ * weight — `tha` 0.40 and `awr` 0.35 — and mental does not turn until six
+ * seasons past the prime, so a quarterback signed at his best got BETTER for
+ * seven years: +1.1, +1.8, +2.1, +2.0, +1.5, +0.9, +0.4, and only worse than
+ * you signed him at thirty-seven, by which time he is retiring anyway. Measured
+ * peak-to-last across a career, he fell 4.7 where every other position fell 8.9
+ * to 17.4, and 22% of quarterbacks never declined by three at all.
+ *
+ * The line that fixes it is the one already drawn everywhere else on this list:
+ * reading the game is mental, executing is a skill. Catching, route running,
+ * blocking, coverage and tackling are all skills. Throwing a ball accurately is
+ * the same kind of thing — it is what a quarterback DOES, not what he knows —
+ * and awareness, which is what he knows, stays where it was.
+ *
+ * `tha` is a quarterback attribute and nobody else's, so this moves that
+ * position and touches no other: every other position's ageing is unchanged to
+ * the decimal. The quarterback still ages better than anyone — 7.9 peak-to-last
+ * against the offensive line's 8.9 and the rest at 10 to 17 — which is right.
+ * He is simply no longer immune.
+ */
 export const PHYSICAL = ['spd', 'elu', 'mob', 'pow', 'prs', 'thp', 'kpw', 'ppw', 'rac'];
-export const SKILL = ['cth', 'rte', 'car', 'rec', 'blk', 'pbk', 'rbk', 'rsd', 'tck', 'cov', 'bal', 'kac', 'pac'];
-export const MENTAL = ['awr', 'tha'];
+export const SKILL = ['cth', 'rte', 'car', 'rec', 'blk', 'pbk', 'rbk', 'rsd', 'tck', 'cov', 'bal', 'kac', 'pac', 'tha'];
+export const MENTAL = ['awr'];
 
 const CLASS_OF = {};
 for (const a of PHYSICAL) CLASS_OF[a] = 'physical';
@@ -50,6 +73,11 @@ for (const a of MENTAL) CLASS_OF[a] = 'mental';
  * attribute turns over. Speed is going a year before a player peaks; awareness
  * is still climbing six years after. `grow` is the yearly gain at full tilt,
  * `drop` the first year's loss and `accel` how much worse each year after that.
+ *
+ * The numbers were not retuned to fix the quarterback: `mental` climbing for
+ * six years past the prime is the right shape for awareness, and it is what
+ * keeps a thirty-four-year-old lineman worth his place. What was wrong was
+ * which attributes were being sent down it — see the note on `tha` above.
  */
 const CURVE = {
   physical: { start: -1, grow: 2.4, drop: 0.95, accel: 0.20 },
