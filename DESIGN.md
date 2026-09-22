@@ -1532,6 +1532,46 @@ The real league runs at roughly three to four times "normal" by adjusted games l
 
 Established: the rates and the effects above. Speculation: how the dial should sit for the pro league, where 17 games and 64 quarterbacks drafted out of 103 make backups much weaker; the same setting will bite harder there, and nothing yet re-measures it.
 
+### The pro league offered a keeper quota it has never used
+
+A pro league showed "Keepers per club" on the setup screen, defaulted it to 18,
+stored it, and ignored it. `keeperLimit` returns the whole roster whenever the
+cap is on and `capOn` is exactly `mode === 'pro'`, so the control could not
+affect anything: under a cap the contract decides who stays, because two
+mechanisms of attrition would double-count. The help text beside it said
+*"Fantasy leagues default to 6, the pro league to 18"*, which is the wrong rule
+for the mode a player was choosing as they read it.
+
+**The part that made it more than cosmetic.** `futureDepth` read
+`settings.keepers` *directly* rather than through `keeperLimit`, and it was the
+only thing deciding how deep next year's draft runs. Twenty-seven slots minus
+eighteen keepers gives nine rounds, and a pro league does turn over about nine
+slots a club — so a dead setting had been standing in for a live measurement by
+coincidence, and getting the right answer.
+
+That is not a rounding detail, because `KEEPER_DECAY` is in fractions of the
+**usable** draft. At nine rounds a round-three pick is worth **0.01**; at
+twenty-seven it is **3.39**. Removing the control without noticing this would
+have repriced every late pick in the pro league by two orders of magnitude, and
+`madeOdds` would have gone on telling the truth beside it — round 7 is made 77%
+of the time — so the numbers would have disagreed with each other quietly.
+
+`futureDepth` asks the measurement now: `PRO_OPEN_SLOTS = 9`, the figure the
+comment had been citing all along, and the keeper setting is read only in the
+mode that has one. The control is hidden in a pro league on both screens that
+carried it — the setup form and the in-game settings — and replaced by a line
+saying what actually decides, which is the cap and the length of a deal.
+
+The setting is still stored and still round-trips through a league code, because
+a fantasy league needs it and nothing is gained by breaking compatibility to
+delete a field that is simply not read.
+
+Four tests pin it, and all four mutations are caught: restoring the direct read,
+setting the pro depth to the full draft, letting `keeperLimit` honour the
+setting under a cap, and letting the pro branch leak into fantasy. The smoke
+test checks the control is genuinely not on screen in pro mode and that the
+explanation is, rather than trusting a `hidden` attribute.
+
 ## Dynasty loop (`offseason.js`)
 
 A season ends at the final; the offseason starts from the hub. Every rostered player carries a contract from the moment a season starts: the price he went for at auction (or the round he was drafted in), how many seasons running he has been kept, and when it started. A player claimed off the wire is on a $1 deal. Contracts are keyed by player, so a trade moves the deal with the man.

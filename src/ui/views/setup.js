@@ -83,10 +83,14 @@ export function view(root, params, ctx) {
               </div>
               <small class="muted">Normal costs a club about one starter a week, well under the real league's rate. High is closer to it. Hurt players sit out and the next man on the depth chart plays; the waiver wire is where you find cover.</small>
             </div>
-            <div>
+            <div id="proKeeperNote" hidden>
+              <label>Keepers per club</label>
+              <small class="muted">A pro league has no keeper quota. Every man under contract stays; the salary cap and the length of his deal decide who you can afford to keep, which turns over about nine slots a club a year. Two mechanisms of attrition would double-count, so there is nothing to set here.</small>
+            </div>
+            <div id="keeperOpt">
               <label>Keepers per club</label>
               <select name="keepers" style="max-width:12rem">${[0, 3, 6, 9, 12, 18, 22].map((n) => html`<option value="${n}" ${n === defaultKeepers('fantasy') ? 'selected' : ''}>${n === 0 ? 'None: full re-auction every year' : `${n} players`}</option>`)}</select>
-              <small class="muted">Each offseason a club keeps this many players (a keeper costs last year's price plus 15% or $3; three years running at most) and the rest go back to the pool. Fantasy leagues default to 6, the pro league to 18.</small>
+              <small class="muted">Each offseason a club keeps this many players (a keeper costs last year's price plus 15% or $3; three years running at most) and the rest go back to the pool. Fantasy leagues default to 6. A pro league does not use this: the salary cap decides who stays.</small>
             </div>
             <div>
               <label>Careers</label>
@@ -144,7 +148,12 @@ export function view(root, params, ctx) {
     form.querySelector('#typeNote').hidden = !pro;
     form.querySelector('#jobsOpt').hidden = !pro;
     if (pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="snake"]').checked = true;
-    if (!form.dataset.touchedKeepers) form.keepers.value = String(defaultKeepers(pro ? 'pro' : 'fantasy'));
+    // A pro league keeps whoever it can afford, so the quota is meaningless
+    // there: `keeperLimit` returns the whole roster under a cap. The control
+    // used to be shown anyway, defaulted to 18, and silently ignored.
+    form.querySelector('#keeperOpt').hidden = pro;
+    form.querySelector('#proKeeperNote').hidden = !pro;
+    if (!pro && !form.dataset.touchedKeepers) form.keepers.value = String(defaultKeepers('fantasy'));
     if (!pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="auction"]').checked = true;
     if (!form.dataset.touchedLeague) form.league.value = pro ? 'Pro League' : 'All-Time League';
     if (pro) { form.name.value = form.name.value === 'Time Travelers' ? '' : form.name.value; form.abbr.value = form.abbr.value === 'TTV' ? '' : form.abbr.value; }

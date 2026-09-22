@@ -2,6 +2,7 @@ import { html, render, download } from '../../util.js';
 import { exportJSON, importJSON, resetAll } from '../../store.js';
 import { modal } from '../components.js';
 import { INJURY_LEVEL_LABELS } from '../../engine/injuries.js';
+import { capOn } from '../../engine/cap.js';
 import { encodeLeagueCode } from '../../engine/share.js';
 import { drawRosterCard, shareCanvas } from '../share-card.js';
 import { applyNameMode } from '../../data/names.js';
@@ -35,11 +36,18 @@ export function view(root, params, ctx) {
             <select id="injuries" style="max-width:10rem">${Object.entries(INJURY_LEVEL_LABELS).map(([k, label]) => html`<option value="${k}" ${(league.settings.injuries || 'normal') === k ? 'selected' : ''}>${label}</option>`)}</select>
           </div>
           <small class="muted">Applies to games from now on. Players already hurt stay hurt.</small>
+          ${capOn(league) ? html`
           <div class="row" style="margin-top:.8rem;gap:.5rem;align-items:center">
+            <label style="margin:0">Keepers per club</label>
+            <b>Every man under contract</b>
+          </div>
+          <small class="muted">A pro league has no keeper quota — the cap and the length of a deal decide who stays, which turns over about nine slots a club a year. The setting exists for fantasy leagues and does nothing here.</small>
+          ` : html`          <div class="row" style="margin-top:.8rem;gap:.5rem;align-items:center">
             <label style="margin:0">Keepers per club</label>
             <select id="keepers" style="max-width:12rem">${[0, 3, 6, 9, 12, 18, 22].map((n) => html`<option value="${n}" ${(league.settings.keepers ?? 6) === n ? 'selected' : ''}>${n === 0 ? 'None' : n}</option>`)}</select>
           </div>
           <small class="muted">How many players each club carries into next season's market.</small>
+          `}
         ` : html`<p class="muted">Create a league to set coach mode.</p>`}
         <div class="slider-row" style="margin-top:1rem">
           <div class="lbl"><span>Autoplay speed</span><b id="speedLbl">${(s.prefs.autoplayMs / 1000).toFixed(1)}s per play</b></div>
@@ -99,7 +107,7 @@ export function view(root, params, ctx) {
     root.querySelector('#scouting').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.scouting = e.target.checked; }));
     root.querySelector('#jobs')?.addEventListener('change', (e) => ctx.update((st) => { st.league.settings.jobs = e.target.checked; }));
     root.querySelector('#difficulty').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.difficulty = e.target.value; }));
-    root.querySelector('#keepers').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.keepers = Number(e.target.value); }, { silent: true }));
+    root.querySelector('#keepers')?.addEventListener('change', (e) => ctx.update((st) => { st.league.settings.keepers = Number(e.target.value); }, { silent: true }));
   }
   root.querySelector('#fictional').addEventListener('change', (e) => {
     const mode = e.target.checked ? 'fictional' : 'real';

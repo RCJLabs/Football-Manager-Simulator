@@ -959,6 +959,17 @@ try {
   if (fantasyShown) errors.push('pro mode still shows the fantasy team-count options');
   const proShown = await page.$eval('#proOpts', (e) => e.getBoundingClientRect().height > 0);
   if (!proShown) errors.push('pro mode does not show the franchise picker');
+  // The keeper quota is a fantasy idea. `keeperLimit` returns the whole roster
+  // under a cap, so a pro league keeps whoever it can afford — the control was
+  // offered here for a long time, defaulted to 18, and silently ignored.
+  await page.evaluate(() => document.querySelector('#moreOpts').open = true);
+  const keeperShown = await page.$eval('#keeperOpt', (e) => e.getBoundingClientRect().height > 0);
+  if (keeperShown) errors.push('pro mode still offers a keeper quota it does not use');
+  const noteShown = await page.$eval('#proKeeperNote', (e) => e.getBoundingClientRect().height > 0);
+  if (!noteShown) errors.push('pro mode hides the keeper control without saying what decides instead');
+  // Folded away again: a later check asserts this form opens with the advanced
+  // options closed, and opening one to look inside it is not a reason to fail.
+  await page.evaluate(() => document.querySelector('#moreOpts').open = false);
   await checkOverflow('setup in pro mode');
   await shot('01b-setup-pro');
   const levels = await page.$$eval('select[name="difficulty"] option', (o) => o.map((x) => x.value));

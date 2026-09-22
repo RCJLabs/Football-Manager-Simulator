@@ -167,14 +167,37 @@ export function futurePickValue(league, byId, pick, slots = null, holder = null)
 }
 
 /**
+ * Seasons of turnover a pro club sees, which is what its draft has room for.
+ *
+ * Measured at **8.9 open slots a club**. Nine is used because it is what the
+ * measurement rounds to, and because the value of a pick is extremely steep in
+ * this number — see `KEEPER_DECAY`.
+ */
+export const PRO_OPEN_SLOTS = 9;
+
+/**
  * How many rounds next year's draft will reach.
  *
- * A keeper draft ends when every club is full, so its depth is the slots a
- * club has open — and the best guess at next year's is this league's keeper
- * setting. Measured, a pro league keeping eighteen averages 8.9 open slots a
- * club against the nine this predicts, which is close enough to use.
+ * A draft ends when every club is full, so its depth is the slots a club has
+ * open. In a fantasy league that is the keeper setting, directly: keep six of
+ * twenty-seven and twenty-one rounds get made.
+ *
+ * A PRO LEAGUE HAS NO KEEPER QUOTA, and this used to read the setting anyway.
+ * `keeperLimit` returns the whole roster under a cap — the contract decides who
+ * stays, and two mechanisms of attrition would double-count — so the stored
+ * `keepers` is inert everywhere else in a pro league. Here it was not inert: it
+ * was the only thing setting the depth, and it happened to be right, because
+ * 27 − 18 = 9 and contracts turn over about nine slots. A dead setting standing
+ * in for a live measurement by coincidence.
+ *
+ * It is the measurement now, which matters more than it looks: pick value
+ * decays in fractions of the USABLE draft, so depth is the difference between a
+ * round-three pick being worth 0.01 and 3.39. Reading a setting that a pro
+ * league no longer stores would have valued every late pick as though the draft
+ * ran to twenty-seven rounds, which it has never done.
  */
 export function futureDepth(league) {
+  if (capOn(league)) return PRO_OPEN_SLOTS;
   return usableRounds(league?.settings?.keepers ?? 0);
 }
 
