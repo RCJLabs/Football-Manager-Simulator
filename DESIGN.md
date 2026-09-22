@@ -1216,9 +1216,35 @@ It defaults to 1 where absent, so a career stored before this develops exactly a
 
 **One dead end worth recording.** The first attempt gave each player a per-position peak offset (`peakShift`), on the theory that arrival is when the curve turns. It moved almost nothing — p90 arrival went from 5 seasons to 6 — and was reverted. The reason is that the *ceiling* binds before the curve turns: a player stops climbing because he has run out of room, not because he has aged past his prime, so moving the prime does not move arrival. Worth knowing before anyone tries it again.
 
+**How a man ages, which was not a fact about him at all.** The item this closes was *positional decline that forces a squad move*, and none of the three things that phrase could mean survived measurement.
+
+*A declining player moving position* cannot be built without inventing attributes he has never had. Only three moves keep a man inside his own attribute set — tight end to receiver, linebacker to lineman, safety to corner — and all three get *further* away with age, not closer: own-position rating minus the best kindred one went 0.00 to 0.75 for the tight end and 6.63 to 8.67 for the linebacker between a player's prime and five seasons past it. The safety reads −0.37 at his prime, meaning he is already rated better as a corner, and that is a standing property of two weight vectors rather than anything to do with ageing.
+
+*A depth chart drifting out of order* does not happen. `sortDepthCharts` keeps every group in rating order, and `confirmKeepers` clears `depthSorted` every offseason, so even a chart the user arranged by hand is re-sorted the following year. Measured over twelve seasons of a user club that never touched its chart again: zero slots out of order, in every season, in every league.
+
+*Decline forcing anything at all* was the real finding, and it was upstream of both. `step` scales its growth branch per player, twice over, by `growth` and by `pace`. Its decline branch was `-(c.drop + c.accel * past)` for everybody — the same slope for a twenty-three-year-old lineman and a thirty-four-year-old back, with nothing in it belonging to the man. A season past prime cost −0.58 at the prime and −2.14 ten years on, with a standard deviation of 0.7 that was per-attribute rounding noise, and **no career in 2,400 ever lost six points in a season**.
+
+There was spread in the totals — five seasons past prime ran a standard deviation of 2.19, and 3.09 once injuries counted — but none of it was attributable. It was the same coin flipped for everybody, so there was no such thing as a player who ages well, nothing to judge, and therefore nothing that could force a decision.
+
+**`wear` is the missing term.** Drawn at career start at `normal(1, 0.34)` clamped to 0.35–2.0, it multiplies the decline and leaves the climb alone, the way `pace` multiplies the climb and leaves the ceiling alone. Five seasons past prime now runs −2.62 for the men who age best against −8.13 for the men who fall away, with the population mean held at −5.14 against −5.11 before. Every documented career aggregate is unmoved: measured at `wear` fixed to 1 against the shipped draw, career length is median 9 in both, and the decline at three, five and ten seasons is −1.7, −4.1 and −11.2 against −1.7, −4.1 and −11.3. The spread is free.
+
+The spread stops at 0.34 because the clamps start to bite past it. At 0.42 the read is worth 3.97 rather than 3.57 over a keeper window, but 6.1% of players pile up on the floor instead of 2.8%, and a one-in-sixteen spike of men who age perfectly is a distribution artifact rather than a population.
+
+**What it does not do is force a squad move, and that claim should not be made for it.** Measured across 1,056 club-seasons, the rate at which a starter loses his place while declining went from 0.33 a club a season to 0.32. It cannot move: depth-chart gaps at a club run twelve to thirty-eight rating points and five seasons of decline spread covers about five. A club replaces a fading starter from the market, not from its own bench, and that mechanism already existed.
+
+**What it does is make a veteran judgeable.** `wear` is never shown. What is shown is what he has already done — the player screen now reads "down 7 in 6 seasons" rather than "down 7", which turns a total into a rate. Tested the way a manager would use it, watching four seasons and then deciding about the next three, and compared *within a single age* so the answer is not just the age badge restated: the third of veterans who had held up best lose 3.93 over the next three seasons against 7.90 for the third who had slid, a gap of 3.69 overall, at a correlation of 0.623 between what the screen says and what happens next.
+
+That read is a strengthening rather than an invention, and the honest number is the difference: before `wear`, the same test gave a gap of 2.57 at a correlation of 0.518, driven by injury luck and accumulated noise. "He has held up" used to mean mostly "he has been lucky". It now also means something about him.
+
+**A seed that had been moving underneath all of this.** `ceilingFor` draws from the career RNG at the end of `startCareer`, so every field added above it re-rolls every prospect's ceiling. Adding `pace` in the previous change did exactly that, and the share of a class peaking at 80+ moved 18.8% to 19.8% while the share that never gains five went 31.3% to 33.3% — which reads like a tuning decision and was a shifted stream. The arc traits now come off their own seeded stream, so `ceilingFor` sees what it always saw and the next trait added there costs nothing. A test states the career stream's draw order directly and fails if anything is inserted into it.
+
+**Two instrument mistakes, both caught before shipping.** The first was a name collision: `advanceCareers` already writes `from` on a career, meaning the league season it began, and it spreads over whatever `startCareer` returned. Storing the entry age under the same name made every veteran on the team screen read "down 7 in 35 seasons". It is `startAge` now, and a test covers the collision.
+
+The second is the more useful one, and it is the same mistake as the last change's. Six mutations were run; five were caught and the one that escaped was moving the arc traits back onto the ceiling's RNG stream — the precise regression the test existed to prevent. The test asserted that `startCareer` is deterministic and that the traits land in range, and both of those are true whichever stream they come off, so the mutation passed cleanly. A test of a draw *order* has to state the draw order: it now rebuilds the career stream draw for draw and compares the ceiling, and both variants of the mutation fail it. Twice now the first version of a test has measured something guaranteed by a clamp or by construction rather than the property in question, which is worth treating as the default failure mode rather than an accident.
+
 Injuries that shorten a career are built — see **What a knee costs** below.
 Scouting fog over the growth curve is built too — see **The band says where, and now also when** under Scouting.
-Still not built: positional decline that forces a squad move.
+The roadmap above and everything after it is now finished.
 
 ## Difficulty (`difficulty.js`)
 

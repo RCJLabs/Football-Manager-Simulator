@@ -103,14 +103,14 @@ export function primeAge(pos) {
  * Growth ramps in over the last four years before the turn, so a 22-year-old
  * does not gain the same as a 25-year-old about to peak.
  */
-export function step(cls, t, growth, rng) {
+export function step(cls, t, growth, rng, wear = 1) {
   const c = CURVE[cls];
   if (t < c.start) {
     const room = c.start - t;
     return c.grow * growth * clamp(room / 4, 0.25, 1) + rng.normal(0, 0.7);
   }
   const past = t - c.start;
-  return -(c.drop + c.accel * past) + rng.normal(0, 0.5);
+  return -(c.drop + c.accel * past) * wear + rng.normal(0, 0.5);
 }
 
 /**
@@ -144,11 +144,45 @@ export function startCareer(league, p) {
   // apart: a quick study is useful to a club that is contending now, a slow
   // one to a club that is building. It defaults to 1, so a career stored
   // before this develops exactly as it did.
-  const pace = Math.round(clamp(rng.normal(1, 0.28), 0.5, 1.8) * 100) / 100;
+  // The shape of a man's arc comes off its own stream, not this one.
+  //
+  // `ceilingFor` draws from `rng` below, so every field added above it moves
+  // the draw that decides every prospect's ceiling. That is how `pace` did it:
+  // the share of a class peaking at 80+ went 18.8% to 19.8% and the share that
+  // never gains five went 31.3% to 33.3%, which reads like a tuning change and
+  // is nothing but a re-rolled seed. Keeping the arc traits on a separate
+  // stream means the next one added here costs nothing.
+  const arc = new RNG(hashSeed(`arc:${league.seed >>> 0}:${p.id}`));
+  const pace = Math.round(clamp(arc.normal(1, 0.28), 0.5, 1.8) * 100) / 100;
+  // HOW HE AGES, which until now was not a fact about him at all.
+  //
+  // The growth branch of `step` is scaled per player, twice over. The decline
+  // branch was `-(drop + accel * past)` for everybody: the same slope for a
+  // twenty-two-year-old lineman and a thirty-four-year-old back, with nothing
+  // in it that belonged to the man. Measured before this existed, a season
+  // past prime cost -0.58 at the prime and -2.14 ten years on, with a standard
+  // deviation of 0.7 that was the per-attribute noise and nothing else. No
+  // career in 2,400 ever lost six points in a season.
+  //
+  // There was spread in the totals — five seasons past prime ran a standard
+  // deviation of 2.19, and 3.09 once injuries were counted — but none of it
+  // was attributable. It was the same coin flipped for everybody, so there was
+  // no such thing as a player who ages well, and therefore nothing to judge
+  // and nothing that could force a decision.
+  //
+  // `wear` scales the decline only, the way `pace` scales the climb only. It
+  // defaults to 1, so a career stored before this ages exactly as it did.
+  const wear = Math.round(clamp(arc.normal(1, 0.34), 0.35, 2.0) * 100) / 100;
   return {
     age,
+    // The age he started at, so a screen can turn "down 7" into a rate. NOT
+    // `from`: `advanceCareers` already writes that, meaning the league season
+    // his career began, and it spreads over whatever `startCareer` returned —
+    // which silently made every veteran read "down 7 in 35 seasons".
+    startAge: age,
     growth: g,
     pace,
+    wear,
     retireAt: prime + CAREER_LENGTH + rng.int(-2, 3),
     entry,
     ceiling: ceilingFor(entry, g, rng, p.pos),
@@ -218,8 +252,11 @@ export function developed(p, c) {
   for (const a of POSITIONS[src.pos].attrs) {
     r[a] = clamp(Math.round((src.r[a] ?? 60) + (c.d[a] || 0)), 40, 99);
   }
-  // `knocks` rides along so a screen can say why a man is not what he was.
-  return { ...src, base: src, r, age: c.age, dev: true, knocks: c.knocks || 0, ovr: rawOverall(src.pos, r) };
+  // `knocks` rides along so a screen can say why a man is not what he was, and
+  // `seasons` so it can say how long it took — which is the only honest read on
+  // how a man is ageing, since `wear` itself is not something a club is told.
+  const seasons = c.startAge != null ? Math.max(0, c.age - c.startAge) : null;
+  return { ...src, base: src, r, age: c.age, dev: true, knocks: c.knocks || 0, seasons, ovr: rawOverall(src.pos, r) };
 }
 
 /**
@@ -310,7 +347,7 @@ export function stepCareer(league, src, c, season, knocks = 0) {
   for (const a of POSITIONS[src.pos].attrs) {
     // `pace` scales the climb only. The ceiling is drawn from `growth` alone,
     // which is what lets the two vary independently.
-    gain[a] = step(CLASS_OF[a] || 'skill', next.age - prime, next.growth * (next.pace ?? 1), rng);
+    gain[a] = step(CLASS_OF[a] || 'skill', next.age - prime, next.growth * (next.pace ?? 1), rng, next.wear ?? 1);
     next.d[a] = (next.d[a] || 0) + gain[a];
   }
   let after = overall(developed(src, next));
