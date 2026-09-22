@@ -90,27 +90,37 @@ test('a position group left short is padded with replacement-level players', () 
   assert.ok(wins / n < 0.35, `a replacement QB won ${wins} of ${n} against an equal roster`);
 });
 
-test('injuries carry between weeks: out for exactly the stated weeks, then back', () => {
+test('injuries carry between weeks, the week he got hurt is free, and he comes back', () => {
+  // This used to assert he was back on exactly the stated week. He is not any
+  // more: a week can go wrong, and `tickInjuries` re-forecasts as it ticks —
+  // see tests/injury-slip.test.js, which pins the slip itself. What is still
+  // exact, and is the part this test was really guarding, is the `since` rule:
+  // an injury suffered in this week's game does not also lose this week.
   const league = fantasyLeague(11);
   const u = userTeamIndex(league);
   const me = league.teams[u];
   const star = me.slots.WR1;
-  // Fake a two-week injury suffered in week 1's game.
+  const playing = () => teamForGame(league, u, byId).lineup.WR.some((p) => p.id === star);
   league.injuries[star] = { weeks: 2, kind: 'hamstring', since: 1, season: league.season, team: u };
-  assert.ok(!teamForGame(league, u, byId).lineup.WR.some((p) => p.id === star), 'sits this week');
+  assert.ok(!playing(), 'sits this week');
   simulateWeekAi(league, byId, { includeUser: true });
-  advanceWeek(league); // end of week 1: the fresh injury does not lose a week yet
+  advanceWeek(league);
   assert.equal(league.week, 2);
-  assert.equal(league.injuries[star].weeks, 2);
-  assert.ok(!teamForGame(league, u, byId).lineup.WR.some((p) => p.id === star), 'out in week 2');
-  simulateWeekAi(league, byId, { includeUser: true });
-  advanceWeek(league);
-  assert.equal(league.injuries[star].weeks, 1);
-  assert.ok(!teamForGame(league, u, byId).lineup.WR.some((p) => p.id === star), 'out in week 3');
-  simulateWeekAi(league, byId, { includeUser: true });
-  advanceWeek(league);
-  assert.equal(league.injuries[star], undefined, 'healed');
-  assert.ok(teamForGame(league, u, byId).lineup.WR.some((p) => p.id === star), 'back for week 4');
+  assert.equal(league.injuries[star].weeks, 2, 'the week he was hurt in must not also count against him');
+  assert.ok(!playing(), 'out in week 2');
+
+  // From here the date can move, so what is asserted is that it resolves: he
+  // counts down, he is unavailable until he does, and he plays again.
+  let weeks = 0;
+  while (league.injuries[star] && weeks < 25) {
+    assert.ok(!playing(), `a man on the injury ledger was picked in week ${league.week}`);
+    simulateWeekAi(league, byId, { includeUser: true });
+    advanceWeek(league);
+    weeks++;
+  }
+  assert.ok(!league.injuries[star], 'he never healed');
+  assert.ok(weeks >= 1 && weeks <= 25, `took ${weeks} weeks, which is not a hamstring`);
+  assert.ok(playing(), 'back once the ledger let him go');
   assert.equal(availability(league, star), 1);
 });
 

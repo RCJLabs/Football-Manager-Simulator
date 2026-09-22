@@ -11,6 +11,7 @@
 // roughly halved it; the comment outlived the measurement by a long way.
 
 import { POSITIONS, ROSTER_SLOTS } from '../data/positions.js';
+import { RNG } from './rng.js';
 import { overall } from '../engine/ratings.js';
 
 export const INJURY_LEVELS = { off: 0, low: 0.5, normal: 1, high: 2 };
@@ -135,11 +136,31 @@ export function recordGameInjuries(league, g, sides, since) {
 /** Called once per week advance: everyone hurt before this week heals a week. */
 export function tickInjuries(league, weekNo) {
   if (!league.injuries) return;
+  // Drawn from the league's own stream and written back, because `advanceWeek`
+  // takes no generator and is passed around as a callback.
+  const rng = new RNG(league.rngState);
   for (const [id, inj] of Object.entries(league.injuries)) {
     if (inj.since === weekNo && inj.season === league.season) { inj.since = null; continue; }
+    // A season-ender has to stay one for its whole run, and checking against
+    // SEASON_ENDING itself does not do that: the first tick drops it to 98 and
+    // from the second week on a torn ACL was having good days. Tested against a
+    // floor instead, which needs no flag on the record and so needs nothing
+    // done to saves written before this. The two populations cannot overlap —
+    // the worst ordinary band is nine weeks and creeps a week at a time, while
+    // a season-ender starts at 99 and sheds at most eighteen in a season.
+    const verdict = inj.weeks > VERDICT_FLOOR;
     inj.weeks -= 1;
+    // Rolled AFTER the decrement so a man due back this week can still suffer
+    // one, which is the setback that actually happens in football: he was named
+    // in the side, he broke down in the warm-up, he is out another fortnight.
+    if (!verdict) {
+      const r = rng.next();
+      if (r < SETBACK_CHANCE) inj.weeks += rng.next() < SETBACK_DOUBLE ? 2 : 1;
+      else if (r < SETBACK_CHANCE + AHEAD_CHANCE && inj.weeks > 0) inj.weeks -= 1;
+    }
     if (inj.weeks <= 0) delete league.injuries[id];
   }
+  league.rngState = rng.state;
 }
 
 /** Weeks left to play this season including a rough playoff run, for valuing an injured player. */
@@ -168,6 +189,42 @@ export function availability(league, id) {
 // he cannot play or be traded until he is activated, and activating him costs
 // a roster spot in turn. Two IR places a club, so the decision stays a real
 // one rather than a parking lot.
+
+/**
+ * How a week can fail to go to plan.
+ *
+ * The severity roll used to be the whole story: one draw of `rng.int(min, max)`
+ * and the man was back on exactly that week, every time. The text beside it has
+ * always said "Expected to miss 3 weeks", which is a forecast, and the mechanic
+ * underneath it was a certainty. This makes the sentence true.
+ *
+ * `inj.weeks` stays the one number everyone reads — the badge, the injured
+ * reserve gate, the AI's waiver arithmetic. There is no hidden true return date
+ * anywhere, and that is deliberate: a shown estimate with a concealed truth
+ * would hand AI clubs foresight the human does not have, and difficulty in this
+ * game lives in explicit levers rather than in what the computer secretly
+ * knows. The uncertainty here is real rather than informational — the date is
+ * not decided yet.
+ *
+ * A season-ending injury does not slip. That prognosis is not a forecast, it is
+ * a verdict, and a torn ACL that clears up early is not a thing to model.
+ */
+export const SETBACK_CHANCE = 0.10;
+
+/** And the other way: a week where he comes along faster than the staff said. */
+export const AHEAD_CHANCE = 0.18;
+
+/**
+ * The two are not symmetric on purpose. A setback costs a week and sometimes
+ * two; coming along well saves one. Balancing the CHANCES would therefore bleed
+ * player-weeks into the league and quietly make injuries worse, and the injury
+ * rate is calibrated — see the dial table in DESIGN.md. The rates above are set
+ * so total time lost lands where it did before, and the fit is measured.
+ */
+export const SETBACK_DOUBLE = 0.25;
+
+/** Above this, a prognosis is a verdict and never re-forecast. See `tickInjuries`. */
+export const VERDICT_FLOOR = SEASON_ENDING - 40;
 
 export const IR_SLOTS = 2;
 export const IR_MIN_WEEKS = 4;

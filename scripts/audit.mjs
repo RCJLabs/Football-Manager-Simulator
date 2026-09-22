@@ -124,7 +124,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /normal\s+([\d.]+) rostered players out per club-week/,
     doc: /\| normal \| [\d.]+ \| [\d.]+ \| ([\d.]+) \| [\d.]+% of weeks \|/,
-    expect: 0.34, tol: 0.08,
+    expect: 0.36, tol: 0.08,
     why: 'the right-hand column, which measures how well clubs cope rather than how violent the game is — it had halved while the left-hand column stood still',
   },
   {
@@ -157,7 +157,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /pro\s+normal\s+[\d.]+ games a club · ([\d.]+) starter-weeks/,
     doc: /\| pro \| normal \| 17\.0 \| ([\d.]+) \|/,
-    expect: 5.4, tol: 0.4,
+    expect: 5.7, tol: 0.4,
     why: "the high-count figure in the pro injury table, and the one that shows the 17-game season costing 1.15x the 14-game one. NOT the season-enders column beside it, which reads 0.10 over ten fantasy seasons and 0.17 over forty and is too thin at this sample to compare across modes",
   },
   {

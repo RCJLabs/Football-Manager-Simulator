@@ -1383,6 +1383,64 @@ everything is a defensible way to write a pool. It is recorded because two
 sessions of weight-fitting would have been read very differently with this table
 next to them.
 
+### "Expected to miss 3 weeks" was not an expectation
+
+The line under every injury has always read *"Expected to miss 3 weeks"*. What
+sat under it was one draw of `rng.int(band.min, band.max)`, fixed at the moment
+of the injury and counted straight down. The man was back on exactly that week,
+every time. The sentence was a forecast and the mechanic was a certainty.
+
+A week can go wrong now. `tickInjuries` rolls each week: `SETBACK_CHANCE` (0.10)
+costs a week and sometimes two, `AHEAD_CHANCE` (0.18) gives one back. Over
+200,000 injuries, 61% still resolve exactly as first quoted, 17% run late, 22%
+come back early, and a wrong one is wrong by 1.33 weeks.
+
+**There is no hidden true return date.** `inj.weeks` is still the one number
+everything reads — the badge, the injured-reserve gate, the AI's waiver
+arithmetic — and it is a live estimate rather than a countdown. That was a
+deliberate choice over a shown estimate with a concealed truth: concealment
+would hand AI clubs foresight the human does not have, and difficulty here lives
+in explicit levers rather than in what the computer secretly knows. The
+uncertainty is real, not informational — the date is not decided yet.
+
+**The rates are not symmetric and cannot be.** A setback costs one week and
+sometimes two; a good week saves one. Equal probabilities would therefore bleed
+player-weeks into the league and quietly make injuries worse, and the dial above
+is calibrated. 0.10 against 0.18 is where total time lost stops moving.
+
+**Which took three measurements to establish, because the first two disagreed.**
+Run through `tickInjuries` itself over 8,745 injuries, drift is **−0.0%**. But
+`injury-sim` came back 6% heavier — 0.34 to 0.36 players out per club-week — and
+a 6% rise in a calibrated dial is not something to wave through. A control with
+the roll still drawn and its result discarded reproduced the old figures
+exactly, which ruled out the RNG stream. The answer came from measuring the
+thing the claim is actually about: injuries served **2.66 weeks against 2.72**
+with the slip off, over 966 ledger-weeks against 969. Durations are flat. What
+moved was `injury-sim`'s starter-weeks column, which counts only men occupying
+starting slots across about 400 events, where 6% is inside one standard error.
+The dial's own tolerances already covered it.
+
+The figures in both tables above are the new deterministic output. They moved
+because the sample re-drew, not because injuries got worse.
+
+**A season-ending injury does not slip**, and getting that right took a second
+attempt. Testing `inj.weeks < SEASON_ENDING` after the decrement let a torn ACL
+drop to 98 on its first week and qualify as a forecast from the second week on,
+so it had good days. It is tested against `VERDICT_FLOOR` now, which needs no
+flag on the record and so needs nothing done to saves written before this: the
+worst ordinary band is nine weeks and creeps up a week at a time, while a
+season-ender starts at 99 and sheds at most eighteen in a season. The two
+populations cannot meet.
+
+**The setback is rolled after the decrement**, so a man due back this week can
+still break down — named in the side, went in the warm-up, out another
+fortnight. Rolling before it would have made that impossible, and it is the
+setback that actually happens.
+
+Not chased: whether a club should be told *why* a date moved. The ledger knows
+a week slipped and the screen does not say so, which is a line of text rather
+than a mechanic, and worth having once there is a save long enough to judge it.
+
 ### The archive told a different story than the game did
 
 The box score already names a game's turning points: `gameStory` takes the three
@@ -1696,9 +1754,9 @@ The dial is a league setting: Off, Low, Normal (default), High, as a multiplier 
 
 | setting | injuries per game (both clubs) | player-weeks lost per club per game | players out per club-week (8-team league) | QB1 missing |
 |---|---|---|---|---|
-| low | 0.61 | 0.49 | 0.14 | 2.0% of weeks |
-| normal | 1.16 | 0.85 | 0.34 | 2.5% of weeks |
-| high | 2.56 | 2.03 | 0.73 | 5.2% of weeks |
+| low | 0.61 | 0.49 | 0.14 | 1.7% of weeks |
+| normal | 1.16 | 0.85 | 0.36 | 3.4% of weeks |
+| high | 2.56 | 2.03 | 0.74 | 4.6% of weeks |
 
 The two right-hand columns used to read 0.3 / 0.7 / 1.2 and 4% / 6% / 10%, and
 they have roughly halved without the injury model moving at all — the two
@@ -1724,12 +1782,12 @@ per season rather than per club-week for a reason given below):
 
 | mode | setting | games a club | starter-weeks lost | QB1 misses | season-enders |
 |---|---|---|---|---|---|
-| fantasy | low | 14.0 | 2.0 | 0.28 | 0.11 |
-| pro | low | 17.0 | 2.4 | 0.22 | 0.08 |
-| fantasy | normal | 14.0 | 4.8 | 0.35 | 0.10 |
-| pro | normal | 17.0 | 5.4 | 0.42 | 0.14 |
-| fantasy | high | 14.0 | 10.3 | 0.72 | 0.33 |
-| pro | high | 17.0 | 11.7 | 0.96 | 0.45 |
+| fantasy | low | 14.0 | 2.0 | 0.24 | 0.11 |
+| pro | low | 17.0 | 2.6 | 0.26 | 0.07 |
+| fantasy | normal | 14.0 | 5.1 | 0.47 | 0.14 |
+| pro | normal | 17.0 | 5.7 | 0.49 | 0.16 |
+| fantasy | high | 14.0 | 10.4 | 0.65 | 0.33 |
+| pro | high | 17.0 | 11.6 | 1.11 | 0.39 |
 
 **The rate cannot differ between the modes, and does not.** Injury risk is
 `BASE_PER_PLAY` per snap, so a game is a game whichever league it is played in,
