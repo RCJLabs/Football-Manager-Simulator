@@ -163,6 +163,17 @@ const CHECKS = [
     why: 'at 1 the keeper round is arithmetic again — re-signing and declining cost the same and only declining risks the player. At or above BIRD_IN_HAND every AI surplus goes negative and every roster empties into free agency. The window between them is the whole feature',
   },
   {
+    name: 'the tag stays dearer than re-signing',
+    cost: 'free',
+    from: async () => {
+      const { TAG_PREMIUM, RESIGN_PREMIUM } = await import('../src/engine/offseason.js');
+      return TAG_PREMIUM > RESIGN_PREMIUM ? TAG_PREMIUM : `at or under RESIGN_PREMIUM ${RESIGN_PREMIUM}`;
+    },
+    doc: /\| ([\d.]+) \(shipped\) \| \d+% \|/,
+    expect: 1.6, tol: 0,
+    why: 'a tag priced at or below a re-signing buys a shorter deal for free, which is the dominated-option defect over again with the sides swapped',
+  },
+  {
     name: 'what five seasons past signing costs',
     cost: 'slow',
     script: 'career-sim', extract: /\+5 seasons: (-?[\d.]+) overall/,

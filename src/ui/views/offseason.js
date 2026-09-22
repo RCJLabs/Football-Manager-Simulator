@@ -5,7 +5,9 @@ import { userTeamIndex, newSeasonSameRosters, standings } from '../../engine/sea
 import { PLAYERS } from '../../data/db.js';
 import {
   keeperCost, keeperEligible, keeperLimit, validateKeepers, enterOffseason, aiKeepers, confirmKeepers, closeFreeAgency, seasonSummary, MAX_KEEPS,
+  tagCost, setTag, tagOf, RESIGN_PREMIUM,
 } from '../../engine/offseason.js';
+import { marketSalary, VET_YEARS } from '../../engine/cap.js';
 import { playerItem, playerModal, teamChip, toast, esc, modal } from '../components.js';
 import { simulateAhead, describeRun } from '../../engine/autosim.js';
 import { scoutingHits, scoutingOn } from '../../engine/scouting.js';
@@ -62,6 +64,9 @@ export function view(root, params, ctx) {
     rows: board.rows.map((r) => ({ p: ctx.byId.get(r.id), c: league.contracts[r.id] || {} })).filter((x) => x.p),
   }];
 
+  const tagHeld = capped ? tagOf(league, u) : null;
+  const isTagged = (id) => tagHeld === id;
+
   const rowFor = ({ p, c }) => {
     const on = ui.picked.has(p.id);
     const eligible = keeperEligible(c, league);
@@ -76,10 +81,16 @@ export function view(root, params, ctx) {
         // A deal that has run out is the whole decision on this screen: he is
         // still yours, and he now costs what he is worth rather than what he
         // was paid on a rookie contract.
-        ? ` · <b>$${c.salary ?? 1}</b>${c.expiring ? ` · <span class="badge out">deal up</span> re-sign at <b>$${cost}</b>` : ` · ${c.years ?? '?'}y left`}`
+        ? ` · <b>$${c.salary ?? 1}</b>${c.expiring ? ` · <span class="badge out">deal up</span> ${isTagged(p.id) ? `<span class="badge">tagged</span> one year at <b>$${cost}</b>` : `re-sign at <b>$${cost}</b> for ${VET_YEARS}y`}` : ` · ${c.years ?? '?'}y left`}`
         : ` · round ${c.round ?? '—'}${c.kept ? ` · kept ${c.kept}×` : ''}`;
+    // The tag is only ever a choice about an expiring deal, and only one a year,
+    // so every other row is left alone rather than carrying a dead button.
+    const canOffer = capped && c.expiring && eligible && (!tagHeld || isTagged(p.id));
+    const tagBtn = canOffer
+      ? `<button class="btn sm ${isTagged(p.id) ? 'primary' : 'ghost'}" data-tag="${esc(p.id)}" title="One year at $${tagCost(league, p)} instead of ${VET_YEARS} years at $${Math.ceil(marketSalary(p) * RESIGN_PREMIUM)} each. Nothing owed afterwards, which is the point for a man on the way down.">${isTagged(p.id) ? 'Tagged' : `Tag $${tagCost(league, p)}`}</button>`
+      : '';
     const action = eligible
-      ? `<button class="btn sm ${on ? 'primary' : ''}" data-keep="${esc(p.id)}">${on ? 'Keeping' : 'Keep'}</button>`
+      ? `${tagBtn}<button class="btn sm ${on ? 'primary' : ''}" data-keep="${esc(p.id)}">${on ? 'Keeping' : 'Keep'}</button>`
       : `<span class="badge out" title="kept ${MAX_KEEPS} years running">must return</span>`;
     return playerItem(p, { attrs: false, cls: on ? 'me' : eligible ? '' : 'dim', meta, action });
   };
@@ -131,7 +142,7 @@ export function view(root, params, ctx) {
       <div class="card tight">
         <h3>Your keepers <small class="muted" style="text-transform:none;letter-spacing:0">· ${picked.length} of ${limit}</small></h3>
         ${auction ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">A keeper is worth having when he costs less than the room would pay to buy him back. Green saves you money; red is an overpay you should let the auction settle.</p>` : ''}
-        ${capped ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">Men still under contract cost what they are being paid. A deal that has run out is marked, and re-signing him now costs what he is worth plus a little over — that little is what certainty costs, because letting him reach free agency means bidding at his plain asking price against everybody else. Worth the gamble for a squad player; a man the league wants is taken about half the time.</p>` : ''}
+        ${capped ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">Men still under contract cost what they are being paid. A deal that has run out is marked, and re-signing him now costs what he is worth plus a little over — that little is what certainty costs, because letting him reach free agency means bidding at his plain asking price against everybody else. Worth the gamble for a squad player; a man the league wants is taken about half the time. <b>The tag</b> is one man a year on a one-year deal at a steep price: you pay well over the odds, and in exchange you owe him nothing next winter. It is for the player you want one more season out of rather than ${VET_YEARS}.</p>` : ''}
         ${raw(groups.map((g) => `<div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;margin:.5rem 0 .2rem">${g.pos}</div><ul class="plist">${g.rows.map(rowFor).join('')}</ul>`).join(''))}
       </div>
       <div class="stack">
@@ -140,6 +151,7 @@ export function view(root, params, ctx) {
           ${auction || capped ? html`
             <div class="kv">
               <dt>${capped ? 'On the books' : 'Keepers'}</dt><dd><b>$${v.committed ?? 0}</b> for ${picked.length}</dd>
+              ${capped && tagHeld ? html`<dt>Tagged</dt><dd>${ctx.byId.get(tagHeld)?.name ?? '—'} <span class="muted">· 1 year</span></dd>` : ''}
               <dt>${capped ? 'Left under the cap' : 'For the auction'}</dt><dd><b>$${v.ok ? v.budget : Math.max(0, money - (v.committed ?? 0))}</b> across ${ROSTER_SLOTS.length - picked.length} slots</dd>
             </div>
             <div class="bar" style="margin:.4rem 0"><i style="width:${Math.min(100, ((v.committed ?? 0) / money) * 100)}%"></i></div>` : html`<p class="muted" style="margin:0">${picked.length} kept, ${ROSTER_SLOTS.length - picked.length} to draft.</p>`}
@@ -170,6 +182,16 @@ export function view(root, params, ctx) {
   el.addEventListener('click', (e) => {
     const show = e.target.closest('[data-show]');
     if (show) { playerModal(ctx.byId.get(show.dataset.show)); return; }
+    const tg = e.target.closest('[data-tag]');
+    if (tg) {
+      const id = tg.dataset.tag;
+      ctx.update((st) => { setTag(st.league, u, tagOf(st.league, u) === id ? null : id); }, { silent: true });
+      // A tagged man has to be kept, so tagging picks him up rather than
+      // leaving the confirm button to refuse the list later.
+      if (tagOf(league, u) === id) ui.picked.add(id);
+      redraw();
+      return;
+    }
     const k = e.target.closest('[data-keep]');
     if (k) {
       const id = k.dataset.keep;

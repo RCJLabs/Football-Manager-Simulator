@@ -23,7 +23,7 @@ import { standings, syncContracts, userTeamIndex, thinCompletedLogs } from './se
 import { drainVeterans } from './proleague.js';
 import { clearIr } from './injuries.js';
 import { addRookieClass } from './rookies.js';
-import { advanceCareers, releaseRetired } from './careers.js';
+import { advanceCareers, releaseRetired, primeAge } from './careers.js';
 import { jobsOn, reviewSeason, fillVacancies, makeOffers, acceptOffer, yourCoach, retire, REP_FLOOR } from './jobs.js';
 
 export const MAX_KEEPS = 3;
@@ -74,13 +74,118 @@ export const BIRD_IN_HAND = 1.15;
  */
 export const RESIGN_PREMIUM = 1.04;
 
+/**
+ * The franchise tag: one man a year kept on a one-year deal at the going rate
+ * for his position.
+ *
+ * The real league's tag exists because a club CANNOT simply re-sign a player —
+ * he has to agree, and the tag is the one tool that overrides him. Nothing like
+ * that constraint exists here: re-signing is already unilateral and already
+ * certain. A tag that only guaranteed retention would be `RESIGN_PREMIUM` at a
+ * worse price, which is no decision at all.
+ *
+ * So what it buys here is TERM, not certainty. Re-signing an expiring man
+ * writes a fresh `VET_YEARS` deal, and `DEAD_SHARE` means walking away from it
+ * early costs half of what is left — which is a trap the ageing curve springs
+ * on you, because the men worth this money are usually the men about to decline.
+ * The tag is one season, at a premium, with nothing owed afterwards.
+ */
+export const TAG_TOP_N = 5;
+
+/**
+ * What the tag costs, as a multiple of the man's own market price.
+ *
+ * It has to exceed `RESIGN_PREMIUM` or tagging would dominate re-signing and
+ * this would be the same defect over again, the other way round. The gap
+ * between them — 4% against 20% — is the price of not committing three years.
+ */
+export const TAG_PREMIUM = 1.6;
+
+/**
+ * The going rate at every position: the mean of the dearest `TAG_TOP_N` men
+ * playing it anywhere in the league.
+ *
+ * A floor, not the price. For the best quarterback alive the top-five mean sits
+ * BELOW his own market — he is one of the five and drags it up — so charging it
+ * flat would make the tag a discount on the players it should cost most for.
+ * Taking the larger of the two keeps the tag dearer than re-signing for
+ * everybody, while the floor still makes tagging a squad player absurd: he pays
+ * what a star earns.
+ */
+export function positionRates(league, byId) {
+  const paid = {};
+  for (const t of league.teams || []) {
+    for (const s of ROSTER_SLOTS) {
+      const id = t.slots[s.id];
+      const p = id && byId?.get(id);
+      if (p) (paid[p.pos] ??= []).push(marketSalary(p));
+    }
+  }
+  const out = {};
+  for (const [pos, xs] of Object.entries(paid)) {
+    const top = xs.sort((a, b) => b - a).slice(0, TAG_TOP_N);
+    out[pos] = Math.ceil(top.reduce((a, b) => a + b, 0) / top.length);
+  }
+  return out;
+}
+
+/**
+ * What tagging this man would cost his club.
+ *
+ * The rates are cached on the offseason rather than recomputed: this is called
+ * once per rostered player by `validateKeepers` and again by every club's
+ * `aiKeepers`, and each rate costs a walk of all 864 roster slots. Without the
+ * cache a single keeper screen would scan the league twenty-seven times over.
+ */
+export function tagCost(league, player) {
+  if (!player) return MIN_SALARY;
+  const rate = league.offseason?.rates?.[player.pos] ?? 0;
+  return Math.max(rate, Math.ceil(marketSalary(player) * TAG_PREMIUM));
+}
+
+/** Who each club has tagged this offseason, as playerId -> teamIdx. */
+export function tagged(league) {
+  return league.offseason?.tagged || {};
+}
+
+/** The man this club has tagged, if any. */
+export function tagOf(league, teamIdx) {
+  for (const [id, t] of Object.entries(tagged(league))) if (t === teamIdx) return id;
+  return null;
+}
+
+/** Whether a club may still tag, and whether this man is a legal target. */
+export function canTag(league, teamIdx, playerId) {
+  if (!capOn(league)) return { ok: false, reason: 'Only a pro league has the tag' };
+  const held = tagOf(league, teamIdx);
+  if (held && held !== playerId) return { ok: false, reason: 'A club may tag one man a year' };
+  if (!league.contracts?.[playerId]?.expiring) return { ok: false, reason: 'Only a man whose deal is up can be tagged' };
+  return { ok: true };
+}
+
+/** Put the tag on, or take it off when `playerId` is null. */
+export function setTag(league, teamIdx, playerId) {
+  league.offseason ??= {};
+  league.offseason.tagged ??= {};
+  const held = tagOf(league, teamIdx);
+  if (held) delete league.offseason.tagged[held];
+  if (playerId == null) return league.offseason.tagged;
+  const v = canTag(league, teamIdx, playerId);
+  if (!v.ok) throw new Error(v.reason);
+  league.offseason.tagged[playerId] = teamIdx;
+  return league.offseason.tagged;
+}
+
 /** What keeping a player costs next season. */
 export function keeperCost(contract, player = null, league = null) {
   // Under a cap, a man still under contract costs what he is being paid, and a
   // man whose deal is up costs what he is worth. That second half is the whole
   // squeeze: a cheap rookie deal runs out and the bill arrives at market rate.
   if (league && capOn(league)) {
-    if (contract?.expiring) return Math.ceil(marketSalary(player) * RESIGN_PREMIUM);
+    if (contract?.expiring) {
+      if (player && tagged(league)[player.id] != null) return tagCost(league, player);
+      return Math.ceil(marketSalary(player) * RESIGN_PREMIUM);
+    }
     return contract?.salary ?? MIN_SALARY;
   }
   const salary = contract?.salary ?? MIN_BID;
@@ -117,6 +222,15 @@ export function validateKeepers(league, teamIdx, ids, byId = null) {
   for (const id of ids) {
     if (!owned.has(id)) return { ok: false, reason: `${id} is not on the roster` };
     if (!keeperEligible(league.contracts[id], league)) return { ok: false, reason: `${id} has been kept ${MAX_KEEPS} years and must return to the pool` };
+  }
+  if (capOn(league)) {
+    // The tag is a commitment, not a label: a club that tags a man and then
+    // leaves him off the list has spent its one tag on nobody. Checked here so
+    // the screen says so before the round is confirmed rather than after.
+    const mine = tagOf(league, teamIdx);
+    if (mine && !ids.includes(mine)) {
+      return { ok: false, reason: `${byId?.get(mine)?.name ?? 'The tagged player'} is tagged — keep him or take the tag off` };
+    }
   }
   if (league.draftType === 'auction' || capOn(league)) {
     // Money already owed to men who are gone is not available to spend. What
@@ -183,6 +297,11 @@ export function enterOffseason(league, pool, byId) {
   league.offseason = {
     season: league.season, step: carousel && carousel.offers ? 'jobs' : 'keepers',
     keepers: {}, user: null, releasedFromIr: released,
+    // The going rate at each position, fixed here so every club is quoted the
+    // same figure all round and no screen pays to recompute it. After careers,
+    // because a rate built on who these men were last season prices the tag
+    // off a league that no longer exists.
+    rates: capOn(league) ? positionRates(league, byId) : null, tagged: {},
     rookies: intake.arrived.length, washedOut: intake.washed.length, leftTheLeague: left.length,
     expired: expired.length,
     aged: careers.aged,
@@ -261,6 +380,33 @@ export function freshGuide(league, pool) {
  * bargains that fit under the cap. In a draft league it is simply the best
  * players by overall, with the same taste.
  */
+/**
+ * Which man an AI club puts the tag on, or null.
+ *
+ * The tag buys one year instead of three, so it is worth spending on the man
+ * whose next three years look worst — someone already past the peak for his
+ * position, where re-signing buys two years of decline and a dead-money bill to
+ * get out of them. Weighted by what he earns, because a year of decline on a
+ * cheap man costs nothing worth protecting against.
+ *
+ * Needs an age, so a league with careers switched off never tags. That is the
+ * honest answer rather than a guess: with no ageing there IS no decline to
+ * avoid, and the tag would be a pure overpay.
+ */
+export function aiTagChoice(league, teamIdx, roster, byId) {
+  if (!capOn(league) || !league.offseason) return null;
+  let best = null;
+  for (const p of roster) {
+    if (!league.contracts?.[p.id]?.expiring || p.age == null) continue;
+    const past = p.age - primeAge(p.pos);
+    if (past < 1) continue;
+    const worth = marketSalary(p) * past;
+    if (!best || worth > best.worth) best = { id: p.id, worth };
+  }
+  void byId;
+  return best?.id ?? null;
+}
+
 export function aiKeepers(league, teamIdx, pool, byId, rng = null) {
   const team = league.teams[teamIdx];
   const gm = GM_PERSONALITIES.find((g) => g.id === team.gm) || GM_PERSONALITIES[0];
@@ -311,6 +457,23 @@ export function aiKeepers(league, teamIdx, pool, byId, rng = null) {
     if (committed + x.cost + open * floor > cap) continue;
     keep.push(x.id);
     committed += x.cost;
+  }
+  // The tag comes last, and only from men already being kept.
+  //
+  // Choosing it first was the obvious order and it is wrong: the tag IS what a
+  // man costs, so tagging before the cap test let a club tag somebody its own
+  // surplus test then declined, and `validateKeepers` threw on a list that had
+  // spent a tag on a player who was not on it. Decide the list, tag inside it,
+  // then re-price — and if the premium no longer fits, the tag comes off rather
+  // than the player.
+  if (capOn(league) && league.offseason) {
+    setTag(league, teamIdx, null);
+    const pick = aiTagChoice(league, teamIdx, keep.map((id) => byId.get(id)).filter(Boolean), byId);
+    if (pick) {
+      setTag(league, teamIdx, pick);
+      const total = keep.reduce((sum, id) => sum + keeperCost(league.contracts[id], byId.get(id), league), 0);
+      if (total + (ROSTER_SLOTS.length - keep.length) * floor > cap) setTag(league, teamIdx, null);
+    }
   }
   return keep;
 }
@@ -368,7 +531,10 @@ export function confirmKeepers(league, userIds, pool, byId) {
         committed += cost;
         contracts[id] = {
           salary: cost,
-          years: c.expiring ? VET_YEARS : (c.years ?? VET_YEARS),
+          // One year on the tag. Re-signing writes a fresh VET_YEARS deal and
+          // `DEAD_SHARE` makes leaving it early expensive, which is exactly
+          // what a club pays the tag premium to avoid.
+          years: tagged(league)[id] != null ? 1 : (c.expiring ? VET_YEARS : (c.years ?? VET_YEARS)),
           round: c.round ?? ROSTER_SLOTS.length,
           kept: (c.kept ?? 0) + 1,
           since: c.since ?? league.season,

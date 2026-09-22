@@ -1699,6 +1699,66 @@ measurement, and the same trap as a test asserting what a clamp guarantees. The
 keeper round and the market have to be observed separately, which means
 stopping at `offseason` rather than running through to `nextSeason`.
 
+### The franchise tag, which could not be the real one
+
+The NFL's tag exists because a club cannot simply re-sign a player: he has to
+agree, and the tag is the one tool that overrides him. No such constraint exists
+here. Re-signing is already unilateral and already certain, so a tag that
+guaranteed retention would be `RESIGN_PREMIUM` at a worse price — a strictly
+dominated option, which is the exact defect the entry above was written to fix.
+
+What it can buy instead is **term**. Re-signing an expiring man writes a fresh
+`VET_YEARS` deal and `DEAD_SHARE` makes leaving one early cost half of what is
+left, which is a trap the ageing curve springs: the men worth that money are
+usually the men about to decline. The tag is one season, at a premium, with
+nothing owed afterwards.
+
+`TAG_PREMIUM` is 1.6 against `RESIGN_PREMIUM`'s 1.04, and the gap is the price
+of not committing three years. Measured over 32 clubs and four seasons
+(`scripts/resign-sim.mjs`):
+
+| tag premium | clubs using it | tagged man | age | years past peak | paid over re-signing |
+|---|---|---|---|---|---|
+| 1.2 | 56% | 87.0 ovr | 30.9 | 3.7 | $1.3 |
+| 1.6 (shipped) | 41% | 87.0 ovr | 31.6 | 4.4 | $3.4 |
+
+**1.2 was too cheap to be a decision.** Salaries here are small in absolute
+terms — the tagged man's market is about $6.6 — so a 20% premium is $1.3 against
+a cap near $200, while the term benefit it buys is worth an order of magnitude
+more: two years of decline at full price plus the dead money to escape them. At
+that price every club with an eligible player should tag, and 56% did, which is
+roughly everyone who had one. At 1.6 the price binds and usage halves.
+
+**Usage climbs as a save ages** — 25% of clubs by season three, 41% by season
+four — because more of the league passes its peak each year. The real league
+tags somebody about 15–30% of the time, so the early seasons sit in that band
+and a long save runs above it. Nothing has been done about that: it follows from
+the ageing model rather than from this constant, and inventing a decay here to
+flatten it would be fitting the symptom.
+
+**Who gets tagged.** `aiTagChoice` takes the kept man furthest past the peak for
+his position, weighted by what he earns, because a year of decline on a cheap
+player is not worth protecting against. It lands on a 87-overall 31-year-old,
+4.4 years past his position's prime — which is the man the feature is for. A
+league with careers switched off never tags at all, and that is the honest
+answer rather than a guess: with no ageing there is no decline to avoid and the
+tag is a pure overpay.
+
+**The position rate is a floor, and a rarely-binding one.** `positionRates`
+means the dearest `TAG_TOP_N` men at a position so that tagging a squad player
+costs what a star earns. At the shipped premium it binds **4% of the time**
+(28% at 1.2), because `marketSalary` is flat enough in `overall` that the top-
+five mean is only about 1.28x a good player's own price. It is kept for the
+degenerate case it guards, not because it is doing much work.
+
+**An ordering bug worth keeping.** The tag was first chosen before the keeper
+list was priced, which is the obvious order and is wrong: the tag IS what a man
+costs, so a club could tag somebody its own surplus test then declined, and
+`validateKeepers` threw on a list that had spent its tag on a player who was not
+on it. It surfaced as a crash in the middle of a four-season simulation. The
+list is decided first now, the tag chosen inside it, and the price re-checked —
+and if the premium no longer fits, the tag comes off rather than the player.
+
 ## Dynasty loop (`offseason.js`)
 
 A season ends at the final; the offseason starts from the hub. Every rostered player carries a contract from the moment a season starts: the price he went for at auction (or the round he was drafted in), how many seasons running he has been kept, and when it started. A player claimed off the wire is on a $1 deal. Contracts are keyed by player, so a trade moves the deal with the man.

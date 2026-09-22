@@ -27,11 +27,13 @@ import { createLeague, startSeason, registerPlayers } from '../src/engine/season
 import { autoDraftAll } from '../src/engine/draft.js';
 import { simulateAhead } from '../src/engine/autosim.js';
 import { enterOffseason } from '../src/engine/offseason.js';
+import { marketSalary } from '../src/engine/cap.js';
+import { primeAge } from '../src/engine/careers.js';
 import { leaguePool, leagueIndex } from '../src/engine/rookies.js';
 import { applyCareers, careerIndex } from '../src/engine/careers.js';
 import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { overall } from '../src/engine/ratings.js';
-import { RESIGN_PREMIUM } from '../src/engine/offseason.js';
+import { RESIGN_PREMIUM, TAG_PREMIUM, tagCost, tagged } from '../src/engine/offseason.js';
 
 registerPlayers(PLAYERS_BY_ID);
 const SEASONS = Number(process.argv[2] || 8);
@@ -41,7 +43,7 @@ const pool = (lg) => applyCareers(lg, leaguePool(lg, PLAYERS));
 const roster = (t) => ROSTER_SLOTS.map((s) => t.slots[s.id]).filter(Boolean);
 const mean = (x) => (x.length ? x.reduce((s, v) => s + v, 0) / x.length : 0);
 
-console.log(`RESIGN_PREMIUM = ${RESIGN_PREMIUM} · ${LEAGUES} leagues x ${SEASONS} seasons, 32 clubs`);
+console.log(`RESIGN_PREMIUM = ${RESIGN_PREMIUM}, TAG_PREMIUM = ${TAG_PREMIUM} · ${LEAGUES} leagues x ${SEASONS} seasons, 32 clubs`);
 
 const declinedShare = [], lostShare = [], continuity = [], lostOvr = [], keptOvr = [];
 // Bucketed by quality, because the decision only ever bites for a good player:
@@ -49,6 +51,8 @@ const declinedShare = [], lostShare = [], continuity = [], lostOvr = [], keptOvr
 const BANDS = [[90, 'star 90+'], [85, 'good 85-89'], [0, 'rest <85']];
 const band = (o) => BANDS.find(([lo]) => o >= lo)[1];
 const tally = {};
+const tagAges = [], tagOvr = [], tagOverpay = [], tagPast = [], tagMarket = [], tagRate = [], tagPaid = [];
+let tagsUsed = 0, clubOffseasons = 0;
 for (const [, name] of BANDS) tally[name] = { declined: 0, rival: 0, unsigned: 0, kept: 0 };
 let expiringTotal = 0, declinedTotal = 0, lostTotal = 0, unsignedTotal = 0;
 
@@ -88,6 +92,22 @@ for (let L = 0; L < LEAGUES; L++) {
         upNow.push({ id, team: i, declined: !keeping.has(id) });
       }
     });
+
+    // Who got tagged, and what the club paid over simply re-signing him.
+    const tags = { ...tagged(lg) };
+    clubOffseasons += lg.teams.length;
+    for (const id of Object.keys(tags)) {
+      const p = byIdBefore.get(id);
+      if (!p) continue;
+      tagsUsed++;
+      const plain = Math.ceil(marketSalary(p) * RESIGN_PREMIUM);
+      tagOverpay.push(tagCost(lg, p) - plain);
+      tagMarket.push(marketSalary(p));
+      tagRate.push(lg.offseason?.rates?.[p.pos] ?? 0);
+      tagPaid.push(tagCost(lg, p));
+      if (p.age != null) { tagAges.push(p.age); tagPast.push(p.age - primeAge(p.pos)); }
+      tagOvr.push(overall(p));
+    }
 
     simulateAhead(lg, index(lg), pool(lg), new RNG(seed * 13 + yr), 'nextSeason');
 
@@ -135,3 +155,10 @@ for (const [, name] of BANDS) {
   const pc = (n) => `${(100 * n / Math.max(1, t.declined)).toFixed(0)}%`;
   console.log(`  ${name.padEnd(12)} ${String(t.kept).padStart(8)}  ${String(t.declined).padStart(8)}   ${pc(t.rival).padStart(9)}   ${pc(t.unsigned).padStart(8)}`);
 }
+
+console.log('\nThe franchise tag');
+if (!tagsUsed) console.log('  never used — check careers are on and men are reaching their thirties');
+else console.log(`  used ${tagsUsed} times in ${clubOffseasons} club-offseasons (${(100 * tagsUsed / clubOffseasons).toFixed(0)}% of clubs, cap is one each)
+  the tagged man averages ${mean(tagOvr).toFixed(1)} overall, age ${mean(tagAges).toFixed(1)}, ${mean(tagPast).toFixed(1)} years past his position's peak
+  and costs $${mean(tagOverpay).toFixed(1)} more than simply re-signing him would
+  market $${mean(tagMarket).toFixed(1)} · position rate $${mean(tagRate).toFixed(1)} · tag paid $${mean(tagPaid).toFixed(1)} (the rate binds ${(100 * tagRate.filter((r, i) => r > Math.ceil(tagMarket[i] * TAG_PREMIUM)).length / Math.max(1, tagRate.length)).toFixed(0)}% of the time)`);
