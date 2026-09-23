@@ -5,8 +5,9 @@ import { playerModal, teamChip, esc, posBadge, toast } from '../components.js';
 import { seasonResult, encodeResultCode, decodeResultCode, compareResults, cardSeasons, fmtRecord } from '../../engine/result.js';
 import { drawSeasonCard, shareCanvas } from '../share-card.js';
 import { seasonTeamStats, rankTeams, TEAM_CATEGORIES, CATEGORY_BY_KEY, fmtCategory } from '../../engine/teamstats.js';
+import { archivedSeasons, pastRows } from '../../engine/archive.js';
 
-const ui = { tab: 'race', cardSeason: null, theirs: null, error: '', paste: '', statCat: 'dppg' };
+const ui = { tab: 'race', cardSeason: null, theirs: null, error: '', paste: '', statCat: 'dppg', statSeason: null };
 const TABS = [['race', 'This season'], ['teams', 'Team stats'], ['honours', 'Honours'], ['records', 'Records'], ['hall', 'Hall of Fame'], ['card', 'Season card']];
 
 export function view(root, params, ctx) {
@@ -54,14 +55,31 @@ export function view(root, params, ctx) {
   } else if (ui.tab === 'teams') {
     // Both sides of the ball. The offence was always recorded; the defence is
     // derived from what opponents did, so it covers every game already played.
-    const rows = seasonTeamStats(league);
+    // Past seasons were filed at each final (`archive.js`). The one still on
+    // the schedule — being played, or finished and not yet replaced — is read
+    // live, so it is never offered twice.
+    const past = archivedSeasons(league).filter((s) => s.season !== league.season);
+    const pick = past.find((s) => s.season === ui.statSeason) || null;
+    const rows = pick ? pastRows(league, pick.season) : seasonTeamStats(league);
     const anyGames = rows.some((r) => r.games > 0);
-    const u = league.teams.findIndex((t) => t.isUser);
+    // Whose club it was that season: a coach who has changed jobs looks back at
+    // the club he had, not the one he has now.
+    const u = pick ? (pick.user ?? -1) : league.teams.findIndex((t) => t.isUser);
     const n = rows.filter((r) => r.games > 0).length;
+    const live = league.phase === 'season' || league.phase === 'playoffs';
+    const since = league.archive?.since;
+    const picker = past.length ? `<div class="row" style="gap:.5rem;align-items:center;margin:0 0 .5rem;flex-wrap:wrap">
+      <select id="statSeason" aria-label="Season">
+        <option value="">Season ${league.season}${live ? ' (in progress)' : ''}</option>
+        ${past.map((x) => `<option value="${x.season}" ${pick && pick.season === x.season ? 'selected' : ''}>Season ${x.season}</option>`).join('')}
+      </select>
+      ${since > 1 ? `<small class="muted">Kept from season ${since}; earlier seasons were played before team statistics were filed.</small>` : ''}
+    </div>` : '';
+    const heldBy = pick && u >= 0 && !league.teams[u]?.isUser ? `, with ${esc(league.teams[u].abbr)}` : '';
     const chip = (r) => teamChip(r.team, { abbr: true }).__raw;
     const groups = [['off', 'Offence'], ['def', 'Defence'], ['both', 'Overall']];
     if (!anyGames) {
-      body = html`<p class="empty">Team statistics start with the first week's games.</p>`;
+      body = html`${raw(picker)}<p class="empty">Team statistics start with the first week's games.${past.length ? ' Earlier seasons are in the list above.' : ''}</p>`;
     } else {
       // The best at everything, which is the question most people open this for.
       const leaderRow = (cat) => {
@@ -101,9 +119,10 @@ export function view(root, params, ctx) {
       const tableRows = ranked.map((r) => `<tr class="${r.idx === u ? 'me' : ''}"><td class="num muted">${r.rank ?? '—'}</td><td>${chip(r)}</td><td class="num"><b class="stat-v">${esc(fmtCategory(cat, r.v))}</b></td><td class="num muted hide-sm">${r.games} gp</td></tr>`).join('');
 
       body = html`
-        <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">Regular season, every club. A defence is measured by what its opponents did against it.</p>
+        ${raw(picker)}
+        <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${pick ? `Season ${pick.season}, filed at its final. ` : ''}Regular season, every club. A defence is measured by what its opponents did against it.</p>
         <div class="card tight"><h3 style="margin-top:0">League leaders</h3>${raw(leaders)}</div>
-        ${u >= 0 ? html`<div class="card tight" style="margin-top:.75rem"><h3 style="margin-top:0">Where you stand</h3>${raw(mine)}</div>` : ''}
+        ${u >= 0 ? html`<div class="card tight" style="margin-top:.75rem"><h3 style="margin-top:0">${pick ? 'Where you stood' : 'Where you stand'}${raw(heldBy)}</h3>${raw(mine)}</div>` : ''}
         <div class="card tight" style="margin-top:.75rem">
           <h3 style="margin-top:0">Every club</h3>
           <select id="statCat" aria-label="Category" style="max-width:100%;margin-bottom:.5rem">${raw(options)}</select>
@@ -185,6 +204,7 @@ export function view(root, params, ctx) {
   const redraw = () => view(root, params, ctx);
   el.querySelector('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { ui.tab = b.dataset.tab; ui.error = ''; redraw(); } });
   el.querySelector('#statCat')?.addEventListener('change', (e) => { ui.statCat = e.target.value; redraw(); });
+  el.querySelector('#statSeason')?.addEventListener('change', (e) => { ui.statSeason = e.target.value ? Number(e.target.value) : null; redraw(); });
   el.querySelector('#cardSeason')?.addEventListener('change', (e) => { ui.cardSeason = Number(e.target.value); ui.theirs = null; ui.error = ''; redraw(); });
   el.querySelector('#copyCard')?.addEventListener('click', async () => {
     const out = el.querySelector('#cardOut');

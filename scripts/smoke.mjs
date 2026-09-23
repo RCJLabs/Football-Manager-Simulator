@@ -1371,6 +1371,51 @@ try {
         if (close) await close.click();
       }
     }
+
+    // Past seasons: a league with one season filed and a few weeks into the
+    // next. The Team stats tab offers the filed season, reads it back, and
+    // the matchup card quotes the series with the season it starts from.
+    {
+      const { simulateWeekAi, advanceWeek, newSeasonSameRosters } = await import(`${R}/src/engine/season.js`);
+      const past = createLeague({ name: 'Smoke Past', numTeams: 8, seed: 21, draftType: 'snake', user: { name: 'Me', abbr: 'ME', color: '#fff' } });
+      autoDraftAll(past, past.draft, PLAYERS, new RNG(21));
+      startSeason(past, PLAYERS_BY_ID);
+      while (past.phase === 'season' || past.phase === 'playoffs') { simulateWeekAi(past, PLAYERS_BY_ID, { includeUser: true }); advanceWeek(past, PLAYERS_BY_ID); }
+      newSeasonSameRosters(past, PLAYERS_BY_ID);
+      for (let w = 0; w < 2; w++) { simulateWeekAi(past, PLAYERS_BY_ID, { includeUser: true }); advanceWeek(past, PLAYERS_BY_ID); }
+      await page.evaluate((league) => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
+      }, JSON.parse(JSON.stringify(past)));
+      await page.goto(`http://localhost:${port}/#/awards/teams`);
+      await page.reload();
+      await sleep(600);
+      const opts = await page.$$eval('#statSeason option', (os) => os.map((o) => [o.value, o.textContent.trim()]));
+      if (opts.length !== 2) errors.push(`the season picker offers ${opts.length} choices; one filed season plus this one is 2`);
+      else if (opts[1][0] !== '1' || !/in progress/i.test(opts[0][1])) errors.push(`the season picker reads ${JSON.stringify(opts)}`);
+      if (opts.length) {
+        await page.selectOption('#statSeason', '1');
+        await sleep(250);
+        const txt = await page.evaluate(() => document.body.textContent);
+        if (!/Season 1, filed at its final/.test(txt)) errors.push('choosing a filed season does not say which season is showing');
+        if (!/Where you stood/.test(txt)) errors.push('a filed season still says "where you stand"');
+        const shown = await page.evaluate(() => document.querySelectorAll('.stat-v').length);
+        const hidden = await page.evaluate(() => {
+          const vw = document.documentElement.clientWidth;
+          return [...document.querySelectorAll('.stat-v')].filter((el) => { const b = el.getBoundingClientRect(); return b.width === 0 || b.right > vw + 1; }).length;
+        });
+        if (!shown) errors.push('a filed season shows no figures');
+        if (hidden) errors.push(`${hidden} of ${shown} figures from a filed season sit outside the screen at 360px`);
+        await checkOverflow('team stats for a filed season');
+        await shot('18-past-season');
+      }
+      await page.goto(`http://localhost:${port}/#/season`);
+      await sleep(400);
+      const seriesText = await page.evaluate(() => document.querySelector('.series')?.textContent.trim() || null);
+      if (!seriesText) errors.push('the matchup card has no series line');
+      else if (!/^All-time: (you (lead|trail)|level at) \d+–\d+(–\d+)?\.$/.test(seriesText)) errors.push(`the matchup card's series reads "${seriesText}"`);
+      await checkOverflow('matchup card with a series');
+    }
   }
 
   // Tablet and desktop widths must stay clean too.

@@ -18,6 +18,7 @@ import { pickBroker } from '../../engine/futurepicks.js';
 import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tradesOpen, liveOffers } from '../../engine/transactions.js';
 import { RNG } from '../../engine/rng.js';
 import { scoutingReport, fmtCategory, ordinal } from '../../engine/teamstats.js';
+import { series, seriesLine } from '../../engine/archive.js';
 
 export function fmtPhase(league) {
   if (league.phase === 'draft') return league.draftType === 'auction' ? 'Auction in progress' : 'Draft in progress';
@@ -84,6 +85,16 @@ export function view(root, params, ctx) {
         <div class="side right"><small class="muted">${rec(league.teams[myGame.away])}</small>${teamChip(league.teams[myGame.away], { responsive: true })}</div>
       </div>
       <p class="muted" style="font-size:.9rem">Power: you ${myPower} · them ${oppPower}${gm ? ` · ${gm.name} GM (${gm.blurb.toLowerCase().replace(/\.$/, '')})` : ''}</p>
+      ${(() => {
+        // Every meeting on file, this season's included. A league that began
+        // before results were kept says where its record starts rather than
+        // passing a partial series off as the whole of it.
+        if (opp.isUser) return '';
+        const s = series(league, u, oppIdx);
+        const from = s.since > 1 ? `Since season ${s.since}` : 'All-time';
+        const text = s.games ? `${from}: ${seriesLine(s)}.` : s.since > 1 ? `No meeting on file since season ${s.since}.` : 'First meeting.';
+        return html`<p class="muted series" style="font-size:.85rem;margin-top:-.4rem">${text}</p>`;
+      })()}
       ${(() => { if (myGame.result || opp.isUser) return ''; const oc = composites(fillLineup(buildLineup(opp.slots, ctx.byId, injuries))), mc = composites(fillLineup(buildLineup(me.slots, ctx.byId, injuries))); const notes = makeGameplan(oc, mc).notes; return notes.length ? html`<p class="muted" style="font-size:.85rem;margin-top:-.4rem">Their game plan: ${notes.join('; ')}.</p>` : ''; })()}
       ${(() => {
         // How they have actually played, beside how they look on paper. The

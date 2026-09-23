@@ -16,6 +16,7 @@ import { squadList, agedOutOfSquad } from './squad.js';
 import { createAuction, TRUE_LEVERAGE, spreadBudgets, DEFAULT_BUDGET} from './auction.js';
 import { shownOverall } from './scouting.js';
 import { emptyTeamStats, emptyPlayerStats, addPlayerStats, addTeamStats, fantasyPoints } from './stats.js';
+import { archiveSeason } from './archive.js';
 import { buildLineup, teamPower, overall } from './ratings.js';
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { createGame, simulateGame } from './game.js';
@@ -1134,6 +1135,9 @@ function crown(league, idx) {
     },
     divRanks: isPro(league) ? Object.fromEntries(proStandings(league).flatMap((conf) => conf.divisions.flatMap((dv) => dv.rows.map((r, i) => [r.idx, i + 1])))) : null,
   });
+  // Here and nowhere else: the one moment the whole season, playoffs and all,
+  // is still on the schedule it is about to lose.
+  archiveSeason(league, u);
   const books = bookIndex(league);
   if (books) closeSeasonBooks(league, books);
 }

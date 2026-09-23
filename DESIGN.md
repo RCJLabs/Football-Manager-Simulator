@@ -2122,9 +2122,51 @@ on the same league once the label cells were released (`td.lbl`). Why the
 deterministic worst case built for it then showed nothing is not established;
 the smoke run that failed and then passed is the evidence now.
 
-Not built: team statistics for past seasons. The schedule is replaced each
-season, so these cover the one being played (and, through the offseason, the one
-just finished). Keeping them would mean archiving a table per club per season.
+### Past seasons, and every series
+
+Team statistics used to cover one season: the schedule they are derived from is
+replaced every year, so the moment a new season began the last one's numbers
+were gone, and so was every result between two clubs. `league.history` kept the
+champion and the finishing order and nothing a club had done on the field.
+
+`archive.js` files a season when it is crowned — the one moment the whole of it,
+playoffs included, is still on the schedule — and keeps two things:
+
+- **Each club's regular-season totals, both sides of the ball, and its record.**
+  Totals, not the finished figures: a rate cannot be re-derived from a rate, and
+  a figure stored today is no use to a category added tomorrow. They read back
+  as exactly the rows `seasonTeamStats` builds, so the Team stats tab renders a
+  past season through the code it uses for the current one, and a season picker
+  is the only new screen. Stored as arrays against a field list kept with each
+  season; a field the team line gains later reads as *no figure* in seasons
+  that never had it — NaN, which every category and `rankTeams` already treat
+  as unknown — rather than as a real-looking zero, which is what a per-game
+  category dividing by games played would otherwise show.
+- **Every pair of clubs' record against each other**, regular season and
+  playoffs, which the matchup card quotes: "All-time: you lead 7–5." Bounded by
+  the number of pairs, not the number of seasons. The season still being played
+  is counted live off the schedule until it is filed, and not after — between
+  the final and the next season's first week the schedule still holds the
+  season just filed, and counting it again would double every game in it.
+
+A league that began before this has nothing for its earlier seasons, because
+their schedules are long gone. Both halves carry the season they start from,
+and the screens say so ("Since season 4: you trail 1–2") rather than passing a
+partial record off as the whole of it.
+
+What it costs, measured over six seasons of each:
+
+| league | per season filed | series | whole save grows per season |
+|---|---|---|---|
+| 32-club pro | 5.8 KB | 7.6 KB, full once all 496 pairs have met (season 4) | ~110 KB |
+| 12-club fantasy | 2.3 KB | 0.9 KB, full after one season | ~35 KB |
+
+About 5% of what a pro save already grows by each season. That growth — 634 KB
+after one season to 1,202 KB after six — was measured along the way and is not
+this feature's; nothing here looks into it.
+
+Not built: a club page listing its series against everybody, and records per
+season in the Every club table. Both read what is now kept.
 
 ### Every veteran contract was three years
 
