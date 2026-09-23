@@ -1981,6 +1981,66 @@ measurement, and the same trap as a test asserting what a clamp guarantees. The
 keeper round and the market have to be observed separately, which means
 stopping at `offseason` rather than running through to `nextSeason`.
 
+### Team statistics, both sides of the ball
+
+**The offence was recorded all along.** Every game writes third- and
+fourth-down attempts and conversions, red-zone trips and touchdowns, rushing
+and passing, completions, first downs, turnovers, sacks taken, time of
+possession, drives and penalties, and they accumulate into `seasonStats.team`.
+Measured per club per game over sixty games they read like football: 327 yards,
+a 39% third-down rate, 56% of red-zone trips ending in a touchdown, 19.8 points.
+
+**Nothing recorded the defence.** No field anywhere held what a club *allowed*,
+so "the best red-zone defence" or "the best run defence" could not be answered
+from anything the game kept. And no screen showed any team statistic
+league-wide — the box score of a single game was the only place they appeared.
+
+`teamstats.js` derives both halves from the schedule rather than storing
+anything new. Every played game already keeps both sides' lines in
+`result.teamStats`, and a club's defence is simply what its opponents did
+against it. That makes it retroactive: a save halfway through a season shows a
+defence for every game already played, not only those after this was written.
+Regular season only, the way `seasonStats.team` has always counted.
+
+Twenty-six categories — fourteen offensive, ten defensive, point and turnover
+differential — each carrying which direction wins, so a defence ranking never
+has to be read backwards. A rate with no denominator yet is unknown rather than
+0%, so in week one a club that has not faced a third down does not rank as the
+stingiest third-down defence in the league.
+
+**Two tests do most of the work.** A conservation law: across the league, every
+yard gained is a yard allowed, so the offence and defence totals of every field
+must match exactly. And a cross-check: the offence derived from stored results
+must equal the `seasonStats.team` the season already accumulated, field for
+field, or the two are counting different games.
+
+The screen is a **Team stats** tab under Awards rather than an eighth item on a
+phone's bottom bar: league leaders in every category, where your own club ranks
+in each, and a full table for any one.
+
+**Verifying it turned up two wrong turns of my own.** The first check of which
+fields were populated used `grep` over `src/engine/*.js`, missed the
+`src/engine/game/` directory the engine was split into, and reported
+`sacksAllowed` as never incremented. It is incremented, in `game/plays.js`. Text
+search cannot follow `const ts = g.stats[off].team; ts.thirdAtt++`, so the
+answer came from playing sixty games and reading which fields ever left zero.
+
+And the first layout put each figure in its own column, which at 360 px ran out
+of the table's scroll container: invisible, and invisible to the smoke test's
+page-overflow check too, because the page never got wider. Smoke now measures
+each figure's right edge against the viewport and names any that fall outside.
+One run reported seven hidden figures on a later layout; three runs since and a
+deterministic worst case — the human leading all twenty-six categories, so every
+row carries its widest badge, at 360 and 320 px under mobile emulation — show
+none, with the cell either wrapping or held on one line. What caused that one
+failure is **not established**. The figure is now unbreakable and the club chip
+and badge may wrap, which is harmless and more robust in principle, but it is
+not a demonstrated fix, and a recurrence will now say which rows it was.
+
+Not built: team statistics for past seasons. The schedule is replaced each
+season, so these cover the one being played (and, through the offseason, the one
+just finished). Keeping them would mean archiving a table per club per season.
+
 ### Every veteran contract was three years
 
 `VET_YEARS` is 3, and until now that was every veteran deal in the game:

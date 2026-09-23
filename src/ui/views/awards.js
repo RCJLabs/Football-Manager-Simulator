@@ -4,9 +4,10 @@ import { seasonAwards, hallOfFame, RECORD_LABELS, TEAM_RECORD_LABELS, HOF_THRESH
 import { playerModal, teamChip, esc, posBadge, toast } from '../components.js';
 import { seasonResult, encodeResultCode, decodeResultCode, compareResults, cardSeasons, fmtRecord } from '../../engine/result.js';
 import { drawSeasonCard, shareCanvas } from '../share-card.js';
+import { seasonTeamStats, rankTeams, TEAM_CATEGORIES, CATEGORY_BY_KEY, fmtCategory } from '../../engine/teamstats.js';
 
-const ui = { tab: 'race', cardSeason: null, theirs: null, error: '', paste: '' };
-const TABS = [['race', 'This season'], ['honours', 'Honours'], ['records', 'Records'], ['hall', 'Hall of Fame'], ['card', 'Season card']];
+const ui = { tab: 'race', cardSeason: null, theirs: null, error: '', paste: '', statCat: 'dppg' };
+const TABS = [['race', 'This season'], ['teams', 'Team stats'], ['honours', 'Honours'], ['records', 'Records'], ['hall', 'Hall of Fame'], ['card', 'Season card']];
 
 export function view(root, params, ctx) {
   const { league } = ctx.getState();
@@ -50,6 +51,62 @@ export function view(root, params, ctx) {
         </details>` : '<small class="muted">No honours recorded for this season.</small>'}
       </div>`;
     }).join('')) : html`<p class="empty">No completed seasons yet.</p>`;
+  } else if (ui.tab === 'teams') {
+    // Both sides of the ball. The offence was always recorded; the defence is
+    // derived from what opponents did, so it covers every game already played.
+    const rows = seasonTeamStats(league);
+    const anyGames = rows.some((r) => r.games > 0);
+    const u = league.teams.findIndex((t) => t.isUser);
+    const n = rows.filter((r) => r.games > 0).length;
+    const chip = (r) => teamChip(r.team, { abbr: true }).__raw;
+    const groups = [['off', 'Offence'], ['def', 'Defence'], ['both', 'Overall']];
+    if (!anyGames) {
+      body = html`<p class="empty">Team statistics start with the first week's games.</p>`;
+    } else {
+      // The best at everything, which is the question most people open this for.
+      const leaderRow = (cat) => {
+        const top = rankTeams(rows, cat)[0];
+        if (!top || top.rank == null) return '';
+        const mine = top.idx === u ? ' <span class="badge bargain">you</span>' : '';
+        // Only the figure is unbreakable. Holding the whole cell on one line let
+        // a long label plus a club chip plus a "you" badge run past the screen,
+        // and whether it did depended on which rows the human happened to lead.
+        return `<tr><td>${esc(cat.label)}</td><td class="num"><b class="stat-v" style="white-space:nowrap">${esc(fmtCategory(cat, top.v))}</b> ${chip(top)}${mine}</td></tr>`;
+      };
+      const leaders = groups.map(([side, label]) => {
+        const body = TEAM_CATEGORIES.filter((c) => c.side === side).map(leaderRow).join('');
+        return body ? `<h3 style="margin:.6rem 0 .2rem">${label}</h3><div class="table-wrap"><table style="font-size:.88rem"><tbody>${body}</tbody></table></div>` : '';
+      }).join('');
+
+      // Where your own club stands, which is what a general manager acts on.
+      const third = Math.max(1, Math.round(n / 3));
+      const mineRow = (cat) => {
+        const r = rankTeams(rows, cat).find((x) => x.idx === u);
+        if (!r || r.rank == null) return `<tr><td>${esc(cat.label)}</td><td class="num muted">—</td></tr>`;
+        const tone = r.rank <= third ? 'bargain' : r.rank > n - third ? 'overpay' : '';
+        return `<tr><td>${esc(cat.label)}</td><td class="num"><b class="stat-v" style="white-space:nowrap">${esc(fmtCategory(cat, r.v))}</b> <span class="badge ${tone}" style="white-space:nowrap">${r.rank} of ${n}</span></td></tr>`;
+      };
+      const mine = u >= 0 ? groups.map(([side, label]) => {
+        const body = TEAM_CATEGORIES.filter((c) => c.side === side).map(mineRow).join('');
+        return `<h3 style="margin:.6rem 0 .2rem">${label}</h3><div class="table-wrap"><table style="font-size:.88rem"><tbody>${body}</tbody></table></div>`;
+      }).join('') : '';
+
+      // The whole league in one category.
+      const cat = CATEGORY_BY_KEY[ui.statCat] || TEAM_CATEGORIES[0];
+      const ranked = rankTeams(rows, cat);
+      const options = groups.map(([side, label]) => `<optgroup label="${label}">${TEAM_CATEGORIES.filter((c) => c.side === side).map((c) => `<option value="${c.key}" ${c.key === cat.key ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</optgroup>`).join('');
+      const tableRows = ranked.map((r) => `<tr class="${r.idx === u ? 'me' : ''}"><td class="num muted">${r.rank ?? '—'}</td><td>${chip(r)}</td><td class="num"><b>${esc(fmtCategory(cat, r.v))}</b></td><td class="num muted hide-sm">${r.games} gp</td></tr>`).join('');
+
+      body = html`
+        <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">Regular season, every club. A defence is measured by what its opponents did against it.</p>
+        <div class="card tight"><h3 style="margin-top:0">League leaders</h3>${raw(leaders)}</div>
+        ${u >= 0 ? html`<div class="card tight" style="margin-top:.75rem"><h3 style="margin-top:0">Where you stand</h3>${raw(mine)}</div>` : ''}
+        <div class="card tight" style="margin-top:.75rem">
+          <h3 style="margin-top:0">Every club</h3>
+          <select id="statCat" aria-label="Category" style="max-width:100%;margin-bottom:.5rem">${raw(options)}</select>
+          <div class="table-wrap"><table style="font-size:.9rem"><thead><tr><th class="num">#</th><th>Club</th><th class="num">${esc(cat.label)}</th><th class="num hide-sm">Games</th></tr></thead><tbody>${raw(tableRows)}</tbody></table></div>
+        </div>`;
+    }
   } else if (ui.tab === 'records') {
     const R = league.records?.players || {}, T = league.records?.teams || {};
     const row = (label, r, extra) => `<tr><td>${label}</td><td class="num"><b>${r.value}</b></td><td>${extra}</td><td class="num muted hide-sm">S${r.season}</td></tr>`;
@@ -124,6 +181,7 @@ export function view(root, params, ctx) {
   const el = root.querySelector('#awards-view');
   const redraw = () => view(root, params, ctx);
   el.querySelector('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { ui.tab = b.dataset.tab; ui.error = ''; redraw(); } });
+  el.querySelector('#statCat')?.addEventListener('change', (e) => { ui.statCat = e.target.value; redraw(); });
   el.querySelector('#cardSeason')?.addEventListener('change', (e) => { ui.cardSeason = Number(e.target.value); ui.theirs = null; ui.error = ''; redraw(); });
   el.querySelector('#copyCard')?.addEventListener('click', async () => {
     const out = el.querySelector('#cardOut');

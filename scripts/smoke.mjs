@@ -692,6 +692,52 @@ try {
   if (!inPlayoffs) errors.push('simulating to the playoffs did not get there');
   await checkOverflow('after simulating to the playoffs');
 
+  // Team statistics, both sides of the ball, with a full regular season behind
+  // them. Checked here and not on the injected pro league further down: that
+  // one skips its season, so it would show the empty state and prove nothing.
+  {
+    await page.goto(`http://localhost:${port}/#/awards/teams`);
+    await sleep(500);
+    const t = await page.evaluate(() => ({
+      text: document.body.innerText,
+      leaders: document.querySelectorAll('#awards-view .card')[1]?.querySelectorAll('tbody tr').length || 0,
+      clubs: document.querySelector('#statCat') ? document.querySelector('#statCat').closest('.card').querySelectorAll('tbody tr').length : 0,
+      teams: (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); return JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league.teams.length; })(),
+    }));
+    if (!/League leaders/i.test(t.text)) errors.push('the team stats tab has no league leaders');
+    if (!/Red-zone touchdown % allowed/i.test(t.text)) errors.push('team stats carry no red-zone defence');
+    if (!/Rushing yards allowed per game/i.test(t.text)) errors.push('team stats carry no run defence');
+    if (!/Third-down conversion %/i.test(t.text)) errors.push('team stats carry no third-down offence');
+    if (t.leaders < 10) errors.push(`only ${t.leaders} league leaders shown`);
+    if (t.clubs !== t.teams) errors.push(`the full table lists ${t.clubs} clubs of ${t.teams}`);
+    if (/Team statistics start with/.test(t.text)) errors.push('team stats claim nothing has been played after a whole regular season');
+    // Changing category must re-rank, not just relabel.
+    const before = await page.evaluate(() => [...document.querySelector('#statCat').closest('.card').querySelectorAll('tbody tr')].map((r) => r.innerText).join('|'));
+    await page.selectOption('#statCat', 'drush');
+    await sleep(250);
+    const after = await page.evaluate(() => ({ head: document.querySelector('#statCat').closest('.card').querySelector('thead').innerText,
+      rows: [...document.querySelector('#statCat').closest('.card').querySelectorAll('tbody tr')].map((r) => r.innerText).join('|') }));
+    if (!/Rushing yards allowed/i.test(after.head)) errors.push('choosing run defence did not change the column');
+    if (after.rows === before) errors.push('choosing a different category left the ranking unchanged');
+    // Page overflow cannot see this: a number pushed out of a table's own
+    // scroll container is hidden without the page ever getting wider, which is
+    // exactly how the first version shipped its leaders with no figures.
+    const hidden = await page.evaluate(() => {
+      const vw = document.documentElement.clientWidth;
+      return [...document.querySelectorAll('.stat-v')]
+        .filter((el) => { const b = el.getBoundingClientRect(); return b.width === 0 || b.right > vw + 1; })
+        .map((el) => `${el.closest('tr')?.cells[0]?.innerText.trim()} (right edge ${Math.round(el.getBoundingClientRect().right)} of ${vw})`);
+    });
+    const shown = await page.evaluate(() => document.querySelectorAll('.stat-v').length);
+    if (!shown) errors.push('team stats show no figures at all');
+    if (hidden.length) errors.push(`${hidden.length} of ${shown} team-stat figures sit outside the screen at 360px: ${hidden.join('; ')}`);
+    await checkOverflow('team stats at 360px');
+    await shot('09y-team-stats');
+    // Back where the season walk below expects to be.
+    await page.goto(`http://localhost:${port}/#/season`);
+    await sleep(400);
+  }
+
   // Play the season out, then run the offseason: keepers, the auction, season two.
   let tookOffer = false;
   for (let i = 0; i < 40 && !(await page.$('.champ')); i++) {
