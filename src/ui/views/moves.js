@@ -13,7 +13,7 @@ import {
   futureHand, futurePicksOpen, futureLabel, futureSeason, futurePickValue, pickTradeDelta,
   projectedSlots, slotBand, FUTURE_ROUNDS,
 } from '../../engine/futurepicks.js';
-import { dealPlan, scanClub, dealStillValid } from '../../engine/dealfinder.js';
+import { dealPlan, scanClub, dealStillValid, counterOffer } from '../../engine/dealfinder.js';
 import { faBoard, keeperAdvice } from '../../engine/market.js';
 import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge, outBadge } from '../components.js';
 import { emptySlotAt } from '../../engine/transactions.js';
@@ -436,10 +436,39 @@ export function view(root, params, ctx) {
       });
     }, { silent: true });
     const partner = league.teams[ui.partner];
+    // A refusal used to end here, with a hint at the size of the gap. Now the
+    // club names the nearest version of THIS deal it would take — and what it
+    // leaves you with against standing pat, because the cheapest thing a club
+    // will accept can still be your starting quarterback.
+    const counter = !r.accepted && r.ok
+      ? counterOffer(league, ctx.byId, ctx.players, u, ui.partner, give, get, { userPicks: mine, aiPicks: theirs })
+      : null;
+    const pn = (id) => ctx.byId.get(id)?.name ?? '?';
+    const counterLine = !counter ? '' : counter.none
+      ? html`<p class="muted">No single change closes this one. The gap is about ${Math.max(1, Math.ceil(counter.gap))} lineup points on their side, and adding or removing any one piece does not cover it.</p>`
+      : html`<div class="card tight" style="margin:.4rem 0">
+          <p style="margin:0"><b>They would take it</b> if you ${counter.kind === 'add' ? html`add <b>${pn(counter.what)}</b>` : counter.kind === 'drop' ? html`leave <b>${pn(counter.what)}</b> out of it` : html`add your <b>${futureLabel(league, counter.what)}</b> pick`}.</p>
+          <p class="muted" style="margin:.2rem 0 0;font-size:.88rem">${counter.net >= 0
+            ? `You would still come out ${counter.net.toFixed(1)} lineup points ahead of standing pat.`
+            : `That would leave you ${Math.abs(counter.net).toFixed(1)} lineup points worse off than standing pat — the price of their answer, not a recommendation.`}${counter.alternatives ? ` ${counter.alternatives} other single change${counter.alternatives === 1 ? '' : 's'} would also do it; this is the one that costs you least.` : ''}</p>
+        </div>`;
     const m = modal(html`<h2>${r.accepted ? 'Deal' : 'No deal'}</h2>
       <p>${r.reason}</p>
+      ${counterLine}
       ${r.accepted ? html`${[...give.map((id) => ctx.byId.get(id).name), ...mine.map((p) => futureLabel(league, p))].join(', ')} to ${partner.name}; ${[...get.map((id) => ctx.byId.get(id).name), ...theirs.map((p) => futureLabel(league, p))].join(', ')} join you.${r.fills?.a?.signs?.length ? ` You signed ${r.fills.a.signs.map((id) => ctx.byId.get(id).name).join(' and ')}.` : ''}${r.fills?.a?.releases?.length ? ` ${r.fills.a.releases.map((id) => ctx.byId.get(id).name).join(' and ')} released.` : ''} Check your depth chart.</p>` : ''}
-      <div class="row"><button class="btn primary" data-close>OK</button>${r.accepted ? html`<a class="btn" href="#/team/${u}/depth">Depth chart</a>` : ''}</div>`);
+      <div class="row"><button class="btn primary" data-close>OK</button>${r.accepted ? html`<a class="btn" href="#/team/${u}/depth">Depth chart</a>` : ''}${counter && !counter.none ? html`<button class="btn" id="loadCounter" data-close>Put their answer in the builder</button>` : ''}</div>`);
+    // Loaded rather than executed: the human still presses Propose, and
+    // proposing re-checks everything, so a roster that moved in between is
+    // refused rather than traded into. The button carries `data-close`, so the
+    // dialog shuts through its own path — keydown listener removed, focus
+    // handed back — rather than being torn out of the page from here.
+    document.querySelector('#loadCounter')?.addEventListener('click', () => {
+      ui.give = new Set(counter.gives);
+      ui.get = new Set(counter.gets);
+      ui.givePicks = new Set((counter.userPicks || []).map((p) => p.key));
+      ui.getPicks = new Set((counter.aiPicks || []).map((p) => p.key));
+      redraw();
+    });
     void m;
     // The search was run against rosters that have just moved.
     if (r.accepted) { ui.give.clear(); ui.get.clear(); ui.givePicks.clear(); ui.getPicks.clear(); ui.deals = null; ui.tab = 'log'; }

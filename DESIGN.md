@@ -1981,6 +1981,50 @@ measurement, and the same trap as a test asserting what a clamp guarantees. The
 keeper round and the market have to be observed separately, which means
 stopping at `offseason` rather than running through to `nextSeason`.
 
+### A refusal that names the deal
+
+A refused trade used to end at "No deal" and a hint at the size of the gap —
+"they want roughly three more points of lineup value" — which says how far off
+you are and nothing about how to close it. You guessed, proposed, and were
+refused again. The deal finder searches the whole league for trades a club would
+take; `counterOffer` answers the narrower question the human is asking at the
+moment of refusal: what would *this* club take, starting from what I offered?
+
+Every change of one piece is tried — one more of your players, one fewer of
+theirs, one of your future picks — and kept only if the club's own rule accepts
+it and `validateTrade` allows it, the same pair of tests `proposeTrade` applies,
+in the same order. Of the survivors, the one that costs *you* least is offered:
+the nearest deal that works, not the one the club would like best. A pick is
+arithmetic rather than a re-simulation, for the reason `closeWithPick` gives.
+Over thirty refused proposals, 26 had a single-change answer; the search takes a
+median of 6 ms.
+
+**The cheapest thing a club will accept can be your starting quarterback.** The
+first version offered it as "Counter: add Steve Young" — technically correct,
+a terrible suggestion dressed as help. It is not hidden, because knowing the true
+price is information; it is priced. Every counter says what it leaves you with
+against standing pat, so "that would leave you 22.5 lineup points worse off —
+the price of their answer, not a recommendation" reads as the bad deal it is.
+
+The load-counter button carries `data-close`, so the dialog shuts through its own
+path rather than being torn out of the page; driven end to end in a browser, the
+builder holds exactly the counter and proposing it is accepted.
+
+**One mutation escapes, and the reason is kept rather than papered over.**
+Removing `validateTrade` from the search breaks no test. The club's arithmetic
+genuinely does accept illegal deals — three four-player offers against a limit of
+three in one league — and validation is the only rule that names why. But in
+every case found, across five leagues, seven clubs and four positions, your own
+roster backfill *also* fails on those deals, so a second check catches the same
+candidates first. The guard is pre-empted in practice rather than redundant in
+principle, and it stays: it is the rule proposals are held to, and a change to
+backfill could open the gap it covers. Removing the "never strip their side to
+nothing" guard also escapes, and that one is genuinely equivalent —
+`validateTrade` already refuses a side that gives nothing.
+
+Single changes only. A two-piece counter multiplies the search by the roster and
+is a negotiation rather than an answer.
+
 ### Scouting the next opponent
 
 The matchup card said how two rosters compare on paper — power, unit

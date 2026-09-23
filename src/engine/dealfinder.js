@@ -36,7 +36,7 @@ import {
   validateTrade, evaluateTrade, lineupStrength, slotsAfterTrade, tradesOpen, slotOf, aiGreed,
 } from './transactions.js';
 import {
-  futureHand, futurePicksOpen, futurePickValue, projectedSlots, futureOwner,
+  futureHand, futurePicksOpen, futurePickValue, projectedSlots, futureOwner, pickTradeDelta,
 } from './futurepicks.js';
 
 /** The positions a trade can be built around. Kickers and punters are not a market. */
@@ -263,4 +263,88 @@ export function dealStillValid(league, byId, pool, deal, userIdx) {
   return validateTrade(league, deal.club, userIdx, deal.gives, deal.wants, byId, pool, {
     aPicks: deal.aiPicks || [], bPicks: deal.userPicks || [],
   }).ok;
+}
+
+// ---------------------------------------------------------------------------
+// The counter-offer: the nearest version of YOUR deal the club would take
+// ---------------------------------------------------------------------------
+
+/**
+ * A refused trade used to end at "No deal" and a hint — "they want roughly
+ * three more points of lineup value" — which tells you the size of the gap and
+ * nothing about how to close it. You then guessed, proposed, and were refused
+ * again. The finder above searches the whole league for deals a club would
+ * take; this answers the narrower question the human is actually asking at that
+ * moment: what would *this* club accept, starting from what I just offered?
+ *
+ * Every change of one piece is tried — one more of your players, one fewer of
+ * theirs, one of your future picks added — and kept only if the club's own rule
+ * accepts it and `validateTrade` allows it, which is the same pair of tests
+ * `proposeTrade` applies, called in the same order. Of the survivors the one
+ * that costs YOU least is offered, measured in your own lineup points: the
+ * nearest deal that works, not the one the club would like best. A pick is
+ * arithmetic rather than a re-simulation, for the reason `closeWithPick` gives.
+ *
+ * Single changes only. Two-piece counters multiply the search by the roster
+ * and are a different feature — a negotiation — rather than an answer. When no
+ * single change works, that is said plainly rather than approximated.
+ */
+export function counterOffer(league, byId, pool, userIdx, aiIdx, userGives, aiGives, { userPicks = [], aiPicks = [] } = {}) {
+  if (!tradesOpen(league)) return null;
+  const club = league.teams[aiIdx], me = league.teams[userIdx];
+  const slots = futurePicksOpen(league) ? projectedSlots(league, byId) : null;
+  const clubPicks = (mine, theirs) => (slots ? pickTradeDelta(league, byId, aiIdx, theirs, mine, slots) : 0);
+
+  const evalFor = (gives, gets, mine, theirs) => {
+    const v = validateTrade(league, userIdx, aiIdx, gives, gets, byId, pool, { aPicks: mine, bPicks: theirs });
+    if (!v.ok) return null;
+    return evaluateTrade(league, aiIdx, gets, gives, byId, pool, { pickDelta: clubPicks(mine, theirs) });
+  };
+  const base = evalFor(userGives, aiGives, userPicks, aiPicks);
+  if (!base || base.accept) return null;
+
+  const myBefore = lineupStrength(me.slots, byId, league);
+  const myAfter = (gives, gets) => {
+    const out = slotsAfterTrade(league, userIdx, gives, gets, pool, byId);
+    return out ? lineupStrength(out.slots, byId, league) : null;
+  };
+  const baseMine = myAfter(userGives, aiGives);
+  const found = [];
+  const consider = (kind, gives, gets, mine, theirs, extraCost = 0, what = null) => {
+    const ev = evalFor(gives, gets, mine, theirs);
+    if (!ev || !ev.accept) return;
+    const after = myAfter(gives, gets);
+    if (after == null) return;
+    // Net for you against standing pat, and the price of the change against
+    // the deal you actually proposed: that second number is what is being
+    // asked of you.
+    const net = Math.round((after - myBefore - extraCost) * 10) / 10;
+    const cost = Math.round(((baseMine ?? after) - after + extraCost) * 10) / 10;
+    found.push({ kind, gives, gets, userPicks: mine, aiPicks: theirs, net, cost, what, reason: ev.reason, club: aiIdx });
+  };
+
+  // One more of yours.
+  const offered = new Set(userGives);
+  for (const s of ROSTER_SLOTS) {
+    const id = me.slots[s.id];
+    if (!id || offered.has(id)) continue;
+    consider('add', [...userGives, id], aiGives, userPicks, aiPicks, 0, id);
+  }
+  // One fewer of theirs — never down to nothing, which would be a gift.
+  if (aiGives.length > 1) {
+    for (const id of aiGives) consider('drop', userGives, aiGives.filter((x) => x !== id), userPicks, aiPicks, 0, id);
+  }
+  // One of your picks. Its price to you is its worth on your own books.
+  if (slots) {
+    const onTable = new Set(userPicks.map((p) => p.key));
+    for (const p of futureHand(league, userIdx)) {
+      if (onTable.has(p.key)) continue;
+      consider('pick', userGives, aiGives, [...userPicks, p], aiPicks, futurePickValue(league, byId, p, slots, userIdx), p);
+    }
+  }
+
+  found.sort((a, b) => a.cost - b.cost || b.net - a.net);
+  return found.length
+    ? { ...found[0], options: found, alternatives: found.length - 1, gap: Math.round((aiGreed(club, league) + (base.premium || 0) - base.delta) * 10) / 10 }
+    : { none: true, gap: Math.round((aiGreed(club, league) + (base.premium || 0) - base.delta) * 10) / 10 };
 }

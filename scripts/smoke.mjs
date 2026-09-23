@@ -480,8 +480,27 @@ try {
   await shot('09c-trade');
   await page.click('#propose');
   await page.waitForSelector('.modal');
-  await page.click('.modal [data-close]');
-  await page.waitForSelector('.modal-back', { state: 'detached' });
+  // A refusal names the nearest deal the club would take, or says plainly
+  // that no single change gets there — never just "No deal" and a hint.
+  const answer = await page.evaluate(() => {
+    const m = document.querySelector('.modal');
+    return { text: m.innerText, counter: !!m.querySelector('#loadCounter') };
+  });
+  if (/No deal/i.test(answer.text) && !/They would take it|No single change closes/i.test(answer.text)) {
+    errors.push('a refused trade said neither what the club would take nor that nothing single would do');
+  }
+  await checkOverflow('trade answer at 360px');
+  await shot('09c2-trade-answer');
+  if (answer.counter) {
+    // Loading it must put their answer in the builder, ready to propose.
+    await page.click('#loadCounter');
+    await page.waitForSelector('.modal-back', { state: 'detached' });
+    const ready = await page.$('#propose:not([disabled])');
+    if (!ready) errors.push('loading the counter left nothing proposable in the builder');
+  } else {
+    await page.click('.modal [data-close]');
+    await page.waitForSelector('.modal-back', { state: 'detached' });
+  }
   await page.goto(`http://localhost:${port}/#/season`);
   await page.waitForSelector('#advance');
   await sleep(400); // the store saves on a short debounce
