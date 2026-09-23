@@ -2595,6 +2595,86 @@ Injuries that shorten a career are built — see **What a knee costs** below.
 Scouting fog over the growth curve is built too — see **The band says where, and now also when** under Scouting.
 The roadmap above and everything after it is now finished.
 
+### Development focus (`focus.js`)
+
+Careers gave every man hidden traits — `pace` scales how fast he climbs,
+`wear` how fast he declines — and nothing a club did could touch either. A
+club now names up to three men a season for its staff to work with: one still
+climbing climbs faster (`FOCUS_CLIMB`, the climb doubled), one past his peak
+declines slower (`FOCUS_EASE`, 60% less). It is applied at the one moment
+careers move, when the offseason opens, and the picks are then cleared so a
+stale choice cannot carry into a season it no longer fits.
+
+**It costs the rest of the roster, on purpose.** A boost with no cost is a
+choice with one right answer, and used by every club it would inflate the
+league — and ratings are what every salary, the draft and the cap are priced
+from. So the staff's time is a budget: every man focused makes each teammate
+climb `FOCUS_COST` (2.8%) slower and decline 2.8% faster. What a club gains is
+concentration — the men who matter most, at the ages where a season moves them
+most — not development from nowhere.
+
+**The staff picks for anybody who does not**, AI clubs and a human who names
+nobody alike, from what every club can see: age, position, starter or not, and
+for a rookie his scouting range, which caps what hurrying him can buy. Never
+the hidden traits focus acts on. The expected season at an age comes from
+`expectedChange`, derived from the career curves themselves so it cannot go
+stale when they are retuned. A man whose career has not started yet — anybody
+in a league's first season, or signed this season — is read at the age his
+career will start at, which is fixed by the seed and is exactly what the next
+offseason records; without that the staff picked nobody in a first season
+while a human could name anyone. Leaving the choice alone is therefore never
+worse than the league around you.
+
+Measured exactly (`npm run focus`, `scripts/focus-sim.mjs`): before each
+offseason every rostered man's season is stepped with the focus plan and
+without it, off the same random stream, so the difference is focus and nothing
+else. Two seed sets of two 32-club leagues × five offseasons, 320 club-seasons
+each:
+
+| | seeds 4000 | seeds 9000 |
+|---|---|---|
+| gained by focused men | +907 | +926 |
+| paid by their teammates | −906 | −960 |
+| **net across the league** | **+1** | **−34** |
+| starters, leverage-weighted, a club a season | +12.2 | +13.7 |
+| staff's picks, as a share of the best three | 79% | 82% |
+| three at random, as a share of the best three | 25% | 25% |
+
+What focus did for the man focused, in overall points that season:
+
+| where he was | seeds 4000 | seeds 9000 |
+|---|---|---|
+| climbing, 3+ years before his peak | +1.87 | +1.75 |
+| near the peak, −2 to +1 | +0.82 | +0.91 |
+| declining, +2 to +4 | +0.77 | +0.80 |
+| well past, +5 on | +0.79 | +0.82 |
+
+The net is within 4% of the ~915 points moved, so focus redistributes and does
+not inflate. Choosing matters: the staff's picks are worth about three times
+three at random, and a human who reads a man's history — "up 7 in 2 seasons"
+says more about his pace than his age does — can beat the staff, which reads
+population averages. At the measured slope of 25 strength to a point of
+differential, the +12 to +14 on starters is about half a point a game per
+season of focus, and it stays as long as the men do.
+
+**How it was sized, including two wrong turns.** At a cost of 0.035 the
+teammates paid nearly twice what the focused men gained: a net of −409, which
+would have deflated the league. Halving the cost fixed the sign, but at
+`FOCUS_CLIMB` 0.5 a focused man gained +0.5 to +0.85 a season, and in whole
+rating points that reads "+0" half the time — a screen reporting nothing is
+not a decision anybody can feel. Doubling the climb and easing decline 60%
+made it +0.8 to +1.9. Then the measurement itself was wrong twice. It skipped
+every man whose career had not started — this season's signings — which
+counted his teammates' bill for his focus and not the focus; and the
+first-season age fix above made the staff pick exactly those men, which is how
+the net suddenly read −160. Counting them, the net is the +1 and −34 above.
+
+Rounding still shows: a veteran's report often reads +1 or "no change", which
+is honest — a season held at 0.8 of a point is below the resolution of a
+rating. On for new leagues; off, like careers and chemistry before it, for a
+league started before it existed, until switched on in settings; and only where
+careers are on, since without ageing there is nothing to focus.
+
 ## Difficulty (`difficulty.js`)
 
 There was no difficulty setting at all: every league ran the same fixed spread of general managers, so a manager who had learned where value hides beat the room every year with no dial to turn.

@@ -572,6 +572,36 @@ try {
     await sleep(250);
     await checkOverflow(`team page · ${tab}`);
   }
+
+  // Development focus on the Squad tab: the staff's picks until you choose,
+  // taking one off keeps the other two, and a third can be named from the list.
+  {
+    await page.goto(`http://localhost:${port}/#/team/0/squad`);
+    await sleep(300);
+    const head = async () => (await page.$eval('#devCard h3', (e) => e.textContent).catch(() => '')).replace(/\s+/g, ' ');
+    const h0 = await head();
+    if (!/Development focus/i.test(h0)) errors.push('the Squad tab has no development focus card');
+    else {
+      if (!/3 of 3/.test(h0) || !/staff's picks/.test(h0)) errors.push(`the focus card opens as "${h0}", not the staff's three`);
+      await page.click('#devCard [data-focus]');
+      await sleep(300);
+      const h1 = await head();
+      if (!/2 of 3/.test(h1) || /staff's picks/.test(h1)) errors.push(`taking one off left "${h1}"`);
+      if (!(await page.$('#focusReset'))) errors.push('no way back to the staff\'s picks once you have chosen');
+      await page.click('#devMore summary');
+      await sleep(150);
+      await page.click('#devMore [data-focus]:not([disabled])');
+      await sleep(300);
+      const h2 = await head();
+      if (!/3 of 3/.test(h2)) errors.push(`naming a man from the list left "${h2}"`);
+      if (!(await page.$eval('#devMore', (e) => e.open).catch(() => false))) errors.push('the roster list snapped shut after choosing from it');
+      const full = await page.$$eval('#devMore [data-focus]', (bs) => bs.every((b) => b.disabled));
+      if (!full) errors.push('with three named, the list still offers a fourth');
+      await checkOverflow('development focus card at 360px');
+      await shot('20-focus');
+    }
+  }
+  await page.goto(`http://localhost:${port}/#/team/0/strategy`);
   await page.waitForSelector('.slider-row');
 
   // The pass/run read: the one dial measured to decide games, and the only one

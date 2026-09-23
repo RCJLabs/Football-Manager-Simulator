@@ -24,6 +24,7 @@ import { drainVeterans } from './proleague.js';
 import { clearIr } from './injuries.js';
 import { addRookieClass } from './rookies.js';
 import { advanceCareers, releaseRetired, primeAge } from './careers.js';
+import { focusPlan, clearFocus } from './focus.js';
 // The price of a contract's length lives in terms.js, because free agency
 // needs it and this file imports free agency — importing it back would be a
 // cycle over a `const`, which throws rather than resolving by luck. Re-exported
@@ -297,9 +298,12 @@ export function enterOffseason(league, pool, byId) {
   // Absent, not false, is what a league written before careers existed looks
   // like. Those stay frozen until the setting is turned on, because turning a
   // rule on under a league somebody is halfway through is not a kindness.
+  // Each club's development focus is applied here, the one moment careers
+  // move, and then cleared: a pick is for the season it was made in.
   const careers = league.settings?.careers
-    ? advanceCareers(league, byId)
+    ? advanceCareers(league, byId, { focus: focusPlan(league, byId) })
     : { retired: [], risers: [], fallers: [], aged: 0 };
+  clearFocus(league);
   const owed = bookRetirements(league, careers.retired.map((r) => r.id));
   releaseRetired(league, careers.retired.map((r) => r.id));
   // A new intake arrives before the market opens, and old unsigned rookies wash out.
@@ -322,6 +326,7 @@ export function enterOffseason(league, pool, byId) {
     aged: careers.aged,
     retired: careers.retired.filter((r) => r.owned).map((r) => ({ name: r.name, pos: r.pos, age: r.age, ...(owed.get(r.id) || {}) })),
     risers: careers.risers.slice(0, 5),
+    focused: (careers.focused || []).map((f) => ({ name: f.name, pos: f.pos, age: f.age, team: f.team, from: f.from, to: f.to, gain: f.gain })),
     fallers: careers.fallers.slice(0, 5),
     carousel,
   };

@@ -9,6 +9,9 @@ import { fantasyPoints } from '../../engine/stats.js';
 import { chemistryFor, describeChemistry, MAX_BONUS } from '../../engine/chemistry.js';
 import { strategyRead } from '../../engine/strategy.js';
 import { autoDepth } from '../../engine/season.js';
+import { focusOn, focusOf, namedFocus, toggleFocus, resetFocus, ageOf, FOCUS_SLOTS } from '../../engine/focus.js';
+import { careerPhase, primeAge } from '../../engine/careers.js';
+import { teamContractIds } from '../../engine/cap.js';
 
 // Grouped by what each one was measured to be worth, because presenting five
 // dials as five equal decisions is not what the numbers say. See strategy.js.
@@ -33,7 +36,7 @@ const GROUP_NOTES = {
  * survives a re-render and the back button works.
  */
 const TABS = [['depth', 'Depth'], ['squad', 'Squad'], ['injuries', 'Injuries'], ['strategy', 'Strategy']];
-const ui = { tab: 'depth' };
+const ui = { tab: 'depth', devOpen: false };
 
 export function view(root, params, ctx) {
   if (params && params.tab) {
@@ -142,6 +145,40 @@ export function view(root, params, ctx) {
     <small class="muted">Worth at most ${MAX_BONUS.toFixed(1)} points either way, on blocking, coverage and a quarterback's timing — never on speed. A tight era band gels at once; a wide one stops mattering once the squad has played together.</small>
   </div>` : '';
 
+  // Development focus. Only your own club chooses, and only while a season's
+  // development is still to come: it is applied when the offseason opens.
+  const focusing = canEdit && focusOn(league) && ['season', 'playoffs', 'complete'].includes(league.phase);
+  let devCard = '';
+  if (focusing) {
+    const named = namedFocus(league, idx);
+    const picked = focusOf(league, idx, ctx.byId);
+    const full = picked.length >= FOCUS_SLOTS;
+    // A man whose career has not started yet shows the age it will start at —
+    // the same one the staff's picks read — rather than no age at all.
+    const aged = (p) => (p && p.age == null ? { ...p, age: ageOf(league, p) } : p);
+    const devRow = (id) => {
+      const p = aged(ctx.byId.get(id));
+      if (!p) return '';
+      const on = picked.includes(id);
+      const phase = p.age != null ? ` · ${careerPhase(p.pos, p.age)}` : '';
+      const button = `<button class="btn sm ${on ? 'primary' : ''}" data-focus="${esc(id)}" ${!on && full ? 'disabled title="Three at most — take somebody off first"' : ''}>${on ? 'Focused' : 'Focus'}</button>`;
+      return playerItem(p, { attrs: false, meta: phase, action: button, cls: on ? 'me' : '' });
+    };
+    // Youngest against his position's peak first: the list reads from the men
+    // with the most season ahead of them to the ones with the most behind.
+    const rest = teamContractIds(league, idx).filter((id) => !picked.includes(id)).map((id) => aged(ctx.byId.get(id))).filter(Boolean)
+      .sort((a, b) => ((a.age ?? 99) - primeAge(a.pos)) - ((b.age ?? 99) - primeAge(b.pos)) || overall(b) - overall(a));
+    devCard = html`<div class="card tight" id="devCard">
+      <h3>Development focus <small class="muted" style="text-transform:none;letter-spacing:0">· ${picked.length} of ${FOCUS_SLOTS}${named ? '' : ' · your staff\'s picks'}</small></h3>
+      <p class="muted" style="font-size:.85rem;margin:.2rem 0 .4rem">Name up to ${FOCUS_SLOTS} men. One still climbing climbs faster; one past his peak slips more slowly. It is not free — every man you name makes the rest of the roster develop a little slower. Name nobody and your staff chooses, as every other club's does. It is applied when the season ends.</p>
+      ${picked.length ? html`<ul class="plist">${raw(picked.map(devRow).join(''))}</ul>` : html`<p class="empty">Nobody — the whole roster develops at its own rate.</p>`}
+      ${named ? html`<button type="button" class="btn sm ghost" id="focusReset">Back to the staff's picks</button>` : ''}
+      <details id="devMore" ${ui.devOpen ? 'open' : ''} style="margin-top:.4rem"><summary style="cursor:pointer;font-size:.85rem" class="muted">Choose from your roster (${rest.length})</summary>
+        <ul class="plist">${raw(rest.map((p) => devRow(p.id)).join(''))}</ul>
+      </details>
+    </div>`;
+  }
+
   const irCard = onIr.length || (canEdit && league.phase === 'season' && hurt.some(({ inj }) => inj.weeks >= IR_MIN_WEEKS)) ? html`<div class="card tight">
     <h3>Injured reserve <small class="muted" style="text-transform:none;letter-spacing:0">· ${onIr.length} of ${irCapacity(league)}</small></h3>
     ${onIr.length ? raw(`<ul class="plist">${onIr.map((p) => {
@@ -191,6 +228,7 @@ export function view(root, params, ctx) {
       ${raw(depthChart)}
     </div>${psCard}</div>`,
     squad: html`<div class="grid grid-2">
+      ${devCard}
       ${chemCard || nothing('Chemistry is switched off for this league.')}
       <div class="card tight"><h3>Unit ratings</h3>${raw(unitTable(lineup))}</div>
     </div>`,
@@ -248,7 +286,16 @@ export function view(root, params, ctx) {
     ctx.update((s) => { s.prefs.showAttrs = !showAttrs; });
   });
 
+  el.querySelector('#devMore')?.addEventListener('toggle', (e) => { ui.devOpen = e.target.open; });
+  el.querySelector('#focusReset')?.addEventListener('click', () => ctx.update((st) => { resetFocus(st.league, idx); }));
   el.addEventListener('click', (e) => {
+    const fb = e.target.closest('[data-focus]');
+    if (fb && canEdit) {
+      let res;
+      ctx.update((st) => { res = toggleFocus(st.league, idx, fb.dataset.focus, ctx.byId); });
+      if (res && !res.ok) toast(res.reason);
+      return;
+    }
     const show = e.target.closest('[data-show]');
     if (show) { playerModal(ctx.byId.get(show.dataset.show)); return; }
     const ir = e.target.closest('[data-ir]');

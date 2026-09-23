@@ -124,6 +124,14 @@ export function view(root, params, ctx) {
   const yearOlder = off.aged ? html`<div class="card tight" style="margin-top:.5rem">
     <h3>A year older <small class="muted" style="text-transform:none;letter-spacing:0">· ${off.aged} careers running</small></h3>
     ${!off.risers?.length && !off.fallers?.length && !off.retired?.length ? html`<p class="muted" style="font-size:.9rem;margin:.2rem 0">Nobody moved more than a couple of points this year. Ageing is slow; it is the third and fourth seasons that show.</p>` : ''}
+    ${(() => {
+      // What your development focus did: each man's season against the same
+      // season stepped without it, so the figure is the focus and nothing else.
+      const mine = (off.focused || []).filter((f) => league.teams[f.team]?.isUser);
+      if (!mine.length) return '';
+      const line = (f) => `${esc(f.name)} <span class="muted">${f.pos} ${f.age}</span> ${f.from}→${f.to} <span class="muted">(${f.gain > 0 ? `+${f.gain}` : f.gain < 0 ? f.gain : 'no change'} from the focus)</span>`;
+      return html`<p style="font-size:.9rem;margin:.2rem 0"><b>Your focus.</b> ${raw(mine.map(line).join(' · '))}</p>`;
+    })()}
     ${off.risers?.length ? html`<p style="font-size:.9rem;margin:.2rem 0"><b>Improved.</b> ${raw(movers(off.risers, '→'))}</p>` : ''}
     ${off.fallers?.length ? html`<p style="font-size:.9rem;margin:.2rem 0"><b>Declined.</b> ${raw(movers(off.fallers, '→'))}</p>` : ''}
     ${off.retired?.length ? html`<p style="font-size:.9rem;margin:.2rem 0"><b>Retired.</b> ${raw(off.retired.map((r) => `${esc(r.name)} <span class="muted">${r.pos}, ${r.age}</span>${r.owed && league.teams[r.team]?.isUser ? ` <span class="badge overpay">you owe $${r.owed} a year for ${r.owedYears === 1 ? 'one more season' : `${r.owedYears} more seasons`}</span>` : ''}`).join(' · '))} — their slots are empty and the market fills them. A man who retires under contract leaves half of what was left owed, as a cut does.</p>` : ''}

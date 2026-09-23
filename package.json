@@ -40,7 +40,8 @@
     "strength": "node scripts/strength-fit.mjs",
     "gm": "node scripts/gm-sim.mjs",
     "resign": "node scripts/resign-sim.mjs",
-    "terms": "node scripts/term-value.mjs"
+    "terms": "node scripts/term-value.mjs",
+    "focus": "node scripts/focus-sim.mjs"
   },
   "engines": {
     "node": ">=20"

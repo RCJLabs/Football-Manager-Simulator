@@ -142,6 +142,29 @@ export function step(cls, t, growth, rng, wear = 1) {
 }
 
 /**
+ * What a season does to an average man at this position `t` years from its
+ * peak, in overall points, split into what climbs and what declines — the two
+ * parts `pace` and `wear` scale, and the two a development focus acts on.
+ *
+ * The population mean: growth, pace and wear at 1, no ceiling, no noise. It is
+ * what a club can reason from without knowing the man's hidden traits, which
+ * nobody is told, so the AI's focus picks read this rather than the truth.
+ * Derived from `CURVE` rather than measured into a table, so it cannot go
+ * stale when the curves are retuned. `t` is the age he develops AT — his age
+ * next season, since `stepCareer` ages him before it steps him.
+ */
+export function expectedChange(pos, t) {
+  const w = POSITIONS[pos]?.weights || {};
+  let climb = 0, decline = 0;
+  for (const a of POSITIONS[pos]?.attrs || []) {
+    const c = CURVE[CLASS_OF[a] || 'skill'];
+    if (t < c.start) climb += (w[a] ?? 0) * c.grow * clamp((c.start - t) / 4, 0.25, 1);
+    else decline -= (w[a] ?? 0) * (c.drop + c.accel * (t - c.start));
+  }
+  return { climb, decline };
+}
+
+/**
  * A career's fixed facts, derived from the league seed and the player id so a
  * man always enters the same league at the same age with the same ceiling,
  * whichever season he is finally signed in.
@@ -335,7 +358,7 @@ function viewOf(p, careers, retired) {
  * ceiling smoothly rather than jumping over it: a season that would cross the
  * ceiling has its gains scaled back to land on it.
  */
-export function stepCareer(league, src, c, season, knocks = 0) {
+export function stepCareer(league, src, c, season, knocks = 0, focus = null) {
   const prime = primeAge(src.pos);
   const rng = new RNG(hashSeed(`dev:${league.seed >>> 0}:${src.id}:${season}`));
   const before = overall(developed(src, c));
@@ -375,7 +398,10 @@ export function stepCareer(league, src, c, season, knocks = 0) {
   for (const a of POSITIONS[src.pos].attrs) {
     // `pace` scales the climb only. The ceiling is drawn from `growth` alone,
     // which is what lets the two vary independently.
-    gain[a] = step(CLASS_OF[a] || 'skill', next.age - prime, next.growth * (next.pace ?? 1), rng, next.wear ?? 1);
+    // A development focus scales the climb and the decline the same way `pace`
+    // and `wear` do — and only them: it draws nothing from the stream, so a
+    // season stepped with and without it differs by the focus and nothing else.
+    gain[a] = step(CLASS_OF[a] || 'skill', next.age - prime, next.growth * (next.pace ?? 1) * (focus?.climb ?? 1), rng, (next.wear ?? 1) * (focus?.decline ?? 1));
     next.d[a] = (next.d[a] || 0) + gain[a];
   }
   let after = overall(developed(src, next));
@@ -420,12 +446,15 @@ function retires(c, ovr) {
  * `league.dev` is replaced rather than mutated, so anything caching the
  * pool by identity notices.
  */
-export function advanceCareers(league, byId, { season = league.season } = {}) {
+export function advanceCareers(league, byId, { season = league.season, focus = null } = {}) {
   const careers = {};
   const owned = ownedIds(league);
   const retired = [];
   const risers = [];
   const fallers = [];
+  // Who a development focus reached, and what it changed: the same season
+  // stepped without it, which `stepCareer` makes exact — see the note in it.
+  const focused = [];
   const hurt = [];
 
   for (const id of owned) {
@@ -440,7 +469,12 @@ export function advanceCareers(league, byId, { season = league.season } = {}) {
     if (!p) { delete careers[id]; continue; }
     const src = p.base || p;
     const knocks = (league.knocks && league.knocks[id]) || 0;
-    const { career: next, before, after } = stepCareer(league, src, c, season, knocks);
+    const plan = focus?.get(id) || null;
+    const { career: next, before, after } = stepCareer(league, src, c, season, knocks, plan);
+    if (plan?.focused) {
+      const without = stepCareer(league, src, c, season, knocks, null).after;
+      focused.push({ id, name: src.name, pos: src.pos, age: next.age, team: plan.team, from: before, to: after, gain: after - without });
+    }
     if (retires(next, after)) {
       retired.push({ id, name: src.name, pos: src.pos, age: next.age, ovr: after, owned: owned.has(id), knocks: next.knocks || 0 });
       delete careers[id];
@@ -462,7 +496,7 @@ export function advanceCareers(league, byId, { season = league.season } = {}) {
   risers.sort((a, b) => (b.to - b.from) - (a.to - a.from));
   fallers.sort((a, b) => (a.to - a.from) - (b.to - b.from));
   hurt.sort((a, b) => (a.to - a.from) - (b.to - b.from));
-  return { retired, risers, fallers, hurt, aged: Object.keys(careers).length };
+  return { retired, risers, fallers, hurt, focused, aged: Object.keys(careers).length };
 }
 
 /** Drop retired players from every roster, bench and injured-reserve list. */

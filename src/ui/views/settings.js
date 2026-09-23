@@ -29,8 +29,9 @@ export function view(root, params, ctx) {
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="careers" ${league.settings.careers ? 'checked' : ''}> Careers — rostered players age each offseason, rookies develop, the old retire</label>
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="chemistry" ${league.settings.chemistry ? 'checked' : ''}> Chemistry — a settled squad from a tight era band plays a little better</label>
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="scouting" ${league.settings.scouting ? 'checked' : ''}> Scouting — rookies show a projected range until they have played; real players are never hidden</label>
+          <label class="check" style="margin-top:.4rem"><input type="checkbox" id="focus" ${league.settings.focus ? 'checked' : ''} ${league.settings.careers ? '' : 'disabled'}> Development focus — each club names up to three men a season for its staff to develop, at a cost to the rest${league.settings.careers ? '' : ' (needs careers)'}</label>
           ${league.mode === 'pro' ? html`<label class="check" style="margin-top:.4rem"><input type="checkbox" id="jobs" ${league.settings.jobs ? 'checked' : ''}> Coaching jobs — an owner who expects something, rival coaches who get sacked, and a job market you move around</label>` : ''}
-          ${league.settings.careers && league.settings.chemistry && league.settings.scouting ? '' : html`<small class="muted">A league started before these existed keeps its old rules until you switch them on here.</small>`}
+          ${league.settings.careers && league.settings.chemistry && league.settings.scouting && league.settings.focus ? '' : html`<small class="muted">A league started before these existed keeps its old rules until you switch them on here.</small>`}
           <div class="row" style="margin-top:.8rem;gap:.5rem;align-items:center">
             <label style="margin:0">Injuries</label>
             <select id="injuries" style="max-width:10rem">${Object.entries(INJURY_LEVEL_LABELS).map(([k, label]) => html`<option value="${k}" ${(league.settings.injuries || 'normal') === k ? 'selected' : ''}>${label}</option>`)}</select>
@@ -105,6 +106,7 @@ export function view(root, params, ctx) {
     root.querySelector('#careers').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.careers = e.target.checked; }, { silent: true }));
     root.querySelector('#chemistry').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.chemistry = e.target.checked; }));
     root.querySelector('#scouting').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.scouting = e.target.checked; }));
+    root.querySelector('#focus').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.focus = e.target.checked; }));
     root.querySelector('#jobs')?.addEventListener('change', (e) => ctx.update((st) => { st.league.settings.jobs = e.target.checked; }));
     root.querySelector('#difficulty').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.difficulty = e.target.value; }));
     root.querySelector('#keepers')?.addEventListener('change', (e) => ctx.update((st) => { st.league.settings.keepers = Number(e.target.value); }, { silent: true }));
