@@ -90,3 +90,52 @@ test('formatting is what a reader expects', () => {
   assert.equal(fmtCategory(CATEGORY_BY_KEY.diff, 6.2), '+6.2');
   assert.equal(fmtCategory(CATEGORY_BY_KEY.diff, -3), '-3.0');
 });
+
+// --- the scouting report ----------------------------------------------------
+import { scoutingReport, MATCHUPS, ordinal } from '../src/engine/teamstats.js';
+
+test('no scouting line until the opponent has a sample', () => {
+  const lg = played(1);
+  const u = lg.teams.findIndex((t) => t.isUser);
+  const opp = (u + 1) % lg.teams.length;
+  assert.equal(scoutingReport(lg, u, opp), null, 'one game is a coin, and the report would be confident and wrong');
+});
+
+test('strengths and weaknesses name different units', () => {
+  // Yards per carry and rushing yards a game are the same run defence. The
+  // first version named both as a club's two strengths.
+  const lg = played(8);
+  const u = lg.teams.findIndex((t) => t.isUser);
+  for (let opp = 0; opp < lg.teams.length; opp++) {
+    if (opp === u) continue;
+    const r = scoutingReport(lg, u, opp);
+    if (!r) continue;
+    for (const list of [r.strengths, r.weaknesses]) {
+      const units = list.map((x) => x.cat.unit);
+      assert.equal(new Set(units).size, units.length, `${lg.teams[opp].abbr} repeats a unit: ${units.join(', ')}`);
+    }
+    assert.ok(r.strengths.every((x) => r.weaknesses.every((y) => x.rank <= y.rank)), 'a strength ranks below a weakness');
+  }
+});
+
+test('an edge is your offence against their defence in the same thing, and it is real', () => {
+  const lg = played(8);
+  const u = lg.teams.findIndex((t) => t.isUser);
+  let seen = 0;
+  for (let opp = 0; opp < lg.teams.length; opp++) {
+    if (opp === u) continue;
+    const r = scoutingReport(lg, u, opp);
+    for (const g of [r?.edge, r?.danger].filter(Boolean)) {
+      seen++;
+      assert.ok(MATCHUPS.some((m) => m.off === g.off && m.def === g.def), 'an edge paired unrelated units');
+      assert.ok(g.gap >= Math.max(2, Math.round(r.teams / 4)), `a ${g.gap}-place gap was called an edge`);
+      assert.equal(g.gap, g.defRank - g.offRank);
+    }
+  }
+  assert.ok(seen > 0, 'eight weeks in, no club had a clear edge or danger anywhere, so the check checked nothing');
+});
+
+test('ordinals read correctly', () => {
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 31, 32].map(ordinal),
+    ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', '31st', '32nd']);
+});

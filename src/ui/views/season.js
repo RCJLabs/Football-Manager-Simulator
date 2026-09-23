@@ -17,6 +17,7 @@ import { teamChip, toast, modal } from '../components.js';
 import { pickBroker } from '../../engine/futurepicks.js';
 import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tradesOpen, liveOffers } from '../../engine/transactions.js';
 import { RNG } from '../../engine/rng.js';
+import { scoutingReport, fmtCategory, ordinal } from '../../engine/teamstats.js';
 
 export function fmtPhase(league) {
   if (league.phase === 'draft') return league.draftType === 'auction' ? 'Auction in progress' : 'Draft in progress';
@@ -84,6 +85,22 @@ export function view(root, params, ctx) {
       </div>
       <p class="muted" style="font-size:.9rem">Power: you ${myPower} · them ${oppPower}${gm ? ` · ${gm.name} GM (${gm.blurb.toLowerCase().replace(/\.$/, '')})` : ''}</p>
       ${(() => { if (myGame.result || opp.isUser) return ''; const oc = composites(fillLineup(buildLineup(opp.slots, ctx.byId, injuries))), mc = composites(fillLineup(buildLineup(me.slots, ctx.byId, injuries))); const notes = makeGameplan(oc, mc).notes; return notes.length ? html`<p class="muted" style="font-size:.85rem;margin-top:-.4rem">Their game plan: ${notes.join('; ')}.</p>` : ''; })()}
+      ${(() => {
+        // How they have actually played, beside how they look on paper. The
+        // line above reads ratings; this reads results, which is often a
+        // different answer — and the matchup is the part a coach acts on.
+        if (myGame.result || opp.isUser) return '';
+        const r = scoutingReport(league, u, oppIdx);
+        if (!r) return '';
+        const one = (x) => `${ordinal(x.rank)} in ${x.cat.label.toLowerCase()} (${fmtCategory(x.cat, x.v)})`;
+        const lines = [
+          `<b>Strong:</b> ${r.strengths.map(one).join('; ')}`,
+          `<b>Weak:</b> ${r.weaknesses.map(one).join('; ')}`,
+        ];
+        if (r.edge) lines.push(`<b>Your edge</b> is ${r.edge.name}: your offence ${ordinal(r.edge.offRank)}, their defence ${ordinal(r.edge.defRank)}.`);
+        if (r.danger) lines.push(`<b>Watch</b> ${r.danger.name}: their offence ${ordinal(r.danger.offRank)}, your defence ${ordinal(r.danger.defRank)}.`);
+        return html`<div class="scout" style="font-size:.85rem;margin:-.2rem 0 .6rem"><small class="muted" style="text-transform:uppercase;letter-spacing:.04em">Scouting ${opp.abbr} · ${r.games} games · of ${r.teams} clubs</small>${raw(lines.map((l) => `<p style="margin:.15rem 0">${l}</p>`).join(''))}<a class="muted" style="font-size:.8rem" href="#/awards/teams">All team stats →</a></div>`;
+      })()}
       ${hurtList(u).length || hurtList(oppIdx).length ? html`<p class="muted" style="font-size:.85rem;margin-top:-.4rem">${hurtList(u).length ? html`You are missing <b>${hurtList(u).map((x) => `${x.p.name} (${x.p.pos})`).join(', ')}</b>. ` : ''}${hurtList(oppIdx).length ? html`They are missing <b>${hurtList(oppIdx).map((x) => `${x.p.name} (${x.p.pos})`).join(', ')}</b>.` : ''}</p>` : ''}
       <div class="btn-group">
         ${myGame.result

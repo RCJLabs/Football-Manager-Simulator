@@ -682,6 +682,26 @@ try {
   const saved = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league.week);
   console.log('persisted week:', saved);
 
+  // The scouting report on the next opponent. It only scouts a game not yet
+  // played, and only once the opponent has two games behind it, so advance to
+  // an unplayed week first — at week three, played, it rightly shows nothing.
+  {
+    await page.click('#advance');
+    await sleep(400);
+    const scout = await page.evaluate(() => {
+      const el = document.querySelector('.scout');
+      return el ? { text: el.innerText, overflow: el.scrollWidth > el.clientWidth + 1 } : null;
+    });
+    if (!scout) errors.push('no scouting report on an unplayed week-four game');
+    else {
+      if (!/Strong:/.test(scout.text) || !/Weak:/.test(scout.text)) errors.push(`the scouting report is missing strengths or weaknesses: ${scout.text.slice(0, 120)}`);
+      if (!/\d+(st|nd|rd|th) in /.test(scout.text)) errors.push('the scouting report names no league ranks');
+      if (scout.overflow) errors.push('the scouting report overflows its card');
+    }
+    await checkOverflow('matchup card with a scouting report');
+    await shot('09a-scouting');
+  }
+
   // Simulating ahead: jump to the playoffs in one press.
   await page.goto(`http://localhost:${port}/#/season`);
   await page.waitForSelector('[data-sim="playoffs"]');

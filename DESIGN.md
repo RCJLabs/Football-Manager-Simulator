@@ -1981,6 +1981,30 @@ measurement, and the same trap as a test asserting what a clamp guarantees. The
 keeper round and the market have to be observed separately, which means
 stopping at `offseason` rather than running through to `nextSeason`.
 
+### Scouting the next opponent
+
+The matchup card said how two rosters compare on paper — power, unit
+composites, the other GM's habits, a ratings-based guess at their game plan.
+Nothing said how the opponent had actually *played*, which is often a different
+answer: a defence rated well can be giving up 140 yards a game on the ground.
+
+`scoutingReport` reads the opponent's league rank in every unit category and
+names the two strongest and two weakest — one per unit, since yards per carry
+and rushing yards a game describe the same run defence and the first version
+spent both strengths saying so. Then it does the part a coach acts on: sets your
+offence's rank against their defence's in the same thing (`MATCHUPS` — run, pass,
+third down, red zone) and names the widest gap each way, as *your edge* and
+*watch*.
+
+Two floors keep it honest. No report until the opponent has played twice,
+because a rank after one game is a coin and a line built on it would be
+confident and wrong. And a gap only counts once it is a quarter of the league
+wide: fourth against eighth is noise with a sign on it.
+
+Strong and Weak carry the direction, which matters for the stats where lower is
+better. "8th in turnovers per game" alone is ambiguous — eighth-most, or eighth-
+best? Under *Weak* it can only mean the bad end.
+
 ### Team statistics, both sides of the ball
 
 **The offence was recorded all along.** Every game writes third- and

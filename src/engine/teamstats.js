@@ -51,34 +51,34 @@ const pct = (n, d) => (d > 0 ? (100 * n) / d : null);
  */
 export const TEAM_CATEGORIES = [
   // Offence
-  { key: 'ppg', side: 'off', label: 'Points per game', better: 'high', fmt: 1, value: (r) => per(r.off.points, r.games) },
-  { key: 'ypg', side: 'off', label: 'Yards per game', better: 'high', fmt: 1, value: (r) => per(r.off.totalYds, r.games) },
-  { key: 'ypp', side: 'off', label: 'Yards per play', better: 'high', fmt: 2, value: (r) => per(r.off.totalYds, r.off.plays) },
-  { key: 'rush', side: 'off', label: 'Rushing yards per game', better: 'high', fmt: 1, value: (r) => per(r.off.rushYds, r.games) },
-  { key: 'ypc', side: 'off', label: 'Yards per carry', better: 'high', fmt: 2, value: (r) => per(r.off.rushYds, r.off.rushAtt) },
-  { key: 'pass', side: 'off', label: 'Passing yards per game', better: 'high', fmt: 1, value: (r) => per(r.off.passYds, r.games) },
-  { key: 'cmp', side: 'off', label: 'Completion %', better: 'high', fmt: 1, pct: true, value: (r) => pct(r.off.passCmp, r.off.passAtt) },
-  { key: 'third', side: 'off', label: 'Third-down conversion %', better: 'high', fmt: 1, pct: true, value: (r) => pct(r.off.thirdConv, r.off.thirdAtt) },
-  { key: 'fourth', side: 'off', label: 'Fourth-down conversion %', better: 'high', fmt: 1, pct: true, value: (r) => pct(r.off.fourthConv, r.off.fourthAtt) },
-  { key: 'rz', side: 'off', label: 'Red-zone touchdown %', better: 'high', fmt: 1, pct: true, value: (r) => pct(r.off.redZoneTd, r.off.redZoneAtt) },
-  { key: 'give', side: 'off', label: 'Turnovers per game', better: 'low', fmt: 2, value: (r) => per(r.off.turnovers, r.games) },
-  { key: 'sacked', side: 'off', label: 'Sacks allowed per game', better: 'low', fmt: 2, value: (r) => per(r.off.sacksAllowed, r.games) },
-  { key: 'top', side: 'off', label: 'Time of possession', better: 'high', clock: true, value: (r) => per(r.off.top, r.games) },
-  { key: 'pen', side: 'off', label: 'Penalty yards per game', better: 'low', fmt: 1, value: (r) => per(r.off.penYds, r.games) },
+  { key: 'ppg', unit: 'o:score', side: 'off', label: 'Points per game', better: 'high', fmt: 1, value: (r) => per(r.off.points, r.games) },
+  { key: 'ypg', unit: 'o:yards', side: 'off', label: 'Yards per game', better: 'high', fmt: 1, value: (r) => per(r.off.totalYds, r.games) },
+  { key: 'ypp', unit: 'o:yards', side: 'off', label: 'Yards per play', better: 'high', fmt: 2, value: (r) => per(r.off.totalYds, r.off.plays) },
+  { key: 'rush', unit: 'o:run', side: 'off', label: 'Rushing yards per game', better: 'high', fmt: 1, value: (r) => per(r.off.rushYds, r.games) },
+  { key: 'ypc', unit: 'o:run', side: 'off', label: 'Yards per carry', better: 'high', fmt: 2, value: (r) => per(r.off.rushYds, r.off.rushAtt) },
+  { key: 'pass', unit: 'o:pass', side: 'off', label: 'Passing yards per game', better: 'high', fmt: 1, value: (r) => per(r.off.passYds, r.games) },
+  { key: 'cmp', unit: 'o:pass', side: 'off', label: 'Completion %', better: 'high', fmt: 1, pct: true, value: (r) => pct(r.off.passCmp, r.off.passAtt) },
+  { key: 'third', unit: 'o:third', side: 'off', label: 'Third-down conversion %', better: 'high', fmt: 1, pct: true, value: (r) => pct(r.off.thirdConv, r.off.thirdAtt) },
+  { key: 'fourth', unit: 'o:fourth', side: 'off', label: 'Fourth-down conversion %', better: 'high', fmt: 1, pct: true, value: (r) => pct(r.off.fourthConv, r.off.fourthAtt) },
+  { key: 'rz', unit: 'o:rz', side: 'off', label: 'Red-zone touchdown %', better: 'high', fmt: 1, pct: true, value: (r) => pct(r.off.redZoneTd, r.off.redZoneAtt) },
+  { key: 'give', unit: 'o:ball', side: 'off', label: 'Turnovers per game', better: 'low', fmt: 2, value: (r) => per(r.off.turnovers, r.games) },
+  { key: 'sacked', unit: 'o:protect', side: 'off', label: 'Sacks allowed per game', better: 'low', fmt: 2, value: (r) => per(r.off.sacksAllowed, r.games) },
+  { key: 'top', unit: 'o:clock', side: 'off', label: 'Time of possession', better: 'high', clock: true, value: (r) => per(r.off.top, r.games) },
+  { key: 'pen', unit: 'o:discipline', side: 'off', label: 'Penalty yards per game', better: 'low', fmt: 1, value: (r) => per(r.off.penYds, r.games) },
   // Defence — the same measurements, taken from what opponents did.
-  { key: 'dppg', side: 'def', label: 'Points allowed per game', better: 'low', fmt: 1, value: (r) => per(r.def.points, r.games) },
-  { key: 'dypg', side: 'def', label: 'Yards allowed per game', better: 'low', fmt: 1, value: (r) => per(r.def.totalYds, r.games) },
-  { key: 'dypp', side: 'def', label: 'Yards per play allowed', better: 'low', fmt: 2, value: (r) => per(r.def.totalYds, r.def.plays) },
-  { key: 'drush', side: 'def', label: 'Rushing yards allowed per game', better: 'low', fmt: 1, value: (r) => per(r.def.rushYds, r.games) },
-  { key: 'dypc', side: 'def', label: 'Yards per carry allowed', better: 'low', fmt: 2, value: (r) => per(r.def.rushYds, r.def.rushAtt) },
-  { key: 'dpass', side: 'def', label: 'Passing yards allowed per game', better: 'low', fmt: 1, value: (r) => per(r.def.passYds, r.games) },
-  { key: 'dthird', side: 'def', label: 'Third-down % allowed', better: 'low', fmt: 1, pct: true, value: (r) => pct(r.def.thirdConv, r.def.thirdAtt) },
-  { key: 'drz', side: 'def', label: 'Red-zone touchdown % allowed', better: 'low', fmt: 1, pct: true, value: (r) => pct(r.def.redZoneTd, r.def.redZoneAtt) },
-  { key: 'take', side: 'def', label: 'Takeaways per game', better: 'high', fmt: 2, value: (r) => per(r.def.turnovers, r.games) },
-  { key: 'sacks', side: 'def', label: 'Sacks per game', better: 'high', fmt: 2, value: (r) => per(r.def.sacksAllowed, r.games) },
+  { key: 'dppg', unit: 'd:score', side: 'def', label: 'Points allowed per game', better: 'low', fmt: 1, value: (r) => per(r.def.points, r.games) },
+  { key: 'dypg', unit: 'd:yards', side: 'def', label: 'Yards allowed per game', better: 'low', fmt: 1, value: (r) => per(r.def.totalYds, r.games) },
+  { key: 'dypp', unit: 'd:yards', side: 'def', label: 'Yards per play allowed', better: 'low', fmt: 2, value: (r) => per(r.def.totalYds, r.def.plays) },
+  { key: 'drush', unit: 'd:run', side: 'def', label: 'Rushing yards allowed per game', better: 'low', fmt: 1, value: (r) => per(r.def.rushYds, r.games) },
+  { key: 'dypc', unit: 'd:run', side: 'def', label: 'Yards per carry allowed', better: 'low', fmt: 2, value: (r) => per(r.def.rushYds, r.def.rushAtt) },
+  { key: 'dpass', unit: 'd:pass', side: 'def', label: 'Passing yards allowed per game', better: 'low', fmt: 1, value: (r) => per(r.def.passYds, r.games) },
+  { key: 'dthird', unit: 'd:third', side: 'def', label: 'Third-down % allowed', better: 'low', fmt: 1, pct: true, value: (r) => pct(r.def.thirdConv, r.def.thirdAtt) },
+  { key: 'drz', unit: 'd:rz', side: 'def', label: 'Red-zone touchdown % allowed', better: 'low', fmt: 1, pct: true, value: (r) => pct(r.def.redZoneTd, r.def.redZoneAtt) },
+  { key: 'take', unit: 'd:ball', side: 'def', label: 'Takeaways per game', better: 'high', fmt: 2, value: (r) => per(r.def.turnovers, r.games) },
+  { key: 'sacks', unit: 'd:rush', side: 'def', label: 'Sacks per game', better: 'high', fmt: 2, value: (r) => per(r.def.sacksAllowed, r.games) },
   // Both sides at once.
-  { key: 'diff', side: 'both', label: 'Point differential per game', better: 'high', fmt: 1, signed: true, value: (r) => per(r.off.points - r.def.points, r.games) },
-  { key: 'tod', side: 'both', label: 'Turnover differential', better: 'high', fmt: 0, signed: true, value: (r) => (r.games ? r.def.turnovers - r.off.turnovers : null) },
+  { key: 'diff', unit: 'b:score', side: 'both', label: 'Point differential per game', better: 'high', fmt: 1, signed: true, value: (r) => per(r.off.points - r.def.points, r.games) },
+  { key: 'tod', unit: 'b:ball', side: 'both', label: 'Turnover differential', better: 'high', fmt: 0, signed: true, value: (r) => (r.games ? r.def.turnovers - r.off.turnovers : null) },
 ];
 
 export const CATEGORY_BY_KEY = Object.fromEntries(TEAM_CATEGORIES.map((c) => [c.key, c]));
@@ -113,4 +113,75 @@ export function fmtCategory(cat, v) {
   const n = v.toFixed(cat.fmt ?? 1);
   const out = cat.signed && v > 0 ? `+${n}` : n;
   return cat.pct ? `${out}%` : out;
+}
+
+/**
+ * Pairs that meet when one side attacks the other: an offensive measure and the
+ * defensive measure of the same thing. Your run game against their run
+ * defence is a matchup; your run game against their pass defence is not.
+ */
+export const MATCHUPS = [
+  { off: 'rush', def: 'drush', name: 'the run' },
+  { off: 'pass', def: 'dpass', name: 'the pass' },
+  { off: 'third', def: 'dthird', name: 'third down' },
+  { off: 'rz', def: 'drz', name: 'the red zone' },
+];
+
+/**
+ * What the next opponent has actually done, as a coach would want it read.
+ *
+ * The matchup card already said how the two rosters compare on paper — power,
+ * unit composites, the other GM's habits. Nothing said how a club had played,
+ * which is often a different answer: a defence rated well on paper can be
+ * giving up 140 yards a game on the ground. So this reads their ranks in every
+ * unit category and pulls out the extremes, and then does the more useful thing
+ * — sets your offence's rank against their defence's in the same category, and
+ * theirs against yours, and names the widest gap each way.
+ *
+ * Returns null until the opponent has played `minGames`: a rank after one game
+ * is a coin, and a scouting line built on it would be confident and wrong.
+ */
+export function scoutingReport(league, meIdx, oppIdx, { minGames = 2 } = {}) {
+  const rows = seasonTeamStats(league);
+  const opp = rows[oppIdx];
+  if (!opp || opp.games < minGames) return null;
+  const ranked = new Map(TEAM_CATEGORIES.map((c) => [c.key, rankTeams(rows, c)]));
+  const rankOf = (key, idx) => ranked.get(key).find((r) => r.idx === idx);
+  const teams = rows.filter((r) => r.games > 0).length;
+
+  const units = TEAM_CATEGORIES.filter((c) => c.side !== 'both')
+    .map((c) => ({ cat: c, ...rankOf(c.key, oppIdx) }))
+    .filter((x) => x.rank != null);
+  // One line per unit. Yards per carry and rushing yards a game both measure
+  // the same run defence, and naming both spends half the report restating
+  // itself — the first version did exactly that on a club strong against the run.
+  const distinct = (list) => {
+    const seen = new Set();
+    return list.filter((x) => (seen.has(x.cat.unit) ? false : (seen.add(x.cat.unit), true))).slice(0, 2);
+  };
+  const strengths = distinct(units.slice().sort((a, b) => a.rank - b.rank));
+  const weaknesses = distinct(units.slice().sort((a, b) => b.rank - a.rank));
+
+  // A gap only counts once it is a real one: a quarter of the league apart.
+  // Fourth against eighth is noise with a sign on it.
+  const floor = Math.max(2, Math.round(teams / 4));
+  const gaps = (attacker, defender) => MATCHUPS.map((m) => {
+    const o = rankOf(m.off, attacker), d = rankOf(m.def, defender);
+    if (!o || !d || o.rank == null || d.rank == null) return null;
+    // Positive when the attacker ranks well and the defender ranks badly.
+    return { ...m, offRank: o.rank, defRank: d.rank, gap: d.rank - o.rank, offV: o.v, defV: d.v };
+  }).filter((x) => x && x.gap >= floor).sort((a, b) => b.gap - a.gap)[0] || null;
+
+  return {
+    teams, games: opp.games,
+    strengths, weaknesses,
+    edge: rows[meIdx]?.games ? gaps(meIdx, oppIdx) : null,
+    danger: rows[meIdx]?.games ? gaps(oppIdx, meIdx) : null,
+  };
+}
+
+/** "1st", "22nd", "3rd". */
+export function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
