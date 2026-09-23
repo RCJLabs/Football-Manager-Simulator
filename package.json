@@ -42,7 +42,8 @@
     "resign": "node scripts/resign-sim.mjs",
     "terms": "node scripts/term-value.mjs",
     "focus": "node scripts/focus-sim.mjs",
-    "convert": "node scripts/convert-sim.mjs"
+    "convert": "node scripts/convert-sim.mjs",
+    "rookies": "node scripts/rookie-read.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -30,6 +30,14 @@ export function overall(p) {
   // A player the career code has aged carries his own, because the cache is
   // keyed by id and two leagues can hold the same man at different ages.
   if (p.ovr != null) return p.ovr;
+  // A generated rookie is never cached, for the same reason in a sharper
+  // form: his id is the league seed, the class and a number, so two leagues
+  // on one seed — a league and its own share code, or the two arms of a
+  // paired measurement — name different men the same once their classes have
+  // come apart, and the cache handed one league the other's ratings. It went
+  // unseen until it made every alternative draft read look forty points
+  // worse by a dynasty's seventh season. A handful of multiplications a man.
+  if (p.generated) return rawOverall(p.pos, p.r);
   if (ovrCache.has(p.id)) return ovrCache.get(p.id);
   const o = rawOverall(p.pos, p.r);
   ovrCache.set(p.id, o);

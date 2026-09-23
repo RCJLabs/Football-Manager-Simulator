@@ -20,7 +20,7 @@ import { currentPicker, overallPickNumber, availablePlayers, openSlotsByPos, mak
 import { startSeason } from '../../engine/season.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { ovrBadge, playerItem, playerModal, teamChip, toast, esc, withBusy } from '../components.js';
-import { shownOverall } from '../../engine/scouting.js';
+import { scoutedOverall } from '../../engine/scouting.js';
 import { draftBoard, boardOverlay, snakeRows, scrollToPick, lastName } from '../draft-board.js';
 import { openPickTrade, pickOfferCard } from '../pick-trade.js';
 import { survivalOdds, usablePicks, nextPickFor, pickOfferCandidates, tryPickOffer, OFFER_BUDGET, executePickTrade } from '../../engine/draftpicks.js';
@@ -53,7 +53,10 @@ export function view(root, params, ctx) {
   const draft = league.draft;
   const u = league.teams.findIndex((t) => t.isUser);
   const me = league.teams[u];
-  const scoutRank = (p) => shownOverall(league, p, u);
+  // Ranked on the read every club drafts on: a rookie by what your scouts
+  // think he is now, the low end of his band. His upside is still on the row;
+  // it is just not what a pick pays for — see `scoutedOverall`.
+  const scoutRank = (p) => scoutedOverall(league, p, u);
 
   let timer = null;
   let fresh = null;          // `${row}:${team}` of the pick that just landed

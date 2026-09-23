@@ -116,7 +116,7 @@ export function accuracyOf(league, observerIdx) {
  * upside — which is what makes chasing a prospect a risk rather than a free
  * option.
  */
-export function scoutReport(league, p, observerIdx = -1, { force = false } = {}) {
+export function scoutReport(league, p, observerIdx = -1, { force = false, accuracy = null } = {}) {
   const src = (p && p.base) || p;
   const truth = overall(p);
   if (!scoutingOn(league) || (!force && isScouted(league, src)) || !src.generated) {
@@ -126,7 +126,9 @@ export function scoutReport(league, p, observerIdx = -1, { force = false } = {})
   const arc = startCareer(league, src);
   const floor = truth;
   const ceiling = Math.max(truth, arc.ceiling ?? truth);
-  const err = BASE_ERROR * (1 - accuracyOf(league, observerIdx));
+  // `accuracy` reads him as a scout of that accuracy would, off the same
+  // draws: for measuring what better information is worth, not for play.
+  const err = BASE_ERROR * (1 - (accuracy ?? accuracyOf(league, observerIdx)));
   const rng = new RNG(hashSeed(`scout:${league.seed >>> 0}:${src.id}:${observerIdx}`));
   // The low end leans conservative on purpose: a band that does not even
   // contain what a player is today tells you nothing about him. The genuine
@@ -181,9 +183,29 @@ export function marketView(league, p) {
   return v;
 }
 
-/** The number a club actually bids or drafts on. */
-export function scoutedOverall(league, p, observerIdx = -1) {
-  return scoutReport(league, p, observerIdx).estimate;
+/**
+ * The number a club drafts on: its read of what a rookie is now — the low end
+ * of its band, which is its own view of his floor.
+ *
+ * It was the floor plus a flat 35% of the way to the ceiling, paying for
+ * upside. But a drafted man signs a four-year deal, his upside arrives on
+ * average after it, most drafted men are out of the league within two seasons
+ * of their deals ending, and keeping one costs market price. Paying for upside
+ * in the draft is paying for a player somebody else gets. Measured over every
+ * club's rookie picks in pro leagues, the same board read at the same moment
+ * both ways (`npm run rookies`, DESIGN.md "What a rookie pick is worth"): about
+ * a rating point better per pick over the deal, as a lineup counts him —
+ * +1.03 and +0.85 on two seed sets — and no worse in the long run. Counting
+ * less upside was better at every step tried, and reading *when* the upside
+ * arrives, the obvious alternative, bought nothing inside the deal.
+ *
+ * The band itself is unchanged and still shows the upside; this is only what
+ * a club pays for with a pick. A known man is what he is. `accuracy` is
+ * passed through to `scoutReport`.
+ */
+export function scoutedOverall(league, p, observerIdx = -1, opts = {}) {
+  const r = scoutReport(league, p, observerIdx, opts);
+  return r.known ? r.estimate : r.low;
 }
 
 /**

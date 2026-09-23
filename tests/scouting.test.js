@@ -75,7 +75,9 @@ test('two clubs read the same prospect differently, and the shrewd ones read bet
   const lg = league(6);
   lg.settings.scouting = true;
   const rookies = klass(lg, 400);
-  const fair = (p) => { const f = overall(p); const c = Math.max(f, startCareer(lg, p).ceiling ?? f); return f + (c - f) * UPSIDE_WEIGHT; };
+  // The read a perfect scout would make, off the same draws: what each club
+  // is trying to see.
+  const fair = (p) => scoutedOverall(lg, p, 0, { accuracy: 1 });
   const err = lg.teams.map((_, i) => {
     const e = rookies.map((p) => Math.abs(scoutedOverall(lg, p, i) - fair(p)));
     return { acc: accuracyOf(lg, i), err: e.reduce((a, b) => a + b, 0) / e.length };

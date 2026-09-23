@@ -10,7 +10,16 @@ import { proPools, proDraftRounds, rookieClass } from './proleague.js';
 export const TOTAL_ROUNDS = ROSTER_SLOTS.length;
 
 // Positional impact on the simulation, used to scale value over replacement.
-const POS_BASE = { QB: 2.6, RB: 1.15, WR: 1.0, TE: 0.8, OL: 0.75, DL: 0.9, LB: 0.8, CB: 1.1, S: 0.9, K: 0.5, P: 0.35 };
+//
+// Hand-set in the first commit and never measured, and it is not the measured
+// leverage table: that one weighs a quarterback five times a receiver where
+// this weighs him two and a half. It was checked the way that matters, by
+// wins — clubs in the same league drafting on each table, the halves swapped
+// on every seed — and drafting on leverage won no more games: −0.8 ± 1.3
+// points of win share over thirty twelve-club leagues, −0.6 ± 0.8 and
+// +1.5 ± 1.3 over two sets of twelve thirty-two-club ones. So it stays. See
+// DESIGN.md, "What a rookie pick is worth", and `npm run rookies weights`.
+export const POS_BASE = { QB: 2.6, RB: 1.15, WR: 1.0, TE: 0.8, OL: 0.75, DL: 0.9, LB: 0.8, CB: 1.1, S: 0.9, K: 0.5, P: 0.35 };
 
 export function openSlots(team) {
   return ROSTER_SLOTS.filter((s) => !team.slots[s.id]);
@@ -152,7 +161,7 @@ function replacementLevels(available, demand) {
  * of every projection. The scoring loop is shared so the random draws happen
  * in the same order either way, which keeps a seeded draft identical.
  */
-export function rankForTeam(league, draft, pool, teamIdx, rng, { bestOnly = false } = {}) {
+export function rankForTeam(league, draft, pool, teamIdx, rng, { bestOnly = false, read = scoutedOverall, weights = POS_BASE } = {}) {
   const team = league.teams[teamIdx];
   const open = openSlotsByPos(team);
   const available = availablePlayers(draft, pool);
@@ -165,9 +174,11 @@ export function rankForTeam(league, draft, pool, teamIdx, rng, { bestOnly = fals
   let best = null;
   for (const p of available) {
     if (!open[p.pos]) continue;
-    // A club drafts on what its own scouts say, not on the truth.
-    const ovr = scoutedOverall(league, p, teamIdx);
-    let value = (ovr - (repl[p.pos] ?? 60)) * POS_BASE[p.pos] * (gm.pos[p.pos] ?? 1);
+    // A club drafts on what its own scouts say, not on the truth. `read` and
+    // `weights` exist for measuring the draft against alternatives (see
+    // scripts/rookie-read.mjs); play always drafts on the defaults.
+    const ovr = read(league, p, teamIdx);
+    let value = (ovr - (repl[p.pos] ?? 60)) * weights[p.pos] * (gm.pos[p.pos] ?? 1);
     if (gm.era) value *= gm.era(p.season);
     value += (ovr - 80) * 0.15; // slight preference for raw talent
     // Kickers/punters: wait until the last rounds unless forced.

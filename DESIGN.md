@@ -2933,6 +2933,129 @@ The second is the more useful one. Four mutations were run against the new tests
 
 Not built: a scouting budget, staff to hire, or fog over anything a club already owns. The error is free and automatic, so scouting is a risk to weigh rather than a resource to spend. Speculation: whether error of one to two rating points is enough to make auctions feel uncertain. The larger uncertainty is inherent — the band says 60–85 and he may finish at 65 — and that is the part intended to carry the drama.
 
+### What a rookie pick is worth (`npm run rookies`)
+
+This was going to be a pre-draft combine, then a change to how the draft reads
+a prospect's arrival, and it is neither. What shipped is smaller than both and
+the measurements that got there are most of the value, including two that were
+wrong.
+
+**How it is measured.** At every club's rookie picks in pro leagues, the same
+board is read several ways at the same moment, and the draft carries on under
+one read, so the league never diverges and each difference is the read and
+nothing else. Each man picked is scored by his own seeded future, which careers
+make exact: V, his leverage-weighted seasons above 75 over six years; his mean
+rating over the four-year rookie deal as a lineup counts him — his debut
+rating, then after each season's growth — which is what the club that drafts
+him actually gets; and his peak. About 1,750 picks a seed set.
+
+Each cell is the change in his rating over the deal as a lineup counts it
+± its standard error, then V, then his peak, then the share of picks the read
+changed — each against the pick the old read made from the same board.
+
+| per pick | seeds 9100 | seeds 9900 |
+|---|---|---|
+| old read, perfect scouting | +0.32 ± 0.09 · +3.0 · +0.31 (38%) | +0.13 ± 0.08 · +3.2 · +0.11 (37%) |
+| old read, top three worked out | +0.03 ± 0.01 · +1.3 · +0.03 (1%) | +0.05 ± 0.02 · +0.8 · +0.05 (1%) |
+| **what he is now (shipped)** | **+1.03 ± 0.11 · +0.6 · +0.11 (44%)** | **+0.85 ± 0.10 · −2.1 · −0.17 (44%)** |
+| shipped, perfect scouting | +1.06 ± 0.10 · +1.0 · −0.11 (47%) | +0.74 ± 0.10 · −2.9 · −0.41 (48%) |
+| shipped, top three worked out | +1.04 ± 0.11 · +1.0 · +0.12 (44%) | +0.88 ± 0.10 · −1.0 · −0.15 (43%) |
+| arrival-aware (tried, dropped) | +0.01 ± 0.09 · +5.5 · +0.50 (34%) | +0.01 ± 0.08 · +4.7 · +0.50 (33%) |
+| arrival, plain mean | −0.84 ± 0.11 · +4.6 · +0.35 (49%) | −0.90 ± 0.10 · +4.6 · +0.20 (46%) |
+| hindsight, for scale | +3.67 ± 0.15 · +50.0 · +5.56 (63%) | +3.70 ± 0.16 · +56.1 · +5.74 (64%) |
+
+**The combine was not worth building.** Scouting fog existed and nothing let a
+club spend effort against it, but the fog is small — a club's read misses a
+perfect scout's by one to two points — and most of a band's width is the real
+gap between what a rookie is and what he could become, which no workout
+removes. A perfect read of the whole class, at the draft's old read, buys
++0.32 and +0.13 of a rating point over the deal; three workouts on a club's
+best prospects buy +0.03 and +0.05 and change one pick in a hundred.
+
+**What was wrong instead: the draft paid for upside it does not get.** It
+valued a fogged rookie at the floor of his band plus a flat 35% of the way to
+the top. But a drafted man signs a four-year deal, his upside arrives on
+average after it, and most drafted men are gone soon after: followed through
+a dynasty, 394 men from a first rookie draft were down to 90 still in the
+league two seasons after their deals ended. Keeping one costs market price. Upside in
+the draft is a player somebody else gets. Counting less of it was better at
+every step tried, in both seed sets, on the deal as a lineup counts it:
+
+| share of the band counted as upside | seeds 9100 | seeds 9900 |
+|---|---|---|
+| none — what he is now (shipped) | +1.03 ± 0.11 | +0.85 ± 0.10 |
+| 15% | +0.86 ± 0.09 | +0.62 ± 0.08 |
+| 25% | +0.50 ± 0.07 | +0.33 ± 0.06 |
+| 35% — the old read | 0 | 0 |
+| 50% | −0.94 ± 0.08 | −0.99 ± 0.08 |
+
+`scoutedOverall` now returns the low end of a club's band, its own view of
+what the man is now, and costs nothing measurable in the long run: V and peak
+are level within their noise, +0.6 ± 1.2 and −2.1 ± 1.5 in V. It also retires
+the combine for good — once the draft reads what a man is now, scouting
+accuracy barely matters to it, a perfect read adding +0.03 and −0.11 and three
+workouts +0.01 and +0.03.
+The band itself is unchanged and still shows the upside to anybody reading it;
+this is only what a club pays for with a pick. Your own draft list ranks on
+the same read. Across whole dynasties, eight paired leagues, the computer
+clubs' lineups come out level with the old read at every season, within about
+eleven points either way: the gain is real and a point a pick, and too small to
+move a club where a season can see it.
+
+**The read tried first, and dropped.** Reading *when* a prospect's upside
+arrives — the old share scaled by how much of the deal he spends arrived,
+normalised so an average developer read as before — looked like the fix: +5.5
+and +4.7 in V, +0.35 over the deal after each season's growth, better at the
+peak, on both seed sets. Every one of those counted growth the drafting club
+does not get. As a lineup counts him it was +0.01 on both, and across whole
+dynasties it was mildly worse: −12.6 ± 5.2 and −14.3 ± 5.8 at seasons five and
+seven over eight leagues. The first yardstick for "over the deal" was off by a
+season — it skipped the debut and counted a fifth year the club does not have —
+which is how a read that chases post-deal growth looked like it was reading
+the deal.
+
+**The draft's position weights, checked by wins.** `POS_BASE` was hand-set in
+the first commit and never measured, and it is not the measured leverage table
+the auction runs on: it weighs a quarterback at two and a half receivers where
+leverage says five. Scored by V it would look wrong, but V is built on that
+leverage table, so that comparison proves nothing. It was checked by games —
+half the clubs in each league drafting on each table, a season played, and
+every seed run again with the halves swapped so draft slot cancels:
+
+| league | seeds | leverage table minus `POS_BASE`, win share |
+|---|---|---|
+| fantasy, 12 clubs | 30 from 100, each swapped | −0.8 ± 1.3 points (ahead in 13 of 30) |
+| pro, 32 clubs | 12 from 100, each swapped | −0.6 ± 0.8 points (ahead in 6 of 12) |
+| pro, 32 clubs | 12 from 300, each swapped | +1.5 ± 1.3 points (ahead in 8 of 12) |
+
+No difference a season can see, so it stays; replacement levels and each
+club's open slots settle most picks before the weights do.
+
+**A bug in the engine, found because a measurement was impossible.** The first
+dynasty comparisons ran both arms in one process and had every alternative
+read losing forty to sixty points by the seventh season — the arrival read,
+drafting on current rating, fifteen percent upside, reads that move in opposite
+directions — all by about the same amount. That is the signature of the
+instrument, not the reads. Rookie ids are the league seed, the class and a
+number, so two leagues on one seed name different men the same once their
+classes come apart, and `overall` cached ratings by id: the second arm drafted,
+sorted and was scored on the first arm's rookies. The scratch run that had put
+each arm in its own process had found roughly nothing, which was right. In the
+game it needed two diverged leagues on one seed open in one session — a league
+and its own share code on one device — and it is fixed at the root: a
+generated player is never cached, a handful of multiplications a man. The game
+fingerprint is unchanged.
+
+Five new tests, one rewritten, and eight mutations, seven caught. The eighth is equivalent: a
+known man's band is a single number, so reading its low end is reading him.
+
+**Found and left alone.** Two of the draft's guards are written for the
+twenty-seven-round founding draft and never fire in a rookie draft, which runs
+about three rounds: a backup quarterback is held back while
+`round <= rounds − 4` and a kicker or punter while `round <= rounds − 3`. What
+that costs was not measured cleanly — the runs that counted it were the ones
+the cache bug corrupted — so it is noted rather than changed.
+
 ## Team chemistry (`chemistry.js`)
 
 Chemistry in sports games is usually an invisible multiplier that either does nothing you can feel or quietly decides your season. This one is a number on the team screen with both its inputs shown, and it is worth at most 1.8 rating points, which is under two home-field edges.
