@@ -13,9 +13,10 @@
 // deals, since in practice winning a man back costs a premium. A club may cut
 // him in any year, paying half of what is left, if that beats keeping him.
 //
-// Two rules for retirement: FREE, the game as it stands, where a man who
-// retires takes his contract with him; and DEAD, where the years left are
-// booked as they would be for a cut.
+// Two rules for retirement: the game's, where the years a man retires out of
+// are booked as they would be for a cut; and the rule it replaced, where he
+// took his contract with him — kept as a comparison, because that one rule is
+// what made five years the right answer at every age.
 //
 // Usage: node scripts/term-value.mjs [signing seasons] [leagues] [first seed]
 import { PLAYERS, PLAYERS_BY_ID } from '../src/data/db.js';
@@ -106,11 +107,10 @@ if (process.env.TERM_VALUE_DUMP) {
 const BANDS = [[-99, -3, 'climbing (3+ before peak)'], [-2, 0, 'at peak (2 before to peak)'], [1, 2, 'just past (1-2 after)'], [3, 4, 'past (3-4 after)'], [5, 99, 'well past (5+ after)']];
 console.log(`${signings.length} free-agent signings followed for ${HORIZON} seasons (${LEAGUES} leagues, 32 clubs), bought ${mean(signings.map((s) => s.over)).toFixed(2)}x over the asking price on average`);
 const SCENARIOS = [
-  ['free agency at the price the winner paid', FA_TERM, false, (s) => s.over],
-  ['free agency at the asking price', FA_TERM, false, () => 1],
-  ['re-signing (premium curve)', TERM_PRICE, false, () => 1],
-  ['free agency at the asking price, retirement booked as dead', FA_TERM, true, () => 1],
-  ['re-signing, retirement booked as dead', TERM_PRICE, true, () => 1],
+  ['free agency at the asking price', FA_TERM, true, () => 1],
+  ['re-signing (premium curve)', TERM_PRICE, true, () => 1],
+  ['free agency at the price the winner paid', FA_TERM, true, (s) => s.over],
+  ['free agency at the asking price, if retirement still took the contract with him', FA_TERM, false, () => 1],
 ];
 for (const [label, curve, deadOnRetire, overOf] of SCENARIOS) {
   {

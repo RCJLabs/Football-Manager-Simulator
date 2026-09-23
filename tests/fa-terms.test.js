@@ -55,7 +55,7 @@ test('three years is the market price, and every length is priced off it', () =>
   }
   // Where the money is big enough for the ceiling not to swallow it, every
   // step down the menu is a real discount.
-  assert.deepEqual(TERMS.map((t) => askAt(40, t)), [47, 40, 37, 35]);
+  assert.deepEqual(TERMS.map((t) => askAt(40, t)), [44, 40, 38, 36]);
   // A cheap man gets nothing for length and pays a whole dollar for two years.
   assert.deepEqual(TERMS.map((t) => askAt(1, t)), [2, 1, 1, 1]);
 });

@@ -9,7 +9,7 @@ import { createLeague, registerPlayers, startSeason } from '../src/engine/season
 import { autoDraftAll } from '../src/engine/draft.js';
 import { RNG } from '../src/engine/rng.js';
 import {
-  keeperCost, TERM_PRICE, TERMS, termFor, setTerm, aiTerm,
+  keeperCost, TERM_PRICE, TERMS, termFor, setTerm, aiTerm, priceOf,
   RESIGN_PREMIUM, TAG_PREMIUM, tagCost, setTag, positionRates,
 } from '../src/engine/offseason.js';
 import { marketSalary, VET_YEARS } from '../src/engine/cap.js';
@@ -43,6 +43,8 @@ test('a shorter deal costs more a year and a longer one less', () => {
   const lg = pro();
   const p = someone('RB');
   const yearly = TERMS.map((t) => { setTerm(lg, p.id, t); return keeperCost({ expiring: true }, p, lg); });
+  // Whole dollars, at exactly the curve's price for each length.
+  TERMS.forEach((t, i) => assert.equal(yearly[i], priceOf(marketSalary(p), TERM_PRICE[t]), `${t}y is not priced off the curve`));
   for (let i = 1; i < yearly.length; i++) {
     assert.ok(yearly[i] <= yearly[i - 1],
       `${TERMS[i]}y costs ${yearly[i]} against ${TERMS[i - 1]}y at ${yearly[i - 1]} — length must not raise the annual price`);
@@ -75,12 +77,15 @@ test('a length off the menu falls back rather than throwing', () => {
   assert.equal(termFor(lg, p.id), VET_YEARS, 'one year is the tag and must not be selectable here');
 });
 
-test('the AI buys the old short and locks up the young', () => {
-  const young = { pos: 'QB', age: primeAge('QB') - 4 };
-  const peak = { pos: 'QB', age: primeAge('QB') };
-  const old = { pos: 'QB', age: primeAge('QB') + 5 };
-  assert.ok(aiTerm({}, young) > aiTerm({}, peak), 'a man still climbing should be locked up for longer');
-  assert.ok(aiTerm({}, old) < aiTerm({}, peak), 'a man past his peak should be bought a year at a time');
+test('the AI buys by age as measured: long up to two past the peak, short from five', () => {
+  // The bands are the ones `scripts/term-value.mjs` scored: five years is the
+  // best return at the asking price up to two years past a position's peak,
+  // three from three to four past, two from five past. An intuition-built rule
+  // bought old men the dearest length there was, so the boundaries are pinned.
+  const at = (past) => aiTerm({}, { pos: 'QB', age: primeAge('QB') + past });
+  assert.deepEqual([-4, -1, 0, 2].map(at), [5, 5, 5, 5], 'up to two past the peak is a five-year man');
+  assert.deepEqual([3, 4].map(at), [VET_YEARS, VET_YEARS], 'three and four past is the middle length');
+  assert.deepEqual([5, 8].map(at), [2, 2], 'five past and more is bought short');
   assert.equal(aiTerm({}, { pos: 'QB' }), VET_YEARS, 'with no age there is no reason to prefer a length');
-  for (const t of [young, peak, old]) assert.ok(TERM_PRICE[aiTerm({}, t)], `${aiTerm({}, t)} is not on the menu`);
+  for (let past = -6; past <= 10; past++) assert.ok(TERM_PRICE[at(past)], `${at(past)} is not on the menu`);
 });

@@ -23,7 +23,7 @@ import { standings } from './season.js';
 import { freeAgents, ownerMap, lineupStrength, aiGreed } from './transactions.js';
 import { capOn, capHit, capSpace, marketSalary, MIN_SALARY, VET_YEARS, SLOT_RESERVE, PRO_CAP } from './cap.js';
 // Not from offseason.js, which imports this file: see the head of terms.js.
-import { FA_TERM, aiTerm, termsOpen, termsFor } from './terms.js';
+import { FA_TERM, aiTerm, termsOpen, termsFor, priceOf } from './terms.js';
 
 /** How long a deal signed in free agency runs when nobody says otherwise. */
 export const FA_YEARS = VET_YEARS;
@@ -51,15 +51,14 @@ export function offerYears(offer) {
  * The re-signing curve with the re-signing premium taken out, because nobody
  * here has an exclusive window to charge for: `FA_TERM` is `TERM_PRICE` over
  * its own three-year figure. So three years is market exactly, as it always
- * was, two is about 17% more a year and five about 13% less.
+ * was, two is about 8% more a year and five about 12% less.
  *
  * Rounded up, like every other price in the game, so a cheap man gets no
  * discount for length — five years at a $5 market is still $5 — and pays a
- * whole dollar more for two. Checked at every market value the game can
- * produce: no float error moves the ceiling.
+ * whole dollar more for two. `priceOf` keeps float error off the ceiling.
  */
 export function askAt(market, years = FA_YEARS) {
-  return Math.ceil(market * (FA_TERM[years] ?? 1));
+  return priceOf(market, FA_TERM[years] ?? 1);
 }
 
 /** The same, from the player. */
@@ -76,7 +75,7 @@ export function askFor(player, years = FA_YEARS) {
  * offer to its own asking price makes every offer at the asking price exactly
  * as good as every other, whatever its length, and ranks the rest by how far
  * over they go. It has to be the rounded ask rather than the curve itself:
- * against the curve, a five-year offer at a $5 ask reads as 16% over a
+ * against the curve, a five-year offer at a $5 ask reads as 13% over a
  * three-year one at the same ask and wins a tie it should have split — the
  * ceiling would be deciding contested signings.
  */

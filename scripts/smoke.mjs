@@ -1206,6 +1206,19 @@ try {
     // because that is what `main.js` hands the real one — without them the AI
     // never tags, and the injected league would not be the app's league.
     lg.phase = 'complete';
+    // One of the user's men under contract retires this offseason, seeded
+    // rather than waited for: the summary has to say what he leaves owed.
+    const { startCareer } = await import(`${R}/src/engine/careers.js`);
+    const { ROSTER_SLOTS } = await import(`${R}/src/data/positions.js`);
+    const me = lg.teams.findIndex((t) => t.isUser);
+    // Not the quarterback: the career-line check below writes a passer's career
+    // onto the first man on the roster, and retiring QB1 made that a back.
+    const retiree = ROSTER_SLOTS.filter((s) => s.pos !== 'QB').map((s) => lg.teams[me].slots[s.id]).filter(Boolean)
+      .find((id) => (lg.contracts[id]?.years ?? 0) >= 3 && (lg.contracts[id]?.salary ?? 0) >= 4);
+    if (retiree) {
+      const career = startCareer(lg, PLAYERS_BY_ID.get(retiree));
+      lg.dev = { ...(lg.dev || {}), [retiree]: { ...career, from: lg.season, retireAt: career.age + 1 } };
+    }
     enterOffseason(lg, leaguePool(lg, PLAYERS), careerIndex(lg, leagueIndex(lg, PLAYERS_BY_ID)));
 
     await page.setViewportSize({ width: 360, height: 800 });
@@ -1230,6 +1243,11 @@ try {
     await page.reload();
     await sleep(600);
 
+    if (!retiree) errors.push('the pro smoke league gave the user nobody under contract to retire');
+    else {
+      const owedLine = await page.evaluate(() => document.body.textContent.match(/you owe \$\d+ a year for (one more season|\d+ more seasons)/)?.[0] || null);
+      if (!owedLine) errors.push('a retirement under contract does not tell the user what is still owed');
+    }
     const tagBtns = await page.$$('[data-tag]');
     if (!tagBtns.length) errors.push('the pro keeper round offers no tag on any expiring man');
     else {

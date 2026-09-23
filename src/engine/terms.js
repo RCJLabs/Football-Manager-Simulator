@@ -66,19 +66,30 @@ export const RESIGN_PREMIUM = 1.04;
  * flexibility is worth something to a club: a short deal costs more a year, a
  * long one less.
  *
- *   2 years   1.22   a man on the way down, bought a year at a time
+ *   2 years   1.12   a man on the way down, bought a year at a time
  *   3 years   1.04   the old default, so a league that ignores this is unchanged
- *   4 years   0.96
- *   5 years   0.90   cheap, and meant to be expensive to be wrong about
+ *   4 years   0.98
+ *   5 years   0.92   cheap, and expensive to be wrong about
  *
- * "Meant to be" because it is not, measured. `scripts/term-value.mjs` follows
- * real signings for five seasons — actual ratings, knocks, retirements, and
- * the option to cut — and at these prices five years has the best average
- * return in every age band, while two years has the worst. The discount
- * outruns how fast a man declines inside five seasons, and a man who retires
- * takes his contract with him, so the years a long deal was supposed to cost
- * mostly never get paid. That is an open question about these numbers, not a
- * settled one; see DESIGN.md, "What a contract's length is worth".
+ * These replaced 1.22 / 0.96 / 0.90, which were set by feel and failed when
+ * measured. `scripts/term-value.mjs` follows real signings for five seasons —
+ * actual ratings, knocks and retirements, with the option to cut — and at
+ * those prices five years had the best average return in every age band and
+ * two years the worst. Two things caused it: the long-end discount outran how
+ * fast a man declines inside five seasons, and a man who retired took his
+ * contract with him, so the years a long deal was supposed to cost were
+ * mostly never paid. Retirement now leaves the guaranteed half of what is
+ * left behind, as a cut does (see `enterOffseason`), and the curve is
+ * flatter. Scored on 951 signings at the asking price, the best length now
+ * follows age, which is the decision this was meant to be:
+ *
+ *   years from peak     market best      re-signing best
+ *   up to +2            5 years (73-83%)  5 years (about half), 4 next
+ *   +3 to +4            3 years (47%)     2, 3 and 4 within half a dollar
+ *   +5 and over         2 or 3, level     2 years (67%)
+ *
+ * Bought well over the asking price, two years is best at every age: every
+ * year of an overpaid deal loses money, so the fewest years lose least.
  *
  * The three-year figure IS `RESIGN_PREMIUM`, not a number that happens to match
  * it, so the default path prices exactly as it did before.
@@ -88,7 +99,23 @@ export const RESIGN_PREMIUM = 1.04;
  * deal at anything less would make the tag a strictly worse version of itself —
  * which is the defect this file has now had twice.
  */
-export const TERM_PRICE = { 2: 1.22, 3: RESIGN_PREMIUM, 4: 0.96, 5: 0.90 };
+export const TERM_PRICE = { 2: 1.12, 3: RESIGN_PREMIUM, 4: 0.98, 5: 0.92 };
+
+/**
+ * A salary at a multiple of market, rounded up to the dollar.
+ *
+ * Every price in the game is rounded up, and a bare `Math.ceil` over a float
+ * product charges a dollar that is not there: 25 × 1.12 is 28 and evaluates to
+ * 28.000000000000004, so the ceiling made it 29. The old curve happened to hit
+ * no such case at any market value the game produces; this one hits five. So
+ * every length-priced salary goes through here, and a test checks every market
+ * value against integer arithmetic. The slack cannot swallow a real fraction:
+ * these factors are hundredths, or hundredths over 1.04, so a product is
+ * either whole or at least a hundredth past it.
+ */
+export function priceOf(market, factor) {
+  return Math.ceil(market * factor - 1e-9);
+}
 
 /** The lengths a club may offer its own expiring men. */
 export const TERMS = Object.keys(TERM_PRICE).map(Number).sort((a, b) => a - b);
@@ -118,24 +145,22 @@ export function termsFor(league) {
 /**
  * The same curve seen from the free-agent market, where the asking price is
  * plain `marketSalary` for the default three years rather than a re-signing's
- * premium. Normalised so three years is exactly 1: a man asks about 17% more a
- * year to sign for two, and about 13% less to sign for five.
+ * premium. Normalised so three years is exactly 1: a man asks about 8% more a
+ * year to sign for two, and about 12% less to sign for five.
  */
 export const FA_TERM = Object.fromEntries(TERMS.map((t) => [t, TERM_PRICE[t] / TERM_PRICE[VET_YEARS]]));
 
 /**
  * How long an AI club offers a man, re-signing him or buying him on the market.
  *
- * The same signal the tag uses, read the other way: a man past the peak for his
- * position is bought a year or two at a time, and one still climbing is worth
- * locking up while he is cheap. In between is the three-year default, which is
- * what every contract in this game used to be.
- *
- * The intuition, not the measurement: at the asking price the measured best
- * length is five years at every age (see `TERM_PRICE`), so for an old man this
- * rule chooses the dearest option. It stays as it is until the prices are
- * settled, because re-deriving it from prices that are themselves wrong would
- * only have to be done twice.
+ * Read off the measurement under `TERM_PRICE`, not intuition — the first
+ * version was intuition, and bought old men the dearest length there was:
+ * five years for anybody up to two years past his position's peak, three from
+ * three to four past, two from five past. The middle band is the close one —
+ * in the market three years is clearly best, re-signing it is within half a
+ * dollar of four — and three costs the least across both. Four years is never
+ * the AI's answer; it is on the menu for a human who judges a man better than
+ * his age says.
  *
  * Without this the human would hold a lever the league does not, which is the
  * asymmetry the injury work refused for the same reason — difficulty here lives
@@ -147,9 +172,8 @@ export const FA_TERM = Object.fromEntries(TERMS.map((t) => [t, TERM_PRICE[t] / T
 export function aiTerm(league, player) {
   if (!player || player.age == null) return VET_YEARS;
   const past = player.age - primeAge(player.pos);
-  if (past >= 3) return 2;
-  if (past >= 1) return 3;
-  if (past <= -3) return 5;
-  return 4;
+  if (past >= 5) return 2;
+  if (past >= 3) return 3;
+  return 5;
 }
 

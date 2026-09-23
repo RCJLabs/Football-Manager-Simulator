@@ -155,10 +155,13 @@ export function deadCharge(contract) {
 /**
  * Book what a club owes a man it is letting go.
  *
- * Called at the three places a roster actually loses somebody it was still
- * paying: the cap shed at kickoff, a drop on the waiver wire, and the keeper
- * round. Retirement is not one of them — a man who stops playing stops being
- * owed — and neither is a trade, where the contract goes with him.
+ * Called at the four places a roster actually loses somebody it was still
+ * paying: the cap shed at kickoff, a drop on the waiver wire, the keeper round,
+ * and retirement. A trade is not one of them, because the contract goes with
+ * him. Retirement once was not either — "a man who stops playing stops being
+ * owed" — and that was the rule that made a five-year deal right at every age:
+ * the years a long deal should cost are the years men retire into, and they
+ * were never paid. See `bookRetirements` in offseason.js.
  */
 export function bookDead(league, teamIdx, id, contract) {
   if (!capOn(league)) return null;

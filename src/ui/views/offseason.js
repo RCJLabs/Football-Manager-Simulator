@@ -5,7 +5,7 @@ import { userTeamIndex, newSeasonSameRosters, standings } from '../../engine/sea
 import { PLAYERS } from '../../data/db.js';
 import {
   keeperCost, keeperEligible, keeperLimit, validateKeepers, enterOffseason, aiKeepers, confirmKeepers, closeFreeAgency, seasonSummary, MAX_KEEPS,
-  tagCost, setTag, tagOf, RESIGN_PREMIUM, TERMS, TERM_PRICE, termFor, setTerm, termsOpen,
+  tagCost, setTag, tagOf, RESIGN_PREMIUM, TERMS, TERM_PRICE, termFor, setTerm, termsOpen, priceOf,
 } from '../../engine/offseason.js';
 import { marketSalary, VET_YEARS } from '../../engine/cap.js';
 import { playerItem, playerModal, teamChip, toast, esc, modal } from '../components.js';
@@ -79,7 +79,7 @@ export function view(root, params, ctx) {
     if (!capped || !c.expiring || !termsOpen(league)) return `${VET_YEARS}y`;
     const chosen = termFor(league, p.id);
     return `<select class="term" data-term="${esc(p.id)}" aria-label="Contract length for ${esc(p.name)}">${
-      TERMS.map((t) => `<option value="${t}" ${t === chosen ? 'selected' : ''}>${t}y · $${Math.ceil(marketSalary(p) * TERM_PRICE[t])}/yr</option>`).join('')
+      TERMS.map((t) => `<option value="${t}" ${t === chosen ? 'selected' : ''}>${t}y · $${priceOf(marketSalary(p), TERM_PRICE[t])}/yr</option>`).join('')
     }</select>`;
   };
 
@@ -103,7 +103,7 @@ export function view(root, params, ctx) {
     // so every other row is left alone rather than carrying a dead button.
     const canOffer = capped && c.expiring && eligible && (!tagHeld || isTagged(p.id));
     const tagBtn = canOffer
-      ? `<button class="btn sm ${isTagged(p.id) ? 'primary' : 'ghost'}" data-tag="${esc(p.id)}" title="One year at $${tagCost(league, p)} instead of ${VET_YEARS} years at $${Math.ceil(marketSalary(p) * RESIGN_PREMIUM)} each. Nothing owed afterwards, which is the point for a man on the way down.">${isTagged(p.id) ? 'Tagged' : `Tag $${tagCost(league, p)}`}</button>`
+      ? `<button class="btn sm ${isTagged(p.id) ? 'primary' : 'ghost'}" data-tag="${esc(p.id)}" title="One year at $${tagCost(league, p)} instead of ${VET_YEARS} years at $${priceOf(marketSalary(p), RESIGN_PREMIUM)} each. Nothing owed afterwards, which is the point for a man on the way down.">${isTagged(p.id) ? 'Tagged' : `Tag $${tagCost(league, p)}`}</button>`
       : '';
     const action = eligible
       ? `${tagBtn}<button class="btn sm ${on ? 'primary' : ''}" data-keep="${esc(p.id)}">${on ? 'Keeping' : 'Keep'}</button>`
@@ -126,7 +126,7 @@ export function view(root, params, ctx) {
     ${!off.risers?.length && !off.fallers?.length && !off.retired?.length ? html`<p class="muted" style="font-size:.9rem;margin:.2rem 0">Nobody moved more than a couple of points this year. Ageing is slow; it is the third and fourth seasons that show.</p>` : ''}
     ${off.risers?.length ? html`<p style="font-size:.9rem;margin:.2rem 0"><b>Improved.</b> ${raw(movers(off.risers, '→'))}</p>` : ''}
     ${off.fallers?.length ? html`<p style="font-size:.9rem;margin:.2rem 0"><b>Declined.</b> ${raw(movers(off.fallers, '→'))}</p>` : ''}
-    ${off.retired?.length ? html`<p style="font-size:.9rem;margin:.2rem 0"><b>Retired.</b> ${raw(off.retired.map((r) => `${esc(r.name)} <span class="muted">${r.pos}, ${r.age}</span>`).join(' · '))} — their slots are empty and the market fills them.</p>` : ''}
+    ${off.retired?.length ? html`<p style="font-size:.9rem;margin:.2rem 0"><b>Retired.</b> ${raw(off.retired.map((r) => `${esc(r.name)} <span class="muted">${r.pos}, ${r.age}</span>${r.owed && league.teams[r.team]?.isUser ? ` <span class="badge overpay">you owe $${r.owed} a year for ${r.owedYears === 1 ? 'one more season' : `${r.owedYears} more seasons`}</span>` : ''}`).join(' · '))} — their slots are empty and the market fills them. A man who retires under contract leaves half of what was left owed, as a cut does.</p>` : ''}
     <small class="muted">Rostered players age each offseason; everyone still in the pool waits at his prime. Keep that in mind before you pay a keeper's raise.</small>
   </div>` : '';
 
@@ -149,7 +149,13 @@ export function view(root, params, ctx) {
       <p class="muted" style="font-size:.9rem;margin:.5rem 0 0">
         ${auction
           ? html`Keep up to <b>${limit}</b> players. A keeper costs last year's price plus the greater of $3 or 15%, and a player can be kept three years running before he must go back to the pool. Everyone else returns to the pool and the remaining cap buys the rest at auction. The worst club nominates first.`
-          : html`Keep up to <b>${limit}</b> players; they hold their slots. Everyone else returns to the pool and a draft fills the rest, worst club first. A player can be kept three years running before he must go back to the pool.`}
+          : capped
+            // Under a cap there is no quota and no three-year limit —
+            // `keeperEligible` lets a man be re-signed as often as he can be
+            // afforded — so the fantasy sentence this screen used to show a pro
+            // league was wrong on both counts.
+            ? html`A man under contract stays. One whose deal is up can be re-signed at his market price plus the re-signing premium, ${termsOpen(league) ? 'for two to five years' : `for ${VET_YEARS} years`}, as often as you can afford him — the cap is the only limit. Everyone else goes to free agency, and a draft fills what is left, worst club first.`
+            : html`Keep up to <b>${limit}</b> players; they hold their slots. Everyone else returns to the pool and a draft fills the rest, worst club first. A player can be kept three years running before he must go back to the pool.`}
       </p>
     </div>
     ${yearOlder}
@@ -301,7 +307,7 @@ function freeAgency(root, league, ctx) {
       </details>
       <div class="kv">
         <dt>On the books</dt><dd><b>$${capHit(league, u)}</b> of $${cap}</dd>
-        ${deadHit(league, u) ? html`<dt>Still owed to men you cut</dt><dd><b>$${deadHit(league, u)}</b></dd>` : ''}
+        ${deadHit(league, u) ? html`<dt>Still owed to men who have left</dt><dd><b>$${deadHit(league, u)}</b></dd>` : ''}
         <dt>Left to bid</dt><dd><b>$${room}</b></dd>
         <dt>Slots open</dt><dd><b>${open}</b> · ${mine.length} bid on</dd>
       </div>
@@ -355,7 +361,7 @@ function freeAgency(root, league, ctx) {
       <p class="muted" style="margin:.2rem 0 .5rem;font-size:.85rem">Asking <b id="faAsk">$${askAt(market, startYears)}</b> a year. You have <b>$${room}</b> to bid. Other clubs are bidding too, and the offer furthest over his asking price wins — ties go to the worse record.</p>
       ${lengths.length > 1 ? `<label style="display:block;font-size:.85rem;margin:0 0 .4rem">For
         <select id="faYears" aria-label="Contract length">${lengths.map((t) => `<option value="${t}" ${t === startYears ? 'selected' : ''}>${t} years · asking $${askAt(market, t)}</option>`).join('')}</select></label>
-      <p class="muted" style="margin:0 0 .5rem;font-size:.8rem">Longer is cheaper a year, and every club is quoted the same prices, so length neither helps nor hurts you in the bidding. He keeps the salary as he ages; cutting him owes half of it for every year left; retiring ends it.</p>` : ''}
+      <p class="muted" style="margin:0 0 .5rem;font-size:.8rem">Longer is cheaper a year, and every club is quoted the same prices, so length neither helps nor hurts you in the bidding. He keeps the salary as he ages, and if he is cut or retires, half of it is still owed for every year left.</p>` : ''}
       <input type="number" id="faAmt" value="${start}" min="${askAt(market, startYears)}" max="${Math.max(askAt(market, startYears), room)}" style="width:100%;font-size:1.1rem;padding:.5rem">
       <div class="row" style="gap:.4rem;margin-top:.6rem"><button class="btn primary" id="faOk">Offer</button><button class="btn" data-close>Cancel</button></div>`);
     const yearsOf = () => Number(m.el.querySelector('#faYears')?.value ?? FA_YEARS);

@@ -2184,10 +2184,14 @@ is worth something to a club:
 | term | price | on a $20 man |
 |---|---|---|
 | 1 year (the tag) | 1.60 | $32, one a club |
-| 2 years | 1.22 | $25 a year, $50 committed |
+| 2 years | 1.12 | $23 a year, $46 committed |
 | 3 years | **1.04** | $21 a year, $63 committed |
-| 4 years | 0.96 | $20 a year, $80 committed |
-| 5 years | 0.90 | $18 a year, $90 committed |
+| 4 years | 0.98 | $20 a year, $80 committed |
+| 5 years | 0.92 | $19 a year, $95 committed |
+
+These are the second set of prices. The first — 1.22 / 1.04 / 0.96 / 0.90 —
+were set by feel, and measured they made five years the right answer at every
+age; see **What a contract's length is worth**.
 
 **The three-year figure IS `RESIGN_PREMIUM`**, not a number that happens to
 equal it, so a league that ignores the control prices exactly as it did before
@@ -2198,37 +2202,41 @@ one man a club — and a freely available one-year deal at anything less would
 make the tag a strictly worse version of itself. That is the dominated-option
 defect this file has now had twice, and a test pins it rather than a comment.
 
-**The AI chooses too**, by the same signal the tag uses read the other way: a
-man past his position's peak is bought a year or two at a time, one still
-climbing is locked up while he is cheap. Without that the human would hold a
-lever the league does not, which is the asymmetry the injury work refused for
-the same reason.
+**The AI chooses too.** The first rule was intuition — a man past his
+position's peak bought a year or two at a time, one still climbing locked up
+while he was cheap — and measured, it bought old men the dearest length on the
+menu. It is now read off the measurement: five years up to two past the peak,
+three from three to four past, two from five past. Without a rule at all the
+human would hold a lever the league does not, which is the asymmetry the injury
+work refused for the same reason.
 
 This paragraph used to end: *a league with careers off has no ages, so every
 club offers three years and the feature is inert — honest, since with nobody
 ageing there is no reason to prefer a length.* The AI half of that was true and
 the human half was not. With nobody ageing nobody declines, so five years at
-0.90 is simply cheaper than three at 1.04 with nothing to pay for it later, and
+0.90 (as it was then) was simply cheaper than three at 1.04 with nothing to pay for it later, and
 the keeper screen offered it to the human while every AI club took three. Found
 while adding length to free agency, which would have doubled it; `termsOpen`
 now holds a league without careers to three years for everybody, the rule such
 a league was started under.
 
-Over 32 clubs and seven seasons, what clubs actually signed:
+What clubs signed on re-signing, under the first rule and under the measured
+one (32 clubs; seven seasons for the first, three sets of four leagues × six
+seasons for the second):
 
-| term | share | average age |
+| term | first rule: share, average age | measured rule: share, average age |
 |---|---|---|
-| 2 years | 52% | 33.0 |
-| 3 years | 30% | 29.4 |
-| 4 years | 16% | 28.0 |
-| 5 years | 2% | 25.7 |
+| 2 years | 52%, 33.0 | 17%, 34.1 |
+| 3 years | 30%, 29.4 | 39%, 30.4 |
+| 4 years | 16%, 28.0 | — |
+| 5 years | 2%, 25.7 | 44%, 29.3 |
 
-An ageing league buys short. That this is the right direction was asserted
-here, not measured, and measured it is not — see **What a contract's length is
-worth** below. Roster continuity is
-**80.2%** against 80.4% without the control, and the share of expiring men kept
-is 37.6% against 38.7% — both inside noise. The decision is added without
-moving the dynasty balance.
+The first rule bought short and called it the right direction; that was
+asserted, not measured, and measured it was wrong — see **What a contract's
+length is worth** below, which also has what the change did to the league. When
+this shipped, roster continuity was **80.2%** against 80.4% without the
+control, and the share of expiring men kept 37.6% against 38.7% — both inside
+noise.
 
 **A five-year deal looked like dead code and was not.** Over four seasons it was
 chosen exactly zero times, and the obvious reading is that the trigger is too
@@ -2311,7 +2319,7 @@ reads as the three-year deal it always was.
 **The price for a length is the re-signing curve without its premium.** Nobody
 on the market has an exclusive window to charge for, so `FA_TERM` is
 `TERM_PRICE` over its own three-year figure: three years is market exactly, as
-before, and on a $40 man the menu reads $47 / $40 / $37 / $35 for two to five
+before, and on a $40 man the menu reads $44 / $40 / $38 / $36 for two to five
 years. Rounded up like every price here, so a cheap man gets no discount for
 length and pays a whole dollar for two years. No float error moves the ceiling
 at any market value the game can produce; that was checked for every one.
@@ -2320,7 +2328,7 @@ at any market value the game can produce; that was checked for every one.
 (`offerValue`), not the biggest salary. Comparing salaries would hand every
 contested man to whoever offered two years, since a short deal costs more a
 year by construction. It has to be the *rounded* ask, not the curve: against
-the curve, five years at a $5 ask reads 16% better than three years at the
+the curve, five years at a $5 ask reads 13% better than three years at the
 same ask, and the ceiling would be deciding contested signings. Against the
 rounded ask every offer at the asking price is worth exactly 1 whatever its
 length, and the tie goes to the worse record as it always did. Because a
@@ -2353,57 +2361,97 @@ figure — so they are not established. The spread moved both ways and is noise.
 
 Market signings split 60% two years, 27% three, 12% four and 1% five, at about
 +4.7, +1.6, −0.4 and −3.5 years from peak: the market is mostly men past their
-best, and the AI buys them short. **Inferred, not established:** a club that
+best, and the AI bought them short. Under the measured rule that replaced it
+(next section) the split is 24% two, 33% three and 43% five, at +6.1, +3.6 and
++0.9. **Inferred, not established:** a club that
 declines a man to save money now meets a market that prices his two-year deal
-at 1.17 rather than plain market, so it is less able to buy him back.
+at 1.17 rather than plain market (at the prices of the time; 1.08 since), so it
+is less able to buy him back.
 
-### What a contract's length is worth — open
+### What a contract's length is worth
 
 The length menu rests on a premise: a long deal is cheaper a year and costs you
-later, when he declines. `scripts/term-value.mjs` tests that on what really
-happened. It follows every market signing in real leagues for five seasons —
-his actual rating each year, knocks included, and whether he retired — and
-prices all four lengths at the same distance over his asking price. A season's
-value is what he was worth that year (`marketSalary`) minus what he was paid; a
-deal that has ended is worth zero, which flatters short deals, since winning a
-man back costs a premium; a club may cut him in any year if that is cheaper.
+later, when he declines. `scripts/term-value.mjs` (`npm run terms`) tests that
+on what really happened. It follows every market signing in real leagues for
+five seasons — his actual rating each year, knocks included, and whether he
+retired — and prices all four lengths at the same distance over his asking
+price. A season's value is what he was worth that year (`marketSalary`) minus
+what he was paid; a deal that has ended is worth zero, which flatters short
+deals, since winning a man back costs a premium; a club may cut him in any year
+if that is cheaper.
 
-Pooled over 951 signings in six leagues, bought at the asking price — the
-man nobody else wanted, and every re-signing:
+**The first prices failed it.** At 1.22 / 1.04 / 0.96 / 0.90, over 951
+signings in six leagues, five years was the best length at the asking price
+**in every age band** and two years the worst: +0.8 for five against −6.6 for
+two even at five-plus years past a position's peak. So the AI's rule — old men
+short — bought the dearest length there was for exactly the men it applied to,
+in the keeper round since it shipped. Two causes, both measured: the long-end
+discount outran how fast a man declines inside five seasons, and a man who
+retired took his contract with him — `releaseRetired` deleted it and `bookDead`
+never saw it — so the years a long deal was supposed to cost were the years
+men retired into, and they were never paid.
 
-| years from peak at signing | n | 2 years | 3 years | 4 years | 5 years | five best |
+**Two changes.** Retirement now leaves the guaranteed half of every year left
+behind, booked as dead money exactly as a cut is (`bookRetirements`); a deal
+that has just run out, or a minimum one, leaves nothing. And the curve is
+flatter: 1.12 / 1.04 / 0.98 / 0.92. Candidate curves were scored offline
+against the saved trajectories, and it takes both. With retirement still free,
+the flattest curves in the grid moved old men to three years in the market but
+left every re-signing at four; with retirement booked on the old steep curve,
+only men five or more past their peak moved off five years. Together they give
+the gradient in both markets.
+
+Measured on 795 fresh signings, from leagues played under the new rules, at
+the asking price — mean dollars over five seasons, and how often each length
+is the best one:
+
+| years from peak | n | 2 years | 3 years | 4 years | 5 years | best |
 |---|---|---|---|---|---|---|
-| 2 before to peak | 109 | −8.6 | −0.9 | +1.9 | **+6.7** | 72% |
-| 1–2 past | 233 | −9.0 | −1.8 | +0.3 | **+4.8** | 73% |
-| 3–4 past | 290 | −7.6 | −2.2 | −1.3 | **+1.8** | 63% |
-| 5+ past | 313 | −6.6 | −1.8 | −1.4 | **+0.8** | 57% |
+| 2 before to peak | 115 | −4.3 | −0.9 | +0.2 | **+5.1** | five, 83% |
+| 1–2 past | 218 | −4.6 | −1.7 | −1.2 | **+3.3** | five, 74% |
+| 3–4 past | 256 | −4.4 | **−2.3** | −3.4 | −2.8 | three, 50% |
+| 5+ past | 201 | **−3.8** | −3.9 | −6.7 | −8.2 | two 48%, three 40% |
 
-Mean dollars over five seasons, free-agent curve. **At the asking price five
-years is the best length at every age, and two years the worst.** The
-re-signing curve says the same, more strongly: five years best for 65–88% of
-men in every band. So the AI's rule — old men short — picks the dearest option
-for exactly the men it applies to, in the keeper round since it shipped and in
-the market now.
+On the re-signing curve the pattern is the same with the edges softer: five
+years at and just past the peak (about half, four years next at 36–38%), two
+years clearly at five-plus past (71%), and 2 / 3 / 4 within a dollar in
+between. With retirement still free on the same signings, five years would win
+at 3–4 past (58%) and at 5+ past (55%) again: the retirement rule is what turns
+the old end. Bought well over the asking price, as bidding wars are, two years
+is best in every band with a real sample (95–100%): every year of an overpaid
+deal loses money, so the fewest lose least. So length is now decided by two things a manager can
+see — how old he is and how much he is being overpaid.
 
-Two things drive it, and both are measured rather than guessed. The discount —
-13% a year for five years — outruns how fast a man declines inside five
-seasons. And a man who retires takes his contract with him (`releaseRetired`
-deletes it; `bookDead` never sees it), so the years a long deal was supposed to
-cost are mostly never paid. Book retirement as a cut instead and the old end
-turns: at 5+ years past peak three years becomes best (56%) and five the worst
-of the four, while young men still want five.
+`aiTerm` is read off that table: five years up to two past the peak, three from
+three to four past, two from five. Four years is never its answer; it is on the
+menu for a human who judges a man better than his age says.
 
-The one place length already behaves as intended is the bidding war. Market
-winners pay 1.59 times the asking price on average, every year of such a deal
-loses money, and there two years is best for 65–73% of men up to four years
-past their peak; beyond that three years has the best average. So the choice
-is currently decided by how much you are overpaying, not by how old he is.
+**What it did to the league** — three seed sets of four 32-club leagues × six
+seasons (`npm run resign`), before and after, the range across the three:
 
-Not changed here, because the fix changes the economics of leagues already
-being played: a retirement rule, a flatter curve, or both, then `aiTerm`
-re-derived from the result and the league re-measured. The trajectories are
-kept (`TERM_VALUE_DUMP`) so candidate curves can be scored in seconds rather
-than by re-running the leagues.
+| | before | after |
+|---|---|---|
+| roster continuity | 77.5–78.2% | **81.7–81.9%** |
+| expiring men re-signed | 35.4–36.9% | **41.2–41.7%** |
+| declined men not won back | 87.6–88.6% | **81.9–86.1%** |
+| cap used at kickoff | 81.4–81.9% | **83.9–84.0%** |
+| dead money across the league | $89–113 | **$170–195** |
+| expiring men declined | 71.2–73.6% | 68.4–71.1% |
+| declined 90+ players taken by a rival | 55–61% | 45–56% |
+| best-to-worst lineup spread | 658–692 | 672–680 |
+
+The bold rows are clear of the spread between seeds; the rest overlap it. Clubs
+keep more of their own men, because five years at 0.92 and two at 1.12 are both
+cheaper than what the first rule paid, and `aiKeepers` weighs every price
+against `BIRD_IN_HAND`. Continuity at 81.8% is comparable to the 80.8–84.1%
+measured when the re-sign premium was set, over shorter runs. Dead money nearly
+doubles, to about
+2.8% of each club's cap — the price of long deals now being a real risk. How
+much of that is retirements and how much is cuts of long deals is **not
+measured**; the dead-money ledger does not record why a charge was booked.
+
+The trajectories are kept (`TERM_VALUE_DUMP`) so a curve can be scored in
+seconds rather than by re-running the leagues.
 
 ## Dynasty loop (`offseason.js`)
 
@@ -2476,7 +2524,7 @@ Three mutations confirm the probe is not just agreeing with itself: restoring th
 
 A keeper run is three seasons, which costs about 1.3 overall — noticeable when you are paying a raise for it, and not a cliff. The rookie numbers are the ones that matter most, because they fix the honest limitation the intake shipped with: an eight-club league's worst starter is an 88, so a class whose median peaks at 72 still mostly does not matter, but 3.2% peaking at 88 or better means roughly one genuine prospect per class instead of none. In the pro league, where the cutoff is 75, a fifth of every class becomes a starter somewhere.
 
-**Retirement.** A player retires nine seasons past his prime, give or take a few, or whenever he drops below 52 overall. He is flagged rather than deleted: league codes and season cards tell player pools apart by counting ids, so dropping a retired man would move that fingerprint and a league would stop being able to open its own code. Signing him is blocked at the three places that offer players — free agency, the auction and the draft — and he stays visible in the pool, which is where a retired great belongs. Retiring frees his roster slot and drops his contract, and the offseason market fills the hole.
+**Retirement.** A player retires nine seasons past his prime, give or take a few, or whenever he drops below 52 overall. He is flagged rather than deleted: league codes and season cards tell player pools apart by counting ids, so dropping a retired man would move that fingerprint and a league would stop being able to open its own code. Signing him is blocked at the three places that offer players — free agency, the auction and the draft — and he stays visible in the pool, which is where a retired great belongs. Retiring frees his roster slot and ends his contract, and the offseason market fills the hole — but a man who retires with years left leaves the guaranteed half of each behind, booked as dead money exactly as a cut is (see **What a contract's length is worth**).
 
 **Plumbing.** State lives on `league.dev`, not `league.careers`, because awards.js got there first and uses that name for the statistics a hall-of-fame case is built from. `applyCareers`/`careerIndex` build the league's view of the pool and are idempotent; a developed player carries the base he was built from and his own `ovr`, because the overall cache is keyed by id and two open leagues can hold the same man at different ages. Anything rating a set of attributes not attached to a fixed id goes through `rawOverall`, which does not cache — getting that wrong silently froze the ceiling logic at its pre-scaling value, which is a bug worth remembering.
 

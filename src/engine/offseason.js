@@ -16,7 +16,7 @@ import { overall } from './ratings.js';
 import { RNG } from './rng.js';
 import { emptyTeamStats } from './stats.js';
 import { createAuction, priceGuide, DEFAULT_BUDGET, MIN_BID } from './auction.js';
-import { capOn, expireContracts, marketSalary, bookDead, tickDead, deadHit, VET_YEARS, PRO_CAP, MIN_SALARY, SLOT_RESERVE } from './cap.js';
+import { capOn, expireContracts, marketSalary, bookDead, tickDead, deadHit, teamContractIds, VET_YEARS, PRO_CAP, MIN_SALARY, SLOT_RESERVE } from './cap.js';
 import { openFreeAgency, resolveFreeAgency } from './freeagency.js';
 import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex, thinCompletedLogs } from './season.js';
@@ -28,8 +28,8 @@ import { advanceCareers, releaseRetired, primeAge } from './careers.js';
 // needs it and this file imports free agency — importing it back would be a
 // cycle over a `const`, which throws rather than resolving by luck. Re-exported
 // so everything that has always imported these from here still does.
-import { RESIGN_PREMIUM, TERM_PRICE, TERMS, aiTerm, termsOpen, termsFor } from './terms.js';
-export { RESIGN_PREMIUM, TERM_PRICE, TERMS, aiTerm, termsOpen, termsFor };
+import { RESIGN_PREMIUM, TERM_PRICE, TERMS, aiTerm, termsOpen, termsFor, priceOf } from './terms.js';
+export { RESIGN_PREMIUM, TERM_PRICE, TERMS, aiTerm, termsOpen, termsFor, priceOf };
 import { jobsOn, reviewSeason, fillVacancies, makeOffers, acceptOffer, yourCoach, retire, REP_FLOOR } from './jobs.js';
 
 export const MAX_KEEPS = 3;
@@ -124,7 +124,7 @@ export function positionRates(league, byId) {
 export function tagCost(league, player) {
   if (!player) return MIN_SALARY;
   const rate = league.offseason?.rates?.[player.pos] ?? 0;
-  return Math.max(rate, Math.ceil(marketSalary(player) * TAG_PREMIUM));
+  return Math.max(rate, priceOf(marketSalary(player), TAG_PREMIUM));
 }
 
 /** Who each club has tagged this offseason, as playerId -> teamIdx. */
@@ -168,7 +168,7 @@ export function keeperCost(contract, player = null, league = null) {
   if (league && capOn(league)) {
     if (contract?.expiring) {
       if (player && tagged(league)[player.id] != null) return tagCost(league, player);
-      return Math.ceil(marketSalary(player) * TERM_PRICE[termFor(league, player?.id)]);
+      return priceOf(marketSalary(player), TERM_PRICE[termFor(league, player?.id)]);
     }
     return contract?.salary ?? MIN_SALARY;
   }
@@ -237,6 +237,36 @@ export function validateKeepers(league, teamIdx, ids, byId = null) {
  * pickups land on $1 deals), and the AI clubs choose their keepers now so the
  * human can see the whole picture before choosing theirs.
  */
+/**
+ * A man who retires under contract leaves the rest of it behind, the way a cut
+ * does: the guaranteed half of every year left, charged to the club that was
+ * paying him. Returns what was booked, by player, for the offseason summary.
+ *
+ * Retirement used to delete the contract outright, and that one rule made a
+ * five-year deal the right answer for a man of any age: the years a long deal
+ * was supposed to cost were exactly the years a man retires into, and they
+ * were never paid. Measured over 951 signings (`scripts/term-value.mjs`), five
+ * years had the best return in every age band while it did. Real contracts do
+ * not end that way either — the guaranteed money stays on the books.
+ *
+ * A deal that has just run out owes nothing: `expireContracts` has already run
+ * this offseason, so an expiring man has no years left, and `deadCharge`
+ * refuses him. Neither does a minimum deal, which halves to nothing.
+ */
+function bookRetirements(league, ids) {
+  const owed = new Map();
+  if (!capOn(league)) return owed;
+  for (const id of ids) {
+    const c = league.contracts?.[id];
+    if (!c) continue;
+    const team = league.teams.findIndex((t, i) => teamContractIds(league, i).includes(id));
+    if (team < 0) continue;
+    const charge = bookDead(league, team, id, c);
+    if (charge) owed.set(id, { team, owed: charge.amount, owedYears: charge.years });
+  }
+  return owed;
+}
+
 export function enterOffseason(league, pool, byId) {
   if (league.phase !== 'complete') throw new Error('The season is not over');
   // The season just played stops being the one on screen, so its play-by-play
@@ -270,6 +300,7 @@ export function enterOffseason(league, pool, byId) {
   const careers = league.settings?.careers
     ? advanceCareers(league, byId)
     : { retired: [], risers: [], fallers: [], aged: 0 };
+  const owed = bookRetirements(league, careers.retired.map((r) => r.id));
   releaseRetired(league, careers.retired.map((r) => r.id));
   // A new intake arrives before the market opens, and old unsigned rookies wash out.
   const intake = addRookieClass(league, rng, { pool });
@@ -289,7 +320,7 @@ export function enterOffseason(league, pool, byId) {
     rookies: intake.arrived.length, washedOut: intake.washed.length, leftTheLeague: left.length,
     expired: expired.length,
     aged: careers.aged,
-    retired: careers.retired.filter((r) => r.owned).map((r) => ({ name: r.name, pos: r.pos, age: r.age })),
+    retired: careers.retired.filter((r) => r.owned).map((r) => ({ name: r.name, pos: r.pos, age: r.age, ...(owed.get(r.id) || {}) })),
     risers: careers.risers.slice(0, 5),
     fallers: careers.fallers.slice(0, 5),
     carousel,
