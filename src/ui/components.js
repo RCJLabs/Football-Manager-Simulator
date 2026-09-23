@@ -4,7 +4,7 @@ import { overall } from '../engine/ratings.js';
 import { getState, update } from '../store.js';
 import { setOverride } from '../data/tuning.js';
 import { POSITIONS, eraOf, edgeness, ratedAsEdge } from '../data/positions.js';
-import { careerPhase } from '../engine/careers.js';
+import { careerPhase, rootOf } from '../engine/careers.js';
 import { hallScore, HOF_THRESHOLD, HOF_MIN_SEASONS } from '../engine/awards.js';
 import { scoutReport, coarseAttrs, scoutLabel, shownOverall, readyLabel } from '../engine/scouting.js';
 
@@ -53,7 +53,7 @@ export function ageBadge(p) {
   if (!p) return raw('');
   if (p.retired) return raw(`<span class="badge retired">retired</span>`);
   if (p.age == null) return raw('');
-  return raw(`<span class="badge age" title="${careerPhase(p.pos, p.age)}">${p.age}</span>`);
+  return raw(`<span class="badge age" title="${careerPhase(rootOf(p).pos, p.age)}">${p.age}</span>`);
 }
 
 export function eraBadge(season) {
@@ -232,6 +232,19 @@ function roleLine(p) {
 }
 
 /**
+ * Where a moved man came from. A comparison against "the version you signed"
+ * would read across two positions and the cost of learning the new one, so a
+ * moved man gets this in its place: what he was, since when, and what the new
+ * job is still costing him.
+ */
+function movedLine(p) {
+  if (!p.moved) return '';
+  const was = POSITIONS[p.moved.from]?.name.toLowerCase() || p.moved.from;
+  const now = POSITIONS[p.pos]?.name.toLowerCase() || p.pos;
+  return html`<p class="muted" style="margin:.2rem 0 0">A ${was} moved to ${now} for ${p.moved.season}${p.settling ? ` — still learning it: ${p.settling} off every skill this season` : ''}. Rated on what his skills are worth here.</p>`;
+}
+
+/**
  * How soon a prospect arrives, which is the half of a projection the band has
  * never carried. Two men can read 70-86 and be four years apart; before `pace`
  * existed they could not, because every prospect arrived in about five seasons
@@ -305,7 +318,8 @@ export function playerModal(p, extra = '') {
     <div class="row between"><h2 style="margin:0">${p.name}</h2><span class="row" style="gap:.35rem">${raw(compareButton(p))}<button class="btn sm ghost" data-close aria-label="Close">✕</button></span></div>
     <p class="muted">${def.name} · ${p.generated ? `generated rookie, class of ${p.season}` : `${p.season} ${p.team} · ${eraOf(p.season)}`} · Overall <span id="ovrNow">${ovrBadge(p)}</span></p>
     ${p.retired ? html`<p class="muted" style="margin:-.3rem 0 0">Retired at ${p.age}. He stays in the record books; he cannot be signed.</p>`
-      : p.age != null ? html`<p class="muted" style="margin:-.3rem 0 0">Age ${p.age}, ${careerPhase(p.pos, p.age)}${p.base && overall(p) !== overall(p.base) ? ` · ${overall(p) > overall(p.base) ? 'up' : 'down'} ${Math.abs(overall(p) - overall(p.base))}${p.seasons ? ` in ${p.seasons} season${p.seasons === 1 ? '' : 's'}` : ''} from the ${p.base.season} version you signed` : ''}.</p>` : ''}
+      : p.age != null ? html`<p class="muted" style="margin:-.3rem 0 0">Age ${p.age}, ${careerPhase(rootOf(p).pos, p.age)}${!p.moved && p.base && overall(p) !== overall(p.base) ? ` · ${overall(p) > overall(p.base) ? 'up' : 'down'} ${Math.abs(overall(p) - overall(p.base))}${p.seasons ? ` in ${p.seasons} season${p.seasons === 1 ? '' : 's'}` : ''} from the ${p.base.season} version you signed` : ''}.</p>` : ''}
+    ${movedLine(p)}
     ${p.knocks ? html`<p class="muted" style="margin:.2rem 0 0">Came back from ${p.knocks === 1 ? 'a season-ending injury' : `${p.knocks} season-ending injuries`} — a step slower, and ${p.knocks === 1 ? 'a year' : `${p.knocks} years`} off the end of his career.</p>` : ''}
     ${roleLine(p)}
     ${scoutPaceLine(p)}

@@ -316,6 +316,7 @@ export function view(root, params, ctx) {
       const when = t.week ? `Wk ${t.week}` : `${t.season}`;
       if (t.type === 'cut') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">${when}</small> ${teamChip(team, { abbr: true }).__raw} cut <b>${esc(ctx.byId.get(t.drop)?.name)}</b> to get under the cap</li>`;
       if (t.type === 'sign') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">${when}</small> ${teamChip(team, { abbr: true }).__raw} signed <b>${esc(ctx.byId.get(t.add)?.name)}</b> in free agency</li>`;
+      if (t.type === 'position') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">${when}</small> ${teamChip(team, { abbr: true }).__raw} moved <b>${esc(ctx.byId.get(t.add)?.name)}</b> from ${esc(t.from)} to ${esc(t.to)}${t.premium ? ` <small class="muted">(+$${t.premium} a year)</small>` : ''}</li>`;
       if (t.type === 'fill') return `<li class="${team.isUser ? 'me' : ''}"><small class="muted">${when}</small> ${teamChip(team, { abbr: true }).__raw} signed <b>${esc(ctx.byId.get(t.add)?.name)}</b> off the board</li>`;
       const other = league.teams[t.other];
       // Anything the log does not recognise is skipped rather than thrown at.

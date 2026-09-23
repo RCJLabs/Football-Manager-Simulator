@@ -23,7 +23,7 @@ import { standings, syncContracts, userTeamIndex, thinCompletedLogs } from './se
 import { drainVeterans } from './proleague.js';
 import { clearIr } from './injuries.js';
 import { addRookieClass } from './rookies.js';
-import { advanceCareers, releaseRetired, primeAge } from './careers.js';
+import { advanceCareers, releaseRetired, primeOf } from './careers.js';
 import { focusPlan, clearFocus } from './focus.js';
 // The price of a contract's length lives in terms.js, because free agency
 // needs it and this file imports free agency — importing it back would be a
@@ -418,7 +418,7 @@ export function aiTagChoice(league, teamIdx, roster, byId) {
   let best = null;
   for (const p of roster) {
     if (!league.contracts?.[p.id]?.expiring || p.age == null) continue;
-    const past = p.age - primeAge(p.pos);
+    const past = p.age - primeOf(p);
     if (past < 1) continue;
     const worth = marketSalary(p) * past;
     if (!best || worth > best.worth) best = { id: p.id, worth };

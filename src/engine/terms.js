@@ -8,7 +8,7 @@
 // but a contract length and an age sits here, where both can import it.
 
 import { VET_YEARS, capOn } from './cap.js';
-import { primeAge } from './careers.js';
+import { primeOf } from './careers.js';
 
 /**
  * What certainty costs: the premium on re-signing a man whose deal is up,
@@ -171,7 +171,7 @@ export const FA_TERM = Object.fromEntries(TERMS.map((t) => [t, TERM_PRICE[t] / T
  */
 export function aiTerm(league, player) {
   if (!player || player.age == null) return VET_YEARS;
-  const past = player.age - primeAge(player.pos);
+  const past = player.age - primeOf(player);
   if (past >= 5) return 2;
   if (past >= 3) return 3;
   return 5;

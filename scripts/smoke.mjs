@@ -1420,6 +1420,63 @@ try {
       }
     }
 
+    // Position changes: an open corner slot offers the club's own men whose
+    // skills translate, with what each would be there, and moving one fills
+    // the slot, opens his old one, and says so on the chart and in the log.
+    // The same market-step league, with the user's second corner released.
+    {
+      const { confirmKeepers, aiKeepers } = await import(`${R}/src/engine/offseason.js`);
+      const { userTeamIndex } = await import(`${R}/src/engine/season.js`);
+      const pc = JSON.parse(JSON.stringify(lg));
+      const pcPool = leaguePool(pc, PLAYERS);
+      const pcIdx = careerIndex(pc, leagueIndex(pc, PLAYERS_BY_ID));
+      confirmKeepers(pc, aiKeepers(pc, userTeamIndex(pc), pcPool, pcIdx, new RNG(8)), pcPool, pcIdx);
+      const u = pc.teams.findIndex((t) => t.isUser);
+      const gone = pc.teams[u].slots.CB2;
+      pc.teams[u].slots.CB2 = null;
+      if (gone) delete pc.contracts[gone];
+      await page.evaluate((league) => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
+      }, pc);
+      await page.goto(`http://localhost:${port}/#/team/${u}/depth`);
+      await page.reload();
+      await sleep(600);
+      const saved = () => page.evaluate(() => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        const st = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active));
+        const t = st.league.teams.find((x) => x.isUser);
+        return { cb2: t.slots.CB2, moves: st.league.moves || {} };
+      });
+      const btn = await page.$('[data-convert="CB2"]');
+      if (!btn) errors.push('an open corner slot offers no way to move a man into it');
+      else {
+        await btn.click();
+        await sleep(300);
+        const who = await page.$$eval('.modal [data-to]', (bs) => bs.map((b) => b.dataset.to));
+        const txt = (await page.$eval('.modal', (m) => m.textContent)).replace(/\s+/g, ' ');
+        if (!who.length) errors.push('the move dialog lists nobody who could play corner');
+        if (!/first season/.test(txt) || !/settled/.test(txt)) errors.push('the move dialog does not say what each man would be at corner');
+        await checkOverflow('position change dialog at 360px');
+        await shot('21-position-change');
+        if (who.length) {
+          await page.click(`.modal [data-to="${who[0]}"]`);
+          await sleep(700); // the store saves on a short debounce
+          const st = await saved();
+          if (st.cb2 !== who[0]) errors.push(`moving a man to corner left CB2 holding ${st.cb2}`);
+          if (st.moves[who[0]]?.to !== 'CB') errors.push('the move to corner was not recorded on the league');
+          const row = await page.evaluate((id) => document.querySelector(`#team-view [data-id="${id}"]`)?.textContent.replace(/\s+/g, ' ') || '', who[0]);
+          if (!/was (S|LB)/.test(row)) errors.push(`the moved man's row does not say where he came from: "${row.slice(0, 120)}"`);
+          await checkOverflow('depth chart with a moved man');
+          await shot('22-moved');
+          await page.goto(`http://localhost:${port}/#/moves/log`);
+          await sleep(400);
+          const log = (await page.evaluate(() => document.body.textContent)).replace(/\s+/g, ' ');
+          if (!/moved .{1,60} from (S|LB) to CB/.test(log)) errors.push('the transaction log does not record the change of position');
+        }
+      }
+    }
+
     // Past seasons: a league with one season filed and a few weeks into the
     // next. The Team stats tab offers the filed season, reads it back, and
     // the matchup card quotes the series with the season it starts from.

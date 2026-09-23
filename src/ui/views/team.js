@@ -10,8 +10,10 @@ import { chemistryFor, describeChemistry, MAX_BONUS } from '../../engine/chemist
 import { strategyRead } from '../../engine/strategy.js';
 import { autoDepth } from '../../engine/season.js';
 import { focusOn, focusOf, namedFocus, toggleFocus, resetFocus, ageOf, FOCUS_SLOTS } from '../../engine/focus.js';
-import { careerPhase, primeAge } from '../../engine/careers.js';
+import { careerPhase, primeOf, rootOf } from '../../engine/careers.js';
 import { teamContractIds } from '../../engine/cap.js';
+import { movesOpen, candidatesFor, convertPlayer } from '../../engine/convert.js';
+import { SETTLING } from '../../engine/translate.js';
 
 // Grouped by what each one was measured to be worth, because presenting five
 // dials as five equal decisions is not what the numbers say. See strategy.js.
@@ -77,8 +79,15 @@ export function view(root, params, ctx) {
   // the beginning without anything reading it — this is what it was for.
   const showAttrs = ctx.getState().prefs?.showAttrs !== false;
 
+  // An open slot can be filled by moving one of your own men into it, when his
+  // skills translate — see convert.js. Asked per open slot only, so a full
+  // chart costs nothing.
+  const converting = canEdit && movesOpen(league);
   const rowFor = ({ slot, i, total, p }) => {
-    if (!p) return `<li class="prow dim"><span class="badge slot">${slot.id}</span><div class="who"><div class="meta">empty${canEdit && league.phase === 'season' ? ' · <a href="#/moves">claim a free agent</a>' : ''}</div></div><div class="act"></div></li>`;
+    if (!p) {
+      const movable = converting && candidatesFor(league, idx, slot.id, ctx.byId).length > 0;
+      return `<li class="prow dim"><span class="badge slot">${slot.id}</span><div class="who"><div class="meta">empty${canEdit && league.phase === 'season' ? ' · <a href="#/moves">claim a free agent</a>' : ''}</div></div><div class="act">${movable ? `<button class="btn sm" data-convert="${slot.id}">Move a man here</button>` : ''}</div></li>`;
+    }
     const fp = stats[p.id] ? fantasyPoints(stats[p.id]) : 0;
     const inj = injuries[p.id];
     const c = league.contracts?.[p.id];
@@ -92,7 +101,7 @@ export function view(root, params, ctx) {
       : '';
     return playerItem(p, {
       cls: inj ? 'dim' : slot.starter || stepsUp ? '' : 'dim',
-      meta: `<span class="badge slot">${slot.id}</span>${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge" style="background:#2c4a37;color:#cfe6d6">starts</span>' : '<span class="badge">bench</span>'}${deal}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
+      meta: `<span class="badge slot">${slot.id}</span>${p.moved ? `<span class="badge" title="${esc(`Moved from ${p.moved.from} for ${p.moved.season}${p.settling ? ` and still learning the job: ${p.settling} off every skill this season` : ''}`)}">was ${p.moved.from}${p.settling ? ` · −${p.settling}` : ''}</span>` : ''}${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge" style="background:#2c4a37;color:#cfe6d6">starts</span>' : '<span class="badge">bench</span>'}${deal}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
       action: `${irable ? `<button class="btn sm" data-ir="${esc(p.id)}" title="${esc(`Free his slot; he stays yours and keeps healing. ${irOpen} place${irOpen === 1 ? '' : 's'} left.`)}">To IR</button>` : ''}${downable(p) ? `<button class="btn sm" data-down="${esc(p.id)}" title="${esc(`Free his slot; he stays yours, keeps developing and costs the minimum. ${squadOpen} place${squadOpen === 1 ? '' : 's'} left.`)}">Send down</button>` : ''}${arrows}`,
       era: false,
       attrs: showAttrs,
@@ -160,14 +169,14 @@ export function view(root, params, ctx) {
       const p = aged(ctx.byId.get(id));
       if (!p) return '';
       const on = picked.includes(id);
-      const phase = p.age != null ? ` · ${careerPhase(p.pos, p.age)}` : '';
+      const phase = p.age != null ? ` · ${careerPhase(rootOf(p).pos, p.age)}` : '';
       const button = `<button class="btn sm ${on ? 'primary' : ''}" data-focus="${esc(id)}" ${!on && full ? 'disabled title="Three at most — take somebody off first"' : ''}>${on ? 'Focused' : 'Focus'}</button>`;
       return playerItem(p, { attrs: false, meta: phase, action: button, cls: on ? 'me' : '' });
     };
     // Youngest against his position's peak first: the list reads from the men
     // with the most season ahead of them to the ones with the most behind.
     const rest = teamContractIds(league, idx).filter((id) => !picked.includes(id)).map((id) => aged(ctx.byId.get(id))).filter(Boolean)
-      .sort((a, b) => ((a.age ?? 99) - primeAge(a.pos)) - ((b.age ?? 99) - primeAge(b.pos)) || overall(b) - overall(a));
+      .sort((a, b) => ((a.age ?? 99) - primeOf(a)) - ((b.age ?? 99) - primeOf(b)) || overall(b) - overall(a));
     devCard = html`<div class="card tight" id="devCard">
       <h3>Development focus <small class="muted" style="text-transform:none;letter-spacing:0">· ${picked.length} of ${FOCUS_SLOTS}${named ? '' : ' · your staff\'s picks'}</small></h3>
       <p class="muted" style="font-size:.85rem;margin:.2rem 0 .4rem">Name up to ${FOCUS_SLOTS} men. One still climbing climbs faster; one past his peak slips more slowly. It is not free — every man you name makes the rest of the roster develop a little slower. Name nobody and your staff chooses, as every other club's does. It is applied when the season ends.</p>
@@ -332,6 +341,8 @@ export function view(root, params, ctx) {
     }
     const up = e.target.closest('[data-up]');
     if (up && canEdit) { openPromote(ctx.byId.get(up.dataset.up)); return; }
+    const conv = e.target.closest('[data-convert]');
+    if (conv && canEdit) { openConvert(conv.dataset.convert); return; }
     const cut = e.target.closest('[data-cut]');
     if (cut && canEdit) {
       const p = ctx.byId.get(cut.dataset.cut);
@@ -395,6 +406,36 @@ export function view(root, params, ctx) {
         toast(`${p.name} activated`);
         m.close();
       } catch (err) { toast(err.message); }
+    });
+  }
+
+  /**
+   * Who could fill this open slot by changing position, and what each would
+   * be there. The three numbers are the decision: what he is now, what he is
+   * in his first season at the new position, and what he settles at — with the
+   * premium, since a move up the market's scale is paid for.
+   */
+  function openConvert(slotId) {
+    const slot = ROSTER_SLOTS.find((s) => s.id === slotId);
+    const list = candidatesFor(league, idx, slotId, ctx.byId);
+    const name = (POSITIONS[slot.pos]?.name || slot.pos).toLowerCase();
+    const m = modal(html`
+      <div class="row between"><h2 style="margin:0">Move to ${name}</h2><button class="btn sm ghost" data-close aria-label="Close">✕</button></div>
+      <p class="muted">He is rated on what his skills are worth at ${name}. Learning a new position costs ${SETTLING[0]} on every skill in his first season there and ${SETTLING[1]} in his second. A move to a position the market pays more for raises his salary by the difference for the rest of his deal. The slot he leaves opens.</p>
+      ${list.length ? html`<ul class="plist">${raw(list.map((c) => playerItem(c.p, {
+        attrs: false,
+        meta: ` · <span class="badge slot">${esc(c.from)}</span> ${c.home ? `back home at ${esc(slot.pos)}: <b>${c.settled}</b>` : `${esc(slot.pos)} <b>${c.first}</b> first season, <b>${c.settled}</b> settled`}${c.premium ? ` · <span class="badge warn">+$${c.premium} a year</span>` : ''}`,
+        action: `<button class="btn sm primary" data-to="${esc(c.id)}">Move</button>`,
+      })).join(''))}</ul>` : html`<p class="empty">Nobody on your club can play there.</p>`}`);
+    m.el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-to]');
+      if (!b) return;
+      let res;
+      ctx.update((s) => { res = convertPlayer(s.league, idx, b.dataset.to, slotId, ctx.byId); });
+      m.close();
+      if (!res?.ok) { toast(res?.reason || 'That move is not possible'); return; }
+      const who = ctx.byId.get(b.dataset.to)?.name || 'He';
+      toast(`${who} moves to ${slot.pos}${res.premium ? ` — +$${res.premium} a year` : ''}${res.opened ? `; ${res.opened} is open` : ''}`);
     });
   }
 

@@ -21,7 +21,7 @@
 // so a stale choice cannot quietly carry into a year it no longer fits.
 
 import { ROSTER_SLOTS } from '../data/positions.js';
-import { primeAge, expectedChange, startCareer } from './careers.js';
+import { primeOf, expectedChange, startCareer } from './careers.js';
 import { teamContractIds } from './cap.js';
 import { TRUE_LEVERAGE } from './auction.js';
 import { scoutReport } from './scouting.js';
@@ -82,7 +82,7 @@ export function ageOf(league, p) {
 export function focusValue(league, p, teamIdx, starter = true) {
   const age = ageOf(league, p);
   if (age == null) return 0;
-  const { climb, decline } = expectedChange(p.pos, age + 1 - primeAge(p.pos));
+  const { climb, decline } = expectedChange(p.pos, age + 1 - primeOf(p));
   let up = climb * FOCUS_CLIMB;
   // A rookie's range caps what climbing can buy: focus hurries a man toward
   // his ceiling and cannot lift it.

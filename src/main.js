@@ -54,17 +54,22 @@ const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${I
 const MAX_TABS = 5;
 // The pool the app plays with is the shipped file plus the open league's own
 // generated rookies. Rebuilt only when that array is replaced, which the
-// rookie and career code both replace their state rather than mutating it.
-let poolCache = { rookies: null, dev: null, retired: null, players: PLAYERS, byId: PLAYERS_BY_ID };
+// rookie, career and position-change code all replace their state rather than
+// mutating it. The season is in the key because a moved man's first two
+// seasons at his new position cost him something, and which season it is
+// decides how much.
+let poolCache = { rookies: null, dev: null, retired: null, moves: null, season: null, players: PLAYERS, byId: PLAYERS_BY_ID };
 function currentPool() {
   const lg = getState().league;
   const rookies = lg?.rookies || null;
   const dev = lg?.dev || null;
   const retired = lg?.retired || null;
-  if (poolCache.rookies !== rookies || poolCache.dev !== dev || poolCache.retired !== retired) {
-    const view = { rookies, dev, retired };
+  const moves = lg?.moves || null;
+  const season = lg?.season ?? null;
+  if (poolCache.rookies !== rookies || poolCache.dev !== dev || poolCache.retired !== retired || poolCache.moves !== moves || poolCache.season !== season) {
+    const view = { rookies, dev, retired, moves, season };
     poolCache = {
-      rookies, dev, retired,
+      rookies, dev, retired, moves, season,
       players: applyCareers(view, leaguePool(view, PLAYERS)),
       byId: careerIndex(view, leagueIndex(view, PLAYERS_BY_ID)),
     };

@@ -24,6 +24,7 @@ import { POSITIONS, ROSTER_SLOTS } from '../data/positions.js';
 import { PLAYERS } from '../data/players.js';
 import { RNG, hashSeed } from './rng.js';
 import { overall, rawOverall } from './ratings.js';
+import { movedBase, settle } from './translate.js';
 
 /** Age a rookie class enters at. */
 export const ROOKIE_AGE = 22;
@@ -127,6 +128,25 @@ export function primeAge(pos) {
 }
 
 /**
+ * The pool's own record for a player, however many views deep. A moved man's
+ * view and its `base` are both at his new position; `orig` is the one that
+ * is not.
+ */
+export function rootOf(p) {
+  return p && (p.orig || p.base || p);
+}
+
+/**
+ * The prime a man ages against: his own position's, wherever he now plays.
+ * Legs are as old as they are — a corner moved to safety does not get two
+ * years younger, and if he did, moving a fading corner would be a way to slow
+ * his decline rather than a decision about where he plays.
+ */
+export function primeOf(p) {
+  return primeAge(rootOf(p)?.pos);
+}
+
+/**
  * One season's change to a single attribute. `t` is age relative to prime.
  * Growth ramps in over the last four years before the turn, so a 22-year-old
  * does not gain the same as a 25-year-old about to peak.
@@ -171,7 +191,10 @@ export function expectedChange(pos, t) {
  */
 export function startCareer(league, p) {
   const rng = new RNG(hashSeed(`career:${league.seed >>> 0}:${p.id}`));
-  const prime = primeAge(p.pos);
+  // His own position's prime even if he has since moved, so a man enters a
+  // league at the same age whichever position he is signed at. The entry
+  // rating and the ceiling are at the position he plays.
+  const prime = primeOf(p);
   const age = p.generated ? ROOKIE_AGE + rng.int(-1, 1) : prime + rng.int(-2, 2);
   // Most players are what they look like. A few break out, a few never arrive.
   let growth = rng.normal(1, 0.3);
@@ -327,29 +350,41 @@ export function developed(p, c) {
 export function applyCareers(league, players) {
   const careers = league && league.dev;
   const retired = league && league.retired && league.retired.length ? new Set(league.retired) : null;
-  if (!careers && !retired) return players.some((p) => p.dev) ? players.map((p) => p.base || p) : players;
-  return players.map((p) => viewOf(p, careers, retired));
+  const moves = league && league.moves && Object.keys(league.moves).length ? league.moves : null;
+  if (!careers && !retired && !moves) return players.some((p) => p.dev || p.moved) ? players.map(rootOf) : players;
+  return players.map((p) => viewOf(p, careers, retired, moves, league.season));
 }
 
 /** An index over that pool. */
 export function careerIndex(league, byId) {
   const careers = league && league.dev;
   const retired = league && league.retired && league.retired.length ? new Set(league.retired) : null;
-  const stale = [...byId.values()].some((p) => p.dev || p.retired);
-  if (!careers && !retired && !stale) return byId;
+  const moves = league && league.moves && Object.keys(league.moves).length ? league.moves : null;
+  const stale = [...byId.values()].some((p) => p.dev || p.retired || p.moved);
+  if (!careers && !retired && !moves && !stale) return byId;
   const m = new Map();
   for (const [, p] of byId) {
-    const src = p.base || p;
-    m.set(src.id, viewOf(src, careers, retired));
+    const src = rootOf(p);
+    m.set(src.id, viewOf(src, careers, retired, moves, league && league.season));
   }
   return m;
 }
 
-function viewOf(p, careers, retired) {
-  const src = p.base || p;
-  const c = careers && careers[src.id];
-  const out = c ? developed(src, c) : src;
-  if (!retired || !retired.has(src.id)) return out;
+/**
+ * One man as the league sees him: moved if he has been, developed if he has
+ * a career, learning his new job if he is still in his first two seasons of
+ * it, flagged if he has retired. `base` on the result is always the record a
+ * career develops from — his new position's, unsettled — so development never
+ * compounds a cost that is meant to wear off.
+ */
+function viewOf(p, careers, retired, moves, season) {
+  const root = rootOf(p);
+  const move = moves && moves[root.id];
+  const src = move ? movedBase(root, move) : root;
+  const c = careers && careers[root.id];
+  let out = c ? developed(src, c) : src;
+  if (move) out = settle(out, move, season, src);
+  if (!retired || !retired.has(root.id)) return out;
   return { ...out, base: src, retired: true };
 }
 
@@ -359,7 +394,7 @@ function viewOf(p, careers, retired) {
  * ceiling has its gains scaled back to land on it.
  */
 export function stepCareer(league, src, c, season, knocks = 0, focus = null) {
-  const prime = primeAge(src.pos);
+  const prime = primeOf(src);
   const rng = new RNG(hashSeed(`dev:${league.seed >>> 0}:${src.id}:${season}`));
   const before = overall(developed(src, c));
   const next = { ...c, age: c.age + 1, d: { ...c.d } };

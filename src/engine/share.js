@@ -127,6 +127,11 @@ export function snapshot(league, players) {
     // would start at prime ratings while ours is three seasons older.
     dev: Object.fromEntries(Object.entries(league.dev || {}).map(([id, c]) => [slotRef(id), c]).filter(([k]) => k !== -1)),
     retired: (league.retired || []).map(slotRef).filter((i) => i !== -1),
+    // Who has changed position, and when — without it a shared league puts a
+    // converted corner back at safety, in a corner's slot.
+    moves: league.moves && Object.keys(league.moves).length
+      ? Object.fromEntries(Object.entries(league.moves).map(([id, m]) => [slotRef(id), m]).filter(([k]) => k !== -1))
+      : undefined,
     // Who the pro league has shown the door, and who is on the clock to follow
     // them. Without these a shared league hands the recipient four hundred
     // all-time players back on the free-agent market and restarts the drain
@@ -203,6 +208,11 @@ export function leagueFromSnapshot(snap, players, byId) {
   league.contracts = Object.fromEntries(Object.entries(snap.contracts || {}).map(([k, c]) => [idAt(Number(k)), c]).filter(([id]) => id));
   league.dev = Object.fromEntries(Object.entries(snap.dev || {}).map(([k, c]) => [idAt(Number(k)), { ...c, d: { ...c.d } }]).filter(([id]) => id));
   league.retired = (snap.retired || []).map((k) => idAt(Number(k))).filter(Boolean);
+  // Before `startSeason`, which fills and sorts every slot by position.
+  if (snap.moves) {
+    league.moves = Object.fromEntries(Object.entries(snap.moves)
+      .map(([k, m]) => [idAt(Number(k)), { ...m, fill: { ...(m.fill || {}) } }]).filter(([id]) => id));
+  }
   // Before `startSeason` below, which fills open slots off the market: a
   // departed player must already be off it by then. A code written before
   // these existed carries neither, and the league picks the drain up from

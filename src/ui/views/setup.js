@@ -98,6 +98,7 @@ export function view(root, params, ctx) {
               <label class="check"><input type="checkbox" name="chemistry" checked> Chemistry: a settled squad from a tight era band plays a little better</label>
               <label class="check"><input type="checkbox" name="scouting" checked> Scouting: a rookie shows a projected range until he has played a season</label>
               <label class="check"><input type="checkbox" name="focus" checked> Development focus: name up to three men a season for your staff to develop, at a cost to the rest</label>
+              <label class="check" id="positionsOpt" hidden><input type="checkbox" name="positions" checked> Position changes: move a man to a position his skills translate to, safety to corner and the like (pro league only)</label>
               <label class="check" id="jobsOpt" hidden><input type="checkbox" name="jobs" checked> Coaching jobs: an owner with expectations, rivals who get sacked, and a career you can be moved around (pro league only)</label>
               <small class="muted">The pool stays frozen at its prime until you sign a man — the auction is the same puzzle either way. It is what happens after that changes: a keeper's third year is not his first, and a 63-overall rookie can become an 80 if you are patient.</small>
             </div>
@@ -148,6 +149,7 @@ export function view(root, params, ctx) {
     form.name.placeholder = pro ? 'Leave blank to keep the franchise name' : '';
     form.querySelector('#typeNote').hidden = !pro;
     form.querySelector('#jobsOpt').hidden = !pro;
+    form.querySelector('#positionsOpt').hidden = !pro;
     if (pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="snake"]').checked = true;
     // A pro league keeps whoever it can afford, so the quota is meaningless
     // there: `keeperLimit` returns the whole roster under a cap. The control
@@ -207,6 +209,7 @@ export function view(root, params, ctx) {
     league.settings.scouting = f.get('scouting') === 'on';
     league.settings.focus = f.get('focus') === 'on';
     league.settings.jobs = mode === 'pro' && f.get('jobs') === 'on';
+    league.settings.positions = mode === 'pro' && f.get('positions') === 'on';
     league.settings.difficulty = LEVELS.includes(f.get('difficulty')) ? f.get('difficulty') : DEFAULT_DIFFICULTY;
     const auto = f.get('draft') === 'auto';
     if (auto) {

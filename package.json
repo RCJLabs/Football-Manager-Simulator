@@ -41,7 +41,8 @@
     "gm": "node scripts/gm-sim.mjs",
     "resign": "node scripts/resign-sim.mjs",
     "terms": "node scripts/term-value.mjs",
-    "focus": "node scripts/focus-sim.mjs"
+    "focus": "node scripts/focus-sim.mjs",
+    "convert": "node scripts/convert-sim.mjs"
   },
   "engines": {
     "node": ">=20"

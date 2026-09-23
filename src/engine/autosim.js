@@ -104,6 +104,11 @@ export function simulateAhead(league, byId, pool, rng, target, { maxWeeks = 200 
     const keep = aiKeepers(league, u, pool, byId, null);
     confirmKeepers(league, keep, pool, byId);
     decided.push(keep.length ? `${keep.length} keeper${keep.length === 1 ? '' : 's'} chosen on value` : 'no keeper was worth its price, so none was kept');
+    // The keeper round turns the calendar, and a man who has changed position
+    // pays for learning it by the season, so the market, the draft and the
+    // depth charts read him as he will be in the season they are stocking.
+    pool = applyCareers(league, leaguePool(league, pool));
+    byId = careerIndex(league, leagueIndex(league, byId));
   }
   // A capped league shops before it drafts. Simulating through it means letting
   // the market settle on the bids the AI already put in; the human's own bids

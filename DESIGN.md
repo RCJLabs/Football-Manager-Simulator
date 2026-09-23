@@ -2569,6 +2569,8 @@ One consequence worth stating: this changes how an existing save's quarterbacks 
 
 *A declining player moving position* cannot be built without inventing attributes he has never had. Only three moves keep a man inside his own attribute set — tight end to receiver, linebacker to lineman, safety to corner — and all three get *further* away with age, not closer: own-position rating minus the best kindred one went 0.00 to 0.75 for the tight end and 6.63 to 8.67 for the linebacker between a player's prime and five seasons past it. The safety reads −0.37 at his prime, meaning he is already rated better as a corner, and that is a standing property of two weight vectors rather than anything to do with ageing.
 
+*Later:* position changes were built after all, on a narrower claim than this paragraph rejects — not as a response to ageing, and with at most one skill estimated rather than invented, under a bound on how far that estimate can move a rating. See **Position changes** below.
+
 *A depth chart drifting out of order* does not happen. `sortDepthCharts` keeps every group in rating order, and `confirmKeepers` clears `depthSorted` every offseason, so even a chart the user arranged by hand is re-sorted the following year. Measured over twelve seasons of a user club that never touched its chart again: zero slots out of order, in every season, in every league.
 
 *Decline forcing anything at all* was the real finding, and it was upstream of both. `step` scales its growth branch per player, twice over, by `growth` and by `pace`. Its decline branch was `-(c.drop + c.accel * past)` for everybody — the same slope for a twenty-three-year-old lineman and a thirty-four-year-old back, with nothing in it belonging to the man. A season past prime cost −0.58 at the prime and −2.14 ten years on, with a standard deviation of 0.7 that was per-attribute rounding noise, and **no career in 2,400 ever lost six points in a season**.
@@ -2674,6 +2676,167 @@ is honest — a season held at 0.8 of a point is below the resolution of a
 rating. On for new leagues; off, like careers and chemistry before it, for a
 league started before it existed, until switched on in settings; and only where
 careers are on, since without ageing there is nothing to focus.
+
+### Position changes (`translate.js`, `convert.js`)
+
+A club can move one of its own men into an open slot at another position, and
+he is rated there on what his skills are worth. The engine plays a man by his
+skills whatever the depth chart calls him, so within limits this is not a
+figure of speech: a safety moved to corner has every skill a corner is rated
+on, and what the move changes is the weighting. The limits are the design.
+
+**Two things written earlier had to be faced first.** Under positional
+decline, above, a position change was recorded as something that "cannot be
+built without inventing attributes he has never had". And the rating scale
+itself, at the top of this document, is defined as how dominant a man was at a
+skill *relative to his contemporaries*, anchored by honours — All-Pro, Pro
+Bowl — that are awarded position by position. A linebacker's 90 in coverage is
+therefore a linebacker's 90. The pool shows it: linebackers rate as fast as
+corners, 83.1 against 82.5, and faster than safeties at 81.8, which is true of
+no common scale. The first build of this carried skills across as they stood
+and made Ray Lewis a 92 cornerback. Nobody in the pool is rated at two
+positions with a skill in common — the three names that appear twice are two
+Mark Ingrams, two Jimmy Smiths and Yale Lary, safety and punter — so the gap
+cannot be measured and corrected.
+
+**So there are two rules, and the table is derived from them rather than
+listed.** A move stays inside a group whose players are rated against
+overlapping peers: defensive backs with defensive backs, where safeties come
+out a little slower than corners and far better tacklers (82.0 against 72.6),
+which is what one scale would show; receivers with receivers, where tight ends
+are slower than receivers, 75.3 against 82.5, likewise; and the pass rush with
+the pass rush, since an edge rusher is the same athlete at either end of the
+line. And a move may need at most one skill the old position never rated, and
+only when guessing it cannot move his rating by more than `MAX_GUESS`, one
+overall point. The guess is a least-squares fit over the new position's own
+players — what men there with his other skills are rated at it — and the bound
+is its weight times the fit's residual standard error, taking the heavier of a
+linebacker's two weight vectors so an edge rusher's pass rush counts.
+
+| move | guessed | weight | typical miss | R² | could move him by | on offer |
+|---|---|---|---|---|---|---|
+| S → CB | — | | | | 0 | yes |
+| CB → S | run defence | 0.12 | 1.17 | 0.98 | 0.14 | yes |
+| TE → WR | — | | | | 0 | yes |
+| LB → DL | — | | | | 0 | yes |
+| WR → TE | blocking | 0.25 | 9.28 | 0.44 | 2.32 | no: the guess |
+| LB → S | ball skills | 0.12 | 2.59 | 0.93 | 0.31 | no: the group |
+| LB → CB | ball skills | 0.11 | 5.50 | 0.75 | 0.61 | no: the group |
+| S → LB | pass rush | 0.45 (edge) | 7.16 | 0.64 | 3.22 | no: both |
+| S → DL | pass rush | 0.61 | 5.28 | 0.68 | 3.22 | no: both |
+
+Receiver to tight end is the loss that hurts, since it is a real move, but a
+tight end's blocking is barely predictable from his receiving — true of the
+sport — and it is a quarter of his rating. Linebacker into the secondary would
+pass the guess bound and still be wrong, which is what the group rule is for.
+A fit checked only on the men it was fitted to says how well it describes them,
+not how well it carries over, so where another position has the guessed skill
+and every predictor the fit was tried there too: linebacker to corner's
+ball-skills fit, on safeties, misses by 3.9 with a bias of −0.6; safety to
+lineman's pass-rush fit, on linebackers, misses by 22.2 with a bias of +18.2 —
+which is what guessing the one skill that matters most looks like once it is
+checked.
+
+The guess is marked down `UNTRAINED` (5) for a skill he was never asked to use,
+read once, at the move, from who he is then rather than from the pool's record
+of him, and stored as a base rating with his career's delta for that skill
+taken out, so development adds to it exactly once. The job takes learning:
+his first season at a new position costs every skill `SETTLING[0]` (4) and his
+second `SETTLING[1]` (2). Both numbers are chosen, not measured. Going back to
+his own position is not a move — the record is deleted and there is nothing to
+learn.
+
+**The premium, because the table is also an arbitrage.** Over the real pool
+(`npm run convert`):
+
+| move | rating change, mean | p10 | p90 | worth more there by leverage, unpriced |
+|---|---|---|---|---|
+| S → CB | −0.2 | −3 | +2 | 95% |
+| TE → WR | +0.8 | −2 | +5 | 7% |
+| LB → DL | −5.3 | −11 | +1 | 1% |
+| CB → S | −3.2 | −5 | −1 | 1% |
+
+A safety is the same player at corner, near enough, and the market prices a
+corner's points half as high again — leverage 4.39 against 2.87. Charged
+nothing, buying safeties to play corner would be a choice with one right
+answer. So a move to a position the market pays more for raises his salary by
+the difference, his market value there once settled against his value where he
+was, for the rest of his deal; a move down costs nothing and refunds nothing.
+The median premium for safety to corner is $3. By the market's own arithmetic a
+move is then worth what it costs, and the settling seasons make it slightly
+worse than signing an equal man.
+
+**Whether anybody gains from it, measured.** Thirty-two-club pro leagues were
+stopped at free agency, when a club can see the market, and each club's best
+move under a rule was applied to a copy of the league. Both copies ran to
+kickoff off the same random stream — the no-move baseline is run twice and has
+to reproduce — so the difference in that club's lineup (overall × leverage)
+and payroll is what the move did. "Net" counts payroll at the market's rate,
+$1 to 11 lineup points. Three rules: *market*, which scores a move by what it
+puts in the hole against the best man still unsigned there, and what it leaves
+against the best still unsigned at the position he vacates, less the premium;
+*naive*, which moves anybody worth more at the new position by leverage; and an
+*oracle*, which runs every move open to the club to kickoff and keeps the best,
+or none.
+
+| 3 leagues × 3 offseasons × 32 clubs | seeds 5100 | seeds 6100 |
+|---|---|---|
+| market: moves in | 18.1% | 26.7% |
+| market: lineup, payroll, **net** | −10.8, +$1.1, **−23.4 ± 16.2** | −20.3, −$0.1, **−19.8 ± 15.4** |
+| naive: moves in | 37.2% | 40.3% |
+| naive: lineup, payroll, **net** | −29.1, +$0.8, **−38.3 ± 11.9** | −32.6, −$2.5, **−4.4 ± 10.7** |
+| oracle: a move helps at all | 36% | 46% |
+| oracle: lineup, payroll, **net** | −7.2, −$2.8, **+23.3 ± 6.0** | −2.3, −$3.7, **+39.4 ± 10.6** |
+
+No rule a club can follow gains, in either seed set, and every one of them
+leaves the kickoff lineup worse — by 11 to 33. The market rule's estimate is
+optimistic about landing the best man at the hole it opens, since the clubs
+ahead of it are shopping too; the naive rule, almost entirely safety to corner,
+pays the premium and a season of learning for a rating it does not get until
+the year after. The oracle's gain is real but it is the best of three or four
+noisy outcomes — a move changes what a club drafts, which changes what everyone
+after it drafts — and it comes from payroll, not the lineup, which it also
+leaves worse. Nobody can see that in advance. The two seed sets agree on the
+sign of every row and not on sizes, which is as far as this should be read.
+
+That is the case for **AI clubs not moving anybody**, and it is an asymmetry,
+so it is worth being plain about: a human holds a lever the league does not.
+Measured, the lever is worth nothing on average to anyone who cannot see the
+future; what is left is situational — a hole the market cannot fill well and a
+man of your own who can, read by looking. If a rule is ever found that gains,
+it belongs to every club.
+
+**What moves with him.** He ages on his own position's clock (`primeOf`):
+legs are as old as they are, and moving a fading corner to safety must not be
+a way to buy two years of slower decline. His career's ceiling moves by what
+the move did to his rating, so the room he had left is the room he keeps, and
+never above the new position's peak. A rookie still behind the scouting fog
+cannot be moved, since his rating at a new position would read the fog
+straight off the screen. The move is recorded, travels in a league code, and
+the depth chart and player screen say where he came from and what the job is
+still costing him.
+
+**Faults found building it.** The app's pool cache was keyed on rookies,
+careers and retirements only, and handed the career code a stand-in league
+object with none of the rest, so a move would have left the screen showing him
+at his old position until something else changed; it now carries the moves and
+the season, since the season decides the settling cost. Simulating ahead built
+its player index before the keeper round turns the calendar and used it for the
+market, the draft and the depth charts, so a man moved in the offseason was
+read as if his first season were already behind him; it is rebuilt after the
+keeper round.
+
+Fourteen tests and twenty-four mutations, twenty-three caught. The one that is
+not is equivalent: pointing a settled view's `base` at the developed view
+rather than the undeveloped record changes nothing, because `developed()`
+unwraps `base` one level before it reads anything. Two of the catches needed
+fixing first. A move down priced as a refund escaped the first pass — it never
+reached a salary, since `convertPlayer` only adds a positive premium, but the
+dialog would have read "+$-3 a year" — and is now tested. And the mutation that
+writes a career in place was "caught" by a syntax error of its own making,
+which proves nothing; rewritten as valid code it is caught by the ceiling
+test. Pro leagues only, since the premium needs a cap; on for new leagues and
+off for existing ones until switched on in settings.
 
 ## Difficulty (`difficulty.js`)
 
