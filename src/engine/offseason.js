@@ -24,6 +24,12 @@ import { drainVeterans } from './proleague.js';
 import { clearIr } from './injuries.js';
 import { addRookieClass } from './rookies.js';
 import { advanceCareers, releaseRetired, primeAge } from './careers.js';
+// The price of a contract's length lives in terms.js, because free agency
+// needs it and this file imports free agency — importing it back would be a
+// cycle over a `const`, which throws rather than resolving by luck. Re-exported
+// so everything that has always imported these from here still does.
+import { RESIGN_PREMIUM, TERM_PRICE, TERMS, aiTerm, termsOpen, termsFor } from './terms.js';
+export { RESIGN_PREMIUM, TERM_PRICE, TERMS, aiTerm, termsOpen, termsFor };
 import { jobsOn, reviewSeason, fillVacancies, makeOffers, acceptOffer, yourCoach, retire, REP_FLOOR } from './jobs.js';
 
 export const MAX_KEEPS = 3;
@@ -33,81 +39,12 @@ export const KEEPER_RAISE_PCT = 0.15;
 export const BIRD_IN_HAND = 1.15;
 
 /**
- * What certainty costs: the premium on re-signing a man whose deal is up,
- * before the market has seen him.
- *
- * The keeper round used to hold no decision at all, and the reason is worth
- * stating exactly, because two likelier-sounding accounts of it are both wrong.
- * It was NOT that a club could never lose a player — men declined here go into
- * free agency and are bid for. It was NOT that clubs kept everyone they could
- * afford — the AI's surplus test already let 64% of expiring men go. It was
- * that re-signing and declining cost the SAME (`marketSalary` either way) while
- * only declining carried risk, so declining was strictly dominated. A choice
- * where one option is worse in every respect is not a choice.
- *
- * Pricing the exclusive window fixes that: re-sign him here at this premium, or
- * decline and try to win him back at plain market with four rounds of sealed
- * bids in the way. Measured over 32 clubs and four seasons:
- *
- *   premium   declined   continuity   stars declined / re-signed   star to a rival
- *   1.00        64.0%      84.1%            80 / 85                     49%
- *   1.04        73.1%      80.8%           104 / 73                     49%
- *   1.08        79.4%      81.1%           104 / 68                     48%
- *
- * It is a switch rather than a dial. Everything happens between 1.00 and 1.04;
- * 1.08 buys no further change in how stars are treated and only sheds more of
- * the players whose fate nobody notices. So the value is the smallest one that
- * un-dominates the choice.
- *
- * Where the gamble is real: declining a 90+ player means a 48-49% chance a
- * rival takes him and only ~11% that nobody wants him. Below 85 it inverts —
- * 87% go unsigned, 7% to a rival — which is attrition rather than a market, and
- * is what it should be. There are 864 roster places for a pool well past 1,500.
- *
- * It MUST sit below `BIRD_IN_HAND`. The AI values keeping a man at market times
- * 1.15 and weighs that against this cost, so a premium at or above 1.15 makes
- * every surplus negative and empties every roster into the market.
- *
- * `Math.ceil` floors the premium at a dollar, so a cheap man pays proportionally
- * more than a dear one. Left alone deliberately: the decision is only ever real
- * for players the market wants, and those are the ones the percentage reaches.
+ * The length this club has chosen for this man, defaulting to the old flat
+ * three — and always three where `termsOpen` says there is no choice, so a
+ * length stored before careers were switched off cannot price a keeper.
  */
-export const RESIGN_PREMIUM = 1.04;
-
-/**
- * What a re-signing costs by the length of the deal.
- *
- * Every veteran contract in this game was three years — `VET_YEARS`, flat, for
- * everybody, with the franchise tag the single exception. So the cap was a
- * budgeting exercise: you knew what a man cost and you knew you had him for
- * three years, and there was nothing to decide about either.
- *
- * There is no signing-bonus proration here, so length cannot move the early
- * cap hit the way it does in the real league. What it can move is the annual
- * price, in the direction security is worth something to a player and
- * flexibility is worth something to a club: a short deal costs more a year, a
- * long one less.
- *
- *   2 years   1.22   a man on the way down, bought a year at a time
- *   3 years   1.04   the old default, so a league that ignores this is unchanged
- *   4 years   0.96
- *   5 years   0.90   cheap, and `DEAD_SHARE` makes it expensive to be wrong
- *
- * The three-year figure IS `RESIGN_PREMIUM`, not a number that happens to match
- * it, so the default path prices exactly as it did before.
- *
- * The short end stops at two on purpose. One year is the franchise tag, which
- * costs 1.6 and is limited to one man a club, and a freely available one-year
- * deal at anything less would make the tag a strictly worse version of itself —
- * which is the defect this file has now had twice.
- */
-export const TERM_PRICE = { 2: 1.22, 3: RESIGN_PREMIUM, 4: 0.96, 5: 0.90 };
-
-/** The lengths a club may offer its own expiring men. */
-export const TERMS = Object.keys(TERM_PRICE).map(Number).sort((a, b) => a - b);
-
-/** The length this club has chosen for this man, defaulting to the old flat three. */
 export function termFor(league, playerId) {
+  if (!termsOpen(league)) return VET_YEARS;
   const t = league.offseason?.terms?.[playerId];
   return TERM_PRICE[t] ? t : VET_YEARS;
 }
@@ -116,7 +53,7 @@ export function termFor(league, playerId) {
 export function setTerm(league, playerId, years) {
   league.offseason ??= {};
   league.offseason.terms ??= {};
-  if (TERM_PRICE[years]) league.offseason.terms[playerId] = years;
+  if (TERM_PRICE[years] && termsFor(league).includes(years)) league.offseason.terms[playerId] = years;
   else delete league.offseason.terms[playerId];
   return league.offseason.terms;
 }
@@ -440,31 +377,6 @@ export function freshGuide(league, pool) {
  * honest answer rather than a guess: with no ageing there IS no decline to
  * avoid, and the tag would be a pure overpay.
  */
-/**
- * How long an AI club offers its own expiring men.
- *
- * The same signal the tag uses, read the other way: a man past the peak for his
- * position is bought a year or two at a time, and one still climbing is worth
- * locking up while he is cheap. In between is the three-year default, which is
- * what every contract in this game used to be.
- *
- * Without this the human would hold a lever the league does not, which is the
- * asymmetry the injury work refused for the same reason — difficulty here lives
- * in explicit levers, not in options only one side gets.
- *
- * A league with careers switched off has no ages, so every club offers three
- * years and the feature is inert. That is honest: with nobody ageing there is
- * no reason to prefer one length over another.
- */
-export function aiTerm(league, player) {
-  if (!player || player.age == null) return VET_YEARS;
-  const past = player.age - primeAge(player.pos);
-  if (past >= 3) return 2;
-  if (past >= 1) return 3;
-  if (past <= -3) return 5;
-  return 4;
-}
-
 export function aiTagChoice(league, teamIdx, roster, byId) {
   if (!capOn(league) || !league.offseason) return null;
   let best = null;

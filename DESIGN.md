@@ -2097,13 +2097,18 @@ And the first layout put each figure in its own column, which at 360 px ran out
 of the table's scroll container: invisible, and invisible to the smoke test's
 page-overflow check too, because the page never got wider. Smoke now measures
 each figure's right edge against the viewport and names any that fall outside.
-One run reported seven hidden figures on a later layout; three runs since and a
-deterministic worst case — the human leading all twenty-six categories, so every
-row carries its widest badge, at 360 and 320 px under mobile emulation — show
-none, with the cell either wrapping or held on one line. What caused that one
-failure is **not established**. The figure is now unbreakable and the club chip
-and badge may wrap, which is harmless and more robust in principle, but it is
-not a demonstrated fix, and a recurrence will now say which rows it was.
+One run reported seven hidden figures on a later layout, and this section used
+to call the cause not established. It is established now. Every `td` in the app
+is `white-space: nowrap` from the base table rule, so the fix made then —
+pinning only the figure on one line so the rest of the cell could wrap — changed
+nothing: no cell could wrap, the label included, and a row was as wide as its
+label, figure and club chip laid end to end. The long defensive labels crossed
+360 px whenever the digits and the leading club's abbreviation added up, which
+is why it came and went. It came back while shipping free-agent lengths — eight
+of fifty-two figures, all defensive, 3 to 12 px off the edge — and went to none
+on the same league once the label cells were released (`td.lbl`). Why the
+deterministic worst case built for it then showed nothing is not established;
+the smoke run that failed and then passed is the evidence now.
 
 Not built: team statistics for past seasons. The schedule is replaced each
 season, so these cover the one being played (and, through the offseason, the one
@@ -2143,9 +2148,17 @@ defect this file has now had twice, and a test pins it rather than a comment.
 man past his position's peak is bought a year or two at a time, one still
 climbing is locked up while he is cheap. Without that the human would hold a
 lever the league does not, which is the asymmetry the injury work refused for
-the same reason. A league with careers off has no ages, so every club offers
-three years and the feature is inert — honest, since with nobody ageing there
-is no reason to prefer a length.
+the same reason.
+
+This paragraph used to end: *a league with careers off has no ages, so every
+club offers three years and the feature is inert — honest, since with nobody
+ageing there is no reason to prefer a length.* The AI half of that was true and
+the human half was not. With nobody ageing nobody declines, so five years at
+0.90 is simply cheaper than three at 1.04 with nothing to pay for it later, and
+the keeper screen offered it to the human while every AI club took three. Found
+while adding length to free agency, which would have doubled it; `termsOpen`
+now holds a league without careers to three years for everybody, the rule such
+a league was started under.
 
 Over 32 clubs and seven seasons, what clubs actually signed:
 
@@ -2156,7 +2169,9 @@ Over 32 clubs and seven seasons, what clubs actually signed:
 | 4 years | 16% | 28.0 |
 | 5 years | 2% | 25.7 |
 
-An ageing league buys short, which is the right direction. Roster continuity is
+An ageing league buys short. That this is the right direction was asserted
+here, not measured, and measured it is not — see **What a contract's length is
+worth** below. Roster continuity is
 **80.2%** against 80.4% without the control, and the share of expiring men kept
 is 37.6% against 38.7% — both inside noise. The decision is added without
 moving the dynasty balance.
@@ -2169,10 +2184,7 @@ appears, thirteen times, at an average age of 25.7 — precisely the players
 coming off rookie scale. Widening the trigger would have been fitting a
 measurement artefact.
 
-Not built: length in free agency. Offers there are a flat `{ player: salary }`
-map, and a term would touch `committed`, `biddingRoom`, `resolveFreeAgency` and
-the bidding arithmetic. It is a larger change than this one and belongs on its
-own.
+Length in free agency came later; see **Length in free agency** below.
 
 ### The franchise tag, which could not be the real one
 
@@ -2233,6 +2245,111 @@ costs, so a club could tag somebody its own surplus test then declined, and
 on it. It surfaced as a crash in the middle of a four-season simulation. The
 list is decided first now, the tag chosen inside it, and the price re-checked —
 and if the premium no longer fits, the tag comes off rather than the player.
+
+### Length in free agency
+
+A man re-signed by his own club had a choice of length; the same man declined
+and bought on the market an hour later did not — every free-agent deal was
+`FA_YEARS`, three years, flat. An offer is now `{ salary, years }`, and a bare
+number, which is what a league saved in the middle of its market still holds,
+reads as the three-year deal it always was.
+
+**The price for a length is the re-signing curve without its premium.** Nobody
+on the market has an exclusive window to charge for, so `FA_TERM` is
+`TERM_PRICE` over its own three-year figure: three years is market exactly, as
+before, and on a $40 man the menu reads $47 / $40 / $37 / $35 for two to five
+years. Rounded up like every price here, so a cheap man gets no discount for
+length and pays a whole dollar for two years. No float error moves the ceiling
+at any market value the game can produce; that was checked for every one.
+
+**The best offer is the one furthest over his asking price for its length**
+(`offerValue`), not the biggest salary. Comparing salaries would hand every
+contested man to whoever offered two years, since a short deal costs more a
+year by construction. It has to be the *rounded* ask, not the curve: against
+the curve, five years at a $5 ask reads 16% better than three years at the
+same ask, and the ceiling would be deciding contested signings. Against the
+rounded ask every offer at the asking price is worth exactly 1 whatever its
+length, and the tie goes to the worse record as it always did. Because a
+smaller salary can now beat a bigger one, the closing report names both
+lengths when they differ — "your $31 × 3y, he took $29 × 5y, which was further
+over what he asks for that length" — where it would otherwise read as the
+market cheating.
+
+**AI clubs choose by `aiTerm`**, the keeper round's rule, and hold everybody to
+three years where `termsOpen` says nobody ages.
+
+What it did to a 32-club league: three seed sets of four leagues × six seasons
+each (`scripts/resign-sim.mjs`), before and after, the range across the three:
+
+| | before | after |
+|---|---|---|
+| of the men a club declined, not got back | **83.7–86.1%** | **87.6–88.6%** |
+| cap used at kickoff | **82.1–83.1%** | **81.4–81.9%** |
+| expiring men declined to the market | 72.7–75.5% | 71.2–73.6% |
+| declined 90+ players taken by a rival | 50–56% | 55–61% |
+| roster continuity | 78.2–78.6% | 77.5–78.2% |
+| dead money across the league | $77–107 | $89–113 |
+| best-to-worst lineup spread | 658–747 | 658–692 |
+
+Two shifts are clear of the spread between seeds: a club gets fewer of its
+declined men back, and a little less of the cap is used. The next four moved
+the same way in every one of the three pairs, but by less than the seeds
+disagree, and three pairs agreeing is a one-in-four chance for any single
+figure — so they are not established. The spread moved both ways and is noise.
+
+Market signings split 60% two years, 27% three, 12% four and 1% five, at about
++4.7, +1.6, −0.4 and −3.5 years from peak: the market is mostly men past their
+best, and the AI buys them short. **Inferred, not established:** a club that
+declines a man to save money now meets a market that prices his two-year deal
+at 1.17 rather than plain market, so it is less able to buy him back.
+
+### What a contract's length is worth — open
+
+The length menu rests on a premise: a long deal is cheaper a year and costs you
+later, when he declines. `scripts/term-value.mjs` tests that on what really
+happened. It follows every market signing in real leagues for five seasons —
+his actual rating each year, knocks included, and whether he retired — and
+prices all four lengths at the same distance over his asking price. A season's
+value is what he was worth that year (`marketSalary`) minus what he was paid; a
+deal that has ended is worth zero, which flatters short deals, since winning a
+man back costs a premium; a club may cut him in any year if that is cheaper.
+
+Pooled over 951 signings in six leagues, bought at the asking price — the
+man nobody else wanted, and every re-signing:
+
+| years from peak at signing | n | 2 years | 3 years | 4 years | 5 years | five best |
+|---|---|---|---|---|---|---|
+| 2 before to peak | 109 | −8.6 | −0.9 | +1.9 | **+6.7** | 72% |
+| 1–2 past | 233 | −9.0 | −1.8 | +0.3 | **+4.8** | 73% |
+| 3–4 past | 290 | −7.6 | −2.2 | −1.3 | **+1.8** | 63% |
+| 5+ past | 313 | −6.6 | −1.8 | −1.4 | **+0.8** | 57% |
+
+Mean dollars over five seasons, free-agent curve. **At the asking price five
+years is the best length at every age, and two years the worst.** The
+re-signing curve says the same, more strongly: five years best for 65–88% of
+men in every band. So the AI's rule — old men short — picks the dearest option
+for exactly the men it applies to, in the keeper round since it shipped and in
+the market now.
+
+Two things drive it, and both are measured rather than guessed. The discount —
+13% a year for five years — outruns how fast a man declines inside five
+seasons. And a man who retires takes his contract with him (`releaseRetired`
+deletes it; `bookDead` never sees it), so the years a long deal was supposed to
+cost are mostly never paid. Book retirement as a cut instead and the old end
+turns: at 5+ years past peak three years becomes best (56%) and five the worst
+of the four, while young men still want five.
+
+The one place length already behaves as intended is the bidding war. Market
+winners pay 1.59 times the asking price on average, every year of such a deal
+loses money, and there two years is best for 65–73% of men up to four years
+past their peak; beyond that three years has the best average. So the choice
+is currently decided by how much you are overpaying, not by how old he is.
+
+Not changed here, because the fix changes the economics of leagues already
+being played: a retirement rule, a flatter curve, or both, then `aiTerm`
+re-derived from the result and the league re-measured. The trajectories are
+kept (`TERM_VALUE_DUMP`) so candidate curves can be scored in seconds rather
+than by re-running the leagues.
 
 ## Dynasty loop (`offseason.js`)
 
@@ -4469,7 +4586,7 @@ card comparison measure instead, and neither is a substitute for the other.
 
 ## UI
 
-Vanilla ES modules, hash router, one persisted state object (`store.js`). Views re-render from state; the live game view manages its own DOM and autoplay timer. Everything is relative-path so it deploys to a GitHub Pages subpath. Service worker: network-first for HTML, cache-first for assets (bump `CACHE` in `sw.js` on every release or installed clients keep the old CSS).
+Vanilla ES modules, hash router, one persisted state object (`store.js`). Views re-render from state; the live game view manages its own DOM and autoplay timer. Everything is relative-path so it deploys to a GitHub Pages subpath. Service worker: network-first for HTML, cache-first for assets (bump `CACHE` in `sw.js` on every release or installed clients keep the old CSS). The precache list is explicit, and three modules shipped without being on it — team statistics, the side-by-side comparison and the contract-length prices. Online that is invisible, since a missing module is fetched and cached on first use; offline, the first launch after an update fails, because activation deletes the old cache and the module was never in the new one. `tests/precache.test.js` now walks the import graph from `main.js` and fails on any module the list does not carry, and on any entry that no longer exists, since `cache.addAll` is all or nothing and one 404 leaves the old app installed for good.
 
 Layout is phone-first and the page must never scroll sideways. Two rules keep it that way:
 

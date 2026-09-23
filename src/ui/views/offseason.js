@@ -5,7 +5,7 @@ import { userTeamIndex, newSeasonSameRosters, standings } from '../../engine/sea
 import { PLAYERS } from '../../data/db.js';
 import {
   keeperCost, keeperEligible, keeperLimit, validateKeepers, enterOffseason, aiKeepers, confirmKeepers, closeFreeAgency, seasonSummary, MAX_KEEPS,
-  tagCost, setTag, tagOf, RESIGN_PREMIUM, TERMS, TERM_PRICE, termFor, setTerm,
+  tagCost, setTag, tagOf, RESIGN_PREMIUM, TERMS, TERM_PRICE, termFor, setTerm, termsOpen,
 } from '../../engine/offseason.js';
 import { marketSalary, VET_YEARS } from '../../engine/cap.js';
 import { playerItem, playerModal, teamChip, toast, esc, modal } from '../components.js';
@@ -18,7 +18,9 @@ import { capOn, capHit, deadHit, PRO_CAP } from '../../engine/cap.js';
 import { keeperBoard, keeperAdvice } from '../../engine/market.js';
 import {
   askingBoard, biddingRoom, openCount, submitOffer, freeAgencyReport, AI_FA_SHARE,
+  offerSalary, offerYears, askAt, FA_YEARS,
 } from '../../engine/freeagency.js';
+import { termsFor } from '../../engine/terms.js';
 
 const ui = { picked: null, leagueId: null, season: null };
 const faUi = { pos: 'ALL', limit: 40 };
@@ -72,7 +74,9 @@ export function view(root, params, ctx) {
   // and owes nothing later; a long one is cheap and `DEAD_SHARE` makes being
   // wrong about it expensive.
   const termSelect = (p, c) => {
-    if (!capped || !c.expiring) return `${VET_YEARS}y`;
+    // No careers, no choice: see `termsOpen` for why a length nobody ages
+    // through is a discount only the human would take.
+    if (!capped || !c.expiring || !termsOpen(league)) return `${VET_YEARS}y`;
     const chosen = termFor(league, p.id);
     return `<select class="term" data-term="${esc(p.id)}" aria-label="Contract length for ${esc(p.name)}">${
       TERMS.map((t) => `<option value="${t}" ${t === chosen ? 'selected' : ''}>${t}y · $${Math.ceil(marketSalary(p) * TERM_PRICE[t])}/yr</option>`).join('')
@@ -281,7 +285,7 @@ function freeAgency(root, league, ctx) {
     const p = ctx.byId.get(r.id);
     if (!p) return '';
     const bid = offers[r.id];
-    const meta = ` · asking <b>$${r.ask}</b>${bid ? ` · <span class="badge bargain">you bid $${bid}</span>` : ''}`;
+    const meta = ` · asking <b>$${r.ask}</b>${bid ? ` · <span class="badge bargain">you bid $${offerSalary(bid)} × ${offerYears(bid)}y</span>` : ''}`;
     const action = `<button class="btn sm ${bid ? 'primary' : ''}" data-bid="${esc(r.id)}">${bid ? 'Raise' : 'Bid'}</button>`;
     return playerItem(p, { attrs: false, meta, action, cls: bid ? 'me' : '' });
   };
@@ -306,12 +310,12 @@ function freeAgency(root, league, ctx) {
     </div>
 
     ${mine.length ? html`<div class="card tight" style="margin-top:.5rem">
-      <h3>Your offers <small class="muted" style="text-transform:none;letter-spacing:0">· $${mine.reduce((a, [, v]) => a + v, 0)} committed if they all land</small></h3>
+      <h3>Your offers <small class="muted" style="text-transform:none;letter-spacing:0">· $${mine.reduce((a, [, v]) => a + offerSalary(v), 0)} this season if they all land</small></h3>
       <ul class="plist">${raw(mine.map(([id, v]) => {
         const p = ctx.byId.get(id);
         // playerItem returns a string, not an html`` object — asking it for
         // `.__raw` got undefined and drew an empty list.
-        return p ? playerItem(p, { attrs: false, meta: ` · <b>$${v}</b>`, action: `<button class="btn sm" data-drop="${esc(id)}">Pull out</button>` }) : '';
+        return p ? playerItem(p, { attrs: false, meta: ` · <b>$${offerSalary(v)}</b> a year for ${offerYears(v)}`, action: `<button class="btn sm" data-drop="${esc(id)}">Pull out</button>` }) : '';
       }).join(''))}</ul>
     </div>` : ''}
 
@@ -341,16 +345,37 @@ function freeAgency(root, league, ctx) {
     const id = bidBtn.dataset.bid;
     const p = ctx.byId.get(id);
     const entry = league.freeAgency.offers[u]?.[id];
-    const ask = askingBoard(league, ctx.players || PLAYERS, { limit: 400 }).find((r) => r.id === id)?.ask ?? 1;
-    const start = entry || ask;
+    const market = askingBoard(league, ctx.players || PLAYERS, { limit: 400 }).find((r) => r.id === id)?.ask ?? 1;
+    // A length is the other half of an offer. Where nobody ages there is only
+    // the one, and the choice is not drawn at all.
+    const lengths = termsFor(league);
+    const startYears = entry ? offerYears(entry) : FA_YEARS;
+    const start = entry ? offerSalary(entry) : askAt(market, startYears);
     const m = modal(`<h3 style="margin:.1rem 0">${esc(p.name)}</h3>
-      <p class="muted" style="margin:.2rem 0 .5rem;font-size:.85rem">Asking <b>$${ask}</b>. You have <b>$${room}</b> to bid. Other clubs are bidding too, and the best offer wins — ties go to the worse record.</p>
-      <input type="number" id="faAmt" value="${start}" min="${ask}" max="${Math.max(ask, room)}" style="width:100%;font-size:1.1rem;padding:.5rem">
+      <p class="muted" style="margin:.2rem 0 .5rem;font-size:.85rem">Asking <b id="faAsk">$${askAt(market, startYears)}</b> a year. You have <b>$${room}</b> to bid. Other clubs are bidding too, and the offer furthest over his asking price wins — ties go to the worse record.</p>
+      ${lengths.length > 1 ? `<label style="display:block;font-size:.85rem;margin:0 0 .4rem">For
+        <select id="faYears" aria-label="Contract length">${lengths.map((t) => `<option value="${t}" ${t === startYears ? 'selected' : ''}>${t} years · asking $${askAt(market, t)}</option>`).join('')}</select></label>
+      <p class="muted" style="margin:0 0 .5rem;font-size:.8rem">Longer is cheaper a year, and every club is quoted the same prices, so length neither helps nor hurts you in the bidding. He keeps the salary as he ages; cutting him owes half of it for every year left; retiring ends it.</p>` : ''}
+      <input type="number" id="faAmt" value="${start}" min="${askAt(market, startYears)}" max="${Math.max(askAt(market, startYears), room)}" style="width:100%;font-size:1.1rem;padding:.5rem">
       <div class="row" style="gap:.4rem;margin-top:.6rem"><button class="btn primary" id="faOk">Offer</button><button class="btn" data-close>Cancel</button></div>`);
+    const yearsOf = () => Number(m.el.querySelector('#faYears')?.value ?? FA_YEARS);
+    m.el.querySelector('#faYears')?.addEventListener('change', () => {
+      // Moving the length moves the floor. An amount that was at the old
+      // asking price follows it, so switching to five years shows what five
+      // years costs rather than leaving a three-year price in the box.
+      const ask = askAt(market, yearsOf());
+      const amt = m.el.querySelector('#faAmt');
+      const prevAsk = Number(amt.min);
+      amt.min = ask;
+      amt.max = Math.max(ask, room);
+      if (Number(amt.value) < ask || Number(amt.value) === prevAsk) amt.value = ask;
+      m.el.querySelector('#faAsk').textContent = `$${ask}`;
+    });
     m.el.querySelector('#faOk').addEventListener('click', () => {
       const amt = Number(m.el.querySelector('#faAmt').value);
+      const years = yearsOf();
       let res;
-      ctx.update((st) => { res = submitOffer(st.league, u, id, amt, ctx.byId); }, { silent: true });
+      ctx.update((st) => { res = submitOffer(st.league, u, id, amt, ctx.byId, years); }, { silent: true });
       if (!res.ok) { toast(res.reason); return; }
       m.close();
       freeAgency(root, ctx.getState().league, ctx);
@@ -362,13 +387,32 @@ function freeAgency(root, league, ctx) {
     const rep = freeAgencyReport(after, u);
     const name = (id) => esc(ctx.byId.get(id)?.name || id);
     modal(`<h3 style="margin:.1rem 0">The market has closed</h3>
-      ${rep.won.length ? `<p style="margin:.3rem 0"><b>Signed:</b> ${rep.won.map((w) => `${name(w.id)} <span class="muted">$${w.salary}</span>`).join(', ')}</p>` : '<p class="muted" style="margin:.3rem 0">You signed nobody.</p>'}
-      ${rep.lost.length ? `<p style="margin:.3rem 0"><b>Missed out on:</b> ${rep.lost.map((l) => `${name(l.id)} <span class="muted">${l.bid === l.at ? `you both bid $${l.bid} — ties go to the worse record` : `your $${l.bid}, he took $${l.at}`}</span>`).join(', ')}</p>` : ''}
+      ${rep.won.length ? `<p style="margin:.3rem 0"><b>Signed:</b> ${rep.won.map((w) => `${name(w.id)} <span class="muted">$${w.salary} × ${w.years ?? FA_YEARS}y</span>`).join(', ')}</p>` : '<p class="muted" style="margin:.3rem 0">You signed nobody.</p>'}
+      ${rep.lost.length ? `<p style="margin:.3rem 0"><b>Missed out on:</b> ${rep.lost.map((l) => `${name(l.id)} <span class="muted">${lostLine(l)}</span>`).join(', ')}</p>` : ''}
       <p class="muted" style="margin:.4rem 0 0;font-size:.85rem">${(after.offseason.signed || []).length} signings across the league. Whoever is left is in the draft.</p>
       <div class="row" style="gap:.4rem;margin-top:.6rem"><button class="btn primary" data-close>To the draft</button></div>`, {
       onClose: () => ctx.navigate(after.draftType === 'auction' ? '#/auction' : '#/draft'),
     });
   });
+}
+
+/**
+ * Why you lost him, in one clause. A length can make a smaller salary the
+ * better offer, so the line says which lengths were on the table — otherwise
+ * "your $20, he took $18" reads as the market cheating.
+ */
+export function lostLine(l) {
+  const same = l.years === l.atYears;
+  const yours = same ? `$${l.bid}` : `$${l.bid} × ${l.years}y`;
+  const theirs = same ? `$${l.at}` : `$${l.at} × ${l.atYears}y`;
+  if (l.tie) {
+    return same
+      ? `you both bid ${yours} — ties go to the worse record`
+      : `your ${yours} and their ${theirs} were the same distance over his asking price — ties go to the worse record`;
+  }
+  return same
+    ? `your ${yours}, he took ${theirs}`
+    : `your ${yours}, he took ${theirs}, which was further over what he asks for that length`;
 }
 
 function jobMarket(root, league, ctx) {

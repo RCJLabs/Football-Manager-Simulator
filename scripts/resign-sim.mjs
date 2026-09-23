@@ -20,14 +20,15 @@
 //                   exist at all, and it is the reason the other two cannot
 //                   simply be tuned for drama.
 //
-// Usage: node scripts/resign-sim.mjs [seasons] [leagues]
+// Usage: node scripts/resign-sim.mjs [seasons] [leagues] [first seed]
 import { PLAYERS, PLAYERS_BY_ID } from '../src/data/db.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, registerPlayers } from '../src/engine/season.js';
 import { autoDraftAll } from '../src/engine/draft.js';
 import { simulateAhead } from '../src/engine/autosim.js';
 import { enterOffseason } from '../src/engine/offseason.js';
-import { marketSalary } from '../src/engine/cap.js';
+import { marketSalary, capHit, deadHit, PRO_CAP } from '../src/engine/cap.js';
+import { lineupStrength } from '../src/engine/transactions.js';
 import { primeAge } from '../src/engine/careers.js';
 import { leaguePool, leagueIndex } from '../src/engine/rookies.js';
 import { applyCareers, careerIndex } from '../src/engine/careers.js';
@@ -38,6 +39,9 @@ import { RESIGN_PREMIUM, TAG_PREMIUM, tagCost, tagged, termFor, TERMS } from '..
 registerPlayers(PLAYERS_BY_ID);
 const SEASONS = Number(process.argv[2] || 8);
 const LEAGUES = Number(process.argv[3] || 3);
+// A different set of leagues, for telling a change from the spread between
+// seeds: one run of this is a sample, not a measurement.
+const SEED0 = Number(process.argv[4] || 4000);
 const index = (lg) => careerIndex(lg, leagueIndex(lg, PLAYERS_BY_ID));
 const pool = (lg) => applyCareers(lg, leaguePool(lg, PLAYERS));
 const roster = (t) => ROSTER_SLOTS.map((s) => t.slots[s.id]).filter(Boolean);
@@ -56,9 +60,14 @@ const tagAges = [], tagOvr = [], tagOverpay = [], tagPast = [], tagMarket = [], 
 let tagsUsed = 0, clubOffseasons = 0;
 for (const [, name] of BANDS) tally[name] = { declined: 0, rival: 0, unsigned: 0, kept: 0 };
 let expiringTotal = 0, declinedTotal = 0, lostTotal = 0, unsignedTotal = 0;
+// Free agency, and the state of the league at the kickoff after it. Read the
+// same way on a tree without lengths in the market — every deal there reads as
+// three years — so the script can be run before and after the change.
+const faCount = {}; const faPast = {}; for (const t of TERMS) { faCount[t] = 0; faPast[t] = []; }
+const capUsed = [], deadTotal = [], spread = [];
 
 for (let L = 0; L < LEAGUES; L++) {
-  const seed = 4000 + L * 37;
+  const seed = SEED0 + L * 37;
   const lg = createLeague({ name: 'R', mode: 'pro', numTeams: 32, franchise: 12, seed, draftType: 'snake', user: {}, injuries: 'normal' });
   autoDraftAll(lg, lg.draft, PLAYERS, new RNG(seed));
   startSeason(lg, PLAYERS_BY_ID);
@@ -125,6 +134,19 @@ for (let L = 0; L < LEAGUES; L++) {
 
     simulateAhead(lg, index(lg), pool(lg), new RNG(seed * 13 + yr), 'nextSeason');
 
+    for (const r of lg.freeAgency?.results || []) {
+      const t = r.years ?? 3;
+      if (faCount[t] == null) continue;
+      faCount[t]++;
+      const p = byIdBefore.get(r.id);
+      if (p?.age != null) faPast[t].push(p.age - primeAge(p.pos));
+    }
+    const kick = index(lg);
+    capUsed.push(mean(lg.teams.map((_, i) => capHit(lg, i))) / (lg.cap ?? PRO_CAP));
+    deadTotal.push(lg.teams.reduce((a, _, i) => a + deadHit(lg, i), 0));
+    const strengths = lg.teams.map((t) => lineupStrength(t.slots, kick, null));
+    spread.push(Math.max(...strengths) - Math.min(...strengths));
+
     const after = lg.teams.map((t) => roster(t));
     const nowOn = new Map();
     after.forEach((ids, i) => ids.forEach((id) => nowOn.set(id, i)));
@@ -184,3 +206,14 @@ else for (const t of TERMS) {
   const ages = termAge[t];
   console.log(`  ${t}y  ${String(termCount[t]).padStart(4)}  ${(100 * termCount[t] / totalTerms).toFixed(0).padStart(3)}%  ${ages.length ? `average age ${mean(ages).toFixed(1)}` : ''}`);
 }
+
+console.log('\nContract lengths signed in free agency (years past the position\'s peak, where known)');
+const totalFa = Object.values(faCount).reduce((a, b) => a + b, 0);
+if (!totalFa) console.log('  nobody signed');
+else for (const t of TERMS) {
+  const past = faPast[t];
+  console.log(`  ${t}y  ${String(faCount[t]).padStart(4)}  ${(100 * faCount[t] / totalFa).toFixed(0).padStart(3)}%  ${past.length ? `${past.length} with an age, averaging ${mean(past) >= 0 ? '+' : ''}${mean(past).toFixed(1)} from peak` : ''}`);
+}
+
+console.log('\nThe league at each kickoff');
+console.log(`  cap used ${(100 * mean(capUsed)).toFixed(1)}% · dead money $${mean(deadTotal).toFixed(0)} across the league · best-to-worst lineup spread ${mean(spread).toFixed(0)}`);

@@ -9,7 +9,7 @@ import { enterOffseason, confirmKeepers, aiKeepers, takeJob, closeFreeAgency } f
 import { capHit, overCap, marketSalary, PRO_CAP, SLOT_RESERVE } from '../src/engine/cap.js';
 import {
   askingBoard, biddingRoom, openCount, submitOffer, freeAgencyReport, openFreeAgency,
-  aiBid, AI_FA_SHARE,
+  aiBid, AI_FA_SHARE, offerSalary, offerValue,
 } from '../src/engine/freeagency.js';
 
 registerPlayers(byId);
@@ -47,7 +47,7 @@ test('a player will not sign below his asking price', () => {
   assert.equal(low.ok, false);
   assert.match(low.reason, /asking/);
   assert.equal(submitOffer(lg, u, row.id, row.ask, byId).ok, true);
-  assert.equal(lg.freeAgency.offers[u][row.id], row.ask);
+  assert.equal(offerSalary(lg.freeAgency.offers[u][row.id]), row.ask);
 });
 
 test('a club is held to every bid landing at once', () => {
@@ -93,17 +93,22 @@ test('the market settles, the best offer wins, and the loser is told', () => {
       // elsewhere in the game moved what the clubs thought he was worth, one of
       // them bid past $77, and a test named "the best offer wins" failed
       // because the best offer won.
+      // "Best" is distance over his asking price for the length offered,
+      // not the biggest salary: a two-year offer costs more a year by
+      // construction and would otherwise win every contested man.
+      const market = marketSalary(p);
       const bids = Object.entries(lg.freeAgency.offers)
-        .map(([team, o]) => ({ team: Number(team), amount: o[target] }))
-        .filter((x) => Number.isFinite(x.amount));
-      const top = Math.max(...bids.map((x) => x.amount));
-      const topTeams = bids.filter((x) => x.amount === top).map((x) => x.team);
+        .filter(([, o]) => o[target] != null)
+        .map(([team, o]) => ({ team: Number(team), amount: offerSalary(o[target]), value: offerValue(market, o[target]) }));
+      const best = Math.max(...bids.map((x) => x.value));
+      const topTeams = bids.filter((x) => x.value === best).map((x) => x.team);
+      const top = bids.find((x) => x.team === topTeams[0]).amount;
       closeFreeAgency(lg, PLAYERS, byId);
       const owner = lg.teams.findIndex((t) => ROSTER_SLOTS.some((sl) => t.slots[sl.id] === target));
       assert.ok(owner >= 0, `${p.name} went unsigned though ${bids.length} club(s) bid for him`);
       assert.ok(topTeams.includes(owner),
         `${p.name} went to club ${owner}, who bid ${bids.find((x) => x.team === owner)?.amount}, over a top bid of ${top}`);
-      assert.equal(lg.contracts[target].salary, top, 'he is paid what won him');
+      assert.equal(lg.contracts[target].salary, bids.find((x) => x.team === owner).amount, 'he is paid what won him');
       // And when the winner IS the user, he is told so and put on the roster.
       if (owner === u) {
         const rep = freeAgencyReport(lg, u);

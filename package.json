@@ -38,7 +38,9 @@
     "playthrough": "node scripts/playthrough.mjs",
     "audit": "node scripts/audit.mjs",
     "strength": "node scripts/strength-fit.mjs",
-    "gm": "node scripts/gm-sim.mjs"
+    "gm": "node scripts/gm-sim.mjs",
+    "resign": "node scripts/resign-sim.mjs",
+    "terms": "node scripts/term-value.mjs"
   },
   "engines": {
     "node": ">=20"

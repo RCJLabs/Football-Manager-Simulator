@@ -22,9 +22,68 @@ import { overall } from './ratings.js';
 import { standings } from './season.js';
 import { freeAgents, ownerMap, lineupStrength, aiGreed } from './transactions.js';
 import { capOn, capHit, capSpace, marketSalary, MIN_SALARY, VET_YEARS, SLOT_RESERVE, PRO_CAP } from './cap.js';
+// Not from offseason.js, which imports this file: see the head of terms.js.
+import { FA_TERM, aiTerm, termsOpen, termsFor } from './terms.js';
 
-/** How long a deal signed in free agency runs. */
+/** How long a deal signed in free agency runs when nobody says otherwise. */
 export const FA_YEARS = VET_YEARS;
+
+/**
+ * An offer is a salary and a length.
+ *
+ * Every deal signed here used to run `FA_YEARS`, so an offer was a bare
+ * number, and a league saved in the middle of its market still holds those.
+ * A bare number was always a three-year deal and still reads as one, so
+ * nothing needs rewriting on load.
+ */
+export function offerSalary(offer) {
+  return typeof offer === 'number' ? offer : (offer?.salary ?? 0);
+}
+
+export function offerYears(offer) {
+  if (typeof offer === 'number') return FA_YEARS;
+  return FA_TERM[offer?.years] ? offer.years : FA_YEARS;
+}
+
+/**
+ * What a man asks a year to sign for this long, given what he asks for three.
+ *
+ * The re-signing curve with the re-signing premium taken out, because nobody
+ * here has an exclusive window to charge for: `FA_TERM` is `TERM_PRICE` over
+ * its own three-year figure. So three years is market exactly, as it always
+ * was, two is about 17% more a year and five about 13% less.
+ *
+ * Rounded up, like every other price in the game, so a cheap man gets no
+ * discount for length — five years at a $5 market is still $5 — and pays a
+ * whole dollar more for two. Checked at every market value the game can
+ * produce: no float error moves the ceiling.
+ */
+export function askAt(market, years = FA_YEARS) {
+  return Math.ceil(market * (FA_TERM[years] ?? 1));
+}
+
+/** The same, from the player. */
+export function askFor(player, years = FA_YEARS) {
+  return askAt(marketSalary(player), years);
+}
+
+/**
+ * How good an offer is from where HE sits: how far it clears what he asked
+ * for that length.
+ *
+ * Comparing salaries would hand every contested man to whoever offered two
+ * years, since a short deal costs more a year by construction. Comparing each
+ * offer to its own asking price makes every offer at the asking price exactly
+ * as good as every other, whatever its length, and ranks the rest by how far
+ * over they go. It has to be the rounded ask rather than the curve itself:
+ * against the curve, a five-year offer at a $5 ask reads as 16% over a
+ * three-year one at the same ask and wins a tie it should have split — the
+ * ceiling would be deciding contested signings.
+ */
+export function offerValue(market, offer) {
+  const ask = askAt(market, offerYears(offer));
+  return ask > 0 ? offerSalary(offer) / ask : 0;
+}
 
 /**
  * How many of its open slots a club will fill here rather than in the draft.
@@ -88,16 +147,22 @@ export function openCount(team) {
 export function askingBoard(league, pool, { limit = 200 } = {}) {
   const free = freeAgents(league, pool);
   return free
+    // `ask` is the three-year price, which is what the board sorts and shows;
+    // `askAt` turns it into any other length.
     .map((p) => ({ id: p.id, pos: p.pos, ovr: overall(p), ask: marketSalary(p) }))
     .sort((a, b) => b.ask - a.ask || b.ovr - a.ovr)
     .slice(0, limit);
 }
 
-/** What a club already owes, plus everything it has bid for. */
+/**
+ * What a club already owes, plus everything it has bid for. This season's
+ * money only: a longer deal is cheaper this year, and next year's cap is next
+ * year's keeper round.
+ */
 export function committed(league, teamIdx) {
   const offers = league.freeAgency?.offers?.[teamIdx] || {};
   let bid = 0;
-  for (const salary of Object.values(offers)) bid += salary;
+  for (const offer of Object.values(offers)) bid += offerSalary(offer);
   return capHit(league, teamIdx) + bid;
 }
 
@@ -130,9 +195,11 @@ export function openFreeAgency(league, pool, byId, rng = null) {
  * Put an offer in, or raise one. Returns { ok, reason }.
  *
  * A withdrawal is an offer of nothing, which is how the screen's "pull out"
- * button works without a second entry point.
+ * button works without a second entry point. The length defaults to the old
+ * flat three years, so a caller that has never heard of lengths offers what it
+ * always did.
  */
-export function submitOffer(league, teamIdx, playerId, salary, byId) {
+export function submitOffer(league, teamIdx, playerId, salary, byId, years = FA_YEARS) {
   if (!league.freeAgency || league.freeAgency.closed) return { ok: false, reason: 'The market is closed' };
   const fa = league.freeAgency;
   fa.offers[teamIdx] ??= {};
@@ -140,20 +207,23 @@ export function submitOffer(league, teamIdx, playerId, salary, byId) {
   if (!player) return { ok: false, reason: 'No such player' };
   if (ownerMap(league).has(playerId)) return { ok: false, reason: `${player.name} is on a roster` };
   if (salary == null || salary <= 0) { delete fa.offers[teamIdx][playerId]; return { ok: true, withdrawn: true }; }
-  const ask = marketSalary(player);
-  if (salary < ask) return { ok: false, reason: `${player.name} is asking $${ask}` };
+  if (!termsFor(league).includes(years)) {
+    return { ok: false, reason: termsOpen(league) ? `No ${years}-year deals` : `Every deal here runs ${FA_YEARS} years` };
+  }
+  const ask = askFor(player, years);
+  if (salary < ask) return { ok: false, reason: `${player.name} is asking $${ask} a year for ${years} years` };
   const team = league.teams[teamIdx];
   if (!ROSTER_SLOTS.some((s) => s.pos === player.pos && !team.slots[s.id])) {
     return { ok: false, reason: `No open ${player.pos} slot` };
   }
-  const previous = fa.offers[teamIdx][playerId] ?? 0;
+  const previous = fa.offers[teamIdx][playerId];
   delete fa.offers[teamIdx][playerId];
   const room = biddingRoom(league, teamIdx);
   if (salary > room) {
-    if (previous) fa.offers[teamIdx][playerId] = previous;
+    if (previous != null) fa.offers[teamIdx][playerId] = previous;
     return { ok: false, reason: `That leaves you $${room} to bid, and the rest of the roster still to fill` };
   }
-  fa.offers[teamIdx][playerId] = salary;
+  fa.offers[teamIdx][playerId] = { salary, years };
   return { ok: true };
 }
 
@@ -206,22 +276,28 @@ export function aiBid(league, pool, byId, rng = null) {
     let taken = 0;
     for (const { row, p, gain } of scored) {
       if (taken >= want) break;
+      // The length first, because it sets the asking price the premium is
+      // put on: the rule the keeper round uses, so a club buys a man the same
+      // way whichever door he comes in by. Three years wherever nobody ages.
+      const years = termsOpen(league) ? aiTerm(league, p) : FA_YEARS;
+      const ask = askAt(row.ask, years);
       // The more he adds, the further over the asking price this club will go.
       const eagerness = Math.min(1, gain / 60) + (rng ? rng.normal(0, 0.06) : 0);
-      const bid = Math.round(row.ask * (1 + Math.max(0, Math.min(MAX_PREMIUM, eagerness * MAX_PREMIUM))));
-      const r = submitOffer(league, ti, p.id, Math.max(row.ask, bid), byId);
+      const bid = Math.round(ask * (1 + Math.max(0, Math.min(MAX_PREMIUM, eagerness * MAX_PREMIUM))));
+      const r = submitOffer(league, ti, p.id, Math.max(ask, bid), byId, years);
       if (r.ok) taken++;
     }
   }
 }
 
 /**
- * Settle the market: dearest man first, highest offer wins.
+ * Settle the market: dearest man first, best offer wins.
  *
  * Order matters and is not arbitrary. Settling the best players first means a
  * club that wins a bidding war is poorer for the next one, which is what makes
- * overpaying for a star a real choice rather than a free one. Ties go to the
- * worse record, the same priority the waiver wire uses.
+ * overpaying for a star a real choice rather than a free one. "Best" is
+ * `offerValue` — furthest over his asking price for that length — and ties go
+ * to the worse record, the same priority the waiver wire uses.
  */
 export function resolveFreeAgency(league, pool, byId, rng = null) {
   if (!league.freeAgency) return [];
@@ -263,30 +339,36 @@ function settleOnce(league, pool, byId, signed, round) {
     const bids = [];
     for (const [tStr, offers] of Object.entries(fa.offers)) {
       const ti = Number(tStr);
-      const salary = offers[row.id];
+      const offer = offers[row.id];
+      const salary = offerSalary(offer);
       if (!salary) continue;
       const team = league.teams[ti];
       const slot = ROSTER_SLOTS.find((s) => s.pos === row.pos && !team.slots[s.id]);
       if (!slot) continue;
       // The money has to still be there: an earlier win may have spent it.
       if (capSpace(league, ti) - salary < (openCount(team) - 1) * SLOT_RESERVE) continue;
-      bids.push({ ti, salary, slot });
+      bids.push({ ti, salary, years: offerYears(offer), value: offerValue(row.ask, offer), slot });
     }
     if (!bids.length) continue;
-    bids.sort((a, b) => b.salary - a.salary || (rank.get(a.ti) ?? 99) - (rank.get(b.ti) ?? 99));
+    bids.sort((a, b) => b.value - a.value || (rank.get(a.ti) ?? 99) - (rank.get(b.ti) ?? 99));
     const win = bids[0];
     league.teams[win.ti].slots[win.slot.id] = row.id;
     league.contracts ??= {};
-    league.contracts[row.id] = { salary: win.salary, years: FA_YEARS, round: ROSTER_SLOTS.length, kept: 0, since: league.season };
+    league.contracts[row.id] = { salary: win.salary, years: win.years, round: ROSTER_SLOTS.length, kept: 0, since: league.season };
     league.transactions ??= [];
     league.transactions.push({ week: 0, season: league.season, type: 'sign', team: win.ti, add: row.id, drop: null });
     signed.push({
-      team: win.ti, id: row.id, salary: win.salary, ask: row.ask, bidders: bids.length, round,
+      // `ask` is his price for the length he signed, so `salary >= ask` holds
+      // for a five-year deal that is under his three-year market.
+      team: win.ti, id: row.id, salary: win.salary, years: win.years, ask: askAt(row.ask, win.years), market: row.ask,
+      bidders: bids.length, round,
       // Who missed out, and for how much. Recorded here rather than worked out
       // afterwards from leftover offers, because the losing offers are about to
       // be torn up — which is why the report used to say a club had lost
-      // nothing on a night it had been outbid four times.
-      underbid: bids.slice(1).map((b) => ({ team: b.ti, salary: b.salary })),
+      // nothing on a night it had been outbid four times. The length rides
+      // along because a bigger salary can now lose to a smaller one, and a
+      // report that showed only the money would read as the market cheating.
+      underbid: bids.slice(1).map((b) => ({ team: b.ti, salary: b.salary, years: b.years, tie: b.value === win.value })),
     });
     // He is signed; nobody's outstanding offer for him means anything now.
     for (const offers of Object.values(fa.offers)) delete offers[row.id];
@@ -303,7 +385,14 @@ export function freeAgencyReport(league, teamIdx) {
   const lost = [];
   for (const r of fa.results) {
     const mine = (r.underbid || []).find((b) => b.team === teamIdx);
-    if (mine) lost.push({ id: r.id, bid: mine.salary, to: r.team, at: r.salary });
+    // Results written before lengths existed carry neither field: every deal
+    // was three years, and a tie was two equal salaries.
+    if (mine) {
+      lost.push({
+        id: r.id, bid: mine.salary, years: mine.years ?? FA_YEARS, to: r.team, at: r.salary, atYears: r.years ?? FA_YEARS,
+        tie: mine.tie ?? mine.salary === r.salary,
+      });
+    }
   }
   return { won, lost };
 }

@@ -56,6 +56,8 @@ npm run ir           # injured-reserve usage by injury setting
 npm run injuries     # injury rates by dial setting, weeks lost per club, and what a missing QB costs
 npm run dynasty      # keeper counts, cap committed and roster turnover over four-season runs
 npm run careers      # ageing curves: decline from a prime signing, rookie development, career lengths
+npm run resign       # the keeper round and the market: who is re-signed, declined, won back, and on what lengths
+npm run terms        # what each contract length is worth, following real signings for five seasons
 npm run leverage     # re-measure what each position is worth, the table the auction economy rests on
 npm run fingerprint  # hash 232 simulated games play-for-play; diff before and after a refactor
 npm run report       # top and bottom of every position, multi-season players, era balance

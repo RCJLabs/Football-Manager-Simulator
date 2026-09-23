@@ -1296,6 +1296,81 @@ try {
         if (close) await close.click();
       }
     }
+
+    // The free-agent market with contract lengths: the bid dialog offers a
+    // length, moving it moves the asking price and the amount with it, and the
+    // offer that goes in is the length chosen. Built from the same league,
+    // keepers confirmed in Node so the page opens straight onto the market.
+    {
+      const { confirmKeepers, aiKeepers } = await import(`${R}/src/engine/offseason.js`);
+      const { userTeamIndex } = await import(`${R}/src/engine/season.js`);
+      const { askAt } = await import(`${R}/src/engine/freeagency.js`);
+      const fa = JSON.parse(JSON.stringify(lg));
+      const faPool = leaguePool(fa, PLAYERS);
+      const faIdx = careerIndex(fa, leagueIndex(fa, PLAYERS_BY_ID));
+      confirmKeepers(fa, aiKeepers(fa, userTeamIndex(fa), faPool, faIdx, new RNG(8)), faPool, faIdx);
+      if (fa.offseason?.step !== 'freeagency') errors.push(`confirming keepers left the pro league at "${fa.offseason?.step}", not the market`);
+      await page.evaluate((league) => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
+      }, JSON.parse(JSON.stringify(fa)));
+      await page.goto(`http://localhost:${port}/#/offseason`);
+      await page.reload();
+      await sleep(600);
+      // A man dear enough for length to move his price, that the user can afford.
+      // textContent, not innerText: the row's meta line is a flex container,
+      // and innerText breaks the line between "asking" and the figure.
+      const pick = await page.evaluate(() => {
+        const room = Number((document.body.textContent.match(/Left to bid\s*\$(\d+)/) || [])[1]);
+        for (const b of document.querySelectorAll('[data-bid]')) {
+          const ask = Number(((b.closest('li') || b.parentElement).textContent.match(/asking\s*\$(\d+)/) || [])[1]);
+          if (ask >= 8 && ask <= room) return { id: b.dataset.bid, ask, room };
+        }
+        return { room };
+      });
+      if (!pick.id) errors.push(`the market shows nobody at $8+ within the $${pick.room} the user can bid`);
+      else {
+        await page.click(`[data-bid="${pick.id}"]`);
+        await sleep(250);
+        const opts = await page.$$eval('#faYears option', (os) => os.map((o) => Number(o.value)));
+        if (opts.join() !== '2,3,4,5') errors.push(`the bid dialog offers lengths [${opts}], expected 2-5 years`);
+        const amt0 = Number(await page.inputValue('#faAmt'));
+        if (amt0 !== pick.ask) errors.push(`the bid opens at $${amt0}, not his three-year asking price of $${pick.ask}`);
+        await page.selectOption('#faYears', '5');
+        await sleep(150);
+        const five = askAt(pick.ask, 5);
+        const amt5 = Number(await page.inputValue('#faAmt'));
+        const shown = (await page.innerText('#faAsk')).trim();
+        if (amt5 !== five) errors.push(`switching to five years left the amount at $${amt5}; five years asks $${five}`);
+        if (shown !== `$${five}`) errors.push(`switching to five years shows an asking price of ${shown}, not $${five}`);
+        await checkOverflow('free agency bid dialog with lengths');
+        await shot('17-fa-length');
+        await page.click('#faOk');
+        await sleep(300);
+        const txt = await page.evaluate(() => document.body.textContent);
+        if (!/a year for\s*5/.test(txt)) errors.push('an offer made for five years is not listed as one');
+        if (!/×\s*5y/.test(txt)) errors.push('the market row does not show the length of the standing bid');
+        await checkOverflow('free agency with a five-year offer in');
+      }
+      // Careers off: one length, so no choice is drawn at all.
+      await page.evaluate(() => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        const key = 'gridiron-eras:slot:' + reg.active;
+        const st = JSON.parse(localStorage.getItem(key));
+        st.league.settings.careers = false;
+        localStorage.setItem(key, JSON.stringify(st));
+      });
+      await page.reload();
+      await sleep(600);
+      const anyBid = await page.$('[data-bid]');
+      if (anyBid) {
+        await anyBid.click();
+        await sleep(250);
+        if (await page.$('#faYears')) errors.push('a league without careers still offers a choice of length');
+        const close = await page.$('[data-close]');
+        if (close) await close.click();
+      }
+    }
   }
 
   // Tablet and desktop widths must stay clean too.

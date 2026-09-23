@@ -146,6 +146,9 @@ table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 th, td { padding: 0.4rem 0.45rem; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; position: sticky; top: 0; background: var(--bg-2); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Cells are nowrap by default; a label that can be long enough to push its
+   row's figures off a phone has to be let go explicitly. */
+td.lbl, th.lbl { white-space: normal; overflow-wrap: anywhere; }
 tr.me td { background: rgba(233, 196, 106, 0.08); }
 tr.clickable { cursor: pointer; }
 tr.clickable:hover td { background: var(--bg-3); }

@@ -68,10 +68,13 @@ export function view(root, params, ctx) {
         const top = rankTeams(rows, cat)[0];
         if (!top || top.rank == null) return '';
         const mine = top.idx === u ? ' <span class="badge bargain">you</span>' : '';
-        // Only the figure is unbreakable. Holding the whole cell on one line let
-        // a long label plus a club chip plus a "you" badge run past the screen,
-        // and whether it did depended on which rows the human happened to lead.
-        return `<tr><td>${esc(cat.label)}</td><td class="num"><b class="stat-v" style="white-space:nowrap">${esc(fmtCategory(cat, top.v))}</b> ${chip(top)}${mine}</td></tr>`;
+        // The label is the cell that gives way. Every table cell in this app is
+        // `nowrap` by default, so the first fix here — pinning only the figure
+        // on one line — changed nothing: the label could never wrap either, and
+        // a long defensive label plus the figure and a club chip ran past a
+        // 360px screen whenever the digits and the leader's abbreviation added
+        // up to it. Which is why it looked intermittent. `lbl` releases it.
+        return `<tr><td class="lbl">${esc(cat.label)}</td><td class="num"><b class="stat-v">${esc(fmtCategory(cat, top.v))}</b> ${chip(top)}${mine}</td></tr>`;
       };
       const leaders = groups.map(([side, label]) => {
         const body = TEAM_CATEGORIES.filter((c) => c.side === side).map(leaderRow).join('');
@@ -82,9 +85,9 @@ export function view(root, params, ctx) {
       const third = Math.max(1, Math.round(n / 3));
       const mineRow = (cat) => {
         const r = rankTeams(rows, cat).find((x) => x.idx === u);
-        if (!r || r.rank == null) return `<tr><td>${esc(cat.label)}</td><td class="num muted">—</td></tr>`;
+        if (!r || r.rank == null) return `<tr><td class="lbl">${esc(cat.label)}</td><td class="num muted">—</td></tr>`;
         const tone = r.rank <= third ? 'bargain' : r.rank > n - third ? 'overpay' : '';
-        return `<tr><td>${esc(cat.label)}</td><td class="num"><b class="stat-v" style="white-space:nowrap">${esc(fmtCategory(cat, r.v))}</b> <span class="badge ${tone}" style="white-space:nowrap">${r.rank} of ${n}</span></td></tr>`;
+        return `<tr><td class="lbl">${esc(cat.label)}</td><td class="num"><b class="stat-v">${esc(fmtCategory(cat, r.v))}</b> <span class="badge ${tone}">${r.rank} of ${n}</span></td></tr>`;
       };
       const mine = u >= 0 ? groups.map(([side, label]) => {
         const body = TEAM_CATEGORIES.filter((c) => c.side === side).map(mineRow).join('');
@@ -95,7 +98,7 @@ export function view(root, params, ctx) {
       const cat = CATEGORY_BY_KEY[ui.statCat] || TEAM_CATEGORIES[0];
       const ranked = rankTeams(rows, cat);
       const options = groups.map(([side, label]) => `<optgroup label="${label}">${TEAM_CATEGORIES.filter((c) => c.side === side).map((c) => `<option value="${c.key}" ${c.key === cat.key ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</optgroup>`).join('');
-      const tableRows = ranked.map((r) => `<tr class="${r.idx === u ? 'me' : ''}"><td class="num muted">${r.rank ?? '—'}</td><td>${chip(r)}</td><td class="num"><b>${esc(fmtCategory(cat, r.v))}</b></td><td class="num muted hide-sm">${r.games} gp</td></tr>`).join('');
+      const tableRows = ranked.map((r) => `<tr class="${r.idx === u ? 'me' : ''}"><td class="num muted">${r.rank ?? '—'}</td><td>${chip(r)}</td><td class="num"><b class="stat-v">${esc(fmtCategory(cat, r.v))}</b></td><td class="num muted hide-sm">${r.games} gp</td></tr>`).join('');
 
       body = html`
         <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">Regular season, every club. A defence is measured by what its opponents did against it.</p>
@@ -104,7 +107,7 @@ export function view(root, params, ctx) {
         <div class="card tight" style="margin-top:.75rem">
           <h3 style="margin-top:0">Every club</h3>
           <select id="statCat" aria-label="Category" style="max-width:100%;margin-bottom:.5rem">${raw(options)}</select>
-          <div class="table-wrap"><table style="font-size:.9rem"><thead><tr><th class="num">#</th><th>Club</th><th class="num">${esc(cat.label)}</th><th class="num hide-sm">Games</th></tr></thead><tbody>${raw(tableRows)}</tbody></table></div>
+          <div class="table-wrap"><table style="font-size:.9rem"><thead><tr><th class="num">#</th><th>Club</th><th class="num lbl">${esc(cat.label)}</th><th class="num hide-sm">Games</th></tr></thead><tbody>${raw(tableRows)}</tbody></table></div>
         </div>`;
     }
   } else if (ui.tab === 'records') {
