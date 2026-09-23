@@ -126,9 +126,21 @@ Measured on synthetic equal teams (300 games): 9.6 flags and 79 penalty yards a 
 ## The auction (`auction.js`)
 
 The snake draft had a structural problem: it hands every team a full roster from the
-same pool in alternating order, so total talent equalizes. Measured over twelve
-simulated seasons (`npm run auction`), the best-built roster in a league beats the worst by less than a win (7.3 to 6.5 of 14); under the auction the same gap is nearly three wins (8.6 to 5.9).
-The central activity of the game had almost no consequence.
+same pool in alternating order, so total talent equalizes. Measured over 48
+simulated seasons (`npm run auction 48`), the best-built roster in a snake-draft
+league wins 7.2 of 14 and the worst-built 6.6 — well under a win apart; under the
+auction it is 8.5 to 6.2, about two wins. The central activity of the game had
+almost no consequence.
+
+This used to say "nearly three wins (8.6 to 5.9)", from twelve seasons, and the
+audit held that figure to within 0.4. At twelve leagues it is the average of
+twelve teams' records, which moves by about half a win from nothing but a
+reshuffled random stream: an injury change that drew one extra number per
+injury took it to 9.1, while two 48-league samples either side of that change
+read 8.2 and 8.5. So the audit now holds the thing the auction produces before a
+ball is snapped, which no in-season randomness can move — the spread of roster
+quality, leverage-weighted: a standard deviation of 42.3 under the auction
+against 30.2 from the draft, over the default twelve leagues.
 
 The auction fixes it with a $200 cap and 27 slots. Teams take turns nominating a
 player they have room for; the nominator automatically opens at $1, so every
@@ -4707,7 +4719,10 @@ document survived. Several of the numbers underneath them did not.**
   re-measure exactly. What changed is downstream, injured reserve and the waiver
   wire getting better at refilling a hole.
 - The auction's own justification was understated. "A win and a half (7.4 to
-  5.9)" is now 8.6 to 5.9, nearly three wins.
+  5.9)" is now 8.6 to 5.9, nearly three wins. *Later: neither was a finding.
+  Both were twelve-league samples, which move half a win on a reshuffled random
+  stream; 48 leagues put the gap at about two wins, and the audit now checks
+  roster spread instead — see **The auction**.*
 - Waiver activity, trade acceptance, the budget-spread table and the ageing
   drift had all drifted by small amounts.
 

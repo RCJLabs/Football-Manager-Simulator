@@ -82,10 +82,14 @@ const CHECKS = [
     name: 'the auction beats the draft for spread',
     cost: 'slow',
     script: 'auction-sim',
-    extract: /=== AUCTION[\s\S]*?best-built team wins ([\d.]+) of \d+/,
-    doc: /under the auction the same gap is nearly three wins \(([\d.]+) to/,
-    expect: 8.6, tol: 0.4,
-    why: 'the number the auction exists to produce; it had drifted from 7.4 to 8.6 unnoticed',
+    // Roster spread, not wins. "Best-built team wins X of 14" averages twelve
+    // teams' records and moves half a win on a reshuffled random stream, so a
+    // 0.4 tolerance on it flagged noise more often than not. What the auction
+    // produces is fixed before a snap, and nothing in-season can move it.
+    extract: /=== AUCTION[\s\S]*?roster quality \(leverage-weighted\): sd ([\d.]+)/,
+    doc: /a standard deviation of ([\d.]+) under the auction/,
+    expect: 42.3, tol: 0.5,
+    why: 'the number the auction exists to produce; the win figure it replaced drifted from 7.4 to 8.6 to 9.1 on noise alone',
   },
   {
     name: 'overall predicts production at quarterback',
