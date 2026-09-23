@@ -3072,6 +3072,82 @@ Chemistry in sports games is usually an invisible multiplier that either does no
 
 Speculation, not measured: whether 1.8 points is the right ceiling. It is calibrated against the home-field edge of 1.1, which is worth about two points of margin, so the widest realistic chemistry gap is roughly three points of margin — about half a win over a season. That felt like the right size for something you can see and plan around but never buy outright; it has not been tested against how it feels to play.
 
+## Weather (`weather.js`)
+
+A pro club plays where its city is, and from September to January that means heat in Miami, wind in Chicago and snow in Buffalo. Weather is on for new pro leagues and absent from fantasy ones, whose clubs are nicknames with no city; a save from before it has no setting and plays as it always did.
+
+**The flaw it had to be designed around.** The engine was fitted to real league averages (`scripts/realism.mjs`), and the real league plays in real weather, so the old engine already played an average afternoon. Weather that only took things away — wind costing completions, cold costing kicks — would have pulled every documented average below the league it was fitted to. So each effect is a spread around that average rather than a tax on it: its league-wide mean, over every home and every week of a season on a fixed stream drawn when the module loads, is taken out. A dome or a still afternoon plays a little above the old engine (a deep throw +1.0 completion points, a kicker +0.4 yards of range, a punt +0.5 yards, fumbles ×0.976), a gale well below it, and a season of them averages what a season did.
+
+**Where the conditions come from.** Each club has a rounded climate by month — temperature, mean wind, a chance of rain or snow — from general knowledge of climate normals, not from weather records. Eleven clubs play under a roof; Denver kicks a mile up. A game's conditions are drawn around its home's month, seeded by league, season, week and home club, so a replayed week, a share code and the matchup card all see the same sky: the card's conditions line is the draw the game will be played under, not a forecast. The playoffs are January, and the final is at a neutral dome.
+
+**What it touches, and what resists it.** Every size is chosen, not measured; what is measured is what they add up to.
+
+| Condition | What it costs | Resisted by |
+|---|---|---|
+| Wind over 8 mph | completion, 0.35 points a mph at a medium throw, a fifth of that on a screen, 1.6 times it on a deep ball; a quarter-yard a mph of field-goal range and of punt | arm strength on a throw, leg strength on a kick |
+| Rain, snow | 2 or 3 completion points; fumbles ×1.25 or ×1.35, on runs, catches and strip sacks alike; 1 or 2 yards of kick and of punt | — |
+| Below 32°F | 1 completion point | — |
+| Below 45°F | 0.08 yards of kicking range a degree, 0.05 of punt | — |
+| Altitude | adds 3 yards to a kick and to a punt | — |
+
+**The one decision it adds** is an arm and a leg. At 20 mph a 95 arm gives up 3.6 points of deep completion and an 80 arm 6.1; a 95 leg gives up 1.4 yards of range and a 75 leg 2.9. A club that plays eight games a year by Lake Michigan has a reason to want both that a dome club does not. It is a small reason — 9% of games blow 15 mph or more — and the rest of weather is atmosphere, which is what it was built to be.
+
+**The means are taken at the arm and leg that start.** The first version took them at the centres of the engine's own formulas, an 82 arm and an 80 leg. But the starters throw nearly every pass and kick every kick, and eight founding pro drafts start an 89.9 arm (sd 4.8) and an 87.3 leg (sd 4.6) (`npm run weather arms`). The wind costs a strong arm less than the middling one the means had assumed, so weather lifted league completion by 0.13 ± 0.03 points; with the means taken at the starters', the same games give 0.04 ± 0.03.
+
+### Measured (`npm run weather`)
+
+**It averages what it did.** Twenty thousand games between real lineups, in four independent sets of 5,000, each played under the conditions its home and week draw and again from the same seed with none:
+
+| per team-game unless marked | none | weather minus none |
+|---|---|---|
+| points | 25.73 | +0.04 ± 0.04 |
+| completion % | 67.53 | +0.04 ± 0.03 |
+| yards a pass | 7.59 | +0.00 ± 0.01 |
+| turnovers | 0.98 | −0.006 ± 0.004 |
+| field-goal % | 89.3 | −0.02 ± 0.10 |
+| yards a punt | 47.44 | −0.05 ± 0.02 |
+
+The punt residual is probably the goal line: a long punt is cut short there, so a spread in distance loses a little at the top that it does not lose at the bottom. Whole seasons, weather on and off and paired by league seed, agree within their much wider noise — points a team-game −0.09 ± 0.27 and −0.03 ± 0.21 over two sets of six — and every audit check passes with weather on for new pro leagues, including three added for it: the arm and leg that start, and the constants rounded from them. The fingerprint is unchanged, since with weather off every draw is the one it was.
+
+**The spread.** The same lineups under each condition and again indoors, from the same seed, 1,500 games a condition:
+
+| condition | points a game, against indoors | completion % | field-goal % | yards a punt | fumbles a game |
+|---|---|---|---|---|---|
+| indoors, or a mild still day | 51.5 | 67.8 | 88.9 | 47.9 | 1.18 |
+| 20 mph | −2.5 ± 0.4 | 65.5 | 89.4 | 45.3 | 1.17 |
+| 28 mph | −3.8 ± 0.4 | 63.9 | 88.7 | 43.3 | 1.13 |
+| rain | −1.8 ± 0.4 | 65.8 | 89.2 | 46.6 | 1.46 |
+| 18°F | −1.4 ± 0.4 | 66.9 | 88.9 | 46.0 | 1.14 |
+| snow, 18 mph | −4.6 ± 0.4 | 62.1 | 87.5 | 42.8 | 1.63 |
+| a mile up | +0.3 ± 0.3 | 67.9 | 90.2 | 50.6 | 1.12 |
+
+Field-goal percentage hardly moves in the wind because the kicks change, not the kicker: the coach knows the range has shrunk and does not try the long ones. Held to the same distances it moves a lot — the storm test in `tests/weather.test.js` has a kick from 40 to 47 yards, which both sides still try, going from 94% indoors to 68% in a snowy gale, and tries from 48 yards and beyond falling from 144 to 33 in 200 games.
+
+Speculation, not measured: that these sizes are right. The ordering, wind by a distance and then rain, matches the common reading of real games, but the numbers were set to be plausible and modest and have not been checked against game records.
+
+**No lean on the run.** Real coaches run more in bad weather, so an AI that did the same was tested before it was built: the same games again with the home side's pass rate moved, by condition, 1,200 games a cell, scored on the margin against the unmoved game from the same seed.
+
+| condition | pass rate −0.15 | −0.10 | −0.05 | +0.05 |
+|---|---|---|---|---|
+| indoors | +1.56 ± 0.47 | +0.67 ± 0.47 | +0.77 ± 0.42 | +0.27 ± 0.43 |
+| 20 mph | +0.96 ± 0.49 | +0.41 ± 0.49 | +0.55 ± 0.43 | −0.33 ± 0.45 |
+| 28 mph | +1.49 ± 0.49 | +0.59 ± 0.47 | +0.53 ± 0.42 | +0.38 ± 0.44 |
+| rain | +0.05 ± 0.47 | −0.78 ± 0.47 | +0.16 ± 0.43 | −0.72 ± 0.45 |
+| snow, 18 mph | +0.43 ± 0.49 | +0.76 ± 0.48 | +0.91 ± 0.43 | +0.03 ± 0.45 |
+
+Running more pays no more in any weather than it does indoors, and in rain if anything less, since a wet ball costs a runner as well as a passer. So the AI does not lean. The table resolves a difference of about 0.7 points between two conditions; a rough estimate from what a gale does to a medium throw (five completion points, about half a yard an attempt at 0.053 points a yard, over the ten plays a 0.15 lean moves) puts the true gain near 0.3 points in a gale and less elsewhere. So "too small to matter" is the honest reading, not "none".
+
+It turned up one thing that is not about weather. In every condition, indoors included, the home side gained about a point and a half of margin by running 15 points more than its kickoff pass rate. That is one set of founding lineups, and in a real season the strategy drift in `gm.js` moves a club's pass rate from its own results, which this test leaves out. Not investigated.
+
+**Tests** (`tests/weather.test.js`, 11) cover the setting and old saves, the seeding and the domes, the climate, each effect's direction and resistance, the means on an independent stream, every hook in a game, the recorded result and the share code. A mutation pass over `weather.js` and every hook in the engine killed 32 of 36 mutants. Four survive, each below what the tests resolve: dropping the wet-ball factor from any one of the three fumble sites alone — each is about a third of the fumbles, and dropping all three is caught — and the weather in the end-of-half kick's range, a handful of decisions a season.
+
+#### Not done
+
+- **Heat** is described and does nothing. A hot afternoon is real, but its effect on a game is fatigue over a drive, which the engine does not model.
+- **Retractable roofs** are always closed.
+- **Weather changes within a game.** A game has one sky.
+- **Fantasy leagues** have no weather, for want of a city.
+
 ## Simulating ahead (`autosim.js`)
 
 Four buttons on the season hub: to the halfway point, to the playoffs, through the playoffs, into next season. Each one runs the ordinary weekly machinery in a loop — `simulateWeekAi` then `advanceWeekWithMoves` — so the waiver wire, AI trades, injuries, strategy drift and clinch markers all still happen; the only thing removed is the clicking. A guard of 200 weeks stops a malformed league spinning.

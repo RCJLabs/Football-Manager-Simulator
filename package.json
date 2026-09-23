@@ -43,7 +43,8 @@
     "terms": "node scripts/term-value.mjs",
     "focus": "node scripts/focus-sim.mjs",
     "convert": "node scripts/convert-sim.mjs",
-    "rookies": "node scripts/rookie-read.mjs"
+    "rookies": "node scripts/rookie-read.mjs",
+    "weather": "node scripts/weather-sim.mjs"
   },
   "engines": {
     "node": ">=20"

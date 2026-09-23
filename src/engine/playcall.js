@@ -6,6 +6,7 @@
 import { effectiveStrategy } from './gm.js';
 import { expectedPoints } from './winprob.js';
 import { clamp } from './rng.js';
+import { fgShift } from './weather.js';
 
 export const OFFENSE_CALLS = {
   run_in:     { label: 'Inside Run',  kind: 'run' },
@@ -112,18 +113,23 @@ export function fgDistance(ballOn) {
   return 100 - ballOn + 17;
 }
 
-/** Kicker make probability for a given distance. */
-export function fgProbability(kicker, dist) {
+/**
+ * Kicker make probability for a given distance. `weather` moves his range —
+ * wind and cold shorten it, less for a big leg; altitude lengthens it — and it
+ * is the same function the fourth-down call reads, so a club deciding whether
+ * to kick sees the same sky the kick is taken under.
+ */
+export function fgProbability(kicker, dist, weather = null) {
   const kac = kicker ? kicker.r.kac : 75;
   const kpw = kicker ? kicker.r.kpw : 75;
-  const mid = 51 + (kac - 80) * 0.25 + (kpw - 80) * 0.35;
+  const mid = 51 + (kac - 80) * 0.25 + (kpw - 80) * 0.35 + fgShift(weather, kpw);
   return 0.985 / (1 + Math.exp((dist - mid) / 4.5));
 }
 
-export function fgRange(kicker) {
+export function fgRange(kicker, weather = null) {
   const kac = kicker ? kicker.r.kac : 75;
   const kpw = kicker ? kicker.r.kpw : 75;
-  return Math.round(50 + (kac - 80) * 0.25 + (kpw - 80) * 0.35 + 5); // ~roughly 45% make
+  return Math.round(50 + (kac - 80) * 0.25 + (kpw - 80) * 0.35 + fgShift(weather, kpw) + 5); // ~roughly 45% make
 }
 
 /**
@@ -194,10 +200,10 @@ export function chooseOffense(g, rng) {
   }
 
   // Last-second field goal when clock is about to expire.
-  if (left <= 8 && fgDistance(g.ballOn) <= fgRange(comp.k) + 4 && diff <= 0 && (g.quarter === 2 || g.quarter >= 4)) {
+  if (left <= 8 && fgDistance(g.ballOn) <= fgRange(comp.k, g.weather) + 4 && diff <= 0 && (g.quarter === 2 || g.quarter >= 4)) {
     if (g.quarter === 2 || diff >= -3) return 'fg';
   }
-  if (g.quarter >= 4 && left <= 5 && diff >= -2 && diff <= 0 && fgDistance(g.ballOn) <= fgRange(comp.k) + 6) return 'fg';
+  if (g.quarter >= 4 && left <= 5 && diff >= -2 && diff <= 0 && fgDistance(g.ballOn) <= fgRange(comp.k, g.weather) + 6) return 'fg';
 
   // Base pass probability.
   let pass = strat.passRate;
@@ -254,7 +260,7 @@ export function fourthDownDecision(g, rng) {
   const left = halfSecondsLeft(g);
   const gameLeft = g.quarter >= 4 ? g.clock : g.clock + (4 - g.quarter) * 900;
   const dist = fgDistance(g.ballOn);
-  const makeP = fgProbability(comp.k, dist);
+  const makeP = fgProbability(comp.k, dist, g.weather);
   const inRange = makeP >= 0.5;
   const longRange = makeP >= 0.25;
   const toGo = g.toGo;

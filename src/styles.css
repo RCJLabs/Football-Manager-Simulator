@@ -328,6 +328,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 /* Which way they are going, so a strip with two end zones is not ambiguous. */
 .fieldbar .going { position: absolute; bottom: 2px; transform: translateX(-50%); font-size: 0.7rem; color: rgba(255,255,255,0.75); transition: left 0.3s ease; }
 .drivenote { font-size: 0.75rem; margin: 0 0 0.5rem; font-family: var(--mono); }
+.wxline { font-size: 0.78rem; text-align: center; margin: 0.35rem 0 0.5rem; }
 .fieldbar .ez { position: absolute; top: 0; bottom: 0; width: 6%; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: 800; letter-spacing: 0.03em; overflow: hidden; }
 .fieldbar .ez.left { left: 0; } .fieldbar .ez.right { right: 0; }
 /* The play that just happened, drawn where it happened. The strip used to show

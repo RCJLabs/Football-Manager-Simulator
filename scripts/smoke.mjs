@@ -1520,6 +1520,62 @@ try {
       if (!seriesText) errors.push('the matchup card has no series line');
       else if (!/^All-time: (you (lead|trail)|level at) \d+–\d+(–\d+)?\.$/.test(seriesText)) errors.push(`the matchup card's series reads "${seriesText}"`);
       await checkOverflow('matchup card with a series');
+      if (await page.$('.wx')) errors.push('a fantasy league shows weather, and its clubs have no city');
+    }
+
+    // Weather: a pro league's matchup card gives the conditions its game will
+    // be played under — the same draw, so not a forecast — and the live
+    // scoreboard and the box score repeat them. With the setting off, nothing.
+    {
+      const { conditionsFor, conditionsLine, describeWeather } = await import(`${R}/src/engine/weather.js`);
+      const { weekNumber, userGameThisWeek } = await import(`${R}/src/engine/season.js`);
+      const mk = (on) => {
+        const l = createLeague({ name: 'Smoke Weather', mode: 'pro', numTeams: 32, franchise: 1, seed: 33, draftType: 'snake', user: { name: 'Me', abbr: 'ME', color: '#fff' } });
+        l.settings.weather = on;
+        autoDraftAll(l, l.draft, PLAYERS, new RNG(33));
+        startSeason(l, PLAYERS_BY_ID);
+        return l;
+      };
+      const put = async (league) => {
+        await page.evaluate((league) => {
+          const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+          localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
+        }, JSON.parse(JSON.stringify(league)));
+        await page.goto(`http://localhost:${port}/#/season`);
+        await page.reload();
+        await sleep(600);
+      };
+      const wx = mk(true);
+      const w = conditionsFor(wx, userGameThisWeek(wx), weekNumber(wx));
+      await put(wx);
+      const card = await page.evaluate(() => document.querySelector('.wx')?.textContent.replace(/\s+/g, ' ').trim() || null);
+      if (!card) errors.push('a pro league with weather has no conditions on the matchup card');
+      else if (!card.includes(describeWeather(w))) errors.push(`the matchup card reads "${card}"; the game will be played in "${describeWeather(w)}"`);
+      await checkOverflow('matchup card with conditions');
+      await shot('23-weather-card');
+      await page.click('#play');
+      await page.waitForSelector('.scoreboard');
+      const live = await page.evaluate(() => document.querySelector('.wxline')?.textContent.trim() || null);
+      if (live !== conditionsLine(w)) errors.push(`the live scoreboard reads "${live}", expected "${conditionsLine(w)}"`);
+      await checkOverflow('live game with conditions');
+      await page.goto(`http://localhost:${port}/#/season`);
+      await page.waitForSelector('#abandon');
+      await page.click('#abandon');
+      await page.click('.modal #yes');
+      await page.waitForSelector('#simMine');
+      await page.click('#simMine');
+      await sleep(700); // the store saves on a short debounce
+      const boxLink = await page.$('a.btn[href^="#/box/"]');
+      if (!boxLink) errors.push('no box score link after simming the game');
+      else {
+        await boxLink.click();
+        await page.waitForSelector('.stat-compare');
+        const box = await page.evaluate(() => document.querySelector('.wxline')?.textContent.trim() || null);
+        if (box !== conditionsLine(w)) errors.push(`the box score reads "${box}", expected "${conditionsLine(w)}"`);
+        await checkOverflow('box score with conditions');
+      }
+      await put(mk(false));
+      if (await page.$('.wx')) errors.push('a pro league with weather off still shows conditions');
     }
   }
 

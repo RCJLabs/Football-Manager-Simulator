@@ -30,6 +30,7 @@ import { FAINT_TURN } from './winprob.js';
 import { DEFAULT_DIFFICULTY } from './difficulty.js';
 import { capOn, cutToCap, rookieSalary, draftSize, MIN_SALARY, ROOKIE_YEARS, VET_YEARS } from './cap.js';
 import { strategyRead } from './strategy.js';
+import { conditionsFor } from './weather.js';
 
 export const LEAGUE_VERSION = 4;
 export const FANTASY_SIZES = [8, 10, 12];
@@ -95,7 +96,7 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
     injuries: {},
     contracts: {},
     offseason: null,
-    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, scouting: true, focus: true, positions: true, jobs: true, difficulty: DEFAULT_DIFFICULTY, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode), budgetSpread: Number(budgetSpread) || 0 },
+    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, scouting: true, focus: true, positions: true, weather: true, jobs: true, difficulty: DEFAULT_DIFFICULTY, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode), budgetSpread: Number(budgetSpread) || 0 },
   };
   assignGms(league, rng);
   if (draftType === 'auction') {
@@ -333,6 +334,7 @@ export function gameOptions(league, entry, byId) {
     injuryLevel: injuryLevel(league),
     penalties: league.settings?.penalties !== false,
     chem: byId ? bonusesFor(league, byId, entry) : [0, 0],
+    weather: conditionsFor(league, entry, weekNumber(league)),
   };
 }
 
@@ -734,6 +736,7 @@ export function recordResult(league, week, gameEntry, g, { keepLog = false, keep
     log: keepLog ? g.log : null,
     drives: keepLog ? g.drives : null,
     injuries: g.teams.map((t) => (t.injuries || []).map((x) => ({ id: x.id, kind: x.kind, weeks: x.weeks }))),
+    ...(g.weather ? { weather: g.weather } : {}),
   };
   gameEntry.result = result;
   recordGameInjuries(league, g, [gameEntry.home, gameEntry.away], week);

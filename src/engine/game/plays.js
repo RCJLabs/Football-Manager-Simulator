@@ -14,6 +14,7 @@ import { rollReturnFoul } from '../penalties.js';
 import { fgDistance, fgProbability, scoreDiff } from '../playcall.js';
 import { statFor, shortName } from '../stats.js';
 import { pickReceiver, primaryDefender, pickTackler, pickRusher, pickBallhawk, pickReturner } from './picks.js';
+import { passShift, fumbleFactor, puntShift } from '../weather.js';
 
 const MATRIX = {
   // offense call -> defense call -> modifiers
@@ -333,7 +334,7 @@ export function resolveRun(g, rng, call, defCall) {
   const td = yards >= rem;
 
   // Fumble.
-  const fumP = clamp(0.011 * (1 + (82 - car) / 22) * (1 + (def.tackling - 80) / 60), 0.002, 0.05);
+  const fumP = clamp(0.011 * (1 + (82 - car) / 22) * (1 + (def.tackling - 80) / 60) * fumbleFactor(g.weather), 0.002, 0.05);
   let fumble = !td && rng.chance(fumP);
   const tackler = pickTackler(g, defT, 'run', rng);
   let text = `${shortName(carrier)} ${sneak ? 'sneaks' : outside ? 'runs outside' : 'runs inside'} for ${yardsText(yards)}`;
@@ -387,8 +388,8 @@ export function resolvePass(g, rng, call, defCall) {
       g.stats[off].team.sacksAllowed++;
       g.stats[off].team.passYds += yards;
       if (sacker) { const ds = statFor(g.stats[defT], sacker.id); ds.def.sck++; ds.def.tkl++; }
-      // Strip sack.
-      if (rng.chance(0.11) && g.ballOn + yards > 0) {
+      // Strip sack; a wet ball comes out more.
+      if (rng.chance(0.11 * fumbleFactor(g.weather)) && g.ballOn + yards > 0) {
         st.rush.fum++;
         if (sacker) statFor(g.stats[defT], sacker.id).def.ff++;
         if (rng.chance(0.55)) {
@@ -459,6 +460,9 @@ export function resolvePass(g, rng, call, defCall) {
   if (call === 'pass_deep') compP += (qb.r.thp - 85) * 0.003;
   if (pressured) compP -= 0.08;
   compP -= squeeze(g.ballOn) * SQUEEZE_PASS * (SQUEEZE_COMP[call] ?? 1);
+  // The sky: wind by how far the ball travels, against the arm throwing it;
+  // a wet or frozen ball a little on every throw. Nothing without weather.
+  compP += passShift(g.weather, call, qb.r.thp);
   compP = clamp(compP, 0.12, 0.93);
 
   st.pass.att++;
@@ -526,7 +530,7 @@ export function resolvePass(g, rng, call, defCall) {
   // never did catching, which is `car` meaning two different things on two
   // plays. Only backs carry the attribute; a receiver's `car` is undefined and
   // defaults to the centre, leaving him exactly where he was.
-  if (!td && rng.chance(0.005 * (1 + (82 - (target.r.car ?? 82)) / 22) * (1 + (def.tackling - 80) / 40))) {
+  if (!td && rng.chance(0.005 * (1 + (82 - (target.r.car ?? 82)) / 22) * (1 + (def.tackling - 80) / 40) * fumbleFactor(g.weather))) {
     ts.rush.fum++;
     if (tackler) statFor(g.stats[defT], tackler.id).def.ff++;
     if (rng.chance(0.5)) {
@@ -547,7 +551,7 @@ export function resolveFieldGoal(g, rng) {
   const comp = g.teams[off].comp;
   const k = comp.k;
   const dist = fgDistance(g.ballOn);
-  const p = fgProbability(k, dist);
+  const p = fgProbability(k, dist, g.weather);
   const blocked = rng.chance(0.012);
   const good = !blocked && rng.chance(p);
   if (k) { const s = statFor(g.stats[off], k.id); s.k.fga++; if (good) { s.k.fgm++; s.k.lng = Math.max(s.k.lng, dist); } }
@@ -570,7 +574,7 @@ export function resolvePunt(g, rng) {
     const loss = rng.int(5, 15);
     return { type: 'punt', yards: -loss, elapsed: 5, clockStops: true, puntBlocked: true, text: `${name} punt is BLOCKED!` };
   }
-  let dist = rng.normal(PUNT_GROSS + (ppw - 75) * 0.4, 6);
+  let dist = rng.normal(PUNT_GROSS + (ppw - 75) * 0.4 + puntShift(g.weather), 6);
   // Pooch when close.
   if (rem < 55) dist = Math.min(dist, rem - rng.int(0, 6) - (100 - pac) / 8);
   dist = clamp(Math.round(dist), 20, 75);

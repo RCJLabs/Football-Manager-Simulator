@@ -46,6 +46,10 @@ export function createGame(home, away, options = {}) {
     rngState: rng.state,
     playoff: !!options.playoff,
     neutral: !homeAdvantage,
+    // The sky over this game, or null for none — see weather.js. Every effect
+    // it has is a no-op when it is null, so a game without it draws the same
+    // stream and plays out exactly as it did before weather existed.
+    weather: options.weather || null,
     chem,
     injuryLevel: options.injuryLevel ?? 0,
     penalties: options.penalties !== false,

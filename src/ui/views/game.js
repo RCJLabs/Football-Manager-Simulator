@@ -5,6 +5,7 @@ import { fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { currentWeek, simulateWeekAi, recordResult, weekNumber, userTeamIndex } from '../../engine/season.js';
 import { teamChip, announce} from '../components.js';
 import { wpChart, wpLabel, driveChart, gameStory, statLeaders } from '../charts.js';
+import { conditionsLine } from '../../engine/weather.js';
 
 export const selfRendering = true;
 
@@ -253,7 +254,7 @@ export function view(root, params, ctx) {
     }
     const dist = fgDistance(g.ballOn);
     const kicker = g.teams[off].comp.k;
-    const fgP = Math.round(fgProbability(kicker, dist) * 100);
+    const fgP = Math.round(fgProbability(kicker, dist, g.weather) * 100);
 
     let controls;
     if (g.final) {
@@ -370,6 +371,7 @@ export function view(root, params, ctx) {
         </div>
         <div class="sb-team ${off === 1 && !g.final ? 'poss' : ''}"><span class="name">${teamChip(away, { responsive: true })}</span><span class="score">${g.score[1]}</span><span class="to">${'●'.repeat(g.timeouts[1])}${'○'.repeat(Math.max(0, 3 - g.timeouts[1]))}</span></div>
       </div>
+      ${g.weather ? html`<p class="muted wxline">${conditionsLine(g.weather)}</p>` : ''}
       <div class="fieldbar" aria-hidden="true">
         <div class="ez left" style="background:${home.color};color:${textOn(home.color)}">${home.abbr}</div><div class="ez right" style="background:${away.color};color:${textOn(away.color)}">${away.abbr}</div>
         ${raw([10, 20, 30, 40, 50, 60, 70, 80, 90].map((x) => `<div class="tick ${x === 50 ? 'half' : ''}" style="left:${6 + x * 0.88}%"></div>`).join(''))}

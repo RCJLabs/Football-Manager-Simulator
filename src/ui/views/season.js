@@ -19,6 +19,7 @@ import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tr
 import { RNG } from '../../engine/rng.js';
 import { scoutingReport, fmtCategory, ordinal } from '../../engine/teamstats.js';
 import { series, seriesLine } from '../../engine/archive.js';
+import { conditionsFor, describeWeather, weatherNote } from '../../engine/weather.js';
 
 export function fmtPhase(league) {
   if (league.phase === 'draft') return league.draftType === 'auction' ? 'Auction in progress' : 'Draft in progress';
@@ -85,6 +86,14 @@ export function view(root, params, ctx) {
         <div class="side right"><small class="muted">${rec(league.teams[myGame.away])}</small>${teamChip(league.teams[myGame.away], { responsive: true })}</div>
       </div>
       <p class="muted" style="font-size:.9rem">Power: you ${myPower} · them ${oppPower}${gm ? ` · ${gm.name} GM (${gm.blurb.toLowerCase().replace(/\.$/, '')})` : ''}</p>
+      ${(() => {
+        // The same draw the game will be played under, since it is seeded by
+        // the week and the home club — so this is the weather, not a forecast.
+        const w = myGame.result ? myGame.result.weather : conditionsFor(league, myGame, weekNumber(league));
+        if (!w) return '';
+        const note = weatherNote(w);
+        return html`<p class="muted wx" style="font-size:.85rem;margin-top:-.4rem">Conditions${w.city ? ` in ${w.city}` : ''}: ${describeWeather(w)}${note ? ` — ${note}` : ''}.</p>`;
+      })()}
       ${(() => {
         // Every meeting on file, this season's included. A league that began
         // before results were kept says where its record starts rather than

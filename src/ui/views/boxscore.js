@@ -3,6 +3,7 @@ import { fantasyPoints, fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { teamChip, esc } from '../components.js';
 import { replacementFromId, fmtWeeks } from '../../engine/injuries.js';
 import { wpChart, driveChart, gameStory } from '../charts.js';
+import { conditionsLine } from '../../engine/weather.js';
 
 export function view(root, params, ctx) {
   const state = ctx.getState();
@@ -12,13 +13,13 @@ export function view(root, params, ctx) {
   if (params.kind === 'live') {
     if (!state.game) { ctx.navigate('#/season'); return; }
     const g = state.game.g;
-    box = { teams: g.teams, score: g.score, teamStats: [g.stats[0].team, g.stats[1].team], players: [g.stats[0].players, g.stats[1].players], log: g.log, drives: g.drives, overtime: g.quarter >= 5, final: g.final, back: '#/game', injuries: g.teams.map((t) => t.injuries || []) };
+    box = { teams: g.teams, score: g.score, teamStats: [g.stats[0].team, g.stats[1].team], players: [g.stats[0].players, g.stats[1].players], log: g.log, drives: g.drives, overtime: g.quarter >= 5, final: g.final, back: '#/game', injuries: g.teams.map((t) => t.injuries || []), weather: g.weather };
   } else {
     const list = params.kind === 'p' ? league.playoffs?.rounds[Number(params.a) - 1]?.games : league.schedule[Number(params.a) - 1]?.games;
     const entry = list && list[Number(params.b)];
     if (!entry || !entry.result) { render(root, html`<div class="card"><p class="empty">No box score for that game.</p><a class="btn" href="#/season">Back</a></div>`); return; }
     const r = entry.result;
-    box = { teams: [league.teams[entry.home], league.teams[entry.away]], score: r.score, teamStats: r.teamStats, players: r.players, log: r.log, drives: r.drives, overtime: r.overtime, final: true, back: '#/season', injuries: r.injuries || [[], []], thinned: !!r.thinned,
+    box = { teams: [league.teams[entry.home], league.teams[entry.away]], score: r.score, teamStats: r.teamStats, players: r.players, log: r.log, drives: r.drives, overtime: r.overtime, final: true, back: '#/season', injuries: r.injuries || [[], []], thinned: !!r.thinned, weather: r.weather,
       title: params.kind === 'p' ? league.playoffs.rounds[Number(params.a) - 1].name : `Week ${params.a}` };
   }
   const [h, a] = box.teams;
@@ -63,6 +64,7 @@ export function view(root, params, ctx) {
       <div class="sb-mid"><div class="q">${box.final ? 'FINAL' : 'IN PROGRESS'}</div><div class="dd">${box.overtime ? 'OT' : ''}</div></div>
       <div class="sb-team"><span class="name">${teamChip(a, { responsive: true })}</span><span class="score">${box.score[1]}</span></div>
     </div>
+    ${box.weather ? html`<p class="muted wxline">${conditionsLine(box.weather)}</p>` : ''}
     <div class="card tight" style="margin-top:.75rem">
       <div class="stat-compare">
         ${raw(cmp('Total yards', (t) => t.totalYds))}
