@@ -150,18 +150,20 @@ test('in a pro league every squad is told to throw, and each is told in its own 
 });
 
 test('what the team page claims for moving the dial is what was measured', () => {
-  // +0.68 to +1.04 a game against a flat 0.55, by kind of league, once the
-  // passer and the receivers were held to real seasons (+1.01 to +1.11 before).
-  // The read this replaced claimed half a point and was worth -1.17 on the
-  // engine whose run game had just been fixed.
+  // +0.54 to +0.71 a game against a flat 0.55, by kind of league, once the
+  // drive was held to real play-by-play; +0.68 to +1.04 once the passer and
+  // the receivers were held to real seasons, and +1.01 to +1.11 before. The
+  // read before those claimed half a point and was worth -1.17 on the engine
+  // whose run game had just been fixed: what has to hold is that the words say
+  // what the last measurement did.
   const lg = createLeague({ name: 'C', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 41, draftType: 'snake' });
   autoDraftAll(lg, lg.draft, PLAYERS, new RNG(41));
   startSeason(lg, PLAYERS_BY_ID);
   const reads = lg.teams.map((_, i) => strategyRead(lg, i, PLAYERS_BY_ID));
   const tilted = reads.find((r) => !r.even);
   assert.ok(tilted);
-  assert.match(tilted.strength, /two-thirds of a point to a point/);
-  assert.doesNotMatch(tilted.strength, /half a point/);
+  assert.match(tilted.strength, /half a point to three-quarters of a point/);
+  assert.doesNotMatch(tilted.strength, /to a point a game/);
 });
 
 test('the user starts on a dial that matches the squad they drafted', () => {

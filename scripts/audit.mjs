@@ -88,7 +88,7 @@ const CHECKS = [
     // produces is fixed before a snap, and nothing in-season can move it.
     extract: /=== AUCTION[\s\S]*?roster quality \(leverage-weighted\): sd ([\d.]+)/,
     doc: /a standard deviation of ([\d.]+) under the auction/,
-    expect: 37.0, tol: 0.5,
+    expect: 40.4, tol: 0.5,
     why: 'the number the auction exists to produce; the win figure it replaced drifted from 7.4 to 8.6 to 9.1 on noise alone. Weighed by the shipped table since 2026-09-24, where it used to carry a stale copy of the first one',
   },
   {
@@ -97,7 +97,7 @@ const CHECKS = [
     script: 'yardstick-fit', args: ['QB', '500', '24'],
     extract: /overall vs point differential:\s+r = ([\d.]+)/,
     doc: /\| QB \| \*\*r = ([\d.]+)\*\*/,
-    expect: 0.988, tol: 0.015,
+    expect: 0.975, tol: 0.015,
     why: 'the table under "do not rebuild it"',
   },
   {
@@ -106,7 +106,7 @@ const CHECKS = [
     script: 'yardstick-fit', args: ['CB', '500', '24'],
     extract: /overall vs point differential:\s+r = ([\d.]+)/,
     doc: /\| CB \| \*\*r = ([\d.]+)\*\*/,
-    expect: 0.984, tol: 0.02,
+    expect: 0.966, tol: 0.02,
     why: "for most of this file's life the harness scored a man by his own team's points, which a corner barely affects — he read 0.72 there and 0.82 overall, and two commits were written about a weakness that was the instrument. Against the opponent's points he reads -0.976",
   },
   // Deliberately not registered: the line, the receiver and the punter. Their
@@ -137,7 +137,7 @@ const CHECKS = [
     script: 'yardstick-fit', args: ['CB', '500', '24', 'rookies'],
     extract: /overall vs point differential:\s+r = ([\d.]+)/,
     doc: /\| CB \| 500 \| [\d.]+ \| \*\*([\d.]+)\*\* \|/,
-    expect: 0.959, tol: 0.02,
+    expect: 0.958, tol: 0.02,
     why: "the shipped pool is collinear enough that almost any monotone weighting scores well on it, so the headline yardstick numbers are weak evidence the weights are RIGHT. This is the same fit against independently scattered attributes, where they have to earn it. CB rather than DL because DL needs 1500 games a man and this check runs beside twenty others",
   },
   {
@@ -161,8 +161,8 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /pro\s+normal\s+[\d.]+ games a club · ([\d.]+) starter-weeks/,
     doc: /\| pro \| normal \| 17\.0 \| ([\d.]+) \|/,
-    expect: 5.1, tol: 0.4,
-    why: "the high-count figure in the pro injury table, and the one that shows the 17-game season costing 1.15x the 14-game one. NOT the season-enders column beside it, which reads 0.10 over ten fantasy seasons and 0.17 over forty and is too thin at this sample to compare across modes",
+    expect: 5.8, tol: 0.4,
+    why: "the high-count figure in the pro injury table, and the one that shows the 17-game season costing 1.16x the 14-game one. It read 5.1 before the drive model, which has about 5% more snaps a game, and injury risk is per snap. NOT the season-enders column beside it, which reads 0.10 over ten fantasy seasons and 0.17 over forty and is too thin at this sample to compare across modes",
   },
   {
     name: 'the re-sign premium still un-dominates the keeper round',
@@ -222,23 +222,23 @@ const CHECKS = [
     cost: 'slow',
     script: 'leverage-sim', args: ['4000', '1'], extract: /positions where the shipped table and the engine disagree: (\d+)/,
     expect: 0, tol: 0,
-    why: 'TRUE_LEVERAGE prices every player — the auction, pro salaries, the value panel, AI bidding and trades — and it has gone stale twice the same way, a change to the run game and no re-measure after it. The second time it was set on 21 September, the same day an engine change wired a back\'s elusiveness and power into play, and his real value rose half again while the table stood still for three days. On 2026-09-24 it was set twice: once on an engine whose run game was itself wrong, with the back at nearly a quarterback, and again at a third of one once the run game matched real carries. This replays one roster and counts positions more than 30% and three standard errors away from the table. Roster 1 at 4,000 games reads 0 on the second table and 1 on the first, the back; about two minutes',
+    why: 'TRUE_LEVERAGE prices every player — the auction, pro salaries, the value panel, AI bidding and trades — and it has gone stale twice the same way, a change to the run game and no re-measure after it. The second time it was set on 21 September, the same day an engine change wired a back\'s elusiveness and power into play, and his real value rose half again while the table stood still for three days. On 2026-09-24 it was set four times: once on an engine whose run game was itself wrong, with the back at nearly a quarterback, again at a third of one once the run game matched real carries, a third time once the passer and the receivers were held to real seasons, and a fourth once the drive was held to real play-by-play. This replays one roster and counts positions more than 30% and three standard errors away from the table. Roster 1 at 4,000 games reads 0 on the second table and 1 on the first, the back; about two minutes',
   },
   {
     name: 'the pass/run read still beats a flat 0.55',
     cost: 'slow',
     script: 'pass-rate', args: ['read', '8', '150', '8', '41'], extract: /the read as it is \(strategy\.js\)\s+([+-]?[\d.]+)/,
     doc: /The audit re-measures it on eight of those leagues[^+]*\+([\d.]+)/,
-    expect: 0.68, tol: 0.4,
-    why: 'the read has gone stale twice: measured once at +0.98 and left behind a dozen engine changes, then refitted to an engine whose backs were worth far too much, where it told nearly every squad to run and scored +0.77, and -1.17 once the run game matched real carries. It tells every squad to throw, worth +1.04 on that engine and +0.68 once the passer and the receivers were held to real seasons. This plays it: eight eight-club leagues, 150 games a club at each setting, about ninety seconds; a band rather than tol 0 because any engine change moves a deterministic figure a little',
+    expect: 0.71, tol: 0.4,
+    why: 'the read has gone stale twice: measured once at +0.98 and left behind a dozen engine changes, then refitted to an engine whose backs were worth far too much, where it told nearly every squad to run and scored +0.77, and -1.17 once the run game matched real carries. It tells every squad to throw, worth +1.04 on that engine, +0.68 once the passer and the receivers were held to real seasons and +0.71 once the drive was held to real play-by-play. This plays it: eight eight-club leagues, 150 games a club at each setting, about ninety seconds; a band rather than tol 0 because any engine change moves a deterministic figure a little',
   },
   {
-    name: 'fourth-down aggression still pays at the top of the dial',
+    name: 'fourth-down aggression still pays four-fifths of the way up the dial',
     cost: 'slow',
-    script: 'dials', args: ['aggression', '4', '100', '8', '41'], extract: /every club at 1: ([+-]?[\d.]+)/,
+    script: 'dials', args: ['aggression', '4', '100', '8', '41'], extract: /every club at 0\.8: ([+-]?[\d.]+)/,
     doc: /The audit replays aggression on four of those leagues[^+]*\+([\d.]+)/,
-    expect: 0.66, tol: 0.5,
-    why: 'the team page tells the player that going for it more is worth two-thirds of a point to nine-tenths a game at the top of the dial. The first measurement had it helping only a strong offence with a poor kicker; later it helped every squad by a point and a quarter, and it fell to two-thirds once the run game matched real carries and every squad threw. About twenty-five seconds; a band because any engine change moves a deterministic figure a little',
+    expect: 0.48, tol: 0.4,
+    why: 'the team page tells the player that going for it more is worth about a third of a point a game four-fifths of the way up the dial, and no more at the top. The first measurement had it helping only a strong offence with a poor kicker; later it helped every squad by a point and a quarter at the top, two-thirds once the run game matched real carries and every squad threw, and half that once the fourth-down call itself was fitted to real coaches, when the best setting moved off the top. It read +0.66 at the top here before the drive model; +0.56 at the top and +0.48 at 0.8 on it. About twenty-five seconds; a band because any engine change moves a deterministic figure a little',
   },
   {
     name: 'a back\'s rating moves his carries as far as the real game\'s',
@@ -339,7 +339,7 @@ const CHECKS = [
     name: 'the simulation fingerprint',
     cost: 'slow',
     script: 'game-fingerprint', extract: /fingerprint: ([0-9a-f]+)/,
-    expect: '69e030eabc96fdfb', text: true,
+    expect: '780b1e698ed881cb', text: true,
     why: 'changes whenever the game engine does, which is what makes a careers-only change provable',
   },
 ];

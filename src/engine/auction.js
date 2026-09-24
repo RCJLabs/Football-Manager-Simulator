@@ -48,9 +48,11 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * carries and fumbles were held to real seasons as well: a point of a
  * quarterback's rating had moved his production 2.4 times the real game's,
  * and he fell from 16.13 to 9.02 (DESIGN.md, "Backs, receivers and tight ends,
- * held to real seasons"). The audit replays the table now, and three scripts
- * replay the run game, the passing game and the receivers against the real
- * one.
+ * held to real seasons"). A fourth time once the drive around them was held
+ * to real play-by-play, at 8.68 (DESIGN.md, "The drive model, held to real
+ * play-by-play"). The audit replays the table now, and four scripts replay
+ * the run game, the passing game, the receivers and the drive against the
+ * real one.
  *
  * The absolute scale is not free, even though the price guide normalises it
  * away. `lineupStrength` in transactions.js sums overall × leverage raw, and
@@ -102,8 +104,15 @@ const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) =
  * which is arithmetically true and would have had the value board telling a new
  * manager to go and buy punters. Measured on the whole position rather than per
  * player, so five cheap linemen are not mistaken for a specialist.
+ *
+ * It was 0.05 until the table measured on the drive model put the punter's
+ * stake at 0.0499: half a hundredth more on his table weight, which is
+ * measured to ± 0.18, and the board would have called him the best buy on it.
+ * The kicker and the punter stand at 0.045 and 0.050 and the next position,
+ * the back, at 0.100, so the line sits in the gap between them rather than at
+ * the edge of one side.
  */
-export const MATTERS_AT = 0.05;
+export const MATTERS_AT = 0.075;
 
 export function positionValue() {
   const levSum = Object.values(TRUE_LEVERAGE).reduce((a, b) => a + b, 0);

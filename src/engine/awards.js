@@ -67,7 +67,8 @@ const ALL_LEAGUE_COUNTS = { QB: 1, RB: 1, WR: 3, TE: 1, DL: 4, LB: 3, CB: 2, S: 
  * number: every position but those two counts at `MVP_OTHERS` of its table
  * weight, and with a quarterback's season counting 1.25 times a back's the
  * forty seasons name 33 quarterbacks and 7 backs. No other position came within
- * 77% of a winner.
+ * 77% of a winner. Measured again on the drive model, with the quarterback at
+ * 8.68: the same 33 and 7, and nobody else within 63%.
  */
 export const MVP_QB_OVER_RB = 1.25;
 export const MVP_OTHERS = 0.6;

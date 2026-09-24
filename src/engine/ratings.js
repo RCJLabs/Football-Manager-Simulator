@@ -250,8 +250,18 @@ export function composites(lineup) {
  * carries and fumbles were inflated too, would have stood at 0.8 of him.
  * Measured with all of it fixed: the quarterback at 9.02, twice a corner and
  * 2.3 backs.
+ *
+ * Set a fourth time once the drive around the players was held to real
+ * play-by-play (DESIGN.md, "The drive model, held to real play-by-play"):
+ * real passing depths, the rush that makes third and long hard, the real
+ * kicking curve and a fourth-down call that moves with field position. The
+ * quarterback is 8.68 (± 0.43 between rosters), 1.96 tight ends; the tight
+ * end, the back and the corner are within a standard error of one another.
+ * The kicker rose from 1.50 to 1.87 and the offensive line from 3.19 to 3.53,
+ * and the defensive line fell from 3.90 to 3.60 and the corner from 4.52 to
+ * 4.15, none of it isolated.
  */
-export const TRUE_LEVERAGE = { QB: 9.02, CB: 4.52, TE: 4.06, RB: 3.90, DL: 3.90, LB: 3.57, S: 3.28, OL: 3.19, WR: 2.72, P: 1.98, K: 1.50 };
+export const TRUE_LEVERAGE = { QB: 8.68, TE: 4.43, RB: 4.17, CB: 4.15, DL: 3.60, OL: 3.53, LB: 3.49, S: 3.08, WR: 2.75, P: 2.09, K: 1.87 };
 
 /**
  * How strong a lineup is, on the 40..99 rating scale.

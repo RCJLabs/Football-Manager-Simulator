@@ -9,17 +9,20 @@
 // end: every kind of squad does best with the dial all the way up.
 //
 //   league              always 0.70, against a flat 0.55
-//   fantasy, 8 clubs      +0.68 a game
-//   fantasy, 10 clubs     +1.00
-//   fantasy, 12 clubs     +0.81
-//   pro, 32 clubs         +1.04
+//   fantasy, 8 clubs      +0.71 a game
+//   fantasy, 10 clubs     +0.54
+//   fantasy, 12 clubs     +0.56
+//   pro, 32 clubs         +0.70
 //
-// Sorted into fifths by run edge, every fifth of every league wants 0.65 or
-// 0.70, and gains +0.13 to +1.68 at 0.70. So the read still says what a squad
-// is built to do, and tells every one of them to throw. Measured again once
-// the passer and the receivers were held to real seasons (DESIGN.md, "The
-// passing game, held to real quarterbacks"): it had read +1.04, +1.01, +1.10
-// and +1.11, and the fifths +0.40 to +1.68.
+// Sorted into fifths by run edge, eighteen of the twenty fifths do best at
+// 0.65 or 0.70, and at 0.70 the fifths gain -0.02 to +1.52; the two that do
+// not are within their noise of it, ± 0.4 a fifth, and neither is the most
+// run-built fifth of its league. So the read still says what a squad is built
+// to do, and tells every one of them to throw. Measured again once the drive
+// was held to real play-by-play (DESIGN.md, "The drive model, held to real
+// play-by-play"): it had read +0.68, +1.00, +0.81 and +1.04, and +1.04, +1.01,
+// +1.10 and +1.11 before the passer and the receivers were held to real
+// seasons (DESIGN.md, "The passing game, held to real quarterbacks").
 //
 // **It said the opposite until the run game was fixed.** Fitted on the
 // engine of 24 September, the read had nearly every squad running, through
@@ -58,16 +61,21 @@
 //
 // The other four dials are measured the same way against real leagues' clubs
 // (`npm run dials`), and none of them depends on the roster the way the
-// pass/run balance once did, so none gets a read. With the passer and the
-// receivers held to real seasons and every club throwing on this read:
-// fourth-down aggression at the top of the dial is worth +0.71 a game in
-// eight-club leagues and +0.82 in pro ones, for every kind of squad; blitzing
-// least +0.33 and +0.23; the deepest shell +0.38 in eight-club leagues and
-// nothing measurable in pro ones; tempo nothing either way. On the run game's
-// fix alone they read +0.64 and +0.88, +0.32 and +0.34, +0.66 and nothing;
-// before it +1.19 to +1.25, +0.31 to +0.48, +0.33 to +0.47 and nothing; and
-// the first, on 19 September and on identical rosters, had aggression helping
-// only a strong offence with a poor kicker and the other three flat.
+// pass/run balance once did, so none gets a read. With the drive held to real
+// play-by-play and every club throwing on this read: fourth-down aggression is
+// worth +0.39 a game four-fifths of the way up in eight-club leagues and +0.31
+// in pro ones, and +0.37 and +0.14 at the top, where it had read +0.71 and
+// +0.82. Most likely that is the default call, now fitted to real coaches',
+// who go for it more than the old margin did; not isolated. A weak offence
+// with a poor kicker gains nothing measurable from it. Blitzing least is worth
+// +0.41 and +0.50; the deepest shell +0.36 in eight-club leagues and nothing
+// in pro ones; tempo within a quarter of a point either way. With the passer
+// and the receivers held to real seasons blitzing least read +0.33 and +0.23
+// and the deepest shell +0.38 and nothing; on the run game's fix alone the
+// three read +0.64 and +0.88, +0.32 and +0.34, +0.66 and nothing; before it
+// +1.19 to +1.25, +0.31 to +0.48, +0.33 to +0.47 and nothing; and the first,
+// on 19 September and on identical rosters, had aggression helping only a
+// strong offence with a poor kicker and the other three flat.
 //
 // Why this exists at all: every AI personality drafts and calls plays to match
 // — Air Raid buys quarterbacks and receivers and throws at 0.66, Ground & Pound
@@ -93,8 +101,11 @@ export const RATE_MAX = 0.7;
  * run-built included (+0.40 to +1.68 a game), and the fitted crossover runs off
  * the right-hand end of the range it is searched over. A crossover beyond every
  * squad measured would be a number made up for rosters nobody has built, so
- * there is none. If a change to the passing game brings one back, it is a
- * number again, and the ramp below already knows what to do with it.
+ * there is none. On the drive model the crossovers fitted league by league
+ * scatter from 0 to that end, 2, and beat always throwing by 0.12 a game at
+ * most, and that in the very games they were fitted to: still none. If a
+ * change to the passing game brings one back, it is a number again, and the
+ * ramp below already knows what to do with it.
  */
 export const CROSSOVER = { fantasy: null, pro: null };
 /**
@@ -199,7 +210,7 @@ export function strategyRead(league, teamIdx, byId) {
     // "Worth moving" only when the squad is off the crossover and the dial is not already there.
     act: !even && off,
     lean,
-    strength: even ? 'barely worth moving for this squad' : 'worth two-thirds of a point to a point a game, measured against the clubs you play',
+    strength: even ? 'barely worth moving for this squad' : 'worth half a point to three-quarters of a point a game, measured against the clubs you play',
     why: `${built} ${advice}`,
   };
 }

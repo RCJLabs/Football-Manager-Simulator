@@ -5,7 +5,7 @@
 // value follows win impact, and the gap between them is the entire strategy —
 // but until now that gap was documented in DESIGN.md and nowhere in the product,
 // so a first-time player faced a $200 budget over 1,269 names with no idea that
-// a kicker is worth about a sixth of a quarterback.
+// a kicker is worth about a fifth of a quarterback.
 //
 // It is positional, never per player. Showing what an individual is worth would
 // hand over the answer and delete the auction; showing which positions the room
