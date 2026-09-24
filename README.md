@@ -67,6 +67,7 @@ npm run weather      # weather: whether a season with it averages what one witho
 npm run cap          # twenty-five seasons of pro leagues: whether the cap still binds as the all-time greats retire
 npm run schemes      # whether a coordinator's scheme would re-sort who is good among starters
 npm run passrate     # what the pass/run dial is worth: to the AI clubs (ai) and to you, setting by setting against real opponents (read)
+npm run dials        # the other four dials, measured the same way: aggression, tempo, blitz, deep coverage
 npm run leverage     # re-measure what each position is worth, the table the auction economy rests on
 npm run fingerprint  # hash 232 simulated games play-for-play; diff before and after a refactor
 npm run report       # top and bottom of every position, multi-season players, era balance

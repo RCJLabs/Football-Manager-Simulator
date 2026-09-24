@@ -43,12 +43,14 @@
 // gm.js walks those down by midseason anyway. Starting them on the read is a
 // possible change to the AI, not made here.
 //
-// The other four dials were measured the same way and do not behave like this.
-// Driven end to end on rosters built to want each end, blitz came back at
-// -0.58 ± 0.42, the deep shell at -0.44 ± 0.43 and tempo at +0.17 ± 0.36 —
-// flat either way. Aggression is worth +1.40 ± 0.38 with a strong offence and a
-// poor kicker and nothing otherwise, so it helps sometimes and never hurts.
-// Only the pass/run balance is a decision, which is why only it gets a read.
+// The other four dials were re-measured the same way against real leagues'
+// clubs once this read turned out stale (`npm run dials`), and none of them
+// depends on the roster the way the pass/run balance does, so none gets a
+// read. Fourth-down aggression at the top of the dial is worth +1.19 to +1.25 a
+// game for every kind of squad; blitzing least +0.31 to +0.48; the deepest
+// shell +0.33 to +0.47; tempo nothing either way. The first measurement, on 19
+// September and on identical rosters, had aggression helping only a strong
+// offence with a poor kicker and the other three flat.
 //
 // Why this exists at all: every AI personality drafts and calls plays to match
 // — Air Raid buys quarterbacks and receivers and throws at 0.66, Ground & Pound

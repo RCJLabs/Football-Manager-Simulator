@@ -226,6 +226,14 @@ const CHECKS = [
     why: 'the read this replaced was measured once at +0.98 and went stale behind a dozen engine changes, to -0.16, because its test pinned the formula to the table it came from rather than to the engine. This plays it: eight eight-club leagues, 150 games a club at each setting, about ninety seconds. Half that sample was tried first and could not tell the two reads apart (+0.86 against +0.27). On these games the stale read scores +0.04; a band rather than tol 0 because any engine change moves a deterministic figure a little',
   },
   {
+    name: 'fourth-down aggression still pays at the top of the dial',
+    cost: 'slow',
+    script: 'dials', args: ['aggression', '4', '100', '8', '41'], extract: /every club at 1: ([+-]?[\d.]+)/,
+    doc: /The audit replays aggression on four of those leagues[^+]*\+([\d.]+)/,
+    expect: 1.23, tol: 0.5,
+    why: 'the team page tells the player that going for it more is worth about a point and a quarter a game. The first measurement had it helping only a strong offence with a poor kicker; a dozen engine changes later it helps every squad, and nothing had measured it again. About twenty-five seconds; a band because any engine change moves a deterministic figure a little',
+  },
+  {
     name: 'the game still looks like football',
     cost: 'slow',
     script: 'realism', extract: /(none|\d+) of 44 wholly outside/,

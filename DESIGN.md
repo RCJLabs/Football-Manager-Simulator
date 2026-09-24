@@ -4083,6 +4083,19 @@ Blitz and the deep shell were then given their own pass, and the answer was no. 
 
 The conclusion is that `chooseDefense` already adjusts for down, distance, score and clock, and the slider is a small global bias on top of logic that is doing the real work. The retune was reverted in full; the game fingerprint was unchanged at `a9480bd47f40cac9` (it has since moved to `e27d59dbc5d3340e` for the `teamPower` reweight below, which changes win-probability annotations and no play). `scripts/defense-tune.mjs` is the harness, kept so the next person does not have to rediscover any of it. A note on method: the first three rounds of that tuning were run against game margin, which carries a standard deviation of 13 points and leaves ±0.55 at 500 games — wider than the effect being tuned. They were three rounds of chasing noise. Points and yards allowed, taken paired and per play, land inside ±0.1 and are what the harness reports.
 
+#### Re-measured against real leagues (`npm run dials`)
+
+The table above was measured on 19 September on identical rosters, in the same pass as the pass/run read that later turned out to have gone stale. Re-measured the way that read now is — every club played as the human's club (no plan, the default sliders, its pass rate on the read) at each setting of one dial, paired against the default, against its own league's AI clubs:
+
+| dial, against its default | eight-club leagues, 9,600 club-games | pro leagues, 12,800 | now |
+| --- | --- | --- | --- |
+| 4th-down aggression at 1.0 | +1.25 ± 0.11 | +1.19 ± 0.09 | helps every squad: +0.98 to +1.51 in every mix of strong or weak offence and good or poor kicker |
+| Blitz at 0.05 | +0.48 ± 0.15 | +0.31 ± 0.13 | less helps a little |
+| Deep coverage at its best | +0.47 ± 0.16 at 0.4 | +0.33 ± 0.15 at 0.6 | more helps a little |
+| Tempo at any setting | within ±0.2 | within ±0.2 | flat, for the strongest and weakest thirds alike |
+
+What moved the first three is not isolated: the same dozen play-model changes went by, and the method differs too (a league's clubs, with their plans, rather than identical rosters). The team page now files aggression, the blitz and the shell under dials that help and says by how much, and tempo alone under taste. One thing this leaves standing, and it is not fixed here: a dial that goes one way for every squad is a tax on anybody who does not know to max it — the objection this document makes about a monotone pass rate. Telling the player is the fix made; making fourth-down aggression a decision again would be a change to the AI's fourth-down logic. The audit replays aggression on four of those leagues, 100 games a club: +1.23 at the top of the dial, flagged if it leaves +0.73 to +1.73.
+
 Also measured and not built: the per-opponent game plan the audit proposed. `makeGameplan` already exists and every AI club gets one; it nudges the dials by ±0.06 to ±0.15 and fires in **16 of 1,500** even matchups because its thresholds need a composite gap over 5 or 8 points. Where it does fire it is worth +0.39 ± 0.41 points. The `planForUser` option that would extend it to the human has never been passed by anything, which is deliberate (see the game plan note above) and costs the player nothing measurable.
 
 ### The pass/run read (`strategy.js`)

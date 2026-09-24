@@ -47,7 +47,8 @@
     "weather": "node scripts/weather-sim.mjs",
     "cap": "node scripts/cap-drift.mjs",
     "schemes": "node scripts/scheme-fit.mjs",
-    "passrate": "node scripts/pass-rate.mjs"
+    "passrate": "node scripts/pass-rate.mjs",
+    "dials": "node scripts/dials.mjs"
   },
   "engines": {
     "node": ">=20"

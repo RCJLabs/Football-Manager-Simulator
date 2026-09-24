@@ -21,13 +21,13 @@ const STRATEGY_FIELDS = [
   { key: 'passRate', label: 'Pass / run balance', lo: 'Run heavy', hi: 'Pass heavy', min: 0.35, max: 0.7, group: 'decides' },
   { key: 'aggression', label: '4th-down aggression', lo: 'Conservative', hi: 'Go for it', min: 0, max: 1, group: 'helps' },
   { key: 'tempo', label: 'Tempo', lo: 'Slow', hi: 'Fast', min: 0, max: 1, group: 'flat' },
-  { key: 'blitzRate', label: 'Blitz frequency', lo: 'Rarely', hi: 'Often', min: 0.05, max: 0.6, group: 'flat' },
-  { key: 'deepShell', label: 'Deep coverage', lo: 'Aggressive', hi: 'Prevent', min: 0, max: 0.6, group: 'flat' },
+  { key: 'blitzRate', label: 'Blitz frequency', lo: 'Rarely', hi: 'Often', min: 0.05, max: 0.6, group: 'helps' },
+  { key: 'deepShell', label: 'Deep coverage', lo: 'Aggressive', hi: 'Prevent', min: 0, max: 0.6, group: 'helps' },
 ];
 
 const GROUP_NOTES = {
-  helps: 'Going for it more pays off with a strong offence and a poor kicker, and costs little otherwise.',
-  flat: 'These three change how a game looks more than who wins it, and measuring them says why. Pace really does favour the better side — but the clubs here finish within about a point of each other, less than home advantage, so there is no edge to press. Blitzing buys pressure and sells coverage, and a deep shell does the reverse; both come out about even at any setting. Set them to taste.',
+  helps: 'Measured against the clubs you play, each of these leans one way for every kind of squad. Going for it on fourth down more is worth about a point and a quarter a game at the top of the dial against where it starts. Blitzing less and sitting deeper in coverage each win a little: up to about half a point a game at the far end.',
+  flat: 'Pace changes how a game looks more than who wins it. At every setting it comes out within about a third of a point of the default, for strong squads and weak ones alike, so set it to taste.',
 };
 
 /**
