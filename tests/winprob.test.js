@@ -144,7 +144,9 @@ test('a giveaway costs the same wherever it happens, which is the curve being st
   for (const x of [10, 20, 30, 40, 50, 60, 70, 80, 90]) {
     assert.ok(Math.abs(swing(x) - atMidfield) < 1e-9, `the swing moved at the ${x}: ${swing(x)} against ${atMidfield}`);
   }
-  assert.ok(atMidfield > 4.5 && atMidfield < 5.5, `a giveaway is worth ${atMidfield.toFixed(2)} points`);
+  // 4.44 on the curve refitted when the drive model was held to real
+  // play-by-play, from 4.74; real expected-points models put it near 4.
+  assert.ok(atMidfield > 4.0 && atMidfield < 5.5, `a giveaway is worth ${atMidfield.toFixed(2)} points`);
 });
 
 test('EP_PER_YARD prices field position and nothing else', () => {

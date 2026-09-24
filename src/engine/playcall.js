@@ -113,6 +113,19 @@ export function fgDistance(ballOn) {
   return 100 - ballOn + 17;
 }
 
+// Real make rates by distance, 2022-23: 96% from 30 to 34 yards, 84 from 40
+// to 44, 74 from 50 to 54, 62 from 55 to 59, 45 past 60. The curve here was a
+// logistic that matched them to forty-five and then fell off a cliff, 34% at
+// fifty-five, so a club at the opponent's thirty-five punted where real ones
+// kick. A logistic cannot hold both ends, so the table is the real one, read at
+// the distance shifted by the kicker's leg and accuracy, as the old midpoint was.
+const FG_AT = [18, 27, 32, 37, 42, 47, 52, 57, 62, 67];
+const FG_MAKE = [0.99, 0.98, 0.96, 0.91, 0.84, 0.77, 0.73, 0.62, 0.45, 0.25];
+function kickEdge(kicker, weather) {
+  const kac = kicker ? kicker.r.kac : 75;
+  const kpw = kicker ? kicker.r.kpw : 75;
+  return (kac - 82) * 0.25 + (kpw - 82) * 0.35 + fgShift(weather, kpw);
+}
 /**
  * Kicker make probability for a given distance. `weather` moves his range —
  * wind and cold shorten it, less for a big leg; altitude lengthens it — and it
@@ -120,16 +133,16 @@ export function fgDistance(ballOn) {
  * to kick sees the same sky the kick is taken under.
  */
 export function fgProbability(kicker, dist, weather = null) {
-  const kac = kicker ? kicker.r.kac : 75;
-  const kpw = kicker ? kicker.r.kpw : 75;
-  const mid = 51 + (kac - 80) * 0.25 + (kpw - 80) * 0.35 + fgShift(weather, kpw);
-  return 0.985 / (1 + Math.exp((dist - mid) / 4.5));
+  const d = dist - kickEdge(kicker, weather);
+  if (d <= FG_AT[0]) return FG_MAKE[0];
+  for (let i = 1; i < FG_AT.length; i++) {
+    if (d <= FG_AT[i]) return FG_MAKE[i - 1] + (FG_MAKE[i] - FG_MAKE[i - 1]) * (d - FG_AT[i - 1]) / (FG_AT[i] - FG_AT[i - 1]);
+  }
+  return Math.max(0.02, FG_MAKE[FG_MAKE.length - 1] - (d - FG_AT[FG_AT.length - 1]) * 0.04);
 }
 
 export function fgRange(kicker, weather = null) {
-  const kac = kicker ? kicker.r.kac : 75;
-  const kpw = kicker ? kicker.r.kpw : 75;
-  return Math.round(50 + (kac - 80) * 0.25 + (kpw - 80) * 0.35 + fgShift(weather, kpw) + 5); // ~roughly 45% make
+  return Math.round(62 + kickEdge(kicker, weather)); // where the table reads 45%
 }
 
 /**
@@ -151,6 +164,7 @@ export const TEMPOS = ['hurry', 'normal', 'kill'];
 export function isHurryUp(g, team) {
   const forced = g.tempo?.[team];
   if (forced) return forced === 'hurry';
+  if (playingForTheKick(g, team)) return false;
   const left = halfSecondsLeft(g);
   const diff = scoreDiff(g, team);
   // Same defect as the old timeout rule, in the same quarter: `diff <= 7` alone
@@ -174,6 +188,72 @@ export function isClockKill(g, team) {
 }
 
 /**
+ * Tied or a field goal down late, with a kick it should make: real clubs stop
+ * throwing, stop hurrying and run the clock down to the kick. On the last
+ * three minutes' drives of 2022 and 2023 a club tied tried the field goal 30%
+ * of the time and scored a touchdown never; this one tried it 22% and scored
+ * 11% (a field goal down, 32.5 and 8.5% against 24.7 and 14.1), still in the
+ * two-minute drill with the kick in hand. That is where the close finishes
+ * had gone: games decided by one to three points were 17.6% of results
+ * against a real 21.7, and overtime 4.2% against 6.1.
+ */
+export function playingForTheKick(g, team) {
+  if (g.possession !== team || g.quarter < 4) return false;
+  const diff = scoreDiff(g, team);
+  if (diff > 0 || diff < -3 || halfSecondsLeft(g) > 150) return false;
+  return fgProbability(g.teams[team].comp.k, fgDistance(g.ballOn), g.weather) >= 0.7;
+}
+
+/**
+ * How likely a club is to throw, fitted on the log-odds scale to every snap of
+ * 2022 and 2023.
+ *
+ * It was the dial plus a flat step by down and distance, which was too flat
+ * at both ends: 54% passing on a neutral first and ten against a real 46; 70
+ * and 79% on third and three to six against 86 and 94; 38% on third and one
+ * against 23; half the time on first and goal from inside the three against
+ * a real 23. Overall 64% of snaps were dropbacks against 61. Now every cell
+ * below is the real neutral rate at the default dial, within a point or two:
+ * first three quarters, within a score, outside the two-minute warning.
+ *
+ * On the log-odds scale the dial mostly moves early downs, and a run-heavy
+ * club still throws on third and eight, as real ones do. The score counts in
+ * the fourth quarter and a little in the third (real clubs barely change
+ * before), capped at the two-score gap; the two-minute drill and the drive
+ * that kills the clock are fitted to the same snaps (DESIGN.md, "The drive
+ * model, held to real play-by-play").
+ */
+const logit = (p) => Math.log(p / (1 - p));
+const PASS_AT_DEFAULT = logit(0.48); // a neutral first and ten between the twenties, at the default dial
+export function passChance(g, team, strat, comp) {
+  const toGo = g.toGo, rem = 100 - g.ballOn, goal = g.ballOn + toGo >= 100;
+  const diff = scoreDiff(g, team);
+  let L = logit(clamp(strat.passRate, 0.05, 0.95)) - logit(DEFAULT_STRATEGY.passRate) + PASS_AT_DEFAULT;
+  if (g.down === 1) {
+    if (goal) L += rem <= 3 ? -1.15 : rem <= 7 ? -0.93 : -0.67;
+    else if (toGo > 10) L += 0.79;
+    else if (g.ballOn <= 10) L -= 0.51;
+    else if (g.ballOn >= 80) L -= 0.40;
+  } else if (g.down === 2) L += toGo <= 3 ? -0.70 : toGo <= 6 ? 0.07 : toGo <= 10 ? 0.68 : 1.54;
+  else if (g.down === 3) L += toGo <= 1 ? -1.14 : toGo <= 2 ? 0.52 : toGo <= 4 ? 1.88 : toGo <= 6 ? 2.76 : toGo <= 9 ? 3.67 : 2.94;
+  else L += toGo <= 1 ? -0.99 : 1.53;
+  const perPoint = g.quarter >= 4 ? 0.07 : g.quarter === 3 ? 0.015 : 0;
+  L += clamp(-diff * perPoint, -1.2, 1.2);
+  if (isHurryUp(g, team)) L += 1.4;
+  if (isClockKill(g, team)) L -= 1.3;
+  if (playingForTheKick(g, team)) L -= 2.2;
+  // Team-fit: elite RB vs weak QB nudges to the run. Gently: at /200 (on the
+  // probability) a back eight points better took 2.3 more carries a game, and
+  // a point of a back's rating moved his carries 2.6 times as far as the real
+  // game's (DESIGN.md, "Backs, receivers and tight ends, held to real
+  // seasons"). /250 here is the same /1000 on the probability at even odds.
+  const rbOvr = comp.rb1 ? (comp.rb1.r.spd + comp.rb1.r.elu + comp.rb1.r.pow + comp.rb1.r.awr) / 4 : 75;
+  const qbOvr = comp.qb ? (comp.qb.r.tha + comp.qb.r.awr) / 2 : 75;
+  L += (qbOvr - rbOvr) / 250;
+  return clamp(1 / (1 + Math.exp(-L)), 0.03, 0.99);
+}
+
+/**
  * Choose an offensive play. Returns an OFFENSE_CALLS key.
  */
 export function chooseOffense(g, rng) {
@@ -189,47 +269,34 @@ export function chooseOffense(g, rng) {
   // Victory formation.
   if (g.quarter >= 4 && diff > 0 && oppTimeouts === 0 && g.clock <= (4 - g.down + 1) * 40 - 2) return 'kneel';
   if (g.quarter >= 4 && diff > 0 && g.clock <= 40 && g.down <= 3) return 'kneel';
-  if (g.quarter === 2 && g.ballOn < 30 && g.clock <= 25 && g.down >= 2 && diff >= 0) return 'kneel';
+  // The ball deep with the first half nearly gone: a third of real first
+  // halves end on a knee (2022-23). This asked for second down and a lead, so
+  // 11% did and the rest ran plays into the half.
+  if (g.quarter === 2 && g.ballOn < 30 && g.clock <= 25 && diff >= -7) return 'kneel';
 
   // Spike to stop the clock when trailing and no timeouts.
   if (g.clockRunning && left <= 45 && diff < 0 && g.timeouts[team] === 0 && g.down <= 2 && g.quarter >= 4) return 'spike';
+  // And before the half, in range with none left, whatever the score.
+  if (g.clockRunning && g.quarter === 2 && left <= 30 && left > 8 && g.timeouts[team] === 0 && g.down <= 3 && fgDistance(g.ballOn) <= fgRange(comp.k, g.weather) + 4) return 'spike';
 
   if (g.down === 4) {
     const dec = fourthDownDecision(g, rng);
     if (dec !== 'go') return dec;
   }
 
-  // Last-second field goal when clock is about to expire.
-  if (left <= 8 && fgDistance(g.ballOn) <= fgRange(comp.k, g.weather) + 4 && diff <= 0 && (g.quarter === 2 || g.quarter >= 4)) {
-    if (g.quarter === 2 || diff >= -3) return 'fg';
-  }
+  // Last-second field goal when clock is about to expire. Before the half the
+  // score does not come into it. It used to need a tie or a deficit, so 15% of
+  // first halves ended on an ordinary play inside the opponent's thirty-eight,
+  // two in three of them with the club ahead, where the real figure is 4%.
+  if (g.quarter === 2 && left <= 8 && fgDistance(g.ballOn) <= fgRange(comp.k, g.weather) + 4) return 'fg';
+  if (g.quarter >= 4 && left <= 8 && diff <= 0 && diff >= -3 && fgDistance(g.ballOn) <= fgRange(comp.k, g.weather) + 4) return 'fg';
   if (g.quarter >= 4 && left <= 5 && diff >= -2 && diff <= 0 && fgDistance(g.ballOn) <= fgRange(comp.k, g.weather) + 6) return 'fg';
 
-  // Base pass probability.
-  let pass = strat.passRate;
   const toGo = g.toGo;
-  if (g.down === 1) pass += 0;
-  else if (g.down === 2) pass += toGo >= 8 ? 0.15 : toGo <= 3 ? -0.15 : 0.05;
-  else if (g.down === 3) pass += toGo >= 7 ? 0.38 : toGo >= 4 ? 0.25 : toGo >= 2 ? 0.05 : -0.15;
-  else pass += toGo >= 4 ? 0.4 : -0.1;
-
-  if (g.ballOn >= 96) pass -= 0.15; // goal line
-  if (isHurryUp(g, team)) pass += 0.35;
-  if (isClockKill(g, team)) pass -= 0.3;
-  if (g.quarter >= 4 && diff <= -14) pass += 0.2;
-  if (g.quarter >= 3 && diff >= 17) pass -= 0.15;
-  // Team-fit: elite RB vs weak QB nudges to the run. Gently: at /200 a back
-  // eight points better took 2.3 more carries a game, and a point of a back's
-  // rating moved his carries 2.6 times as far as the real game's (DESIGN.md,
-  // "Backs, receivers and tight ends, held to real seasons").
-  const rbOvr = comp.rb1 ? (comp.rb1.r.spd + comp.rb1.r.elu + comp.rb1.r.pow + comp.rb1.r.awr) / 4 : 75;
-  const qbOvr = comp.qb ? (comp.qb.r.tha + comp.qb.r.awr) / 2 : 75;
-  pass += (qbOvr - rbOvr) / 1000;
-  pass = Math.min(0.95, Math.max(0.1, pass));
-
-  if (rng.chance(pass)) {
-    // Pick pass depth.
-    let w = { screen: 9, pass_short: 48, pass_med: 26, pass_deep: 10, pa_pass: 7 };
+  if (rng.chance(passChance(g, team, strat, comp))) {
+    // Pick pass depth. Screens and deep shots up, the intermediate throw down,
+    // when the calls' depths were fitted to real attempts (plays.js, airYards).
+    let w = { screen: 12, pass_short: 48, pass_med: 20, pass_deep: 12.5, pa_pass: 7 };
     if (toGo <= 3) { w.pass_short += 15; w.pass_deep -= 6; w.pa_pass += 3; }
     if (toGo >= 10) { w.pass_med += 10; w.pass_deep += 5; w.screen += 4; }
     if (g.down === 1) { w.pa_pass += 8; w.pass_deep += 4; }
@@ -285,7 +352,7 @@ export function fourthDownDecision(g, rng) {
   if (g.quarter === 2 && left <= 30 && longRange) return 'fg';
 
   // Everything else is an expected-points question, answered as one.
-  return byExpectedPoints(g, comp, dist, makeP, aggr);
+  return byExpectedPoints(g, comp, dist, makeP, aggr, rng);
 }
 
 /**
@@ -301,15 +368,37 @@ export function convertChance(toGo, comp, def) {
 }
 
 /**
- * How much better going for it has to look before a coach takes it.
+ * How much better going for it has to look before a coach takes it, by where
+ * the ball is.
  *
  * Expected points alone produces a bot, and a bot goes for it far more than
  * anybody actually does — straight arithmetic gave 2.9 attempts a game and
  * half a field goal, which is not a football match. Real coaches are more
- * conservative than the maths, consistently and by a known margin, and this is
- * that margin. Aggression moves it: a gambler needs less convincing.
+ * conservative than the maths. The margin was one number, 1.15 points, and one
+ * number is wrong at both ends: held to every fourth down of 2022 and 2023 in
+ * a neutral game, it went for it on every fourth and one in its own half,
+ * where real coaches do 22 to 58% of the time, and on no fourth and two or
+ * more anywhere, where real coaches go 55 to 59% of the time from the
+ * opponent's thirty-one to fifty.
+ *
+ * Real coaches fear the short field they hand over from their own end far more
+ * than the arithmetic does, and ask almost nothing extra in the no man's land
+ * between the opponent's forty and thirty. Fitted to those decisions, valued by
+ * this engine's own expected points, the margin is the line through these
+ * points, and a coach's call scatters around it by `FOURTH_DOWN_SPREAD` rather
+ * than switching at it. Aggression still moves it: a gambler needs less
+ * convincing.
  */
-export const RISK_AVERSION = 1.15;
+const FOURTH_DOWN_AT = [10, 40, 50, 65, 80, 95];       // own yard line
+const FOURTH_DOWN_BAR = [1.68, 1.20, 0.62, -0.08, 0.52, 0.90];
+const FOURTH_DOWN_SPREAD = 0.27;
+export function fourthDownBar(ballOn) {
+  const b = clamp(ballOn, FOURTH_DOWN_AT[0], FOURTH_DOWN_AT[FOURTH_DOWN_AT.length - 1]);
+  for (let i = 1; i < FOURTH_DOWN_AT.length; i++) {
+    if (b <= FOURTH_DOWN_AT[i]) return FOURTH_DOWN_BAR[i - 1] + (FOURTH_DOWN_BAR[i] - FOURTH_DOWN_BAR[i - 1]) * (b - FOURTH_DOWN_AT[i - 1]) / (FOURTH_DOWN_AT[i] - FOURTH_DOWN_AT[i - 1]);
+  }
+  return FOURTH_DOWN_BAR[FOURTH_DOWN_BAR.length - 1];
+}
 
 /**
  * Fourth down as arithmetic rather than a chart of thresholds.
@@ -328,7 +417,7 @@ export const RISK_AVERSION = 1.15;
  * is one. That also gives the dial two ends: the audit found it helped a
  * strong offence and did nothing otherwise, because the thresholds rarely bound.
  */
-export function byExpectedPoints(g, comp, dist, makeP, aggr) {
+export function byExpectedPoints(g, comp, dist, makeP, aggr, rng = null) {
   const off = g.possession;
   const def = g.teams[1 - off].comp;
   const ep = (spot) => expectedPoints(clamp(spot, 1, 99), 1, 10);
@@ -339,7 +428,7 @@ export function byExpectedPoints(g, comp, dist, makeP, aggr) {
   const goValue = p * ep(Math.min(99, g.ballOn + g.toGo)) + (1 - p) * theirs(g.ballOn);
 
   // A kickoff hands them the ball around their own 25.
-  const fgValue = dist <= 63
+  const fgValue = dist <= 66
     ? makeP * (3 - ep(25)) + (1 - makeP) * theirs(Math.max(20, g.ballOn - 7))
     : -Infinity;
 
@@ -348,9 +437,10 @@ export function byExpectedPoints(g, comp, dist, makeP, aggr) {
   const puntValue = g.ballOn > 95 ? -Infinity : theirs(Math.min(99, Math.max(g.ballOn + 20, g.ballOn + puntNet)));
 
   // What a coach needs before he takes it, less the nerve he happens to have.
-  const bar = RISK_AVERSION - (aggr - 0.4) * 1.4;
+  const bar = fourthDownBar(g.ballOn) - (aggr - 0.4) * 1.4;
   const kick = Math.max(fgValue, puntValue);
-  if (goValue - bar > kick) return 'go';
+  const edgeOver = goValue - kick - bar;
+  if (rng ? rng.chance(1 / (1 + Math.exp(-edgeOver / FOURTH_DOWN_SPREAD))) : edgeOver > 0) return 'go';
   return fgValue >= puntValue ? 'fg' : 'punt';
 }
 
@@ -401,8 +491,13 @@ export function tempoSeconds(g, team, rng) {
   const strat = g.teams[team].strategy;
   if (isHurryUp(g, team)) return rng.int(10, 17);
   if (isClockKill(g, team)) return rng.int(36, 40);
-  const base = 36 - (strat.tempo - 0.5) * 10; // faster tempo = fewer seconds
-  return Math.round(rng.normal(base, 3));
+  // 32 at the default tempo, from 36: snap to snap on a running clock was 39.6
+  // seconds against a real 35.7 in the first three quarters, which is where
+  // 3.4 of the 62 real scrimmage plays a club a game had gone.
+  const base = 32 - (strat.tempo - 0.5) * 10; // faster tempo = fewer seconds
+  const burn = Math.round(rng.normal(base, 3));
+  // Down to the last few seconds, and not past them, when the kick is the plan.
+  return playingForTheKick(g, team) ? Math.max(1, Math.min(burn, g.clock - 4)) : burn;
 }
 
 /**
@@ -429,7 +524,7 @@ export function wantsTimeout(g, team) {
   if (g.quarter === 2) return onOffense && left <= 90 && g.ballOn >= 45;
   if (g.quarter < 4) return false;
   if (g.quarter >= 5) return onOffense && left <= 60;
-  if (onOffense) return diff <= 0 && left <= 120;
+  if (onOffense) return diff <= 0 && left <= 120 && !playingForTheKick(g, team);
   // Defense: trailing, opponent running clock.
   return diff < 0 && diff >= -16 && left <= 180;
 }

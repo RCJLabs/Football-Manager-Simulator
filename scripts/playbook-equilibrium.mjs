@@ -35,10 +35,11 @@
  * `TURNOVER_YDS` IS THE SITUATIONAL PRICE, NOT THE POOLED ONE. `npm run turnover`
  * leads with a pooled figure across the whole down tree — 43 yards — and then
  * prints a by-situation table underneath. The grid takes every snap at first and
- * ten from the 25, and that row reads 58. Reading the headline instead of the
+ * ten from the 25, and that row reads 53. Reading the headline instead of the
  * row is an easy mistake and it prices a giveaway a quarter too cheap; it was
  * made while auditing this very file. The default was 56, which is the plain
- * first-down figure rather than this grid's; 58 is the one it needs.
+ * first-down figure rather than this grid's; 58 was the one it needed, and 53
+ * is once the drive model was held to real play-by-play.
  *
  * It is cached here rather than computed, because fitting it costs 60,000 snaps
  * of its own, so re-run `npm run turnover` and read the 1&10@25 row whenever
@@ -50,7 +51,10 @@
  * action 61%; at 43 that is 29/71 and 38/62; at 56, 36/64 and 36/64. Same two
  * live defensive calls, same two dead ones, deep ball out of the mix at every
  * price — which is why the 56-against-58 slip above changed nothing. Pass
- * another number to see for yourself.
+ * another number to see for yourself. On the drive model held to real
+ * play-by-play the defence is the same two and two at 40, 53 and 58; the
+ * offence's pass is the medium and deep throw rather than play action, which
+ * is as short now as real play action is.
  */
 import { syntheticTeam } from './synthetic.mjs';
 import { buildLineup } from '../src/engine/ratings.js';
@@ -59,7 +63,7 @@ import { CALL_GRID, DEFENSE_CALLS } from '../src/engine/playcall.js';
 
 const N = Number(process.argv[2] || 2500);
 // The 1&10@25 row of `npm run turnover`, not its pooled headline. See above.
-const TURNOVER_YDS = Number(process.argv[3] || 58);
+const TURNOVER_YDS = Number(process.argv[3] || 53);
 const OFF = Object.keys(CALL_GRID);
 const DEF = Object.keys(DEFENSE_CALLS);
 const A = syntheticTeam('alpha', 84, 3, 1);

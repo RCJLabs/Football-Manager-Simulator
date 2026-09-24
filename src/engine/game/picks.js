@@ -37,12 +37,18 @@ export function pickReceiver(g, rng, comp, call) {
   if (comp.rb1) { cands.push(comp.rb1); roles.push('RB1'); }
   if (comp.rb2) { cands.push(comp.rb2); roles.push('RB2'); }
   const roleBase = { WR1: 1.0, WR2: 0.8, WR3: 0.52, WR4: 0.14, TE: 0.78, RB1: 0.65, RB2: 0.16 };
+  // Who each concept is for. Re-routed when the calls' depths were fitted to
+  // real throws (airYards): a screen is now mostly behind the line, and at the
+  // old split receivers caught enough of them to lose half a yard a target
+  // while backs gained it. At these, target share, catch rate and yards a
+  // target by position are within a point of the real game's (2019-2023), bar
+  // receivers' yards a target, 7.8 against 8.0.
   const typeMult = {
-    screen:     { WR1: 0.8, WR2: 0.8, WR3: 0.7, WR4: 0.4, TE: 0.4, RB1: 3.0, RB2: 1.5 },
-    pass_short: { WR1: 1.0, WR2: 1.0, WR3: 1.1, WR4: 1.0, TE: 1.35, RB1: 1.4, RB2: 1.2 },
-    pass_med:   { WR1: 1.15, WR2: 1.1, WR3: 1.0, WR4: 1.0, TE: 1.0, RB1: 0.45, RB2: 0.4 },
-    pass_deep:  { WR1: 1.3, WR2: 1.25, WR3: 1.0, WR4: 0.9, TE: 0.55, RB1: 0.15, RB2: 0.1 },
-    pa_pass:    { WR1: 1.1, WR2: 1.1, WR3: 0.9, WR4: 0.8, TE: 1.35, RB1: 0.4, RB2: 0.3 },
+    screen:     { WR1: 0.5, WR2: 0.5, WR3: 0.5, WR4: 0.3, TE: 0.3, RB1: 3.2, RB2: 1.6 },
+    pass_short: { WR1: 0.95, WR2: 0.95, WR3: 1.1, WR4: 1.0, TE: 1.4, RB1: 1.3, RB2: 1.2 },
+    pass_med:   { WR1: 1.25, WR2: 1.2, WR3: 1.0, WR4: 1.0, TE: 1.25, RB1: 0.3, RB2: 0.25 },
+    pass_deep:  { WR1: 1.4, WR2: 1.35, WR3: 1.0, WR4: 0.9, TE: 0.65, RB1: 0.1, RB2: 0.05 },
+    pa_pass:    { WR1: 1.1, WR2: 1.1, WR3: 0.9, WR4: 0.8, TE: 1.5, RB1: 0.3, RB2: 0.3 },
   }[call] || {};
   const weights = cands.map((p, i) => {
     const role = roles[i];

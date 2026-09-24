@@ -51,7 +51,8 @@
     "dials": "node scripts/dials.mjs",
     "rushing": "node scripts/run-realism.mjs",
     "passing": "node scripts/pass-realism.mjs",
-    "receiving": "node scripts/skill-realism.mjs"
+    "receiving": "node scripts/skill-realism.mjs",
+    "drives": "node scripts/drive-realism.mjs"
   },
   "engines": {
     "node": ">=20"

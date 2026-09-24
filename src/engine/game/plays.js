@@ -55,19 +55,30 @@ const MATRIX = {
  * at the top of the dial. Paying the run properly is what gives that dial two
  * ends worth choosing between.
  */
-export const RUN_IN = 4.45;     // mean gain on an inside run that is not stuffed
-export const RUN_OUT = 4.2;     // the same outside, where the spread is wider
+//
+// The shape of a carry that is not stuffed: at least `RUN_FLOOR`, and an
+// exponential beyond it. It was a normal around 4.45 (4.2 outside), which put
+// the middle of the distribution where real carries are not: against every
+// designed run of 2022 and 2023, 16.9% of carries went for one or two yards
+// against a real 24.9 and 32.9% for five to nine against 23.8. Real gains
+// fall away from the first yard roughly geometrically; the tail past ten comes
+// from the breakaway below, not from a wide middle. Fitted bin by bin: every
+// band from a loss of three to twenty-plus now sits within half a point of the
+// real one, mean 4.26 against 4.29 (DESIGN.md, "The drive model, held to real
+// play-by-play").
+export const RUN_FLOOR = 1;     // a carry that is not stuffed gains at least this
+export const RUN_IN = 3.2;      // mean of the exponential beyond it, inside
+export const RUN_OUT = 3.6;     // the same outside, where the spread is wider
 // Scaled by the blocking edge. Set against the share of carries that gain
-// nothing or lose ground, which is 16 to 22% in the real league — the rate
-// itself is lower than that share, because the branch that is *not* stuffed
-// still produces the occasional nothing.
+// nothing or lose ground, which is 18.5% in the real league of 2022-23.
 // 0.145 before power began resisting the stuff, then 0.1415, and 0.1370 once
 // the linebacker and defensive-line weights were refitted toward what the field
-// measures — a front that fits the run better stops more runs behind it, which
-// pushed the share back to 22.2 against a real ceiling of 22. Mean run holds at
-// 4.51 against a 4.2-4.6 range, so this buys the share without softening the
-// ground game.
+// measures. Unchanged by the new shape: the not-stuffed branch no longer
+// produces the occasional nothing, so the share is now this branch's alone.
 export const STUFF_RATE = 0.1370;
+// What a stuffed carry loses: nothing half the time, a yard or two a third,
+// three or more the rest, as the real ones do (48, 35 and 17%).
+export const STUFF_LOSS = 1.9;
 
 /**
  * What a broken tackle and a breakaway are worth, and how often they happen.
@@ -131,13 +142,21 @@ export const STUFF_RATE = 0.1370;
 // ratings' own errors pull even a correct engine's slope under 1. That was
 // wrong: the engine knows only the ratings, so what it can be right about is
 // what a rating predicts, and an engine right about that has a slope of 1 by
-// construction. 0.16 is the weight that asks for it (DESIGN.md, "Backs,
-// receivers and tight ends, held to real seasons").
-export const CARRIER_WEIGHT = 0.16;
+// construction. 0.16 asked for it (DESIGN.md, "Backs, receivers and tight
+// ends, held to real seasons"), and 0.20 does on the exponential carry above,
+// whose body the carrier terms move less than they moved the old normal one:
+// at 0.16 the slope went to 1.23, at 0.19 1.07, at 0.22 0.90.
+export const CARRIER_WEIGHT = 0.20;
 export const BREAK_YDS_IN = 1.9;    // mean yards a broken tackle adds inside
 export const BREAK_YDS_OUT = 2.6;   // the same outside, where there is grass
-export const BREAKAWAY_RATE = 2.4;  // multiplier on the per-carry breakaway chance
-export const HOUSECALL = 0.12;      // share of breakaways that are the long one
+// The exponential body makes its own ten-yard carries, so the breakaway only
+// has to supply the tail past twenty: 1.68 (from 2.4). Real long runs finish:
+// from sixty yards out 18.6% of thirty-yard carries score, where a long one
+// that always stopped short scored 8%. So a third of breakaways are the long
+// one, and a tenth of those go the distance.
+export const BREAKAWAY_RATE = 1.68; // multiplier on the per-carry breakaway chance
+export const HOUSECALL = 0.3;       // share of breakaways that are the long one
+export const HOUSECALL_SCORES = 0.1; // share of long ones that go the distance
 
 export const PUNT_GROSS = 45;
 
@@ -156,31 +175,28 @@ export function squeeze(ballOn) {
 }
 
 /**
- * How hard the defence plays the first-down marker: 0 on early downs and in
- * short yardage, 1 on third or fourth and long.
+ * How much of a passing down it is: 0 on early downs and third and short, 1 on
+ * third or fourth and seven or more.
  *
- * Nothing in the passing game read `toGo` at all, so a throw on third and nine
- * was resolved exactly like one on first and ten and the receiver ran after
- * the catch as if the sticks were not there. That showed up as a defence that
- * could not get off the field: third down converted 43.9% against a real 39,
- * and the gap widened with distance — 43% from third and seven to nine against
- * a real 32. The offence gained *more* on third down than on first, 6.27 yards
- * against 6.18, where real football has third down as the hardest down by more
- * than a yard.
- *
- * The yards it takes away are subtracted rather than scaled, and that is the
- * whole trick. Scaling multiplies the tail along with the mean, so a version
- * that multiplied cost 0.18 explosive plays a team and undid a row fixed the
- * commit before. Taking a fixed number of yards off instead kills the
- * three-yard checkdown that moves the chains and leaves the twenty-five-yard
- * catch a twenty-yard catch: the conversion goes, the big play stays.
+ * Third and long used to be hard because the defence took seven yards off
+ * every catch (`STICKS_YAC`). That got the conversion rate right by the wrong
+ * road: yards after the catch on third and seven or more came to 1.9 against a
+ * real 5.2, which is the same as on any other down. What the real game does
+ * instead is get to the passer. Sacks run 5.2% of dropbacks on first and ten
+ * and 10.5 to 11.3% on third and five or more, where the rush pins its ears
+ * back and the ball has to go past the marker; and a throw past the marker is
+ * a deeper throw, which completes less often (`compAt`). Both are here now and
+ * the subtraction is gone: third and seven to nine converts 32.4% against a
+ * real 32.8 with the catch running as far as it does on first down.
  */
-export function sticks(down, toGo) {
-  return down >= 3 ? clamp((toGo - 3) / 7, 0, 1) : 0;
+export function passingDown(down, toGo) {
+  return down >= 3 ? clamp((toGo - 2) / 5, 0, 1) : 0;
 }
-
-/** Yards after the catch the defence takes away when it is fully playing the sticks. */
-export const STICKS_YAC = 7.0;
+/** Pressure and sacks on a full passing down, as a share more than on first and ten. */
+const PASSING_DOWN_PRESSURE = 0.15;
+const PASSING_DOWN_SACK = 0.75;
+/** Sacks once pressured, against what they were: first and ten came to 6.6% against a real 5.2. */
+const SACK_SCALE = 0.81;
 
 /** How much each pass concept suffers for it. A screen barely notices; a deep shot has nowhere to go. */
 const SQUEEZE_COMP = { screen: 0.4, pass_short: 0.6, pass_med: 1, pass_deep: 1.4, pa_pass: 0.9 };   // an average punter's leg, before the return
@@ -196,22 +212,31 @@ const SQUEEZE_COMP = { screen: 0.4, pass_short: 0.6, pass_med: 1, pass_deep: 1.4
  * from 1.45 to 1.58 and the ratio to 1.72, and cost nothing else: paired
  * against the same seeds, explosive plays and yards per completion did not
  * move outside the noise.
+ *
+ * All four at three fifths of that once the drive model was held to real
+ * play-by-play: with completions priced by depth, a red zone that also
+ * squeezed at full strength finished 52.8% of trips against a real 57, and
+ * touchdowns per field goal fell to 1.25 against a real 1.36.
  */
-export const SQUEEZE_STUFF = 0.11;  // added to the chance a run is stuffed
-export const SQUEEZE_RUN = 0.36;    // taken off a run that is not
-export const SQUEEZE_PASS = 0.18;   // taken off completion probability
-export const SQUEEZE_YAC = 0.58;    // taken off yards after the catch
+export const SQUEEZE_STUFF = 0.066;  // added to the chance a run is stuffed
+export const SQUEEZE_RUN = 0.216;    // taken off a run that is not
+export const SQUEEZE_PASS = 0.108;   // taken off completion probability
+export const SQUEEZE_YAC = 0.348;    // taken off yards after the catch
 
 /**
  * Chance a catch turns into a long gain, before the receiver's speed edge.
  *
- * Raised to pay back what `sticks` costs. Taking yards after the catch away on
- * third down removes explosive plays as well as conversions, because third and
- * long is where the deep ball lives; this buys them back somewhere that does
- * not also buy back the conversions, since a breakaway is rare and lands on
- * early downs as often as late.
+ * Raised once to pay back what the old third-down subtraction cost in
+ * explosive plays, and kept: yards after the catch by depth (`yacAt`) was
+ * fitted with it in place. What a breakaway is worth changed instead. It was a
+ * flat 15 to 45 extra yards, which bunched long completions at thirty to fifty
+ * and almost never finished them: from sixty yards out 1% of thirty-yard
+ * completions scored against a real 11.6. Real long catches either go the
+ * distance or stop well short, so three in ten now go the distance and the
+ * rest add 12 to 35.
  */
 export const PASS_BREAKAWAY = 0.0261;
+const BREAKAWAY_SCORES = 0.3;
 
 /**
  * How much a receiver's own ratings move a throw to him, and how much a ball
@@ -229,14 +254,49 @@ export const PASS_BREAKAWAY = 0.0261;
  *
  * Ball security moved a back's fumbles seven times as far a point as the real
  * game's, against a fixed 82 while the tackling that strips it read a fixed
- * 80. It reads one against the other now, at a fifth, and the base rate is the
- * real one: 0.77 fumbles a 100 touches for backs against a real 0.79.
+ * 80. It reads one against the other now, at a fifth.
+ *
+ * The base rates are the real ones by kind of touch, which the first fit had
+ * the wrong way round: it matched a back's fumbles per touch overall, 0.79 a
+ * hundred, with carries fumbling more than catches. Real carries fumble 0.69
+ * a hundred and lose 60% of them; real catches, by anyone, fumble 1.1 a
+ * hundred and lose 55%. Catches were fumbling at half the real rate, which is
+ * why a league lost 0.30 fumbles a team game against a real 0.48 away from
+ * the kicking game (nflverse, 2019-2023).
  */
 export const RECEIVER_WEIGHT = 0.8;
 export const AFTER_CATCH_WEIGHT = 0.3;
 export const BALL_SECURITY = 0.2;
-const RUN_FUMBLE = 0.0085;
-const CATCH_FUMBLE = 0.00525;
+const RUN_FUMBLE = 0.0070;
+const RUN_FUMBLE_LOST = 0.6;
+const CATCH_FUMBLE = 0.011;
+const CATCH_FUMBLE_LOST = 0.55;
+
+/**
+ * How far a turnover is run back.
+ *
+ * Both were short uniform draws, a few yards and never a score: 4% of
+ * interceptions went back for a touchdown against a real 9.8, and fumbles
+ * almost never. Real returns are a spike at nothing and a long tail. Of
+ * 2022-23 interceptions 37% were not returned at all and a tenth were
+ * returned for a touchdown; of lost fumbles 72% were dead where they lay and
+ * 7.5% were scored. Together that is about half a point a team game the
+ * engine had been leaving out.
+ */
+function fumbleReturn(rng, toGoal) {
+  if (rng.chance(0.70)) return 0;
+  if (rng.chance(0.05 / 0.30)) return toGoal;
+  return Math.round(rng.exp(9));
+}
+function interceptionReturn(rng, toGoal, picker, target) {
+  if (rng.chance(0.35)) return 0;
+  // The man who picked it off against the man he took it from. Not from deep
+  // in his own end zone, where a pick is nearly always a touchback.
+  if (toGoal < 95 && rng.chance(clamp(0.16 + ((picker.r.spd ?? 82) - (target.r.spd ?? 82)) * 0.01, 0.05, 0.3))) {
+    return rng.chance(0.7) ? toGoal : rng.int(Math.min(20, toGoal), Math.max(20, toGoal - 1));
+  }
+  return Math.round(rng.exp(14));
+}
 
 /**
  * How much a quarterback's own ratings move his throws, against the defence
@@ -273,6 +333,9 @@ export const POCKET_WEIGHT = 0.15;
 const PASSER_MIX = { tha: 0.53, awr: 0.47 };
 /** A sack once pressured, at the calibration level: the old fixed-centre terms' value at 82. */
 const SACK_BASE = 0.214;
+/** Mean scramble at the calibration level's mobility, and the share of pressured throws thrown away. */
+const SCRAMBLE_YDS = 6.8;
+const THROWAWAY = 0.2;
 
 /**
  * What the defence showed, when it is the reason the play went the way it did.
@@ -328,23 +391,64 @@ export function callVerb(call) {
  * meant this offence could not throw a checkdown at or behind the line of
  * scrimmage, which is a large share of real short passing. It goes to -1.
  *
- * Moved part of the way rather than all of it. The direction is solid — air was
- * about seventy per cent of a completion here against a bit over half in the
- * real game — but the exact targets are league averages held to a precision
- * this document cannot justify, so the numbers below aim for the shape and stop
- * short of claiming the destination.
+ * Moved part of the way then, and the rest of the way once the drive model was
+ * held to real play-by-play (DESIGN.md, "The drive model, held to real
+ * play-by-play"). What was still wrong was the spread, not the mean: real
+ * throws are 17.8% behind the line and 11.6% twenty yards or more downfield,
+ * where this engine threw 6.8 and 8.5 and filled the middle instead. Fitted to
+ * the seven depth bands of 2022-23 attempts with the calls in the proportion
+ * the play caller now picks them, every band is within a point and the mean is
+ * 7.8 yards against 7.78.
  */
 export function airYards(rng, call, qb, target, def) {
   switch (call) {
-    case 'screen': return clamp(rng.normal(0, 2.2), -4, 4);
-    case 'pass_short': return clamp(rng.normal(4.5, 2.6), -1, 11);
-    case 'pass_med': return clamp(rng.normal(11.8, 3.5), 7, 20);
+    case 'screen': return clamp(rng.normal(-2, 1.9), -8, 3);
+    case 'pass_short': return clamp(rng.normal(3.2, 3.5), -4, 11);
+    case 'pass_med': return clamp(rng.normal(11.8, 4.7), 5, 22);
     // The deep ball's length: the arm against how fast the secondary gets back.
     case 'pass_deep': return clamp(rng.normal(26.55 + (qb.r.thp - (def?.defSpeed ?? 82)) * 0.15 * PASSER_WEIGHT, 7), 17, 52);
-    case 'pa_pass': return clamp(rng.normal(13, 5.5), 3, 31);
+    case 'pa_pass': return clamp(rng.normal(7.6, 7.3), -3, 35);
     default: return 6;
   }
 }
+
+/** Linear between knots, flat beyond the ends. */
+function between(xs, ys, x) {
+  if (x <= xs[0]) return ys[0];
+  for (let i = 1; i < xs.length; i++) if (x <= xs[i]) return ys[i - 1] + (ys[i] - ys[i - 1]) * (x - xs[i - 1]) / (xs[i] - xs[i - 1]);
+  return ys[ys.length - 1];
+}
+
+/**
+ * How often a throw of this depth is caught, at the calibration level, before
+ * the matchup, the arm, pressure and the red zone.
+ *
+ * It was one rate per call, whatever the throw's length, so completions were
+ * as deep as attempts: 7.83 air yards a completion against a real 5.75, and
+ * 11.9 yards a completion against 10.9. Real completion falls with depth, from
+ * 78% behind the line to 29% past thirty yards, and that is why the air in a
+ * catch is shorter than the air in a throw. Fitted to 2022-23 targeted passes
+ * by depth band (throwaways are counted separately, below); every band within
+ * two points.
+ */
+const COMP_AT_AIR = [-5, 0, 5, 10, 15, 20, 25, 30, 40, 50];
+const COMP_AT = [0.855, 0.815, 0.77, 0.625, 0.59, 0.54, 0.43, 0.36, 0.28, 0.22];
+export const compAt = (air) => between(COMP_AT_AIR, COMP_AT, air);
+
+/**
+ * Mean yards after a catch of this depth, before the receiver against the
+ * tackling, the red zone and the breakaway.
+ *
+ * Real yards after the catch are U-shaped in depth: 9.2 behind the line,
+ * 3.4 at five to nine yards, 7.2 past thirty in the open field, where a
+ * receiver who has beaten the coverage has nobody left in front of him. It
+ * was one mean per call. Fitted to 2022-23 completions forty yards or more
+ * from the end zone, which is where the catch-and-run is not cut short by the
+ * goal line in either data set.
+ */
+const YAC_AT_AIR = [-5, -2, 0, 2, 5, 7, 10, 15, 20, 25, 35];
+const YAC_AT = [8.6, 7.6, 5.1, 4.0, 2.8, 2.0, 2.7, 3.1, 4.4, 6.0, 7.1];
+export const yacAt = (air) => between(YAC_AT_AIR, YAC_AT, air);
 
 export function yardsText(y) {
   if (y === 1) return '1 yard';
@@ -383,6 +487,7 @@ export function resolveRun(g, rng, call, defCall) {
   const k = CARRIER_WEIGHT;
   const blockEdge = edge(comp.runBlock + (vis - def.defAwr) * 0.4 * k, def.runStop, 11);
   let yards;
+  let gone = false; // a breakaway that goes the distance
   if (sneak) {
     yards = rng.chance(0.78 + (comp.runBlock - def.runStop) / 200) ? rng.int(1, 3) : rng.int(-1, 0);
   } else {
@@ -392,9 +497,9 @@ export function resolveRun(g, rng, call, defCall) {
     // which is why an eight-point lift in `pow` measured as worth nothing.
     const stuffP = clamp(STUFF_RATE * (1.6 - blockEdge * 1.2) - (pow - def.runStop) * 0.0055 * k + (m.stuff || 0) + squeeze(g.ballOn) * SQUEEZE_STUFF, 0.05, 0.45);
     if (rng.chance(stuffP)) {
-      yards = clamp(Math.round(rng.normal(-1, 1.4)), -5, 1);
+      yards = Math.max(-8, -Math.floor(rng.exp(STUFF_LOSS)));
     } else {
-      const base = outside ? rng.normal(RUN_OUT, 3.4) : rng.normal(RUN_IN, 2.7);
+      const base = RUN_FLOOR + rng.exp(outside ? RUN_OUT : RUN_IN);
       yards = (base + (blockEdge - 0.5) * 5 + (m.run || 0)) * (1 - squeeze(g.ballOn) * SQUEEZE_RUN);
       // Break a tackle: power and elusiveness against the men tackling.
       const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) * k / 115, 0.05, 0.45);
@@ -410,14 +515,16 @@ export function resolveRun(g, rng, call, defCall) {
       // all-time defence.
       const baP = clamp(BREAKAWAY_RATE * (0.014 + (Math.max(0, spd - def.defSpeed) + (elu - def.tackling) * 0.7) * k / 300 + (m.breakaway || 0) + (outside ? 0.01 : 0)), 0.004, 0.24);
       if (rng.chance(baP)) {
-        const burst = rng.chance(HOUSECALL) ? 30 + rng.exp(20) : rng.int(9, 26);
+        const long = rng.chance(HOUSECALL);
+        if (long && rng.chance(HOUSECALL_SCORES)) gone = true;
+        const burst = gone ? rem : long ? 30 + rng.exp(20) : rng.int(8, 26);
         yards += burst * (1 + Math.max(0, spd - def.defSpeed) * 0.03 * k);
       }
       yards = Math.round(yards);
     }
   }
   yards = Math.max(yards, -g.ballOn);
-  yards = Math.min(yards, rem);
+  yards = gone ? rem : Math.min(yards, rem);
   const td = yards >= rem;
 
   // Fumble: ball security against the tackling that tries to strip it.
@@ -426,7 +533,9 @@ export function resolveRun(g, rng, call, defCall) {
   const tackler = pickTackler(g, defT, 'run', rng);
   let text = `${shortName(carrier)} ${sneak ? 'sneaks' : outside ? 'runs outside' : 'runs inside'} for ${yardsText(yards)}`;
   text += defenceNote(defCall, 'run', { stuffed: yards <= 0, big: yards >= 12 });
-  const oob = outside ? rng.chance(0.25) : rng.chance(0.06);
+  // Real designed runs end out of bounds 5.5% of the time; it was 13%, a
+  // quarter of all outside runs, and every one of them stopped the clock.
+  const oob = outside ? rng.chance(0.10) : rng.chance(0.025);
   if (td) text += ` — TOUCHDOWN!`;
   else if (tackler) text += ` (${shortName(tackler)})`;
   st.rush.yds += yards;
@@ -435,7 +544,7 @@ export function resolveRun(g, rng, call, defCall) {
   if (tackler && !td) statFor(g.stats[defT], tackler.id).def.tkl++;
   g.stats[off].team.rushYds += yards;
   if (fumble) {
-    const lost = rng.chance(0.5);
+    const lost = rng.chance(RUN_FUMBLE_LOST);
     st.rush.fum++;
     if (tackler) statFor(g.stats[defT], tackler.id).def.ff++;
     text += `. FUMBLE`;
@@ -443,7 +552,7 @@ export function resolveRun(g, rng, call, defCall) {
       const recoverer = pickTackler(g, defT, 'run', rng);
       if (recoverer) statFor(g.stats[defT], recoverer.id).def.fr++;
       text += `, recovered by ${recoverer ? shortName(recoverer) : g.teams[defT].abbr}!`;
-      return { type: 'fumble', yards, elapsed: 6, clockStops: true, turnover: true, text, carrier, tackler, returnYds: rng.int(0, 6) };
+      return { type: 'fumble', yards, elapsed: 6, clockStops: true, turnover: true, text, carrier, tackler, returnYds: fumbleReturn(rng, clamp(g.ballOn + yards, 1, 99)) };
     }
     text += `, recovered by ${g.teams[off].abbr}.`;
   }
@@ -464,10 +573,12 @@ export function resolvePass(g, rng, call, defCall) {
   const rush = blitz ? def.blitzRush + 4 : def.passRush;
   const baseP = { screen: 0.13, pass_short: 0.22, pass_med: 0.27, pass_deep: 0.33, pa_pass: 0.29 }[call];
   // The line's awareness against the front's: picking up the stunt and the blitz.
-  const pressureP = clamp(baseP * (0.3 + edge(rush, comp.passBlock + (comp.olAwr - def.defAwr) * 0.2, 11) * 1.4) + (m.pressure || 0), 0.05, 0.7);
+  // A passing down gets the rush home more often (`passingDown`).
+  const passDown = passingDown(g.down, g.toGo);
+  const pressureP = clamp(baseP * (0.3 + edge(rush, comp.passBlock + (comp.olAwr - def.defAwr) * 0.2, 11) * 1.4) * (1 + PASSING_DOWN_PRESSURE * passDown) + (m.pressure || 0), 0.05, 0.7);
   const pressured = rng.chance(pressureP);
   if (pressured) {
-    const sackP = clamp(SACK_BASE - (qb.r.awr - def.defAwr) * 0.004 * POCKET_WEIGHT - comp.chem * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0), 0.08, 0.5);
+    const sackP = clamp((SACK_BASE - (qb.r.awr - def.defAwr) * 0.004 * POCKET_WEIGHT - comp.chem * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0)) * SACK_SCALE * (1 + PASSING_DOWN_SACK * passDown), 0.04, 0.6);
     if (rng.chance(sackP)) {
       const sacker = pickRusher(g, defT, blitz, rng);
       let yards = -rng.int(3, 10);
@@ -483,7 +594,7 @@ export function resolvePass(g, rng, call, defCall) {
         if (rng.chance(0.55)) {
           const rec = pickTackler(g, defT, 'run', rng);
           if (rec) statFor(g.stats[defT], rec.id).def.fr++;
-          return { type: 'fumble', yards, elapsed: 6, clockStops: true, turnover: true, returnYds: rng.int(0, 5), carrier: qb, sacker,
+          return { type: 'fumble', yards, elapsed: 6, clockStops: true, turnover: true, returnYds: fumbleReturn(rng, clamp(g.ballOn + yards, 1, 99)), carrier: qb, sacker,
             text: `${shortName(qb)} sacked by ${sacker ? shortName(sacker) : 'the defense'} for ${yardsText(yards)}. FUMBLE, recovered by ${rec ? shortName(rec) : g.teams[defT].abbr}!` };
         }
         return { type: 'sack', yards, elapsed: 6, clockStops: false, sacker,
@@ -495,7 +606,10 @@ export function resolvePass(g, rng, call, defCall) {
     // Scramble.
     const scrP = clamp((qb.r.mob - 55) / 120, 0.02, 0.4);
     if (rng.chance(scrP)) {
-      let yards = Math.round(rng.normal(3 + (qb.r.mob - 70) * 0.12, 5));
+      // Real scrambles average 7.3 yards and a quarter of them go ten or more:
+      // an exponential, as a carry is, where this was a normal around 4.4 at
+      // the calibration level.
+      let yards = Math.round(rng.exp(Math.max(1, SCRAMBLE_YDS + (qb.r.mob - 82) * 0.12)) + 0.5);
       // Never past his own goal line: a loss from inside the three is a safety
       // at the line, as a run is, not a spot a yard behind it.
       yards = clamp(yards, Math.max(-3, -g.ballOn), rem);
@@ -509,6 +623,17 @@ export function resolvePass(g, rng, call, defCall) {
       return { type: 'run', yards, td, oob, elapsed: rng.int(5, 8), clockStops: td || oob, carrier: qb, tackler,
         text: `${shortName(qb)} escapes pressure and scrambles for ${yardsText(yards)}${td ? ' — TOUCHDOWN!' : tackler ? ` (${shortName(tackler)}).` : '.'}` };
     }
+  }
+
+  // Throw it away: real passers put 4.0% of attempts where nobody can catch
+  // them, nearly all under pressure. Without it every attempt had a target,
+  // so a target could not be worth what a real one is (7.35 yards against
+  // 7.05 an attempt) with the attempt still right.
+  if (pressured && rng.chance(THROWAWAY)) {
+    st.pass.att++;
+    g.stats[off].team.passAtt++;
+    g.stats[off].team.throwaways++;
+    return { type: 'incomplete', yards: 0, elapsed: rng.int(4, 7), clockStops: true, pressured, text: `${shortName(qb)} throws it away under pressure.` };
   }
 
   // Throw.
@@ -527,13 +652,10 @@ export function resolvePass(g, rng, call, defCall) {
   const passer = qb.r.tha * PASSER_MIX.tha + qb.r.awr * PASSER_MIX.awr;
   // Chemistry reaches the passing game as timing with receivers he knows.
   const matchup = 0.6 * PASSER_WEIGHT * (passer - cov) + 0.4 * RECEIVER_WEIGHT * (tSkill - cov) + comp.chem - (pressured ? 9 : 0);
-  // `pass_short` completes more often than it used to because it IS shorter
-  // now: its air yards came down from a mean of 6 to 4.5 when the passing game
-  // was re-composed, and completion probability here is per call rather than
-  // per yard, so the rate has to move with it or the shorter throw is priced as
-  // though it were still the longer one.
-  const baseComp = { screen: 0.78, pass_short: 0.775, pass_med: 0.615, pass_deep: 0.416, pa_pass: 0.625 }[call];
-  let compP = baseComp + matchup * 0.008 + (m.comp || 0);
+  // How far the ball has to go decides how often it is caught (`compAt`), so
+  // the throw's length is drawn before the catch rather than after it.
+  const air = airYards(rng, call, qb, target, def);
+  let compP = compAt(air) + matchup * 0.008 + (m.comp || 0);
   if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003 * AFTER_CATCH_WEIGHT;
   // Arm strength, by how far the ball has to travel.
   //
@@ -577,16 +699,14 @@ export function resolvePass(g, rng, call, defCall) {
   if (g.quarter >= 4 && scoreDiff(g, off) < -8 && g.clock < 240) intP *= 1.25; // desperation
   intP = clamp(intP, 0.002, 0.2);
 
-  const air = airYards(rng, call, qb, target, def);
   if (rng.chance(intP)) {
     st.pass.int++;
     const picker = rng.chance(0.55) && prim ? prim : pickBallhawk(g, defT, rng);
     const ds = statFor(g.stats[defT], picker.id);
     ds.def.int++;
     const spotAir = Math.min(air, rem);
-    let ret = Math.max(0, Math.round(rng.exp(9)));
-    if (rng.chance(0.06 + Math.max(0, picker.r.spd - 90) * 0.01)) ret += rng.int(20, 60);
     const intSpot = g.ballOn + spotAir; // from offense perspective
+    const ret = interceptionReturn(rng, intSpot, picker, target);
     const defSpot = 100 - intSpot; // from defense perspective after catch
     const endSpot = defSpot + ret;
     return { type: 'int', yards: 0, elapsed: rng.int(6, 10), clockStops: true, turnover: true, interceptor: picker, target,
@@ -604,18 +724,17 @@ export function resolvePass(g, rng, call, defCall) {
     return { type: 'incomplete', yards: 0, elapsed: rng.int(4, 7), clockStops: true, text: txt, target, pressured, defender: prim };
   }
 
-  // Completion.
-  // Raised with the air yards above: the ball is caught shorter now, and the
-  // real game makes up the difference after the catch rather than before it.
-  const yacMean = { screen: 5.9, pass_short: 4.6, pass_med: 3.0, pass_deep: 3.4, pa_pass: 3.4 }[call] + (m.yac || 0);
+  // Completion. What it gains after the catch goes by where it was caught
+  // (`yacAt`), not by the call.
+  const yacMean = yacAt(air) + (m.yac || 0);
   const rac = target.r.rac ?? (target.r.elu ? (target.r.elu * 0.6 + target.r.pow * 0.4) : 70);
   let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09 * AFTER_CATCH_WEIGHT)) * (1 - squeeze(g.ballOn) * SQUEEZE_YAC);
-  yac = Math.max(0, yac - sticks(g.down, g.toGo) * STICKS_YAC);
   const baP = clamp(PASS_BREAKAWAY + Math.max(0, (target.r.spd ?? 80) - def.defSpeed) / 300 * AFTER_CATCH_WEIGHT + (call === 'screen' ? 0.015 : 0), 0.004, 0.15);
-  if (rng.chance(baP)) yac += rng.int(15, 45);
+  let gone = false;
+  if (rng.chance(baP)) { if (rng.chance(BREAKAWAY_SCORES)) gone = true; else yac += rng.int(12, 35); }
   let yards = Math.round(air + yac);
   yards = Math.max(yards, -g.ballOn + 1);
-  yards = Math.min(yards, rem);
+  yards = gone ? rem : Math.min(yards, rem);
   const td = yards >= rem;
   st.pass.cmp++; st.pass.yds += yards; st.pass.lng = Math.max(st.pass.lng, yards);
   ts.rec.rec++; ts.rec.yds += yards; ts.rec.lng = Math.max(ts.rec.lng, yards);
@@ -634,10 +753,10 @@ export function resolvePass(g, rng, call, defCall) {
   if (!td && rng.chance(CATCH_FUMBLE * (1 + (def.tackling - (target.r.car ?? 82)) * BALL_SECURITY / 22) * fumbleFactor(g.weather))) {
     ts.rush.fum++;
     if (tackler) statFor(g.stats[defT], tackler.id).def.ff++;
-    if (rng.chance(0.5)) {
+    if (rng.chance(CATCH_FUMBLE_LOST)) {
       const rec = pickTackler(g, defT, 'run', rng);
       if (rec) statFor(g.stats[defT], rec.id).def.fr++;
-      return { type: 'fumble', yards, elapsed: 7, clockStops: true, turnover: true, returnYds: rng.int(0, 8), target, tackler, pressured,
+      return { type: 'fumble', yards, elapsed: 7, clockStops: true, turnover: true, returnYds: fumbleReturn(rng, clamp(g.ballOn + yards, 1, 99)), target, tackler, pressured,
         text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}. FUMBLE, recovered by ${rec ? shortName(rec) : g.teams[defT].abbr}!` };
     }
     return { type: 'pass', yards, elapsed: 7, clockStops: false, target, tackler, pressured, defender: prim,
@@ -676,28 +795,44 @@ export function resolvePunt(g, rng) {
     return { type: 'punt', yards: -loss, elapsed: 5, clockStops: true, puntBlocked: true, text: `${name} punt is BLOCKED!` };
   }
   let dist = rng.normal(PUNT_GROSS + (ppw - 75) * 0.4 + puntShift(g.weather), 6);
-  // Pooch when close.
-  if (rem < 55) dist = Math.min(dist, rem - rng.int(0, 6) - (100 - pac) / 8);
+  // Pooch when close: aim to land it inside the ten. It used to land it at the
+  // two to eight every time, so from the opponent's forty-one to fifty 95% of
+  // punts were downed inside the ten and none went into the end zone, where
+  // real punters put 41% inside the ten and 17% into it for a touchback
+  // (2022-23). A punt aimed at the eight, give or take eight yards, and one
+  // that lands inside the five rolling in three times in ten, is within a few
+  // points of the real split from anywhere inside the opponent's forty-five;
+  // a better placement man aims closer and misses by less.
+  const pooch = rem < 55;
+  if (pooch) dist = Math.min(dist, rem - rng.normal(8 - (pac - 82) * 0.1, Math.max(3, 8 - (pac - 82) * 0.1)));
   dist = clamp(Math.round(dist), 20, 75);
   let landing = g.ballOn + dist; // offense perspective
   const ps = p ? statFor(g.stats[off], p.id) : null;
+  if (pooch && landing < 100 && landing > 95 && rng.chance(0.3)) landing = 100;
+  if (pooch && landing >= 100) {
+    if (ps) { ps.p.yds += rem; ps.p.lng = Math.max(ps.p.lng, rem); }
+    return { type: 'punt', yards: 0, elapsed: 7, clockStops: true, puntTo: 20, text: `${name} punts ${rem} yards into the end zone. Touchback.` };
+  }
   if (landing >= 100) {
     // Touchback unless placement skill pins it.
     if (rng.chance(clamp((pac - 70) / 60, 0.05, 0.6)) && rem > 35) {
       landing = 100 - rng.int(1, 8);
     } else {
       if (ps) { ps.p.yds += rem; ps.p.lng = Math.max(ps.p.lng, rem); }
-      return { type: 'punt', yards: 0, elapsed: 6, clockStops: true, puntTo: 20, text: `${name} punts ${rem} yards into the end zone. Touchback.` };
+      return { type: 'punt', yards: 0, elapsed: 7, clockStops: true, puntTo: 20, text: `${name} punts ${rem} yards into the end zone. Touchback.` };
     }
   }
   let netTo = 100 - landing; // from receiving team's perspective (their own yard line)
   let ret = 0;
   const returner = pickReturner(g.teams[defT].comp);
-  const fairCatch = rng.chance(0.35 + (pac - 75) * 0.01) || netTo <= 10;
+  // Nobody runs back a pooch that comes down inside his own twenty.
+  const fairCatch = rng.chance(0.35 + (pac - 75) * 0.01) || netTo <= 10 || (pooch && netTo < 20);
   if (!fairCatch && netTo > 5) {
     const retSkill = returner ? returner.r.spd * 0.6 + (returner.r.elu ?? returner.r.rac ?? 75) * 0.4 : 80;
     ret = Math.max(0, Math.round(rng.exp(7 + (retSkill - 85) * 0.1)));
-    if (rng.chance(0.012)) ret += rng.int(20, 60);
+    // A return that breaks free usually finishes: real punt and kick returns
+    // score 0.025 times a team game, which the flat 20 to 60 never did.
+    if (rng.chance(0.012)) ret += rng.chance(0.45) ? 100 : rng.int(20, 60);
     if (returner) { const rs = statFor(g.stats[defT], returner.id); rs.ret.pr++; rs.ret.prYds += Math.min(ret, 100 - netTo); }
   }
   let finalTo = netTo + ret;
@@ -719,5 +854,6 @@ export function resolvePunt(g, rng) {
   }
   finalTo = clamp(finalTo, 1, 99);
   const text = `${name} punts ${dist} yards${fairCatch ? ', fair catch' : ret ? `, returned ${ret} yards` : ''}${netTo <= 20 && !ret ? ' — inside the 20' : ''}.${retFlag}`;
-  return { type: 'punt', yards: 0, elapsed: fairCatch ? 5 : rng.int(6, 10), clockStops: true, puntTo: finalTo, returner: ret ? returner : null, flag: !!retFlag, text };
+  // A punt takes 9.4 seconds of the real clock, the flight and the return.
+  return { type: 'punt', yards: 0, elapsed: fairCatch ? 7 : rng.int(9, 14), clockStops: true, puntTo: finalTo, returner: ret ? returner : null, flag: !!retFlag, text };
 }

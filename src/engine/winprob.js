@@ -54,9 +54,14 @@ export function Phi(z) {
  * nearer 6.0 and 5.3, and moving it part of the way changed what a drive is
  * worth. 0.0539 to 0.0528, about a tenth of a point at midfield. Same loop,
  * same rule: re-run and ship the pass that has stopped moving.
+ *
+ * And again when the drive model was held to real play-by-play (DESIGN.md,
+ * "The drive model, held to real play-by-play"): 0.0528 and -0.269 to 0.0510
+ * and -0.350, then 0.0525 and -0.403 on the second pass, which is where it
+ * stopped: own twenty 0.65 points and midfield 2.22.
  */
-export const EP_PER_YARD = 0.0528;
-export const EP_AT_OWN_GOAL = -0.269;
+export const EP_PER_YARD = 0.0525;
+export const EP_AT_OWN_GOAL = -0.403;
 
 export function expectedPoints(ballOn, down = 1, toGo = 10) {
   let ep = ballOn * EP_PER_YARD + EP_AT_OWN_GOAL;

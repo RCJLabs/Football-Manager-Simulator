@@ -18,7 +18,7 @@ export function emptyTeamStats() {
     plays: 0, passAtt: 0, passCmp: 0, passYds: 0, rushAtt: 0, rushYds: 0, totalYds: 0,
     firstDowns: 0, thirdAtt: 0, thirdConv: 0, fourthAtt: 0, fourthConv: 0,
     turnovers: 0, sacksAllowed: 0, top: 0, drives: 0, redZoneAtt: 0, redZoneTd: 0,
-    penalties: 0, penYds: 0, points: 0,
+    penalties: 0, penYds: 0, points: 0, throwaways: 0,
   };
 }
 

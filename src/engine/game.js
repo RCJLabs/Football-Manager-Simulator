@@ -9,7 +9,7 @@ import { rollPreSnap, rollHolding, rollDefensiveFoul, rollReturnFoul, walkOff, p
 import { winProbability, priorMargin } from './winprob.js';
 import { makeGameplan } from './gm.js';
 import {
-  chooseOffense, chooseDefense, goForTwo, onsideKick, tempoSeconds, wantsTimeout,
+  chooseOffense, chooseDefense, goForTwo, onsideKick, tempoSeconds, wantsTimeout, isHurryUp,
   fgDistance, fgProbability, halfSecondsLeft, scoreDiff, OFFENSE_CALLS, TEMPOS,
 } from './playcall.js';
 import { emptyTeamStats, statFor, shortName, fmtClock, fmtQuarter } from './stats.js';
@@ -527,7 +527,9 @@ function doKickoff(g, rng) {
   }
 
   const kpw = comp.k ? comp.k.r.kpw : 75;
-  const touchbackP = g.freeKick ? 0.15 : clamp(0.45 + (kpw - 80) * 0.012, 0.2, 0.75);
+  // Seven kickoffs in ten were touchbacks in 2022-23; this gave 47%, and every
+  // return it added took five to eight seconds off the clock.
+  const touchbackP = g.freeKick ? 0.15 : clamp(0.70 + (kpw - 82) * 0.012, 0.3, 0.9);
   if (rng.chance(touchbackP)) {
     g.ballOn = g.freeKick ? 35 : 25;
     logEvent(g, { type: 'kickoff', text: `${g.teams[kicking].abbr} kickoff. Touchback.` });
@@ -538,8 +540,8 @@ function doKickoff(g, rng) {
     let ballOn = catchAt + Math.max(3, ret);
     const st = returner ? statFor(g.stats[receiving], returner.id) : null;
     if (rng.chance(0.012 + Math.max(0, retSkill - 88) * 0.004)) {
-      // Breakaway return.
-      ballOn = clamp(ballOn + rng.int(30, 75), 40, 100);
+      // Breakaway return, which usually finishes (plays.js, the punt return).
+      ballOn = rng.chance(0.65) ? 100 : clamp(ballOn + rng.int(30, 75), 40, 100);
     }
     ballOn = clamp(ballOn, 3, 100);
     if (st) { st.ret.kr++; st.ret.krYds += ballOn - Math.max(0, catchAt); }
@@ -573,6 +575,18 @@ function doKickoff(g, rng) {
   g.freeKick = false;
   g.phase = 'play';
   startDrive(g);
+}
+
+/** Seconds between the whistle and the referee's ready signal. */
+const READY_SIGNAL = 8;
+
+/**
+ * Where a run out of bounds or a flag stops the clock rather than letting it
+ * start again on the signal: the last two minutes of the first half and the
+ * last five of the second, as the rule has it. It used two minutes for both.
+ */
+function lateWindow(g) {
+  return halfSecondsLeft(g) <= (g.quarter === 4 ? 300 : 120);
 }
 
 /** Run `sec` off the clock, charging it to `team`'s time of possession. */
@@ -626,9 +640,16 @@ function doPlay(g, rng, calls) {
   const off = g.possession;
   const defT = 1 - off;
 
-  // Burn play clock if the game clock is running from the previous play.
+  // Burn play clock if the game clock is running from the previous play. After
+  // a run out of bounds or a flag the clock starts again on the referee's
+  // signal rather than at the whistle, which is about eight seconds later: the
+  // real gap from such a snap to the next is 28.5 seconds, not 35.
+  const wasRunning = g.clockRunning && g.clock > 0;
+  const onSignal = g.clockOnSignal;
+  g.clockOnSignal = false;
   if (g.clockRunning && g.clock > 0) {
-    const burn = tempoSeconds(g, off, rng);
+    let burn = tempoSeconds(g, off, rng);
+    if (onSignal && !isHurryUp(g, off)) burn = Math.max(5, burn - READY_SIGNAL);
     if (burn >= g.clock) {
       g.stats[off].team.top += g.clock;
       if (g.drive) g.drive.time += g.clock;
@@ -650,10 +671,10 @@ function doPlay(g, rng, calls) {
   if (g.penalties) {
     const scrimmage = !['fg', 'punt', 'kneel', 'spike'].includes(offCall);
     const pre = rollPreSnap(g, rng, off, defT, offCall, defCall);
-    if (pre) { enforcePenalty(g, pre, situation, 0); return; }
+    if (pre) { enforcePenalty(g, pre, situation, 0, wasRunning); return; }
     if (scrimmage) {
       const hold = rollHolding(g, rng, off, defT, offCall);
-      if (hold) { enforcePenalty(g, hold, situation, hold.elapsed); return; }
+      if (hold) { enforcePenalty(g, hold, situation, hold.elapsed, wasRunning); return; }
     }
   }
   g.playCount++;
@@ -677,7 +698,7 @@ function doPlay(g, rng, calls) {
       if (n?.target) statFor(g.stats[off], n.target.id).rec.tgt--;
       g.stats[off].team.passAtt--;
       g.playCount--;
-      enforcePenalty(g, foul.replace.penalty, situation, foul.replace.elapsed);
+      enforcePenalty(g, foul.replace.penalty, situation, foul.replace.elapsed, wasRunning);
       return;
     }
     if (foul?.addOn) o.addOn = foul.addOn;
@@ -688,9 +709,10 @@ function doPlay(g, rng, calls) {
 
 /**
  * Walk off an "instead of" penalty: the down is replayed (or an automatic
- * first down given), the clock stops, the offending club is charged.
+ * first down given), the clock stops or starts again on the signal, the
+ * offending club is charged.
  */
-function enforcePenalty(g, pen, sit, elapsed = 0) {
+function enforcePenalty(g, pen, sit, elapsed = 0, wasRunning = false) {
   const off = g.possession;
   const yards = walkOff(g, pen, off);
   const ts = g.stats[pen.side].team;
@@ -726,7 +748,11 @@ function enforcePenalty(g, pen, sit, elapsed = 0) {
   // flag where it happened rather than silently skipping it. `g.ballOn` below
   // is already the enforced spot, so `from` is the only record of the snap.
   logEvent(g, { type: 'penalty', flag: true, yards: pen.side === off ? -yards : yards, from: sit.ballOn, snapOff: off, situation: prefix, text: `${penaltyLabel(g, pen, yards)} ${downText(g)} at ${spot(g, off, g.ballOn)}.` });
-  g.clockRunning = false;
+  // A flag stops the clock only in the late windows; otherwise a clock that ran
+  // into the snap starts again on the signal. It always stopped here, so a
+  // flag cost 2.7 seconds of game clock against a real 11.4.
+  g.clockRunning = wasRunning && g.clock > 0 && g.quarter <= 4 && !lateWindow(g);
+  g.clockOnSignal = g.clockRunning;
 }
 
 function qbName(g) {
@@ -943,9 +969,10 @@ function applyOutcome(g, rng, o, sit) {
   markRedZone(g);
   logEvent(g, { ...base });
   g.clockRunning = !o.clockStops && g.clock > 0;
-  // Out of bounds outside two minutes: clock restarts on ready-for-play.
-  if (o.oob && !o.td && halfSecondsLeft(g) > 120 && g.clock > 0) {
+  // Out of bounds outside the late windows: clock restarts on ready-for-play.
+  if (o.oob && !o.td && !lateWindow(g) && g.clock > 0) {
     g.clockRunning = true;
+    g.clockOnSignal = true;
   }
   if (g.clockRunning) {
     for (const t of [off, defT]) {

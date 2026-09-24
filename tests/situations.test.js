@@ -52,8 +52,12 @@ test('the blitz earns its place where there is no room behind it', () => {
   // buys is. It is the defence's call at first and goal.
   const goal = { down: 1, toGo: 6, ballOn: 94 };
   const open = { down: 1, toGo: 10, ballOn: 25 };
+  // Two thousand snaps each: against the quick game the blitz buys less than
+  // it did, a fifth of a yard rather than a third, since sacks on early downs
+  // came down to the real rate and some pressure now ends in a throwaway
+  // (DESIGN.md, "The drive model, held to real play-by-play").
   for (const call of ['pass_short', 'pass_med', 'pa_pass']) {
-    assert.ok(snap(call, 'blitz', goal).ypp < snap(call, 'base', goal).ypp,
+    assert.ok(snap(call, 'blitz', goal, 2000).ypp < snap(call, 'base', goal, 2000).ypp,
       `${call} should suffer from a blitz inside the six`);
   }
   // Out in the open the same blitz is a gamble rather than a stop.
@@ -62,8 +66,8 @@ test('the blitz earns its place where there is no room behind it', () => {
 });
 
 test('a third and long is a different game from a third and one', () => {
-  // `sticks()` only bites from third down and scales with the distance, so the
-  // same call is worth very different things at either end of it.
+  // `passingDown()` only bites from third down and scales with the distance, so
+  // the same call is worth very different things at either end of it.
   const short = snap('run_in', 'base', { down: 3, toGo: 1, ballOn: 50 });
   const long = snap('run_in', 'base', { down: 3, toGo: 12, ballOn: 50 });
   assert.ok(short.rate > 0.6, `third and one converted only ${(short.rate * 100).toFixed(0)}% on the ground`);
@@ -76,7 +80,7 @@ test('a third and long is a different game from a third and one', () => {
 });
 
 test('second and seven is first and ten to this engine, and that is on purpose', () => {
-  // Down reaches a play only through `sticks()`, which starts at third, and
+  // Down reaches a play only through `passingDown()`, which starts at third, and
   // through short yardage. So a second and seven resolves exactly like a first
   // and ten — the difference between them is which plays get called, which is
   // `chooseOffense`'s job, not the resolver's. Worth a test so that nobody

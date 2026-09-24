@@ -168,7 +168,12 @@ test('a snowy gale reaches every part of the game it should, against the same ga
   // 0.158 over 1,200 games on two versions of the engine. This sample has about
   // 160 kicks in the band on each side, a standard error of 0.043 on the gap, so
   // the bound sits two of those under it rather than on it, where it used to be.
-  assert.ok(storm.from48 < indoor.from48 / 3, `long tries: ${says}`);
+  // Long tries fall by more than half. It was two thirds on the old kicking
+  // curve, which fell off a cliff past forty-eight yards; the real make rates
+  // it was replaced by are nearly flat from forty-seven to fifty-two (77 and
+  // 73%), so the same yards of weather cost fewer points of make chance
+  // there and a coach gives up fewer of those kicks: 174 against 415 here.
+  assert.ok(storm.from48 < indoor.from48 / 2, `long tries: ${says}`);
   assert.ok(storm.band < indoor.band - 0.07, `makes from 40 to 47: ${says}`);
   assert.ok(storm.fum > indoor.fum * 1.15, `fumbles: ${says}`);
 });

@@ -56,7 +56,8 @@ test('200 games satisfy structural invariants', () => {
       assert.equal(t.passAtt, sum((p) => p.pass.att), 'pass attempts match');
       assert.equal(t.passCmp, sum((p) => p.pass.cmp), 'completions match');
       assert.equal(sum((p) => p.pass.cmp), sum((p) => p.rec.rec), 'completions equal receptions');
-      assert.equal(sum((p) => p.pass.att), sum((p) => p.rec.tgt), 'attempts equal targets');
+      // A ball thrown away is an attempt with nobody targeted.
+      assert.equal(sum((p) => p.pass.att), sum((p) => p.rec.tgt) + t.throwaways, 'attempts equal targets and throwaways');
       assert.equal(sum((p) => p.pass.yds), sum((p) => p.rec.yds), 'passing yards equal receiving yards');
       assert.equal(t.passYds, sum((p) => p.pass.yds) - sum((p) => p.pass.sckYds), 'net passing yards');
       assert.equal(t.rushYds, sum((p) => p.rush.yds), 'rushing yards');
@@ -124,11 +125,11 @@ test('run lengths have a tail, not a cliff', () => {
 });
 
 test('third down is the hardest down', () => {
-  // The defence plays the marker on third and long, so a series that reaches
-  // third down should gain less than one on first. Before `sticks` existed
-  // nothing in the passing game read toGo and third down gained *more* than
-  // first — 6.27 yards against 6.18 — which is why the defence could not get
-  // off the field.
+  // Third and long gets the rush home and the ball thrown past the marker, so
+  // a series that reaches third down should gain less than one on first.
+  // Before anything in the passing game read toGo third down gained *more*
+  // than first — 6.27 yards against 6.18 — which is why the defence could not
+  // get off the field. `passingDown()` in plays.js is what reads it now.
   const gain = { 1: [], 3: [] };
   const SCRIM = new Set(['run', 'pass', 'incomplete', 'sack']);
   for (let seed = 5000; seed < 5120; seed++) {

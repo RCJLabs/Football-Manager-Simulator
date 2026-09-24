@@ -54,11 +54,11 @@ Offense: pass block (OL pbk + TE), run block, QB attributes, receiver target wei
 
 Offense chooses one of `run_in, run_out, screen, pass_short, pass_med, pass_deep, pa_pass, fg, punt, kneel, spike`; defense chooses `base, run_stop, blitz, deep`. A small matchup matrix (`MATRIX`) applies modifiers, e.g. blitz vs. screen favors the offense, deep shell vs. deep shot hurts completion, stacked box hurts runs.
 
-Pass: pressure probability from rush vs. protection (logistic, `edge()`; the line's awareness against the front's); pressure → sack (the QB's awareness against the defence's, at `POCKET_WEIGHT`; mobility does not reduce it), scramble, or a hurried throw. Target chosen by role and skill; the primary defender is matched by role (WR1 ↔ CB1, TE ↔ best-coverage LB or S…), so Deion on Rice is a real matchup. Completion probability = base by depth + (passer vs. coverage at `PASSER_WEIGHT` + receiver vs. coverage) × slope, with the coverage's awareness read against the passer's and, on a deep ball, its speed against the receiver's; the arm reads against the secondary's speed. Interceptions follow the same edge, the defence's ball skills against the receiver's hands, and pressure. Yards = air (by depth; the deep ball's length from the arm against the secondary's speed) + run-after-catch (exponential, receiver RAC vs. tackling, breakaway chance from speed vs. secondary speed). See "The passing game, held to real quarterbacks".
+Pass: pressure probability from rush vs. protection (logistic, `edge()`; the line's awareness against the front's), higher on a passing down (`passingDown`); pressure → sack (the QB's awareness against the defence's, at `POCKET_WEIGHT`; mobility does not reduce it), scramble, a throwaway, or a hurried throw. Target chosen by role and skill; the primary defender is matched by role (WR1 ↔ CB1, TE ↔ best-coverage LB or S…), so Deion on Rice is a real matchup. The throw's depth is drawn by call (the deep ball's length from the arm against the secondary's speed), and completion probability = the real rate at that depth (`compAt`) + (passer vs. coverage at `PASSER_WEIGHT` + receiver vs. coverage) × slope, with the coverage's awareness read against the passer's and, on a deep ball, its speed against the receiver's; the arm reads against the secondary's speed. Interceptions follow the same edge, the defence's ball skills against the receiver's hands, and pressure. Yards = air + run-after-catch (exponential around the real mean for that depth, `yacAt`, receiver RAC vs. tackling, breakaway chance from speed vs. secondary speed). See "The passing game, held to real quarterbacks" and "The drive model, held to real play-by-play".
 
-Run: stuff chance from run stop vs. run block (+RB vision against the front's awareness, power against its run stopping); otherwise base gain + blocking edge + break-tackle chance (power/elusiveness vs. tackling) + breakaway chance (speed vs. secondary speed, elusiveness vs. tackling). Every term that reads the carrier reads him against his opposite number, at `CARRIER_WEIGHT` 0.16, measured against real carries (see "The back was worth nearly three times too much" and "Backs, receivers and tight ends, held to real seasons"). QB sneaks on 4th-and-1. Fumbles: ball security against the tackling that strips it, at `BALL_SECURITY`.
+Run: stuff chance from run stop vs. run block (+RB vision against the front's awareness, power against its run stopping); otherwise a yard plus an exponential gain + blocking edge + break-tackle chance (power/elusiveness vs. tackling) + breakaway chance (speed vs. secondary speed, elusiveness vs. tackling). Every term that reads the carrier reads him against his opposite number, at `CARRIER_WEIGHT` 0.20, measured against real carries (see "The back was worth nearly three times too much" and "Backs, receivers and tight ends, held to real seasons"). QB sneaks on 4th-and-1. Fumbles: ball security against the tackling that strips it, at `BALL_SECURITY`.
 
-Special teams: FG probability is a logistic in distance with the midpoint set by kicker power and accuracy. Punts: distance from punter power, pooch logic near midfield, placement skill avoids touchbacks and forces fair catches. Kickoffs: touchback rate from kicker power, returns by the fastest non-starter, rare breakaway. Onside kicks when trailing late.
+Special teams: FG probability is the real make rate by distance, read at the distance shifted by kicker power and accuracy. Punts: distance from punter power; near midfield a pooch aimed at the eight, closer and truer for a better placement man. Kickoffs: touchback rate from kicker power, seven in ten at the calibration level, returns by the fastest non-starter, a rare breakaway that usually scores. Onside kicks when trailing late. See "The drive model, held to real play-by-play".
 
 ### Game management (`playcall.js`)
 
@@ -84,7 +84,7 @@ A fourth fell out of the same check: an interception in the end zone applied its
 
 **Expected points was a straight line somebody wrote down.** `winprob.js` valued field position as `(ballOn - 20) / 12 + 0.6`. `npm run ep` measures it instead, from where drives start and what they end up scoring: own 20 is worth 0.53 points, midfield 1.81, the opponent's 20 4.81, against the old line's 0.60, 3.10 and 5.60. The line overvalued midfield by 1.3 points. A weighted fit gives `ballOn * 0.0525 + 0.009`, mean error 0.24 points, and that is what ships.
 
-**Fourth down now decides on expected points.** It used to read a hand-written chart. It now compares going for it, kicking and punting in points, using the measured curve and a conversion probability fitted to real conversion rates by distance. The first version of this was far too aggressive — 2.94 attempts a game at 8.1 touchdowns per field goal — and the cause was the old expected-points line, which made midfield worth a point and a third more than it is. With the measured curve and a `RISK_AVERSION` bar of 1.15 points, it attempts 1.09 a game and converts 48%, against a real 1.0 to 1.5 at 45 to 55%.
+**Fourth down now decides on expected points.** It used to read a hand-written chart. It now compares going for it, kicking and punting in points, using the measured curve and a conversion probability fitted to real conversion rates by distance. The first version of this was far too aggressive — 2.94 attempts a game at 8.1 touchdowns per field goal — and the cause was the old expected-points line, which made midfield worth a point and a third more than it is. With the measured curve and a `RISK_AVERSION` bar of 1.15 points, it attempts 1.09 a game and converts 48%, against a real 1.0 to 1.5 at 45 to 55%. (That one bar has since been replaced by one that moves with field position, fitted to real fourth downs: "The drive model, held to real play-by-play".)
 
 **The red zone was the same football as midfield.** `resolvePass` and `resolveRun` read `rem` only to cap the gain at the goal line. Completion probability, coverage, yards after the catch and the stuff rate were identical on the five and on the fifty, which is why the red zone converted two thirds of its trips. `squeeze(ballOn)` runs from 0 outside the twenty-five to 1 on the goal line and costs completion probability (weighted by concept — a screen barely notices, a deep shot has nowhere to go), most of the yards after the catch, and a little run blocking. Red zone touchdowns 67% → 61%, field goal attempts 1.34 → 1.5.
 
@@ -96,7 +96,7 @@ The previous entry here said both remaining findings were "fixable only by pulli
 
 **The defence could not get off the field, and the reason was that it did not know where the marker was.** Third-down attempts 10.9 (real 11–16), punts 3.21 (3.5–5.5), field-goal attempts 1.45 (1.5–2.5) and TD : FG 2.05 (1.3–1.8) were not four findings but one: drives did not stall often enough. Instrumenting the log by down and distance found two causes, and neither was a level.
 
-The first: **nothing in the passing game read `toGo`**. A throw on third and nine was resolved exactly like one on first and ten, and the receiver ran after the catch as if the sticks were not there. So third down converted 43.9% against a real 39, the gap widened with distance (43% on third and seven to nine against a real 32), and the offence gained *more* on third down than on first — 6.27 yards against 6.18 — where real football has third down as the hardest down by more than a yard. `sticks(down, toGo)` now runs from 0 on early downs to 1 on third or fourth and long and takes yards after the catch away. It is subtracted, not scaled, and that is the whole trick: a first attempt that multiplied cost 0.18 explosive plays a team and would have undone the row fixed in the commit before, because scaling an exponential moves its tail with its mean. Taking a fixed seven yards off kills the three-yard checkdown that moves the chains and leaves a twenty-five-yard catch a twenty-yard catch.
+The first: **nothing in the passing game read `toGo`**. A throw on third and nine was resolved exactly like one on first and ten, and the receiver ran after the catch as if the sticks were not there. So third down converted 43.9% against a real 39, the gap widened with distance (43% on third and seven to nine against a real 32), and the offence gained *more* on third down than on first — 6.27 yards against 6.18 — where real football has third down as the hardest down by more than a yard. `sticks(down, toGo)` now runs from 0 on early downs to 1 on third or fourth and long and takes yards after the catch away. It is subtracted, not scaled, and that is the whole trick: a first attempt that multiplied cost 0.18 explosive plays a team and would have undone the row fixed in the commit before, because scaling an exponential moves its tail with its mean. Taking a fixed seven yards off kills the three-yard checkdown that moves the chains and leaves a twenty-five-yard catch a twenty-yard catch. (Right rate, wrong road: it left the catch on third and long at 1.9 yards after it against a real 5.2, and it has been replaced by the real one, the rush and the throw past the marker. "The drive model, held to real play-by-play".)
 
 The second: **the red zone was still the easiest place on the field to score**, 64% of trips ending in a touchdown against a real 56. That is the same defect as TD : FG — the drives that should have stalled into a kick were finishing. The four `squeeze` coefficients went up together.
 
@@ -3947,7 +3947,8 @@ problem the realism section already records, where the real game has more
 short gains and more long ones at the same mean. Refitting `STICKS_YAC` alone
 does not close it: at 2 yards rather than 7, third and long reaches 22.5% while
 third and medium overshoots at 50% against 45%. Yards a completion stays at 11.9
-(realism range 10.8–12.0) until the drive model is fixed.
+(realism range 10.8–12.0) until the drive model is fixed. *It was, two
+sections down: "The drive model, held to real play-by-play".*
 
 **A replacement quarterback is a bad quarterback, not an absurd one.** A
 stand-in rated 48 on everything threw for 0.65 adjusted net yards a dropback,
@@ -3979,9 +3980,10 @@ So the table was not set on that engine, and the change was held back from
 release until the back and the tight end had the same test against real
 seasons (next section).
 
-**Held to it by the audit.** The audit now reads the quarterbacks' slope (1.02
+**Held to it by the audit.** The audit now reads the quarterbacks' slope (1.15
 at 200 games, flagged outside ±0.15) and a pro league's adjusted net yards a
-dropback (6.63, ±0.3).
+dropback (6.04, ±0.3). They read 1.02 and 6.63 when this was written; the drive
+model held to real play-by-play (below) moved them.
 
 ### Backs, receivers and tight ends, held to real seasons
 
@@ -4097,14 +4099,207 @@ men rather than assume them.
   target 0.054 against 0.084).
 - A tight end's blocking has no real record to test against here. It is a
   share of the line's, scaled to his rating.
-- Scoring sits at the bottom of the real range, 20.9 points a team game, with
-  targets spread the real game's way. The drive model again (previous section).
+- Scoring sat at the bottom of the real range, 20.9 points a team game, with
+  targets spread the real game's way. The drive model again (previous section),
+  and fixed in the next: 22.0 against a real 21.8.
 
 **Held to it by the audit.** `npm run receiving` takes about seventy seconds;
-the audit reads the receivers' target-share slope (0.80, flagged outside ±0.2)
-and the backs' carries slope (1.13, ±0.25). From `npm run rushing` it reads the
-backs' slope (0.88, flagged outside ±0.15) and a pro league's yards a carry
-(4.57, ±0.25).
+the audit reads the receivers' target-share slope (0.89, flagged outside ±0.2)
+and the backs' carries slope (1.03, ±0.25). From `npm run rushing` it reads the
+backs' slope (0.86, flagged outside ±0.15) and a pro league's yards a carry
+(4.55, ±0.25). They read 0.80, 1.13, 0.88 and 4.57 when this was written; the
+drive model held to real play-by-play (next section) moved them.
+
+### The drive model, held to real play-by-play
+
+Part 3 of the passing fix, yards a completion, was blocked here (two sections
+up): cutting the engine's completions to real length took scoring out of the
+real range, because the drive around the throw was wrong in its own right.
+Early downs converted too often, third and long too rarely, and a game had too
+few plays. So the drive was held to the real game snap by snap: every regular
+season snap of 2022 and 2023 in nflverse's play-by-play, about eighty thousand,
+against the engine's at the calibration level, 82 against 82, by down and
+distance, clock, field position, fourth down and the kicking game. `npm run
+drives` replays the comparison from the game log in a few seconds, with the
+real column written down in the script.
+
+**What was wrong.** At 82, against the real league:
+
+| | engine | real, 2022–23 |
+|---|---|---|
+| scrimmage plays a club a game | 58.7 | 62.1 |
+| snap to snap on a running clock, first three quarters | 39.6 s | 35.7 s |
+| a neutral first and ten thrown | 54.1% | 46.0% |
+| a neutral third and three to six thrown | 70 and 79% | 86 and 94% |
+| first and ten converted | 24.8% | 19.4% |
+| air yards a completion | 7.83 | 5.75 |
+| yards after the catch on third and seven or more | 1.9 | 5.2 |
+| sacked on first and ten, and on third and seven or more | 7.0% and 7.0% | 5.2% and 11.0% |
+| carries of one to four yards, and of five to nine | 35.7% and 32.9% | 47.2% and 23.9% |
+| a punt from the opponent's 41 to 50 downed inside the ten | 95% | 41% |
+| gone for on fourth and two or three, opponent's 31 to 50 | 0% | 57% |
+| interceptions returned for a touchdown | 4% | 10% |
+
+None of it was one knob, and none of it was visible in the realism check,
+which reads season totals: a game can have the right yards a play and the
+wrong game underneath them. Each piece below was fitted to its own real
+distribution, not to a total.
+
+**The clock.** Snap to snap on a running clock took four seconds too long,
+which is where 3.4 of the 62 real scrimmage plays had gone: the default tempo
+now leaves 32 seconds between plays where it left 36. A run out of bounds or a
+flag starts the clock again on the referee's signal, about eight seconds after
+the whistle, where the clock used to run from the whistle after the one and
+stop outright for the other; the real gap after each is 28.5 and 11.4 seconds.
+The out-of-bounds window is the last five minutes of the second half, as the
+rule has it, not two. Designed runs went out of bounds 13% of the time against
+a real 5.5, seven kickoffs in ten are touchbacks as they were in 2022-23 (47%),
+and a punt takes its real nine seconds. Every category of the clock now lands
+within a few seconds a game of the real one's.
+
+**The play caller** is a table on the log-odds scale fitted to the real
+neutral rates, down by distance, with first and goal and the first down's
+field zone besides: it throws on 46.0% of neutral first-and-tens (real 46.0),
+86 to 94% of third and three to six, and 23% of third and one. The dial still
+moves it, mostly on early downs, since a run-heavy club still throws on third
+and eight. The score counts in the fourth quarter, a little in the third, and
+the two-minute drill and the drive that kills the clock were fitted to the same
+snaps. Overall 61% of snaps are dropbacks, against a real 60.6 and 64 before.
+
+**The passing game, by depth.** Every throw had one completion rate per call
+whatever its length, so completions were as deep as attempts. Now the depth of
+a throw is drawn first and decides how often it is caught (`compAt`, 81% at the
+line of scrimmage, 29% past thirty yards) and how far the catch runs after it
+(`yacAt`, highest behind the line and deep downfield), both fitted band by band
+to real attempts; the calls' depths were refitted so the seven depth bands of
+real attempts come out within a point each, with more screens and more deep
+shots than before and fewer intermediate throws. A passer throws 4.0% of his
+attempts away under pressure, as real ones do, which is what lets a target be
+worth what a real one is (7.35 yards) while an attempt is still worth 7.05. A
+long catch goes the distance three times in ten rather than stopping at thirty
+to fifty yards. Scrambles run an exponential of 7.3 yards, not a normal of 4.4.
+
+**Third down**, which the seven-yard subtraction from every catch had made hard
+(`STICKS_YAC`, gone), is hard the real way now: the rush gets home, 11% of
+dropbacks on third and seven or more against 5% on first and ten, and a throw
+past the marker is a deep throw that completes less often. The catch runs as
+far on third down as on first. Third and seven to nine converts 32% of the time,
+the real rate.
+
+**The carry** was a normal around 4.45 yards, which put the middle of the
+distribution where real carries are not. It is a yard plus an exponential now,
+a stuffed carry loses nothing half the time, and the breakaway supplies the
+tail past twenty and goes the distance a tenth of the time it is the long one.
+Every band from a loss of three to twenty-plus is within half a point of the
+real one. The carrier weight, which read a back's slope at 1.23 on the new
+shape, is 0.20 (from 0.16).
+
+**Punts, kicks and fourth down.** A pooch punt aims at the eight rather than
+landing at the two to eight every time: 41% inside the ten from the opponent's
+41 to 50 and 16% into the end zone, the real split. The kicking curve is the
+real make rate by distance (74% from 50 to 54, 62% from 55 to 59), where a
+logistic had fallen off a cliff past 48 yards, so a club at the opponent's
+thirty-five kicks where it used to punt. The fourth-down margin, one number of
+1.15 points, went for it on every fourth and one in its own half and on no
+fourth and two anywhere; refitted to the real decisions as a margin that falls
+from about two points at the own ten to nothing at the opponent's thirty-five
+and rises again at the goal line, with a coach's call scattered around it, it
+matches the real go rate in every zone and distance within about ten points.
+
+**The red zone and the last three minutes.** With completions priced by depth
+the red zone squeeze was too strong: 52.8% of trips finished in a touchdown
+against a real 57, and the realism check read touchdowns per field goal at
+1.25 against a real 1.36, outside its range. All four of its coefficients are
+at three fifths of what they were. And close games did not finish close: a club
+tied or a field goal down in the last three minutes kept throwing in the
+two-minute drill with the kick in hand, and scored touchdowns where real ones
+play for the kick. Tied, real clubs tried the field goal on 30% of those drives
+and scored a touchdown on none; this one 22 and 11%. So a club tied or a field
+goal down late, with a kick it should make, now runs the clock down to it
+(`playingForTheKick`): overtime went from 4.2% of games on the realism check's
+seeds to 6.0 against a real 6.1, and games decided by one to three points from
+17.6 to 20.1% against a real 21.7.
+
+**Turnovers.** Catches fumbled at half the real rate, and turnover returns were
+short and never scored; with the real rates of each, interceptions go back for
+a touchdown 9% of the time (real 9.8) and lost fumbles are scored 5% (7.5), and
+a league loses 0.38 fumbles a team game where it lost 0.30 (real 0.48 away
+from the kicking game, which has none here). The end of the first half kicks
+its field goal whatever the score and takes a knee when deep.
+
+**Now.** At 82, 2,000 games, against the real league (`npm run drives` prints
+this at 1,000 by default):
+
+| | engine | real, 2022–23 |
+|---|---|---|
+| scrimmage plays a club a game | 61.5 | 62.1 |
+| drives a club a game | 11.2 | 11.0 |
+| points a club a game | 22.1 | 21.8 |
+| first downs by a play | 17.9 | 17.8 |
+| yards a scrimmage play | 5.40 | 5.42 |
+| drives ending in a touchdown, a field goal | 20.5%, 15.5% | 20.7%, 15.2% |
+| a neutral first and ten thrown | 46.0% | 46.0% |
+| a neutral third and three to six thrown | 89.6% | 89.9% |
+| every snap thrown, any situation | 60.9% | 60.6% |
+| first and ten converted | 19.8% | 19.4% |
+| second and four to six | 40.4% | 39.5% |
+| third and one or two | 66.7% | 64.1% |
+| third and three to six | 46.9% | 45.0% |
+| third and seven to nine | 32.8% | 32.8% |
+| third and ten or more | 20.1% | 18.2% |
+| carries for nothing or a loss, one to four, five to nine, ten or more | 18.7, 46.7, 24.0, 10.6% | 18.3, 47.2, 23.9, 10.6% |
+| completion | 64.8% | 64.4% |
+| yards a completion | 10.82 | 10.92 |
+| sacked on first and second down, on third and seven or more | 5.3%, 11.2% | 5.3%, 11.0% |
+| a punt from the opponent's 41 to 50 downed inside the ten, a touchback | 37%, 18% | 41%, 17% |
+| gone for on fourth and two or three, opponent's 31 to 50 | 47% | 57% |
+
+A club runs 61.5 scrimmage plays a game at 82 and scores 22.1 points a team
+game at 82, throws on 46.0% of neutral first-and-tens and converts third and
+seven to nine 32.8% of the time; the audit reads all four.
+
+**Part 3, done.** Yards a completion are 10.82 against a real 10.92, and the
+passing game is real by depth rather than by average: a drafted pro league
+throws for 6.04 adjusted net yards a dropback against a real 5.84 to 6.18,
+where it threw 6.63 on the fix before this and 7.18 before that.
+
+
+**Not fixed, and recorded.**
+
+- A club has 11.2 drives a game against a real 11.0: its drives are a little
+  short at the long end, 13.7% of ten plays or more against 15.3.
+- Receivers gain 7.8 yards a target against a real 8.0; tight ends and backs
+  are within two tenths.
+- The passers' slope reads 1.15: the engine's differences between passers
+  come true a little more than one for one. It read 1.09 on the engine before
+  this and 1.02 when it was fitted. Most of the move is interceptions, which a
+  point of rating now moves 0.018 against a real 0.028, while the slope's own
+  noise across 58 passers is about 0.14. Not refitted.
+- Carries fumble at the real rate but the real game's run fumbles include the
+  botched exchange, which is not modelled, and the kicking game fumbles 0.07
+  times a team game in the real one and never here.
+- A punt from the opponent's thirty-one to forty on fourth and seven or more is
+  a field goal attempt nine times in ten here and three in four in the real
+  game, which punts the rest. And fourth and two or three between the
+  opponent's thirty-one and fifty is gone for 46% of the time against a real
+  57: the margin is a straight line between its knots, and the fit trades this
+  cell against the ones either side of it.
+- The pass/run dial says 55% at its default, and a club at the default throws
+  on 61% of its snaps. It said 55% when a club threw 64%, so the label is less
+  wrong than it was, but it is still the dial's position rather than the rate.
+- Touchdowns per field goal read 1.30 on the realism check against a real
+  1.36, on its range's floor: clubs attempt 2.1 field goals a game against a
+  real 1.95 and finish 55% of red zone trips against 57. A lighter squeeze buys
+  it back at the cost of points, already 22.1 against 21.8.
+- Close finishes moved from four-to-seven points into ties and one-to-three
+  once clubs played for the kick: 19.3% of games are decided by four to seven
+  against a real 23.0. Clubs a field goal down late now try the kick on 40% of
+  those drives against a real 33.
+- Weather still moves a field goal by yards of distance. On the real kicking
+  curve, which is flat from 47 to 52 yards, the same yards cost fewer points of
+  make chance than they did on the logistic, so a snowy gale gives up 58% of
+  the long tries, where it gave up two thirds. Its constants were never set
+  against real games, and are not reset here.
 
 ### A fingerprint that could not see the roster
 
@@ -4191,16 +4386,17 @@ those move with the sample size too, so they should not be read as anything.
 
 Two things fell out of this that are worth keeping.
 
-**Third down is a different game, and the engine knows it.** `sticks()` starts
-at third down and scales with the distance, so the same inside run converts 81%
-on 3rd & 1 and 8% on 3rd & 12, while a medium pass goes the other way. That is
+**Third down is a different game, and the engine knows it.** `sticks()` started
+at third down and scaled with the distance (`passingDown()` does now, through
+the rush rather than the catch), so the same inside run converts 81% on 3rd & 1
+and 8% on 3rd & 12, while a medium pass goes the other way. That is
 the run's real job showing up in a number for the first time — the yards table
 could never display it.
 
 **Second and seven is first and ten to this engine, and deliberately so.** The
 two situations solve identically: same mixes, 7.13 against 7.12 yards a play.
-Down reaches a play only through `sticks()`, which does not fire until third,
-and through short yardage. The difference between a first and ten and a second
+Down reaches a play only through `passingDown()`, which does not fire until
+third, and through short yardage. The difference between a first and ten and a second
 and seven is which plays get called, which is `chooseOffense`'s job rather than
 the resolver's. A test says so, so that nobody reads the situational grid and
 files it as a bug.
@@ -4226,7 +4422,7 @@ properly. Scored in raw yards the answer is degenerate: the offence should throw
 deep on every snap and the defence should sit in a shell on every snap. Yards
 are not what a play is worth. A play is worth its yards less its turnover rate
 times what a giveaway costs, and that price is measured rather than asserted —
-see **What a giveaway is actually worth** below; it is 58 yards at this grid's
+see **What a giveaway is actually worth** below; it is 53 yards at this grid's
 situation. Scored that way, the deep ball leaves the mix altogether — it is the
 riskiest throw on the field — and the equilibrium is:
 
@@ -4870,12 +5066,14 @@ sentence rather than a measurement: *a giveaway is worth about four points and
 four points is about forty yards*. Both halves were wrong, in opposite
 directions.
 
-Four points is not forty yards. `EP_PER_YARD` is 0.0528, so four points is
+Four points is not forty yards. `EP_PER_YARD` is 0.0525, so four points is
 seventy-six. And the swing is not four points: under a linear expected-points
 curve what you lose and what the other side gains move oppositely at the same
 rate, so
 
-    EP(x) + EP(100 - x) = (0.0528x - 0.268) + (5.012 - 0.0528x) = 4.74
+    EP(x) + EP(100 - x) = (0.0525x - 0.403) + (4.847 - 0.0525x) = 4.44
+
+(4.74 on the curve before the drive model was held to real play-by-play)
 
 constant in field position. A test in `winprob.test.js` pins that constancy,
 because the whole idea of pricing a grid off one number depends on it.
@@ -4888,20 +5086,23 @@ plays that lost it, and reports the gap in yards. Over 120,000 snaps:
 
 | situation | cost in points | in yards |
 | --- | --- | --- |
-| pooled over the down tree | 4.04 | 43 |
-| 1st down | 4.33 | 56 |
-| 2nd down | 4.11 | 41 |
-| 3rd down | 2.95 | 18 |
-| **1st and 10 from the 25** | **4.32** | **58** |
+| pooled over the down tree | 3.71 | 39 |
+| 1st down | 4.05 | 52 |
+| 2nd down | 4.03 | 40 |
+| 3rd down | 2.52 | 17 |
+| **1st and 10 from the 25** | **4.06** | **53** |
+
+(Re-measured when the drive model was held to real play-by-play; it read 4.04,
+4.33, 4.11, 2.95 and 4.32 points before, 58 yards at the grid's row.)
 
 Two things fall out. The price is not one number: on third down a giveaway
 costs a fifth of what it costs on first, because on third down you were likely
 to lose the ball anyway and the turnover is only taking what a punt would have.
-And the grid takes every snap at first and ten from the 25, so 58 is the figure
-it needs — not the pooled 43 and certainly not 40.
+And the grid takes every snap at first and ten from the 25, so 53 is the figure
+it needs — not the pooled 39 and certainly not 40.
 
-The other finding is that **a yard gained on a play is worth about 0.093
-points, not `EP_PER_YARD`'s 0.0528**. Both are correct and they are not the same
+The other finding is that **a yard gained on a play is worth about 0.096
+points, not `EP_PER_YARD`'s 0.0525**. Both are correct and they are not the same
 quantity: the constant prices field position, while a yard gained also converts
 downs, which the EP model charges at 0.45 a down. That is written down here
 because the two numbers look like a contradiction and somebody will eventually
@@ -4909,10 +5110,18 @@ try to make one match the other. A test says so too.
 
 **The conclusion survives the correction**, which is the reassuring part and the
 reason this was worth doing rather than worth worrying about. At 40 the defence
-mixes base 17% with the shell 83% and the offence outside run 39% with play
-action 61%; at 58 it is 27/73 and 37/63. Two live defensive calls and two dead
+mixed base 17% with the shell 83% and the offence outside run 39% with play
+action 61%; at 58 it was 27/73 and 37/63. Two live defensive calls and two dead
 ones either way, deep ball out of the mix either way. The run-game, short-pass
 and shell rebalances all rest on that shape, and the shape did not move.
+
+On the drive model held to real play-by-play the defence is still two and two
+at every price: base 45, 55 and 58% against the shell at 40, 53 and 58 yards.
+The offence's pass has changed. Play action is as short now as real play action
+(7.6 air yards against 13), and a deep catch can go the distance, so the
+outside run is mixed with the medium and deep throws instead: 57% of it with 14%
+medium and 28% deep at 53. The split between the throws is near-tied and moves
+with the sample, as the one between base and the shell always has.
 
 ### What the strategy dials are actually worth
 
