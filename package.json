@@ -49,7 +49,8 @@
     "schemes": "node scripts/scheme-fit.mjs",
     "passrate": "node scripts/pass-rate.mjs",
     "dials": "node scripts/dials.mjs",
-    "rushing": "node scripts/run-realism.mjs"
+    "rushing": "node scripts/run-realism.mjs",
+    "passing": "node scripts/pass-realism.mjs"
   },
   "engines": {
     "node": ">=20"

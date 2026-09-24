@@ -3532,7 +3532,11 @@ right — Aaron Rodgers's 2011 at 9.51 against a real 9.40, Patrick Mahomes's
 2018 at 9.13 against 8.89 — and the excess is all at the bottom, where
 quarterbacks rated in the fifties collapse to 1 to 3 against a real 4.5 to 6.5.
 Not fixed here: it moves backups and the last rounds of a draft, not the
-starters the table prices.
+starters the table prices. *Corrected the same day, in "The passing game,
+against real quarterbacks": it reaches starters too. Among quarterbacks rated
+80 or more, a point moves adjusted net yards (per dropback, not per attempt)
+1.8 times as far as the real game's. These figures were taken on the old run
+game; on the new one they read 2.43, 0.42 and 0.192.*
 
 **The fix is one constant and a change of reference.** `CARRIER_WEIGHT` in
 plays.js: every term that reads the carrier reads him against his opposite
@@ -3626,11 +3630,15 @@ for; recorded, not retuned.
 
 - The passing game runs hot at the level people play: starting quarterbacks
   throw for 8.0 yards an attempt in drafted leagues against 7.1 for real
-  starters, and low-rated ones collapse (above). If passing has terms measured
-  against a fixed level too, it is the same defect, and fixing it would move
-  the pass/run read again.
+  starters, and low-rated ones collapse (above). Tested the same day (next
+  section): it does have terms measured against a fixed level, and passing
+  cooled to the real league's rate halves the read's payoff without giving the
+  dial a second end.
 - The engine's defences never adjust to how often an offence throws, so
-  throwing more costs nothing, which is most of why that dial now has one end.
+  throwing more costs nothing. This read "most of why that dial now has one
+  end", which was a guess. Measured, the hot passing game is half the payoff;
+  on a naive estimate, the real game's own gap between a dropback and a run
+  would pay most of the rest if defences never adjusted.
 - The yardstick column under "Is the yardstick sound" was measured on the
   broken run game, and the agreement figure built on it needs re-measuring.
 
@@ -3638,6 +3646,170 @@ for; recorded, not retuned.
 against their real seasons, and a season of two drafted pro leagues — and the
 audit reads two numbers from it: the backs' slope (0.77, flagged outside
 ±0.15) and a pro league's yards a carry (4.66, ±0.25). About four minutes.
+
+### The passing game, against real quarterbacks
+
+The run game's two defects came from two blind spots: nothing compared the
+spread between players with the real game's, and nothing looked above the level
+the engine was fitted at. The passing game, put through the same test, has both
+again. The spread is milder at the top of the pool, where a drafted league's
+starters come from. Both are measured here and not fixed; `npm run passing`
+replays the measurement.
+
+**The real game, from nflverse** (the numbers are written into
+`scripts/pass-realism.mjs`):
+
+- Quarterbacks with 300 or more dropbacks in a season, 1999–2024, 758 seasons:
+  6.02 adjusted net yards a dropback, standard deviation 1.17. The same man's
+  next season correlates at 0.41 for that, 0.61 for completion rate, 0.52 for
+  sack rate and 0.27 for interception rate: interceptions are mostly luck.
+- Every dropback in 2022–23: 64.6% completed, 7.05 yards an attempt, 10.92 a
+  completion, 2.34% intercepted, 6.95% sacked, 5.89 adjusted net. Season by
+  season, 2019, 2021, 2022 and 2023 run from 5.84 to 6.18 adjusted net and 7.05
+  to 7.25 yards an attempt.
+- Twenty-yard completions: 2.90 to 3.30 a team a game in those four seasons,
+  and 3.60 to 3.94 twenty-yard plays of either kind, inside the realism check's
+  3.5 to 5.5.
+- In expected points, a dropback was worth +0.007 and a designed run −0.062;
+  on first and second down with the win probability between 20% and 80%, +0.063
+  and −0.075. A dropback was worth more than a run in 46 of 64 team-seasons.
+
+**Quarterbacks against the seasons they are rated on.** Fifty-eight
+quarterbacks in the pool have a season from 1999 on with 250 or more real
+attempts. Each played 300 games in the same average side, 82 against 82:
+
+| | engine: mean / sd | real, same men and seasons | slope, real on engine |
+|---|---|---|---|
+| adjusted net yards a dropback | 5.71 / 2.43 | 7.07 / 1.22 | 0.42 ± 0.04 |
+| yards an attempt | 7.45 / 1.16 | 7.70 / 0.84 | 0.54 |
+| completion | 62.9% / 8.0 | 64.3% / 4.5 | 0.44 |
+| interceptions | 3.44% / 2.05 | 2.10% / 0.73 | 0.18 |
+| sacks | 8.85% / 2.50 | 5.67% / 1.86 | −0.06 |
+
+A point of a quarterback's rating moves his adjusted net yards 0.192 in the
+engine and 0.080 ± 0.007 in the real game. By thirds of the pool, with the real
+season in brackets:
+
+| rated | adjusted net | interceptions | sacks | completion |
+|---|---|---|---|---|
+| 52–72 | 2.85 (5.98) | 5.81% (2.44) | 11.4% (5.88) | 53.4% (60.1) |
+| 74–85 | 6.33 (7.20) | 2.76% (2.03) | 8.32% (6.00) | 65.4% (65.4) |
+| 86–96 | 8.21 (8.14) | 1.56% (1.81) | 6.60% (5.06) | 70.8% (67.6) |
+
+The top is right and the bottom collapses, but the excess does not live only at
+the bottom. Among the 28 rated 80 or more, a point is worth 0.183 in the engine
+against 0.104 ± 0.031 real, about 1.8 times too far; among the 18 rated 86 or
+more, 0.185 against 0.143 ± 0.047, which cannot be told apart. Most of the
+bottom third's shortfall is interceptions and sacks. Interceptions, which the
+real game barely separates by quarterback, are the most rating-driven thing he
+does:
+`(88 − awareness) / 25` makes a passer at 55 throw 2.3 times as many as the
+same pass thrown at 88. And the engine's differences in sack rate have nothing
+to do with the real ones (correlation −0.07), because a sack given pressure
+reads only the quarterback's mobility and awareness.
+
+**Passing heats with the level of play.** Equal synthetic sides, 1,000 games at
+each level, against the four real seasons:
+
+| | at 82 | at 90 | real |
+|---|---|---|---|
+| adjusted net yards a dropback | 6.43 | 6.93 | 5.84–6.18 |
+| yards an attempt | 7.65 | 7.79 | 7.05–7.25 |
+| completion | 64.5% | 64.9% | 63.7–65.0% |
+| interceptions | 2.71% | 2.58% | 2.31–2.36% |
+| sacks | 6.90% | 5.01% | 6.25–7.17% |
+
+Several passing terms are measured against a fixed number rather than the other
+side. Four of them were switched off in a scratch copy, one after another: the
+sack given pressure (mobility against 70, awareness against 80), the line's
+awareness in the pressure roll (against 80), and the arm (against 82, and 85 on
+a deep ball). The others (interceptions, with awareness against 88 and the
+defence's ball skills against 80, the scramble, and a deep ball's length) were
+left on:
+
+| switched off | adjusted net, 90 against 82 | sacks, 90 against 82 |
+|---|---|---|
+| nothing | +0.50 | −1.89 |
+| the two sack terms | +0.28 | −0.36 |
+| and the line's awareness | +0.20 | +0.14 |
+| and the arm | +0.08 | +0.15 |
+
+Those four carry most of the rise, and what is left is +0.08. That is a
+diagnosis, not a fix: with the sack terms simply gone, sides at 82 are sacked
+8.4% of the time. The drop chance reads catching against a fixed 90 too, but it
+only decides how an incompletion is described; it moves no rate.
+
+**At the level people play.** Two drafted pro leagues, a season each, every
+club run by the AI:
+
+| | engine | real, 2022–23 |
+|---|---|---|
+| adjusted net yards a dropback | 7.18 | 5.89 |
+| yards an attempt | 8.10 | 7.05 |
+| completion | 67.8% | 64.6% |
+| interceptions | 1.99% | 2.34% |
+| sacks | 7.30% | 6.95% |
+| starting quarterbacks' deviation, adjusted net | 0.94 | 1.17 (1999–2024) |
+
+Twelve-club fantasy leagues throw at 7.28. Of the 1.3 excess, about half a
+yard is already there at 82, where the engine was fitted; one reason is that a
+completion gains 11.86 yards against a real 10.9 to 11.4. The rest comes with
+the level, and not all of it through the four terms. Sacks in drafted leagues sit near the real rate although they
+fall on synthetic sides, and completion runs at 67.8% where synthetic sides at
+90 complete 64.9%, so part of it comes from how drafted rosters are made up;
+that part is not attributed. Starting quarterbacks spread a little less than
+real ones, presumably because a drafted league's starters come from a narrow
+band of the pool.
+
+**Would realistic passing give the pass/run dial two ends?** A scratch copy
+cooled on every throw (completion 3.5 points lower, yards after the catch
+×0.85, interceptions ×1.2) throws like the real league in drafted pro leagues:
+63.9%, 7.30 yards an attempt, 2.45% intercepted, 6.07 adjusted net. It
+overshoots the other way at 82, at 6.89 yards an attempt. Measured the way the
+read is (paired against 0.55, ±0.16):
+
+| | eight clubs | twelve clubs | pro |
+|---|---|---|---|
+| 0.70, the engine as it is | +1.04 | +1.10 | +1.11 |
+| 0.70, the cooled copy | +0.52 | +0.70 | +0.49 |
+| 0.35, the engine as it is | −1.80 | −1.82 | −1.22 |
+| 0.35, the cooled copy | −1.06 | −0.90 | −0.89 |
+
+Throwing's edge halves. For the most run-built fifth of eight-club leagues and
+the two most run-built fifths of pro leagues no setting can be told from 0.55
+(±0.37), and no fifth of any league does better running. Realistic passing
+makes the dial shallower, not two-ended. The real game points the same way per
+play: fifteen points more pass rate, over about 62 snaps a team a game at the
+real gap of 0.07 expected points between a dropback and a run, is worth roughly
+0.6 of a point a game. That arithmetic is naive, since real defences adjust to
+tendency and passes and runs are called in different situations, but it
+suggests that a dial with one end is not in itself unrealistic. The likeliest
+way to give it a second end is a defence that adjusts to how often an offence
+throws, which the engine does not model. Only the uniform
+cooling was measured; cooling through the four terms would take yards away in
+different places and might move the dial differently.
+
+**The fix, not made.** Three parts, in the order the evidence supports them:
+
+1. Level-neutral terms: sacks from mobility and awareness against the rush
+   rather than against 70 and 80, the line's awareness against the front, and
+   the arm read against the coverage or centred where the engine was fitted,
+   each re-centred so that sides at 82 stay where they are.
+2. A weight on the passer, as `CARRIER_WEIGHT` is on the carrier, fitted to
+   the slope, mostly through interceptions and sacks.
+3. Yards a completion at 82 brought down to the real 10.9 to 11.4.
+
+The quarterback's 16.13 in the value table is measured on this engine, so a
+flatter passer would lower it by an amount not yet measured. The read, the
+other dials and most of the audit's slow checks would move with it.
+
+**Held to it by the audit.** `npm run passing` plays all three in about
+thirty seconds: 58 quarterbacks at 200 games each, 1,000 games at each level,
+two drafted pro leagues. The audit reads two numbers from it: the quarterbacks'
+slope (0.41 at 200 games, flagged outside ±0.15) and a pro league's adjusted net
+yards a dropback (7.18, ±0.3). Both are pinned where the engine is, not where
+the real game is, so a fix will trip them, and the audit will then ask for this
+section to be rewritten in the same commit.
 
 ### A fingerprint that could not see the roster
 

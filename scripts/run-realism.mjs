@@ -5,9 +5,9 @@
 // The realism audit plays synthetic sides rated 82, which is where every
 // constant in the engine was fitted, and it never looked at the spread between
 // backs. Both blind spots hid the same defect (DESIGN.md, "The back was worth
-// four times too much"): a back's rating moved his carries five times as far
-// as it does in the real game, and leagues of all-time greats, which is what
-// people play, ran at 5.95 yards a carry.
+// nearly three times too much"): a back's rating moved his carries five times
+// as far as it does in the real game, and leagues of all-time greats, which is
+// what people play, ran at 5.95 yards a carry.
 //
 // So this checks the run game against the real one twice, from numbers taken
 // out of nflverse (regular seasons; play-by-play 2022-23, season totals
