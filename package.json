@@ -44,7 +44,8 @@
     "focus": "node scripts/focus-sim.mjs",
     "convert": "node scripts/convert-sim.mjs",
     "rookies": "node scripts/rookie-read.mjs",
-    "weather": "node scripts/weather-sim.mjs"
+    "weather": "node scripts/weather-sim.mjs",
+    "cap": "node scripts/cap-drift.mjs"
   },
   "engines": {
     "node": ">=20"

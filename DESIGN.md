@@ -430,6 +430,30 @@ button to dismiss it. Clearing the note during the render was the first attempt
 and it is wrong: clearing fires `update`, which re-renders the banner, so the
 message appeared and vanished inside one tick.
 
+### Twenty-five seasons in, and why the cap does not grow (`npm run cap`)
+
+Eight seasons was as far as the cap had been measured, and a dynasty runs longer. What changes after that is the talent: the all-time greats age and retire, generated classes take their places, and the men nobody drafted stay frozen at their prime until somebody signs them. A fixed cap over a league like that could loosen into decoration or tighten into a wall, and growing it every year, as the real league does, was proposed to deal with it. It was measured first.
+
+Four 32-club leagues, every club run by the AI, read at each of 25 kickoffs, means over the leagues:
+
+| season | hit | clubs within 5% of the cap | rosters at market | starters | generated | cut at kickoff | free agents, paid over asking | rookie deals, paid over market |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 102 | 0 | 120% | 87.4 | 0% | 0 | — | 0.43× |
+| 2 | 139 | 1.5 | 112% | 84.9 | 13% | 0.3 | 1.65× | 0.55× |
+| 5 | 174 | 6.5 | 100% | 81.8 | 23% | 2.3 | 1.60× | 1.78× |
+| 10 | 178 | 7.5 | 81% | 77.1 | 48% | 1.3 | 1.87× | 1.64× |
+| 15 | 185 | 13.5 | 74% | 76.5 | 82% | 9.3 | 1.84× | 1.66× |
+| 20 | 181 | 14.8 | 72% | 76.3 | 93% | 5.0 | 1.87× | 1.50× |
+| 25 | 183 | 14.0 | 71% | 76.1 | 97% | 6.3 | 1.69× | 1.48× |
+
+**The cap never stops binding.** From season four to twenty-five the league spends 173 to 186 of 200 (one league's mean went as low as 164 and as high as 190), a fifth to a half of the clubs sit within 5% of it, and clubs are shedding men to fit at nearly every kickoff. Nothing about it drifts loose.
+
+**The talent under it drifts a great deal.** Starters fall from 87 to 76 by season twelve and stay there, and by season twenty 93% of the league is generated. Priced at `marketSalary`, a roster that cost 120% of the cap at founding costs 71% of it. The cap binds anyway because the market takes up the scarcity: free agents sign for 1.5 to 1.7 times asking in the first five seasons and 1.7 to 1.9 times from season ten on — sealed bids for the same few names — and men on rookie deals go on costing 1.4 to 1.8 times what they are worth, the premium already measured and accepted above when the scale was fixed to read its own draft. The price of talent floats. The cap does not need to.
+
+**So the cap does not grow.** Nothing in this game grows — there is no revenue and no money model — so a rising cap would be inflation and nothing else. Salaries would have to rise with it or it would stop binding, and then its one real effect is that every contract already signed gets cheaper against the cap each year: a subsidy to whoever holds long deals. At 5% a year a five-year deal costs about 9% less in real terms and a three-year deal about 5% less, on top of `TERM_PRICE`'s 0.92 against 1.04. That is the lever the contract-length work spent itself balancing, when five years won at every age. Re-fitting the length prices to absorb it would bring every decision back to where it is now, with larger numbers. That much is arithmetic. Not measured: whether it would flip the closest calls in the length table — it can only push them toward longer deals.
+
+The founding season is its own economy, which the table also shows. A draft of all-time greats on rookie money is a 57% discount on what they are worth, so hits start at 102 and take four seasons to reach the level they then hold for twenty.
+
 ## Two pools in the pro league (`proleague.js`)
 
 The fantasy league is an all-time draft and should stay one. The pro league was the same thing wearing a salary cap, and that is not how a football club is run: there is no year in which Anthony Muñoz is a free agent.

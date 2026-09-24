@@ -64,6 +64,7 @@ npm run focus        # what a development focus moves, measured against the same
 npm run convert      # which position changes exist, what they do to a rating, and whether any club gains by making them
 npm run rookies      # what a rookie pick is worth: the draft's read against alternatives, the value of scouting, position weights by wins
 npm run weather      # weather: whether a season with it averages what one without did, the spread by condition, and whether an offence should run more
+npm run cap          # twenty-five seasons of pro leagues: whether the cap still binds as the all-time greats retire
 npm run leverage     # re-measure what each position is worth, the table the auction economy rests on
 npm run fingerprint  # hash 232 simulated games play-for-play; diff before and after a refactor
 npm run report       # top and bottom of every position, multi-season players, era balance
