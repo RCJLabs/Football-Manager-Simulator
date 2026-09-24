@@ -5,52 +5,62 @@
 // real drafted leagues was played as the human's club is — no matchup plan,
 // the default sliders — at every setting the dial allows, each game paired
 // against the same game at 0.55, against its own league's AI clubs
-// (`npm run passrate -- read`). The payoff is two-ended: the most pass-built
-// squads want the dial all the way up, nearly everybody else wants it all the
-// way down, and between the two it is flat. So the read is a ramp through the
-// run edge where the two ends trade places, which differs by kind of league:
+// (`npm run passrate -- read`). On the engine as it now is the payoff has one
+// end: every kind of squad does best with the dial all the way up.
 //
-//   league              crossover   following the read, against a flat 0.55
-//   fantasy (8/10/12)     -5.25      +0.53 to +0.64 a game, out of sample
-//   pro (32)              -3.50      +0.35 to +0.70 a game, out of sample
+//   league              always 0.70, against a flat 0.55
+//   fantasy, 8 clubs      +1.04 a game
+//   fantasy, 10 clubs     +1.01
+//   fantasy, 12 clubs     +1.10
+//   pro, 32 clubs         +1.11
 //
-// Nearly every squad wants to run more than its roster suggests. Why is not
-// established. It is not mainly the AI's matchup plans: with the opponents'
-// plans switched off, running 0.35 still earns +0.55 a game in eight-club
-// leagues against +0.62 with them on.
+// Sorted into fifths by run edge, every fifth of every league wants 0.65 or
+// 0.70, and gains +0.40 to +1.68 at 0.70. So the read still says what a squad
+// is built to do, and tells every one of them to throw.
 //
-// **The read this replaced had gone stale.** It was fitted to synthetic rosters
-// and validated against each club's own clone, both on default sliders and
-// neither planning, at +0.98 ± 0.22 a game over 0.55 — on the engine of the day.
-// A dozen changes to the play model followed, several of them strengthening
-// the run, and nothing measured the read again: its test pinned the formula to
-// the table it came from rather than to the engine, so it could not fail.
-// Replayed today in exactly that clone setup, it loses to 0.55 (-0.29 a game in
-// eight-club leagues); against real leagues' AI clubs it lost -0.16 to -0.27 in
-// fantasy leagues and won nothing to +0.3 in pro ones, because it told almost
-// every squad to throw 64% to 70% of the time. The audit now re-measures it.
+// **It said the opposite until the run game was fixed.** Fitted on the
+// engine of 24 September, the read had nearly every squad running, through
+// crossovers at -5.25 and -3.5, and this file admitted that why was not
+// established. It was the backs: a point of a back's rating moved his carries
+// five times as far as it does in the real game, and power and elusiveness were
+// measured against a fixed 82 rather than against the defence, so a league of
+// all-time greats ran at 5.95 yards a carry against a real 4.49 (DESIGN.md, "The
+// back was worth nearly three times too much"). Once the run game matched real
+// carries, that read went from +0.77 a game to -1.17. The one before it, fitted
+// to synthetic rosters on 19 September — 0.64 - 0.023 x edge, throw 64% to 70%
+// for almost everyone — scores +0.89 to +1.05 here: it had the direction right
+// before the run game was broken.
+//
+// A dial that goes one way for every squad is a tax on anybody who does not
+// max it, which is what the team page's other dials already are. Two things
+// that would make it a decision again are recorded rather than done: the
+// passing game runs hotter at a league's level than the real game's (starting
+// quarterbacks at 8.0 yards an attempt against 7.1), and the engine's defences
+// never adjust to how often an offence throws, so throwing more has no price.
 //
 // The metric itself reads the league correctly, which is what makes it worth
 // keeping: sorted by average run edge, Ground & Pound clubs come out most
 // run-leaning and Air Raid most pass-leaning, in that order, without the
 // personality ever being consulted.
 //
-// The AI clubs do not use it. Moving every AI club's pass rate the same way,
-// anywhere from -0.20 to +0.10, is worth nothing on average (`npm run passrate
-// -- ai`), and their own plans adjust the dial by matchup. Moved each to its
-// own read at kickoff they would gain about half a point a game, nearly all of
-// it the run-built clubs, who open too pass-heavy — and the weekly drift in
-// gm.js walks those down by midseason anyway. Starting them on the read is a
-// possible change to the AI, not made here.
+// The AI clubs do not use it. On the engine before the run game was fixed,
+// moving every AI club's pass rate the same way, anywhere from -0.20 to
+// +0.10, was worth nothing on average (`npm run passrate -- ai`), and their own
+// plans adjust the dial by matchup. It has not been measured on this engine,
+// where a club throwing 0.44 may well leave points on the field; starting the
+// AI on the read is a possible change to the AI, not made here.
 //
-// The other four dials were re-measured the same way against real leagues'
-// clubs once this read turned out stale (`npm run dials`), and none of them
-// depends on the roster the way the pass/run balance does, so none gets a
-// read. Fourth-down aggression at the top of the dial is worth +1.19 to +1.25 a
-// game for every kind of squad; blitzing least +0.31 to +0.48; the deepest
-// shell +0.33 to +0.47; tempo nothing either way. The first measurement, on 19
-// September and on identical rosters, had aggression helping only a strong
-// offence with a poor kicker and the other three flat.
+// The other four dials are measured the same way against real leagues' clubs
+// (`npm run dials`), and none of them depends on the roster the way the
+// pass/run balance once did, so none gets a read. With the run game fixed and
+// every club throwing on this read: fourth-down aggression at the top of the
+// dial is worth +0.64 a game in eight-club leagues and +0.88 in pro ones, for
+// every kind of squad; blitzing least +0.32 and +0.34; the deepest shell +0.66
+// in eight-club leagues and nothing measurable in pro ones; tempo nothing
+// either way. Before the fix the same measurement read +1.19 to +1.25, +0.31 to
+// +0.48, +0.33 to +0.47 and nothing; the first, on 19 September and on
+// identical rosters, had aggression helping only a strong offence with a poor
+// kicker and the other three flat.
 //
 // Why this exists at all: every AI personality drafts and calls plays to match
 // — Air Raid buys quarterbacks and receivers and throws at 0.66, Ground & Pound
@@ -65,13 +75,21 @@ export const RATE_MIN = 0.35;
 export const RATE_MAX = 0.7;
 /**
  * The run edge at which throwing and running come out level against the clubs
- * a squad plays, by kind of league. Fitted by what following the read earns and
- * checked on leagues the fit never saw: eight-club leagues put it at -5.5,
- * ten-club at -6.0, twelve-club at -4.75, and three pro seed sets at -3.0,
- * -3.25 and -3.75 to -4.25. A fantasy squad has an elite passer and elite
- * opponents; a pro squad has neither, which is why the two differ.
+ * a squad plays, by kind of league — or `null`, which is what every kind of
+ * league measures now: no squad gets there.
+ *
+ * Fitted at -5.25 in fantasy leagues and -3.5 in pro ones on 24 September,
+ * which had nearly every squad running, on an engine whose backs were worth
+ * five times too much a point of rating and whose leagues ran 5.95 yards a
+ * carry. Measured again once the run game matched real carries, every fifth of
+ * every kind of league by run edge earns more at 0.70 than at 0.55, the most
+ * run-built included (+0.40 to +1.68 a game), and the fitted crossover runs off
+ * the right-hand end of the range it is searched over. A crossover beyond every
+ * squad measured would be a number made up for rosters nobody has built, so
+ * there is none. If a change to the passing game brings one back, it is a
+ * number again, and the ramp below already knows what to do with it.
  */
-export const CROSSOVER = { fantasy: -5.25, pro: -3.5 };
+export const CROSSOVER = { fantasy: null, pro: null };
 /**
  * How fast the dial moves through the crossover, per point of run edge: from
  * one end to the other over about two and a third points. A switch earned the
@@ -131,16 +149,18 @@ export function runEdge(comp) {
   return runPower - passPower;
 }
 
-/** Where the dial should sit for a club with this much of a run edge. */
+/** Where the dial should sit for a club with this much of a run edge: all the way up where no squad crosses over. */
 export function recommendedPassRate(edge, crossover = CROSSOVER.fantasy) {
+  if (crossover == null) return RATE_MAX;
   return clamp(MID - RAMP * (edge - crossover), RATE_MIN, RATE_MAX);
 }
 
 /**
  * The read for one club: what it is built to do, where the dial should sit, and
  * how much moving it is worth. `strength` is deliberately a band rather than a
- * number: out of sample the read is worth +0.35 to +0.70 a game over 0.55
- * depending on the league, and a per-club figure would be made up.
+ * number: the read is worth +1.01 to +1.11 a game over 0.55 depending on the
+ * league, less for the most run-built squads, and a per-club figure would be
+ * made up.
  */
 export function strategyRead(league, teamIdx, byId) {
   const team = league.teams[teamIdx];
@@ -150,28 +170,29 @@ export function strategyRead(league, teamIdx, byId) {
   const crossover = crossoverFor(league);
   const rate = recommendedPassRate(edge, crossover);
   const current = team.strategy?.passRate ?? 0.55;
-  const even = Math.abs(edge - crossover) < EVEN_ENOUGH;
+  const even = crossover != null && Math.abs(edge - crossover) < EVEN_ENOUGH;
   const off = Math.abs(current - rate) >= 0.05;
 
   // What the squad is, and then what to do with it, which are not the same
-  // thing: a squad whose passer is its best player is still usually told to run.
+  // thing: a squad whose line and backs are its best players is still told to
+  // throw.
   const built = edge > 3 ? 'Your line and your backs are the better half of this offence; your passer and receivers are the weaker half.'
     : edge < -3 ? 'Your quarterback and receivers are the better half of this offence; the run game is the weaker half.'
       : 'Your passing and running games are about as good as each other.';
   const lean = edge > 3 ? 'run' : edge < -3 ? 'pass' : 'balanced';
-  const measured = 'squads built like yours win more by leaning on the run, measured against the clubs you play.';
+  const measured = 'squads built like yours win more by throwing, measured against the clubs you play.';
   const advice = even ? 'Against the clubs you play, running and throwing come out about level, so the dial is close to a free choice.'
-    : rate > MID ? 'Your passing game is strong enough that throwing pays, measured against the clubs you play, so throw.'
-      : lean === 'pass' ? `Even so, ${measured}`
+    : rate <= MID ? 'Run: against the clubs you play, it is what this squad does best.'
+      : lean === 'run' ? `Even so, ${measured}`
         : lean === 'balanced' ? `And ${measured}`
-          : 'Run: it is what this squad does best.';
+          : 'Throw: it is what this squad does best, and it pays against the clubs you play.';
 
   return {
     edge, rate, current, even,
     // "Worth moving" only when the squad is off the crossover and the dial is not already there.
     act: !even && off,
     lean,
-    strength: even ? 'barely worth moving for this squad' : 'worth about half a point a game, measured against the clubs you play',
+    strength: even ? 'barely worth moving for this squad' : 'worth about a point a game, measured against the clubs you play',
     why: `${built} ${advice}`,
   };
 }

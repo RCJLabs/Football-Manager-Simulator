@@ -48,7 +48,8 @@
     "cap": "node scripts/cap-drift.mjs",
     "schemes": "node scripts/scheme-fit.mjs",
     "passrate": "node scripts/pass-rate.mjs",
-    "dials": "node scripts/dials.mjs"
+    "dials": "node scripts/dials.mjs",
+    "rushing": "node scripts/run-realism.mjs"
   },
   "engines": {
     "node": ">=20"

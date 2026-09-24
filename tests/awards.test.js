@@ -46,10 +46,10 @@ test('the final hands out honours, and the MVP is scored against his position', 
 });
 
 test('the MVP weighs a back the way voters do, not the way the position table does', () => {
-  // The table has a back at 0.97 of a quarterback, and played straight that
-  // gave backs 37 MVPs in 40 seasons (awards.js). The race is scored on the
-  // award's own ratio instead, read back here from the race's own scores, so
-  // pointing the award at the table again fails.
+  // Read straight, the position table gave backs 37 MVPs in 40 seasons when it
+  // had them at 0.97 of a quarterback and none when it had them at 0.34
+  // (awards.js). The race is scored on the award's own ratio instead, read back
+  // here from the race's own scores, so pointing the award at the table fails.
   const league = auctionLeague(31);
   playSeason(league);
   const race = seasonAwards(league, byId).mvpRace;

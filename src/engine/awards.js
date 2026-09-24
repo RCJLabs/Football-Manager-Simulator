@@ -42,20 +42,21 @@ const ALL_LEAGUE_COUNTS = { QB: 1, RB: 1, WR: 3, TE: 1, DL: 4, LB: 3, CB: 2, S: 
  * pushing past 1.0 to correct that buys realism nobody asked for at the cost of
  * a league where only quarterbacks ever win.
  *
- * That held while the table priced a back at 0.6 of a quarterback. Re-measured
- * on 2026-09-24 he is worth 0.97 of one, and played straight the table hands the
- * award to a back in 37 seasons of 40 (four seeds, ten seasons each). It is the
- * same failure as before, reached from the other side: the season's best back
- * stands further above his position than the best quarterback does above his, a
- * z of 2.78 against 2.11 on average, so once the weights are level his noisier
- * line decides it. The engine may be right about what a back is worth; the
- * award is modelled on real voting, and voters do not weigh a back like a
- * quarterback. So the award keeps one number of its own: a quarterback's season
- * counts 1.55 times a back's, which over the same forty seasons names 33
- * quarterbacks and 7 backs, eight or nine quarterbacks in every ten-season run.
- * Every other position is still weighted by the table.
+ * That held while the table priced a back at 0.6 of a quarterback, and on
+ * 2026-09-24 it stopped holding twice in one day. With the back at 0.97 of a
+ * quarterback, the table read straight gave backs 37 MVPs in 40 seasons (four
+ * seeds, ten seasons each); once the run game was measured against real
+ * carries and he fell to 0.34, it gave them none in 40. The award cannot follow
+ * the table in either direction, because the season's best back stands
+ * further above his position than the best quarterback does above his — a z of
+ * 3.02 against 2.09 on the engine as it now is — and how that trades against a
+ * quarterback is a question about voters, not about what wins games. So the
+ * award keeps one number of its own: a quarterback's season counts 1.7 times a
+ * back's, which over forty seasons names 31 quarterbacks and 9 backs, against
+ * real voting's four in five. It was 1.55 on the engine before the fix, fitted
+ * the same way. Every other position is still weighted by the table.
  */
-export const MVP_QB_OVER_RB = 1.55;
+export const MVP_QB_OVER_RB = 1.7;
 const MVP_WEIGHT = { ...TRUE_LEVERAGE, RB: TRUE_LEVERAGE.QB / MVP_QB_OVER_RB };
 
 /** Every player with a stat line this season: { id, p, team (idx), s, pts, games }. */

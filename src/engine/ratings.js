@@ -223,12 +223,15 @@ export function composites(lineup) {
  * re-exported from; it lives here so `teamPower` can weight by it without the
  * two files importing each other.
  *
- * Set on 2026-09-24 as the mean of six synthetic rosters at 10,000 games each,
- * scaled to keep the starter-weighted total at 86.45 (DESIGN.md, "The back is
- * worth nearly a quarterback now"). Every table before it came from one roster,
- * whose own quirks sat inside the numbers.
+ * The mean of six synthetic rosters at 10,000 games each, scaled to keep the
+ * starter-weighted total at 86.45. Set that way on 2026-09-24 with the back at
+ * 13.99, nearly a quarterback, and set again the same day at 5.44 once the run
+ * game was measured against real carries and a back's rating turned out to
+ * move his five times as far as the real game's (DESIGN.md, "The back was
+ * worth nearly three times too much"). Every table before those came from one
+ * roster, whose own quirks sat inside the numbers.
  */
-export const TRUE_LEVERAGE = { QB: 14.46, RB: 13.99, TE: 4.38, CB: 4.33, WR: 2.80, S: 2.73, LB: 2.75, DL: 2.57, OL: 1.95, P: 1.51, K: 1.31 };
+export const TRUE_LEVERAGE = { QB: 16.13, RB: 5.44, TE: 4.87, CB: 4.81, WR: 3.14, S: 3.00, LB: 3.09, DL: 2.88, OL: 2.27, P: 1.47, K: 1.39 };
 
 /**
  * How strong a lineup is, on the 40..99 rating scale.

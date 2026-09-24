@@ -503,9 +503,17 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null,
   const delta = Math.round((after - before + pickDelta) * 10) / 10;
   const premium = Math.round(leveragePremium(aiGives, aiGets, byId) * 10) / 10;
   const greed = aiGreed(team, league) + premium;
-  const accept = delta >= greed;
+  // Nobody turns a receiver into a kicker. The premium alone does not make
+  // that so: it charges per point of leverage shipped, and a kicker eight
+  // points better than the club's own is worth more lineup than a receiver
+  // three starters deep, so once the table priced kickers at 1.4 a club took
+  // its best receiver for one. A position player for specialists and nothing
+  // else is refused whatever the arithmetic says.
+  const forSpecialists = aiGets.length > 0 && pickDelta <= 0 && aiGets.every((id) => SPECIALISTS.has(byId.get(id)?.pos)) && aiGives.some((id) => !SPECIALISTS.has(byId.get(id)?.pos));
+  const accept = delta >= greed && !forSpecialists;
   let reason;
-  if (accept) reason = delta >= greed * 3 ? 'They jump at it.' : 'They think about it, then agree.';
+  if (forSpecialists && delta >= 0) reason = `${team.abbr} will not trade down in position for that. They want more back where it counts.`;
+  else if (accept) reason = delta >= greed * 3 ? 'They jump at it.' : 'They think about it, then agree.';
   else if (delta < 0) reason = `${team.abbr} would be worse off. They pass.`;
   else if (premium > 0 && delta >= greed - premium) reason = `${team.abbr} will not trade down in position for that. They want more back where it counts.`;
   else reason = `Not enough in it for ${team.abbr}. They want roughly ${Math.ceil((greed - delta) / 2)} more points of lineup value.`;
@@ -525,6 +533,7 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null,
  * enquiry is refused out of hand.
  */
 export const LEVERAGE_PREMIUM = 1.6;
+const SPECIALISTS = new Set(['K', 'P']);
 function leveragePremium(gives, gets, byId) {
   const lev = (ids) => ids.reduce((t, id) => t + (TRUE_LEVERAGE[byId.get(id)?.pos] ?? 1), 0);
   return Math.max(0, lev(gives) - lev(gets)) * LEVERAGE_PREMIUM;

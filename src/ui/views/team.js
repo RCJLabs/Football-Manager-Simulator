@@ -26,8 +26,8 @@ const STRATEGY_FIELDS = [
 ];
 
 const GROUP_NOTES = {
-  helps: 'Measured against the clubs you play, each of these leans one way for every kind of squad. Going for it on fourth down more is worth about a point and a quarter a game at the top of the dial against where it starts. Blitzing less and sitting deeper in coverage each win a little: up to about half a point a game at the far end.',
-  flat: 'Pace changes how a game looks more than who wins it. At every setting it comes out within about a third of a point of the default, for strong squads and weak ones alike, so set it to taste.',
+  helps: 'Measured against the clubs you play, each of these leans one way for every kind of squad. Going for it on fourth down more is worth two-thirds of a point to nine-tenths a game at the top of the dial against where it starts. Blitzing less wins about a third of a point at the far end, and sitting deeper in coverage up to two-thirds of a point in a fantasy league and next to nothing in a pro one.',
+  flat: 'Pace changes how a game looks more than who wins it. At every setting it comes out within about a quarter of a point of the default, for strong squads and weak ones alike, so set it to taste.',
 };
 
 /**

@@ -39,11 +39,13 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * was sound and one number in it was not.
  *
  * It has gone stale twice since, silently, both times from run-game work that
- * nobody re-measured after. The second time backs' elusiveness and power were
- * wired into play, so a table pricing the back at 0.6 of a quarterback sat over
- * an engine that plays him at 0.97 where starters sit. Re-set on 2026-09-24 as
- * the mean of six rosters rather than one (DESIGN.md, "The back is worth nearly
- * a quarterback now"), and the audit now replays it.
+ * nobody re-measured after, and on 2026-09-24 it was set twice in a day. First
+ * from six rosters rather than one, which had the back at 0.97 of a
+ * quarterback; then, once the run game itself was measured against real
+ * carries and found to move a back's five times as far as the real game does,
+ * at 0.34 (DESIGN.md, "The back was worth nearly three times too much"). The
+ * audit replays the table now, and a second script replays the run game
+ * against the real one.
  *
  * The absolute scale is not free, even though the price guide normalises it
  * away. `lineupStrength` in transactions.js sums overall × leverage raw, and
@@ -64,8 +66,8 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * below is the honest answer rather than the intuition. Cheap is not the same
  * as underpriced: linemen have low glamour and low leverage together, and come
  * out overpaid. Normalised against each other the underpaid positions are the
- * back, the quarterback and the corner; the traps are the receiver and the
- * defensive line. The strategy table in DESIGN.md agrees — the buyer who bids
+ * quarterback and the corner; the traps are the receiver, the defensive line
+ * and the back. The strategy table in DESIGN.md agrees — the buyer who bids
  * off this table finishes first.
  */
 // Lives in ratings.js so `teamPower` can weight a lineup by it without this

@@ -56,7 +56,7 @@ Offense chooses one of `run_in, run_out, screen, pass_short, pass_med, pass_deep
 
 Pass: pressure probability from rush vs. protection (logistic, `edge()`); pressure → sack (QB mobility/awareness reduce), scramble, or a hurried throw. Target chosen by role and skill; the primary defender is matched by role (WR1 ↔ CB1, TE ↔ best-coverage LB or S…), so Deion on Rice is a real matchup. Completion probability = base by depth + (QB accuracy/receiver skill − coverage) × slope. Interceptions scale with defense ball skills, QB awareness, pressure, and how badly coverage wins. Yards = air (by depth, QB arm for deep) + run-after-catch (exponential, receiver RAC vs. tackling, breakaway chance from speed vs. secondary speed).
 
-Run: stuff chance from run stop vs. run block (+RB vision); otherwise base gain + blocking edge + break-tackle chance (power/elusiveness vs. tackling) + breakaway chance (speed vs. secondary speed). QB sneaks on 4th-and-1. Fumbles scale with ball security and tackling.
+Run: stuff chance from run stop vs. run block (+RB vision against the front's awareness, power against its run stopping); otherwise base gain + blocking edge + break-tackle chance (power/elusiveness vs. tackling) + breakaway chance (speed vs. secondary speed, elusiveness vs. tackling). Every term that reads the carrier reads him against his opposite number, at `CARRIER_WEIGHT` — a fifth, measured against real carries (see "The back was worth nearly three times too much"). QB sneaks on 4th-and-1. Fumbles scale with ball security and tackling.
 
 Special teams: FG probability is a logistic in distance with the midpoint set by kicker power and accuracy. Punts: distance from punter power, pooch logic near midfield, placement skill avoids touchbacks and forces fair catches. Kickoffs: touchback rate from kicker power, returns by the fastest non-starter, rare breakaway. Onside kicks when trailing late.
 
@@ -139,16 +139,17 @@ reshuffled random stream: an injury change that drew one extra number per
 injury took it to 9.1, while two 48-league samples either side of that change
 read 8.2 and 8.5. So the audit now holds the thing the auction produces before a
 ball is snapped, which no in-season randomness can move — the spread of roster
-quality, leverage-weighted: a standard deviation of 41.1 under the auction
-against 30.2 from the draft, over the default twelve leagues.
+quality, leverage-weighted: a standard deviation of 37.0 under the auction
+against 26.9 from the draft, over the default twelve leagues.
 
 "Leverage-weighted" meant a table of its own until 2026-09-24: `auction-sim`
 carried a literal copy of the very first measurement (tight end 9.3, back 5.0)
 through both re-measurements, so the check weighed rosters by a table the game
 had thrown out and moved only when the auction's own bidding did. It reads the
 shipped table now. Weighed that way, the table before the back's rise gave 43.8
-against 29.0, and the one after it 41.1 against 30.2: the auction still spreads
-rosters about a third more than the draft does, where on the old table it was
+against 29.0, the one after it 41.1 against 30.2, and the one set once the run
+game matched real carries 37.0 against 26.9: the auction still spreads rosters
+about a third more than the draft does, where on the oldest of those it was
 half again more.
 
 The auction fixes it with a $200 cap and 27 slots. Teams take turns nominating a
@@ -195,17 +196,17 @@ Two things the re-measurement exposed that were not about the tight end at all:
 
 **A value ratio is meaningless when the stake is trivial.** Re-measured, the punter came out at better value-for-money than the quarterback — arithmetically true, and it had the value board telling a new manager that punters are the best buy in the game. `positionValue()` now carries each position's whole-squad stake and calls anything under 5% "barely matters" however good its ratio, measured on the group so five cheap linemen are not mistaken for a specialist.
 
-**Which positions are actually the bargains**, on the table as it stands (re-measured on 2026-09-24; see "The back is worth nearly a quarterback now"):
+**Which positions are actually the bargains**, on the table as it stands (set on 2026-09-24 once the run game matched real carries; see "The back was worth nearly three times too much"):
 
-| | RB | QB | CB | TE | S | OL | LB | DL | WR |
+| | QB | CB | TE | S | OL | LB | RB | DL | WR |
 |---|---|---|---|---|---|---|---|---|---|
-| Wins share | 26.5% | 27.4% | 8.2% | 8.3% | 5.2% | 3.7% | 5.2% | 4.9% | 5.3% |
-| Price share | 15.7% | 22.5% | 6.9% | 9.3% | 5.9% | 4.9% | 7.3% | 9.3% | 14.7% |
-| Value | 1.69× | 1.22× | 1.20× | 0.89× | 0.88× | 0.75× | 0.71× | 0.52× | 0.36× |
+| Wins share | 33.3% | 9.9% | 10.0% | 6.2% | 4.7% | 6.4% | 11.2% | 5.9% | 6.5% |
+| Price share | 22.5% | 6.9% | 9.3% | 5.9% | 4.9% | 7.3% | 15.7% | 9.3% | 14.7% |
+| Value | 1.48× | 1.45× | 1.08× | 1.05× | 0.96× | 0.87× | 0.72× | 0.64× | 0.44× |
 
-Cheap is not the same as underpriced, which is where the intuition goes wrong: linemen have low glamour and low leverage together and come out overpaid. The back is the one clear bargain now, where two tables ago he was a trap; the quarterback and the corner are still better than fair, and receivers and the defensive line are still the traps. The strategy table below agrees independently — the trenches-first buyer has never beaten the value shopper.
+Cheap is not the same as underpriced, which is where the intuition goes wrong: linemen have low glamour and low leverage together and come out overpaid. The quarterback and the corner are the bargains; receivers, the defensive line and the back are the traps. For a few hours on 2026-09-24 the back was the one clear bargain at 1.69×, on a table that was right about an engine whose run game was wrong. The strategy table below agrees independently — the trenches-first buyer has never beaten the value shopper.
 
-Two limitations to carry openly. This is an average across a position's starters, and where a position has several the first is worth appreciably more than the average: measured solo over the same six rosters, a number one receiver is worth 2.06 against the positional average of 1.10, nearly twice. And a table is one number a position, where a back's worth is not linear in his rating — eight points is worth 0.17 a point to a 75-rated back and 0.80 to an 88 — so he is the bargain the table says at starter level and overpriced by the same table below it. The value panel says both.
+One limitation to carry openly: this is an average across a position's starters, and where a position has several the first is worth appreciably more than the average. Measured solo over the same six rosters, a number one receiver is worth 2.14 against the positional average of 1.12 — nearly twice. The value panel says so.
 
 Measured over twenty-four 8-team leagues with the human team following fixed
 strategies, on the current 1,500-player pool with the 27-slot roster, injuries
@@ -213,14 +214,14 @@ at the default setting and penalties on:
 
 | Strategy | Wins of 14 | Point differential | Average finish of 8 | Titles of 24 |
 |---|---|---|---|---|
-| Value shopper (bid 1.15× true worth) | 8.2 | +49 | 3.2 | 11 |
-| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.3 | +7 | 3.8 | 4 |
-| Skill players first (1.5× asking at QB/RB/WR/TE) | 6.4 | −23 | 4.8 | 2 |
-| Trenches first (1.7× worth on the lines) | 5.8 | −50 | 5.5 | 1 |
-| Market follower (pay the asking price) | 4.3 | −94 | 7.1 | 0 |
-| Spread it evenly | 4.3 | −102 | 6.9 | 0 |
+| Value shopper (bid 1.15× true worth) | 8.8 | +61 | 2.9 | 8 |
+| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.8 | +18 | 3.4 | 4 |
+| Trenches first (1.7× worth on the lines) | 6.5 | −12 | 4.9 | 0 |
+| Skill players first (1.5× asking at QB/RB/WR/TE) | 5.3 | −49 | 6.4 | 1 |
+| Spread it evenly | 5.0 | −72 | 6.4 | 0 |
+| Market follower (pay the asking price) | 4.8 | −74 | 6.4 | 0 |
 
-Re-run on 2026-09-24 with the re-measured table, and paired against the table before it on the same engine and the same leagues: value shopping went from 7.3 wins to 8.2, and nothing else moved by a whole win. It is the second correction to the worth table that has made the strategy bidding off it better — the first took it from 7.7 to 8.5 — which is what a more accurate table should do. Twenty-four leagues is a small sample and the ordering is stable across runs while the individual numbers move by a few tenths.
+Re-run on 2026-09-24 after the run game was measured against real carries and the table re-set with it. Value shopping reads 8.8, the best it has measured; skill players first falls from 6.4 to 5.3 and trenches first rises from 5.8 to 6.5, which is the back being worth a third of what he was. Earlier the same day, paired on the same leagues, the table that had the back at nearly a quarterback took value shopping from 7.3 to 8.2 over the one before it — right about an engine that was wrong. Every correction to the worth table so far has made the strategy bidding off it better, which is what a more accurate table should do. Twenty-four leagues is a small sample and the ordering is stable across runs while the individual numbers move by a few tenths.
 
 About four wins separate reading the market from following it, so how you bid is
 still the main thing that decides a season.
@@ -245,7 +246,7 @@ league selects between them.
 
 ## The value board (`ui/value-panel.js`, `ui/views/guide.js`)
 
-The auction's mispricing was the most interesting thing in the game and it was documented here and nowhere in the product. A first-time manager faced $200 over 1,500 names with no way to know a kicker is worth about a tenth of a quarterback, and the only way to find out was to lose a season to it.
+The auction's mispricing was the most interesting thing in the game and it was documented here and nowhere in the product. A first-time manager faced $200 over 1,500 names with no way to know a kicker is worth less than a tenth of a quarterback, and the only way to find out was to lose a season to it.
 
 It is positional, never per player. Showing what an individual is worth would hand over the answer and delete the auction; showing which positions the room underpays is a strategy you still have to execute under a budget, against nine other bidders, with the best names gone by the time you commit. There is no per-player worth figure anywhere on screen.
 
@@ -360,9 +361,10 @@ is now worth. `marketSalary` is leverage times rating over a replacement level,
 calibrated so a roster priced entirely at market costs 104% to 114% of the cap.
 Just over, on purpose: no club can field a side of men all paid what they are
 worth, so every roster is part bargain and part rookie deal. It has drifted
-further over since: 120% at founding on the table before 2026-09-24 and 122% on
-the one after it (`npm run cap -- 1 4`), with the cap left where it was for the
-reasons under "Twenty-five seasons in".
+further over since: 120% at founding on the table before 2026-09-24, 122% on
+the one set that morning and 119% on the one set once the run game matched real
+carries (`npm run cap -- 1 4`), with the cap left where it was for the reasons
+under "Twenty-five seasons in".
 
 **Three things were wrong before it worked, and all three are the same mistake
 in different clothes — the money kept being thrown away:**
@@ -1204,17 +1206,17 @@ that explains. Left open: the two tables disagree about two of eleven positions,
 and nothing in the game turns on it until somebody is deciding what to bid for a
 punter.
 
-**The agreement fell to 0.864 on 2026-09-24, and it is the back.** Against the
-re-measured table the same yardstick column correlates at 0.864: the table has
-the back at 13.99 and the yardstick's spread at 7.73. They are not measuring the
-same thing once a position's worth is not linear in its rating. The yardstick
-column is a whole pool's spread, worst man to best, and most backs sit where a
-point of rating buys little; the table is the price of a point where starters
-sit. Put the table's own method onto real backs in the yardstick's harness and
-it agrees with the table at the top: eight points on everything is worth 0.80 a
-point to an 88-rated back and 0.56 to an 85, against 0.61 to 0.64 for
-quarterbacks at 79 to 85, and 0.17 to a back at 75. Details under "The back is
-worth nearly a quarterback now".
+**Both columns moved on 2026-09-24, and the yardstick one is now stale.** The
+table re-measured that morning, with the back at 13.99, correlated with this
+yardstick column at 0.864; the one set once the run game matched real carries,
+with the back at 5.44, correlates at 0.979. That second figure is not the
+corroboration the first 0.968 was, because the yardstick column was measured
+on 22 September, on the run game that turned out to move a back's carries five
+times too far — his 7.73 here is that engine's. Re-played on the fixed engine,
+real backs come out at 0.077 points of differential per overall point against a
+quarterback's 0.574, where they were 0.288 and 0.535. The column needs
+re-measuring before it can check the table again. Details under "The back was
+worth nearly three times too much".
 
 ### What the general managers' decisions are worth (`npm run gm`)
 
@@ -3101,12 +3103,16 @@ every seed run again with the halves swapped so draft slot cancels:
 No difference a season can see, so it stays; replacement levels and each
 club's open slots settle most picks before the weights do.
 
-On the table re-measured on 2026-09-24 there is a difference, and it points the
-same way: in 12-club fantasy leagues the table's clubs now come out −3.9 ± 1.2
-points (ahead in 7 of 30), against −0.6 ± 1.3 for the old table on the same
-engine, and they spend an early pick on a second back. `POS_BASE` stays on firmer
-ground than before; the detail is under "The back is worth nearly a quarterback
-now".
+On the tables re-measured on 2026-09-24 there is a difference, and it points the
+same way: in 12-club fantasy leagues the table's clubs come out −3.9 ± 1.2
+points (ahead in 7 of 30) with the back at nearly a quarterback, against −0.6 ±
+1.3 for the old table on that engine, and −3.9 ± 1.4 (ahead in 6 of 30) on the
+table set once the run game matched real carries. The first time they spent an
+early pick on a second back, round 3.5 against `POS_BASE`'s 18.8, which looked
+like the cause; the second time they take him in round 13.5 and lose by just as
+much, so it was not. Why drafting on the table loses is not established.
+`POS_BASE` stays on firmer ground than before; the detail is under "The back was
+worth nearly three times too much".
 
 **A bug in the engine, found because a measurement was impossible.** The first
 dynasty comparisons ran both arms in one process and had every alternative
@@ -3324,6 +3330,14 @@ that was already sitting in the file for this purpose.
 
 ### The back is worth nearly a quarterback now
 
+*Superseded the same day by "The back was worth nearly three times too much",
+below. The table this section set was right about the engine, and the engine
+was wrong: its run game moved a back's carries five times as far as the real
+game's. The method stands — six rosters, the error taken between them, the
+audit replaying the table — and so does the finding that one commit did it.
+The convexity, the draft explanation and the knock-on figures below describe
+the engine that was wrong.*
+
 `TRUE_LEVERAGE` went stale a second time the way it did the first: a change to
 how the run game plays, and no re-measure after it. The audit replays the table
 now, so a third time would be caught.
@@ -3397,7 +3411,8 @@ of 82. At a mean of 90, a fantasy league's level, the back reads
 5.12, 5.67 and 6.54 on three rosters against the quarterback's 5.11, 5.50 and
 5.54. What this does mean is that a table of one number a position now
 overprices every back below starter level by more than it did, and the value
-panel says so.
+panel says so. (On the fixed engine the convexity is gone within the noise of
+500 games a man, and the panel no longer says it.)
 
 **Drafting on the table loses, so the draft keeps POS_BASE.** Nothing in play
 drafts on the table, but `npm run rookies -- weights` asks whether it should:
@@ -3417,8 +3432,10 @@ rounds. The draft's guard against an early second back is a flat four points,
 sized for `POS_BASE`'s back weight of 1.15, and the table's 2.88 swamps it, so an
 early pick goes on a bench back — who plays only when the starter is hurt, and
 who tends to be the lower-rated back the table overprices.
-How much of the 3.9 that accounts for is not measured. The answer it gives is
-the one already shipped: the snake draft keeps `POS_BASE`.
+How much of the 3.9 that accounts for is not measured. (None of it, as it
+turned out: on the fixed engine the table's clubs take their second back in
+round 13.5 and lose by just as much.) The answer it gives is the one already
+shipped: the snake draft keeps `POS_BASE`.
 
 **What else moved, paired against the old table on today's engine.**
 
@@ -3450,6 +3467,177 @@ engine` runs roster 1 at 4,000 games and counts positions that differ from the
 shipped table by more than 30% and by more than three standard errors, both. It
 reads 0 on this table and 2 on the one before it, the back and the tight end,
 in about two minutes.
+
+### The back was worth nearly three times too much
+
+The table in the section above was right about the engine, and the engine was
+wrong. Measured against real carries, a point of a back's rating moved his five
+times as far as it does in the real game, and leagues of all-time greats ran at
+5.95 yards a carry. Both came from the terms in the run game that read the ball
+carrier. Fixed, the back is worth a third of a quarterback, the pass/run read
+points the other way, and `npm run rushing` holds the run game to the real one.
+
+**The real game, from nflverse** (regular seasons; the numbers are written into
+`scripts/run-realism.mjs` so it runs offline):
+
+- Backs with 150 or more carries in a season, 1999–2024, 820 seasons: 4.24
+  yards a carry, standard deviation 0.58, ninetieth percentile 5.05, best 6.38
+  (Jamaal Charles, 2010). The same back's next season correlates at 0.27, so the
+  spread of real talent is about 0.30 a carry, and some of that is his line.
+- Every run in 2022–23 play-by-play, kneels left out: 4.49 a carry; 17.3%
+  stopped at or behind the line; 11.6% gain ten or more; 2.52% twenty or more;
+  0.66 twenty-yard runs a team a game.
+- In expected points: a starter one standard deviation of real talent better is
+  worth 0.52 a game at back and 2.57 at quarterback — talent from the
+  year-to-year correlation, times how often each has the ball. About one to five.
+
+**Backs against the seasons they are rated on.** Eighty-five backs in the pool
+have seasons from 1999 on, and 81 of them carried 150 or more times that year.
+Each played 300 games in the same average side, 82 against 82, set against what
+he really ran:
+
+| | engine | real, same backs and seasons |
+|---|---|---|
+| mean | 4.61 | 4.65 |
+| standard deviation | 1.88 | 0.56 |
+| range | 2.00 to 8.86 | 3.35 to 6.03 |
+| per overall point | 0.178 | 0.036 |
+
+Saquon Barkley's 2024 ran 8.86 in the engine and 5.81 in the real game;
+LaDainian Tomlinson's 2006, 8.49 and 5.20; Julius Jones's 2006, 2.00 and 4.06.
+The engine had them in the right order — correlation 0.67 — and five times too
+far apart: regressing what they really ran on what the engine said gives a
+slope of 0.20.
+
+**And leagues of greats ran hot.** A season of drafted pro leagues averaged 5.95
+a carry with 6.3% of runs going twenty yards; twelve-club fantasy leagues 6.25
+and 7.1%; starting backs averaged 6.33 with a deviation of 1.02 and a best of
+8.86. The realism check never saw it, because it plays sides rated 82. Power
+resisted the stuff and elusiveness drove the breakaway against a fixed 82
+rather than against anybody, and the section that wired them in called the
+result correct: "they are better than the reference". They were better than
+the reference on both sides of the ball, and only one side was being counted.
+
+**How much of it was 9ccd5b1.** Reverting only that commit's three run terms:
+0.098 a carry per point, deviation 1.06, slope 0.37; pro leagues at 5.36 a
+carry and 4.5% twenty-yard runs. So backs were already too far apart and too
+hot before it, through the older speed and vision terms — the speed term's flat
+30% longer burst for any back at 92 speed among them — and 9ccd5b1 roughly
+doubled both.
+
+**Quarterbacks, the same way.** Fifty-eight real quarterbacks with 250 or more
+real attempts: adjusted net yards an attempt, deviation 2.39 in the engine
+against 1.22 real, slope 0.43, 0.189 a point against 0.080. At the top it is
+right — Aaron Rodgers's 2011 at 9.51 against a real 9.40, Patrick Mahomes's
+2018 at 9.13 against 8.89 — and the excess is all at the bottom, where
+quarterbacks rated in the fifties collapse to 1 to 3 against a real 4.5 to 6.5.
+Not fixed here: it moves backups and the last rounds of a draft, not the
+starters the table prices.
+
+**The fix is one constant and a change of reference.** `CARRIER_WEIGHT` in
+plays.js: every term that reads the carrier reads him against his opposite
+number — vision against the front's awareness, power against its run stopping,
+elusiveness against its tackling, speed against its speed, and the burst's
+flat bonus at 92 speed becomes a continuous one against the secondary's pace —
+at a fifth of the weight. At the level the engine was fitted, nothing moves:
+none of the 44 realism rows outside the real range, yards a carry 4.51 → 4.45.
+At the level people play, it comes into line:
+
+| | before | after | real |
+|---|---|---|---|
+| backs in the average side: standard deviation | 1.88 | 0.47 | 0.56 |
+| per overall point | 0.178 | 0.045 | 0.036 |
+| slope, real on engine | 0.20 | 0.77 ± 0.10 | 1 |
+| pro leagues: yards a carry | 5.95 | 4.66 | 4.49 |
+| twenty-yard runs | 6.28% | 3.17% | 2.52% |
+| starting backs: deviation / ninetieth percentile / best | 1.02 / 7.69 / 8.86 | 0.49 / 5.32 / 6.07 | 0.58 / 5.05 / 6.38 |
+
+A fifth rather than the 0.16 a slope of exactly 1 would ask for: the slope
+carries a standard error of 0.10, the ratings are editorial and their errors
+pull it under 1 even for a correct engine, and at a fifth a season's spread
+between starting backs already sits a little under the real one.
+
+**Re-measured, the back is worth a third of a quarterback.** Six rosters at
+10,000 games each again:
+
+| | QB | RB | TE | CB | WR | S | LB | DL | OL | P | K |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| per starter | 5.75 | 1.94 | 1.74 | 1.71 | 1.12 | 1.07 | 1.10 | 1.02 | 0.81 | 0.52 | 0.50 |
+| table that morning | 14.46 | 13.99 | 4.38 | 4.33 | 2.80 | 2.73 | 2.75 | 2.57 | 1.95 | 1.51 | 1.31 |
+| table now | 16.13 | 5.44 | 4.87 | 4.81 | 3.14 | 3.00 | 3.09 | 2.88 | 2.27 | 1.47 | 1.39 |
+
+On the fixed engine the audit's table check reads 0 on this table and flags
+only the back on the morning's (0.35×, z −16.9). Real backs in the yardstick's
+harness come out lower still: 0.077 points of differential per overall point
+against a quarterback's 0.574. The two methods — a synthetic back boosted on
+every attribute, real backs whose ratings differ by a mix of them — have always
+disagreed about backs, and they now disagree by about two and a half times
+(0.34 of a quarterback against 0.13), where the real game's expected points
+say about one to five for a standard deviation of talent. Every instrument puts
+the back well below the quarterback; which ratio is right is left open.
+
+**What moved with it**, against the table that morning on the old run game:
+
+| | before | now |
+|---|---|---|
+| value shopper, wins of 14 in 24 leagues | 8.2 | 8.8 |
+| skill players first | 6.4 | 5.3 |
+| AI offers a league-season / weeks with one | 9.0 / 44% | 8.0 / 37% |
+| offers that help the human | 52% | 35% |
+| roster spread, auction / draft | 41.1 / 30.2 | 37.0 / 26.9 |
+| a roster at market against the cap, founding | 122% | 119% |
+| value board | back 1.69×, the one bargain | back 0.72×; QB 1.48×, CB 1.45× |
+| MVPs to backs in 40 seasons, the table read straight | 37 | 0 |
+
+Offers that help the human fall to a third, under the half the gate was built
+for; recorded, not retuned.
+
+**And what else it moved or turned up.**
+
+- The pass/run read had nearly every squad running; every squad now does best
+  throwing. See "The pass/run read".
+- The MVP keeps its own ratio, refitted from 1.55 to 1.7 (Awards).
+- The other four dials, re-measured with every club throwing: fourth-down
+  aggression at the top +0.64 a game in eight-club leagues and +0.88 in pro
+  ones, blitzing least +0.32 and +0.34, the deepest shell +0.66 and nothing
+  measurable, tempo flat.
+- A scramble for a loss from inside the three was logged past the goal line,
+  which drew the play off the field strip: the scramble path never capped the
+  loss the way the run path does. A changed random stream found it.
+- A club took the user's kicker for its best receiver. The trade-down premium
+  charges per point of leverage shipped, and a kicker eight points better than
+  the club's own outweighed it. This document always said such a deal "is
+  refused out of hand"; now it is — a position player for specialists alone is
+  refused whatever the arithmetic.
+- Drafting on the table still loses to `POS_BASE` by 3.9 ± 1.4 in twelve-club
+  fantasy leagues, with the second back taken in round 13.5 rather than 3.5, so
+  the bench back named above as the likely cause was not it.
+- A test held twenty-yard runs above 0.7 a team a game, a floor taken from what
+  the engine did while its backs broke too many; the real game gives 0.66, and
+  that is where the engine now sits.
+- The win-probability prior's two constants were checked and left: final
+  margins spread 12.9 against 12.5 shipped, and a point of power is worth 3.42
+  against 3.3. The old run game had drifted the second to 3.83.
+- One realism figure noticed and left: 21.4% of runs are stopped at or behind
+  the line against a real 17.3%. It is inside the realism check's 16–22 range,
+  and `STUFF_RATE` was last fitted to that range's ceiling.
+
+**Open.**
+
+- The passing game runs hot at the level people play: starting quarterbacks
+  throw for 8.0 yards an attempt in drafted leagues against 7.1 for real
+  starters, and low-rated ones collapse (above). If passing has terms measured
+  against a fixed level too, it is the same defect, and fixing it would move
+  the pass/run read again.
+- The engine's defences never adjust to how often an offence throws, so
+  throwing more costs nothing, which is most of why that dial now has one end.
+- The yardstick column under "Is the yardstick sound" was measured on the
+  broken run game, and the agreement figure built on it needs re-measuring.
+
+**Held to it by the audit.** `npm run rushing` plays both halves — the 81 backs
+against their real seasons, and a season of two drafted pro leagues — and the
+audit reads two numbers from it: the backs' slope (0.77, flagged outside
+±0.15) and a pro league's yards a carry (4.66, ±0.25). About four minutes.
 
 ### A fingerprint that could not see the roster
 
@@ -3999,7 +4187,7 @@ Real MVP voting since 2000 runs about 79% quarterbacks and 12% backs. That makes
 
 Two caveats that are not speculation but are worth stating. The sweep holds the rest of the engine fixed, so a later change to `TRUE_LEVERAGE` moves this distribution again — it now moves it *directly*, with no exponent damping it, which is a feature only if the leverage table is trusted. And 29 seasons is a small sample for a distribution: the per-seed splits ranged from 44% to 80% quarterbacks at the chosen value, so the pooled 79% carries real width.
 
-**The first caveat came true, and the award has one number of its own now.** Re-measured on 2026-09-24, the table has the back at 0.97 of a quarterback, and read straight it handed backs 37 MVPs in 40 seasons. Forty seasons at four seeds (2026 to 2029, ten each, the playthrough's dynasty), every eligible line kept at each season's end so every weighting is scored on the same seasons; the harness names the engine's own MVP in all forty:
+**The first caveat came true, twice in a day, and the award has one number of its own now.** Re-measured on the morning of 2026-09-24, the table had the back at 0.97 of a quarterback, and read straight it handed backs 37 MVPs in 40 seasons. Forty seasons at four seeds (2026 to 2029, ten each, the playthrough's dynasty), every eligible line kept at each season's end so every weighting is scored on the same seasons; the harness names the engine's own MVP in all forty:
 
 | weighting | QB | RB |
 | --- | --- | --- |
@@ -4009,7 +4197,20 @@ Two caveats that are not speculation but are worth stating. The sweep holds the 
 | 1.55 or 1.6 | 33 | 7 |
 | 1.65 | 37 | 3 |
 
-It is the same failure as the first time, reached from the other side: the season's best back stands further above his position than the best quarterback does above his — a z of 2.78 against 2.11, averaged over those forty seasons — so once the weights are level his noisier line decides it. The engine may well be right about what a back is worth (that question is open, and belongs to the run game), but the award is modelled on real voting, and voters do not weigh a back like a quarterback. So a quarterback's season counts 1.55 times a back's, `MVP_QB_OVER_RB`, inside the plateau that names 33 quarterbacks and 7 backs — 82% against real voting's 79%, and eight or nine quarterbacks in every ten-season run. Every other position is still weighted by the table, so a later re-measure still moves them, and the playthrough is where that shows. A test reads the ratio back from the race's own scores, and pointing the award at the table again fails it.
+It is the same failure as the first time, reached from the other side: the season's best back stands further above his position than the best quarterback does above his — a z of 2.78 against 2.11, averaged over those forty seasons — so once the weights are level his noisier line decides it. The award is modelled on real voting, and voters do not weigh a back like a quarterback, so it was given a ratio of its own: 1.55, which named 33 quarterbacks and 7 backs.
+
+The same afternoon the run game was measured against real carries and fixed, and the table re-set with the back at 0.34 of a quarterback. Read straight, that table hands every one of 40 seasons to a quarterback — the other way — and the fixed engine moved the ratio's fit too, because a season's best back now stands at a z of 3.02 against the quarterback's 2.09:
+
+| quarterback over back, fixed engine | QB | RB |
+| --- | --- | --- |
+| the table read straight (2.97) | 40 | 0 |
+| 1.55 | 27 | 13 |
+| 1.6 or 1.65 | 30 | 10 |
+| 1.7 | 31 | 9 |
+| 1.75 | 34 | 6 |
+| 2.0 | 39 | 1 |
+
+So `MVP_QB_OVER_RB` is 1.7: 31 quarterbacks and 9 backs, 78% against real voting's 79%, seven or eight quarterbacks in each ten-season run. The award cannot follow the table in either direction, which is the case for it having a number of its own. Every other position is still weighted by the table, so a later re-measure still moves them, and the playthrough is where that shows. A test reads the ratio back from the race's own scores, and pointing the award at the table again fails it.
 
 ## AI general managers (`gm.js`)
 
@@ -4263,7 +4464,18 @@ The table above was measured on 19 September on identical rosters, in the same p
 | Deep coverage at its best | +0.47 ± 0.16 at 0.4 | +0.33 ± 0.15 at 0.6 | more helps a little |
 | Tempo at any setting | within ±0.2 | within ±0.2 | flat, for the strongest and weakest thirds alike |
 
-What moved the first three is not isolated: the same dozen play-model changes went by, and the method differs too (a league's clubs, with their plans, rather than identical rosters). The team page now files aggression, the blitz and the shell under dials that help and says by how much, and tempo alone under taste. One thing this leaves standing, and it is not fixed here: a dial that goes one way for every squad is a tax on anybody who does not know to max it — the objection this document makes about a monotone pass rate. Telling the player is the fix made; making fourth-down aggression a decision again would be a change to the AI's fourth-down logic. The audit replays aggression on four of those leagues, 100 games a club: +1.23 at the top of the dial, flagged if it leaves +0.73 to +1.73.
+What moved the first three is not isolated: the same dozen play-model changes went by, and the method differs too (a league's clubs, with their plans, rather than identical rosters). The team page now files aggression, the blitz and the shell under dials that help and says by how much, and tempo alone under taste. One thing this leaves standing, and it is not fixed here: a dial that goes one way for every squad is a tax on anybody who does not know to max it — the objection this document makes about a monotone pass rate. Telling the player is the fix made; making fourth-down aggression a decision again would be a change to the AI's fourth-down logic. The audit replayed aggression on four of those leagues, 100 games a club, at +1.23.
+
+**Measured again once the run game matched real carries** (see "The back was worth nearly three times too much"), with every club throwing on the read, which now says 0.70 for every squad:
+
+| dial, against its default | eight-club leagues, 9,600 club-games | pro leagues, 12,800 |
+| --- | --- | --- |
+| 4th-down aggression at 1.0 | +0.64 ± 0.10 | +0.88 ± 0.09 |
+| Blitz at 0.05 | +0.32 ± 0.14 | +0.34 ± 0.12 |
+| Deep coverage at its best | +0.66 ± 0.16 at 0.6 | +0.11 ± 0.13 at 0.4 |
+| Tempo at any setting | within ±0.22 | within ±0.22 |
+
+Aggression still helps every mix of offence and kicker (+0.48 to +0.72 at the top in eight-club leagues), at about half what it did when every squad ran. Deep coverage now helps in fantasy leagues and does nothing measurable in pro ones. The team page's notes say these numbers. The audit replays aggression on four of those leagues, 100 games a club: +0.62 at the top of the dial, flagged if it leaves +0.12 to +1.12.
 
 Also measured and not built: the per-opponent game plan the audit proposed. `makeGameplan` already exists and every AI club gets one; it nudges the dials by ±0.06 to ±0.15 and fires in **16 of 1,500** even matchups because its thresholds need a composite gap over 5 or 8 points. Where it does fire it is worth +0.39 ± 0.41 points. The `planForUser` option that would extend it to the human has never been passed by anything, which is deliberate (see the game plan note above) and costs the player nothing measurable.
 
@@ -4308,11 +4520,44 @@ A cell carries ±0.16 to 0.18 in the first table and ±0.31 to 0.36 in the secon
 | pro, a second seed set | +0.68 ± 0.15 | +0.28 ± 0.14 | +0.29 ± 0.15 |
 | pro, a third | +0.42 ± 0.15 | −0.13 ± 0.14 | +0.16 ± 0.15 |
 
-Out of sample it is worth +0.42 to +0.68 a game where the read it replaced was worth −0.27 to +0.28, and the team page now says about half a point. In a fantasy league it comes out close to "always run", because most fantasy squads sit on the run side of −5.25, and that is the answer rather than a defect in it. Where the advice reads backwards — a squad whose passer is its best player, told to run — the screen says so and says the advice is measured, because the reason is not established. The audit re-measures it on eight of those leagues, 150 games a club at each setting: +0.77 ± 0.17 against 0.55, where the read it replaced scores +0.04 on the same games, and it flags anything outside +0.37 to +1.17. Half that sample was tried first and could not tell the two apart.
+Out of sample it is worth +0.42 to +0.68 a game where the read it replaced was worth −0.27 to +0.28, and the team page now says about half a point. In a fantasy league it comes out close to "always run", because most fantasy squads sit on the run side of −5.25, and that is the answer rather than a defect in it. Where the advice reads backwards — a squad whose passer is its best player, told to run — the screen says so and says the advice is measured, because the reason is not established. The audit re-measured it on eight of those leagues, 150 games a club at each setting: +0.77 ± 0.17 against 0.55, where the read it replaced scored +0.04 on the same games. Half that sample was tried first and could not tell the two apart.
 
 **Why running pays is not established, and one likely reason was tested and mostly ruled out.** An AI club plans against its opponent's personnel, and against a good passer its plan is a shell over the top — the look the run eats, +2.0 and +2.2 yards a carry. That was the first explanation, and it is testable: take the opponents' plans away and see whether the run stops paying. It mostly does not. In eight-club leagues running at 0.35 earns +0.55 ± 0.08 a game with nobody planning against +0.62 ± 0.08 with plans on, and +0.22 against +0.31 in pro leagues; the most run-built fifth barely moves either way. The clone replay above points the same way, since nobody plans there and running still wins. So the plans explain a small part at most, and the rest belongs to the play model as it now stands — which of the changes since the first read moved it was not isolated.
 
-**The AI clubs were fine, give or take the opening weeks.** Every club in four pro leagues played its own league with its pass rate moved, paired by seed (`npm run passrate -- ai`). Moving every club the same way, anywhere from −0.20 to +0.10, was worth −0.13 to +0.29 — flat — and flat again at midseason. The weather finding did not replicate. What is left is fit: moved each to its own read at kickoff, AI clubs would gain +0.46 ± 0.14 a game, nearly all of it run-built clubs that open too pass-heavy (Ground & Pound +0.96, the most run-built third +1.02), and the weekly drift walks those down by midseason — Ground & Pound from 0.44 to 0.33, after which running still more earns nothing. Starting AI clubs on the read is a possible change, not made.
+**Why running paid, established the same day: the run game was broken.** A point of a back's rating moved his carries five times as far as the real game's, and power and elusiveness were measured against a fixed 82, so drafted leagues of greats ran at 5.95 yards a carry against a real 4.49 (see "The back was worth nearly three times too much"). Once the run game matched real carries, the read above went from +0.77 a game to −1.17.
+
+**Measured again on the fixed engine, the dial goes all the way up for everybody.** The same measurement, by run edge in fifths:
+
+| run edge, eight eight-club leagues | at 0.35 | at 0.45 | at 0.65 | at 0.70 |
+| --- | --- | --- | --- | --- |
+| −7.8 to −5.0 | −2.06 | −1.04 | +0.43 | +1.52 |
+| −5.0 to −4.0 | −1.77 | −1.23 | +0.23 | +1.04 |
+| −4.0 to −3.2 | −2.43 | −1.40 | +0.47 | +0.51 |
+| −3.2 to −2.1 | −1.23 | −0.21 | +1.06 | +1.68 |
+| −2.1 to +1.1 | −1.50 | −0.67 | +0.52 | +0.44 |
+
+| run edge, three pro leagues | at 0.35 | at 0.45 | at 0.65 | at 0.70 |
+| --- | --- | --- | --- | --- |
+| −9.3 to −5.8 | −1.64 | −0.49 | +0.92 | +1.42 |
+| −5.8 to −3.7 | −1.37 | +0.03 | +0.96 | +1.44 |
+| −3.7 to −1.9 | −1.40 | −0.75 | +0.55 | +0.51 |
+| −1.9 to −0.3 | −1.19 | −1.07 | +0.75 | +0.93 |
+| −0.3 to +4.5 | −0.47 | −0.24 | +1.24 | +1.23 |
+
+A cell carries ±0.34 to 0.38. Ten- and twelve-club leagues say the same: every fifth of every kind of league gains +0.40 to +1.68 at 0.70. Against a flat 0.55, with the read below in place:
+
+| league | always 0.70, the read now | the read of 19 September | the read fitted that morning |
+| --- | --- | --- | --- |
+| eight clubs | +1.04 ± 0.16 | +1.05 ± 0.16 | −1.17 ± 0.16 |
+| ten clubs | +1.01 ± 0.17 | +0.89 ± 0.16 | −0.93 ± 0.16 |
+| twelve clubs | +1.10 ± 0.16 | +0.99 ± 0.15 | −0.98 ± 0.15 |
+| pro | +1.11 ± 0.17 | +0.98 ± 0.15 | +0.10 ± 0.16 |
+
+The last column was measured while that read was still in place, so the human's club was playing it as everybody's opponent too; the others with the new one. The ramp fitted to these games puts the crossover at the right-hand end of the range it is searched over, and in-sample it beats always throwing by five hundredths at most. So there is no crossover: `CROSSOVER` is `null` in both kinds of league, and the read tells every squad to throw — a run-built squad in so many words, "Even so, squads built like yours win more by throwing, measured against the clubs you play" — and says moving the dial is worth about a point a game. The ramp stays in the code for the day a crossover comes back. The read of 19 September, fitted on synthetic rosters before the run game was broken, had the direction right all along.
+
+A dial that goes one way for every squad is a tax on anybody who does not max it. Two things would make it a decision again, and both are recorded rather than done: the passing game runs hot at a league's level (starting quarterbacks at 8.0 yards an attempt against 7.1), and the engine's defences never adjust to how often an offence throws, so throwing more has no price. The audit re-measures it on eight of those leagues, 150 games a club at each setting: +1.04 against 0.55, flagged outside +0.64 to +1.44.
+
+**The AI clubs were fine, give or take the opening weeks** — on the engine before the run game was fixed, and not measured since. Every club in four pro leagues played its own league with its pass rate moved, paired by seed (`npm run passrate -- ai`). Moving every club the same way, anywhere from −0.20 to +0.10, was worth −0.13 to +0.29 — flat — and flat again at midseason. The weather finding did not replicate. What is left is fit: moved each to its own read at kickoff, AI clubs would gain +0.46 ± 0.14 a game, nearly all of it run-built clubs that open too pass-heavy (Ground & Pound +0.96, the most run-built third +1.02), and the weekly drift walks those down by midseason — Ground & Pound from 0.44 to 0.33, after which running still more earns nothing. Starting AI clubs on the read is a possible change, not made.
 
 What makes the metric trustworthy is that it reads the league correctly without being told: sorted by average run edge, Ground & Pound clubs come out the most run-leaning (−0.1) and Air Raid the most pass-leaning (−6.1), in personality order, with the personality never consulted.
 
@@ -4490,6 +4735,14 @@ that is the population that has to hold still. Centred there they recover — me
 run 4.47, explosives 3.62, points 43.1, the baseline exactly. A league of
 all-time greats then runs hotter than the reference, which is correct: they are
 better than the reference.
+
+**That was wrong, and it was the largest defect in the run game.** They are
+better than the reference on both sides of the ball, and power and elusiveness
+were only ever counted on one: measured against a fixed 82 rather than against
+the defence, they took drafted pro leagues to 5.95 yards a carry against a real
+4.49. Both terms, and every other one that reads the ball carrier, now read him
+against his opposite number. See "The back was worth nearly three times too
+much".
 
 **Then the reweight, and the second authority.** Setting the weights three
 quarters of the way to the measurement took `npm run legacy` from 16 violations
@@ -5152,8 +5405,9 @@ a back and a quarterback share only awareness, and "right leads 1–0 of 1" read
 like a finding while saying nothing, so the cross-position note about leverage
 carries that case instead. Overalls of different positions are not the same
 currency and the note says so, reading the table live: a running back was worth
-9.39 against a quarterback's 15.89 when this was written, and is 13.99 against
-14.46 since the table was re-measured on 2026-09-24.
+9.39 against a quarterback's 15.89 when this was written, was 13.99 against
+14.46 for a few hours on 2026-09-24, and is 5.44 against 16.13 since the run
+game was measured against real carries.
 
 The overall badge sits above the name rather than below it. With it below, a
 name that wrapped to two lines pushed its badge a line clear of the other

@@ -102,15 +102,30 @@ export const STUFF_RATE = 0.1370;
  * was coming from the extra yards, not from the stacking, so the cascade was
  * an expensive way to write `+= more`.
  */
-// These centre the two run-game terms below. 82 is not the pool's average back
-// — that is nearer 84 power and 89 elusiveness — it is the mean of the
-// synthetic population every other constant in this file was fitted against,
-// which is the one that has to stay put. Centring on the real pool instead
-// halved the breakaway rate against the yardstick and took the mean run from
-// 4.61 to 4.15. A league of all-time greats then runs hotter than the
-// reference, which is correct: they are better than the reference.
-export const POW_MID = 82;
-export const ELU_MID = 82;
+/**
+ * How much the man with the ball moves a run, against the men who have to
+ * bring him down.
+ *
+ * Every carrier term below is his attribute against its opposite number on the
+ * defence — vision against the front's awareness, power against its run
+ * stopping, elusiveness against its tackling, speed against its speed — times
+ * this. Two things were wrong before, and both were measured against the real
+ * game (DESIGN.md, "The back was worth nearly three times too much").
+ *
+ * Power and elusiveness were measured against a fixed 82 rather than against
+ * anybody, so an all-time back got the same lift against an all-time defence
+ * as against a poor one. Leagues of greats on both sides ran hot: 5.95 yards a
+ * carry and 6.3% of runs going twenty yards, against a real 4.49 and 2.5%.
+ *
+ * And a point of a back's rating moved his carries five times as far as it
+ * does in the real game. Played in the same average side, the 85 backs in the
+ * pool with a real season from 1999 on spread from 2.0 to 8.9 yards a carry,
+ * standard deviation 1.88, where the same men in the same seasons ran 3.4 to
+ * 6.0 with a deviation of 0.56. At full weight a regression of what they
+ * really did on what the engine said has a slope of 0.20: the engine's
+ * differences between backs came true a fifth as much.
+ */
+export const CARRIER_WEIGHT = 0.2;
 export const BREAK_YDS_IN = 1.9;    // mean yards a broken tackle adds inside
 export const BREAK_YDS_OUT = 2.6;   // the same outside, where there is grass
 export const BREAKAWAY_RATE = 2.4;  // multiplier on the per-carry breakaway chance
@@ -290,41 +305,41 @@ export function resolveRun(g, rng, call, defCall) {
   g.stats[off].team.rushAtt++;
 
   const spd = carrier.r.spd ?? 70, elu = carrier.r.elu ?? 60, pow = carrier.r.pow ?? 65, vis = carrier.r.awr ?? 70, car = carrier.r.car ?? 80;
-  const blockEdge = edge(comp.runBlock + (vis - 80) * 0.4, def.runStop, 11);
+  // Every carrier term is his attribute against its opposite number, times
+  // CARRIER_WEIGHT (above). Vision reads the blocks against a front that reads
+  // them back.
+  const k = CARRIER_WEIGHT;
+  const blockEdge = edge(comp.runBlock + (vis - def.defAwr) * 0.4 * k, def.runStop, 11);
   let yards;
   if (sneak) {
     yards = rng.chance(0.78 + (comp.runBlock - def.runStop) / 200) ? rng.int(1, 3) : rng.int(-1, 0);
   } else {
     // A back with real power turns a would-be stuff into two yards, and that is
-    // most of what power is for. This did not look at the carrier at all, which
-    // is the larger half of why an eight-point lift in `pow` measured as worth
-    // nothing. Centred on the pool's starting back so the stuff rate itself
-    // does not move.
-    const stuffP = clamp(STUFF_RATE * (1.6 - blockEdge * 1.2) - (pow - POW_MID) * 0.0055 + (m.stuff || 0) + squeeze(g.ballOn) * SQUEEZE_STUFF, 0.05, 0.45);
+    // most of what power is for — against a front that stops the run, not
+    // against a fixed number. This did not look at the carrier at all once,
+    // which is why an eight-point lift in `pow` measured as worth nothing.
+    const stuffP = clamp(STUFF_RATE * (1.6 - blockEdge * 1.2) - (pow - def.runStop) * 0.0055 * k + (m.stuff || 0) + squeeze(g.ballOn) * SQUEEZE_STUFF, 0.05, 0.45);
     if (rng.chance(stuffP)) {
       yards = clamp(Math.round(rng.normal(-1, 1.4)), -5, 1);
     } else {
       const base = outside ? rng.normal(RUN_OUT, 3.4) : rng.normal(RUN_IN, 2.7);
       yards = (base + (blockEdge - 0.5) * 5 + (m.run || 0)) * (1 - squeeze(g.ballOn) * SQUEEZE_RUN);
-      // Break a tackle.
-      // The divisor was flat enough that eight points of power moved this by
-      // 2.6 points of probability, for about three extra yards when it fired —
-      // eight hundredths of a yard a carry. A back who breaks tackles for a
-      // living should sit further from one who does not.
-      const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) / 115, 0.05, 0.45);
+      // Break a tackle: power and elusiveness against the men tackling.
+      const btP = clamp(0.18 + ((pow * 0.55 + elu * 0.45) - def.tackling) * k / 115, 0.05, 0.45);
       if (rng.chance(btP)) yards += rng.exp(outside ? BREAK_YDS_OUT : BREAK_YDS_IN) + 0.48;
       // Breakaway: usually a medium burst, occasionally one that goes the
       // distance. The exponential is what gives the long one a tail instead of
       // a ceiling — a ninety-yard run is rare rather than impossible.
-      // Speed alone used to own the long run, behind a hard floor at the
-      // defence's speed: a back slower than the secondary broke nothing, however
-      // elusive, which is why `spd` measured at .567 of a back's worth and `elu`
-      // at zero. Elusiveness gets its own path to the same place, signed rather
-      // than floored so that a back who lacks it is worse off and the rate holds.
-      const baP = clamp(BREAKAWAY_RATE * (0.014 + (Math.max(0, spd - def.defSpeed) + (elu - ELU_MID) * 0.7) / 300 + (m.breakaway || 0) + (outside ? 0.01 : 0)), 0.004, 0.24);
+      // Speed gets there by outrunning the secondary, floored so a back slower
+      // than it is not punished twice; elusiveness by making its tacklers miss,
+      // signed, so a back who lacks it is worse off. Pace also stretches the
+      // burst once he is through, against the same secondary — a flat bonus at
+      // 92 speed used to hand an all-time back 30% longer runs against an
+      // all-time defence.
+      const baP = clamp(BREAKAWAY_RATE * (0.014 + (Math.max(0, spd - def.defSpeed) + (elu - def.tackling) * 0.7) * k / 300 + (m.breakaway || 0) + (outside ? 0.01 : 0)), 0.004, 0.24);
       if (rng.chance(baP)) {
         const burst = rng.chance(HOUSECALL) ? 30 + rng.exp(20) : rng.int(9, 26);
-        yards += burst * (spd >= 92 ? 1.3 : 1);
+        yards += burst * (1 + Math.max(0, spd - def.defSpeed) * 0.03 * k);
       }
       yards = Math.round(yards);
     }
@@ -408,7 +423,9 @@ export function resolvePass(g, rng, call, defCall) {
     const scrP = clamp((qb.r.mob - 55) / 120, 0.02, 0.4);
     if (rng.chance(scrP)) {
       let yards = Math.round(rng.normal(3 + (qb.r.mob - 70) * 0.12, 5));
-      yards = clamp(yards, -3, rem);
+      // Never past his own goal line: a loss from inside the three is a safety
+      // at the line, as a run is, not a spot a yard behind it.
+      yards = clamp(yards, Math.max(-3, -g.ballOn), rem);
       const td = yards >= rem;
       const rs = st;
       rs.rush.att++; rs.rush.yds += yards; rs.rush.lng = Math.max(rs.rush.lng, yards); if (td) rs.rush.td++;
