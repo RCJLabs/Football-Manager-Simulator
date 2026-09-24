@@ -42,11 +42,11 @@ test('a claim must swap like for like on your own roster, within the weekly limi
   assert.throws(() => fileClaim(league, u, wr.id, league.teams[u === 0 ? 1 : 0].slots.WR1, byId), /not on your roster/);
   fileClaim(league, u, wr.id, myWr, byId);
   assert.throws(() => fileClaim(league, u, wr.id, me.slots.WR3, byId), /already have a claim/);
-  const wr2 = freeAgents(league, PLAYERS).filter((p) => p.pos === 'WR')[1];
+  const wr2 = freeAgents(league, PLAYERS).filter((p) => p.pos === 'WR' && p.id !== wr.id)[0];
   assert.throws(() => fileClaim(league, u, wr2.id, myWr, byId), /already the drop/);
   fileClaim(league, u, wr2.id, me.slots.WR3, byId);
   assert.equal(claimsThisWeek(league, u).length, 2);
-  const wr3 = freeAgents(league, PLAYERS).filter((p) => p.pos === 'WR')[2];
+  const wr3 = freeAgents(league, PLAYERS).filter((p) => p.pos === 'WR' && p.id !== wr.id && p.id !== wr2.id)[0];
   assert.throws(() => fileClaim(league, u, wr3.id, me.slots.WR2, byId), new RegExp(`Only ${DEFAULT_WAIVER_LIMIT} claims`));
   assert.ok(cancelClaim(league, u, wr.id));
   assert.equal(claimsThisWeek(league, u).length, 1);

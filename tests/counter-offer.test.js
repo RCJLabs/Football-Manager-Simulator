@@ -112,16 +112,26 @@ test('a counter never breaks the rules a proposal is held to', () => {
   for (let ai = 0; ai < lg.teams.length && checked < 6; ai++) {
     if (ai === u) continue;
     // A legal offer at the size limit: the backup at the star's position, and
-    // two cheap men elsewhere — two unmatched positions, which is the most a
-    // side may carry. (Three cheap bodies for a quarterback is refused by that
-    // rule before the club is ever asked.)
+    // two men from the bench elsewhere — two unmatched positions, which is the
+    // most a side may carry. (Three cheap bodies for a quarterback is refused by
+    // that rule before the club is ever asked.) Which two is searched for, not
+    // named: each has to be good enough to make the club's roster, and who
+    // that is depends on how the auction went, which moves with every change
+    // to the value table. A fixed fourth receiver and third linebacker stopped
+    // making anybody's roster when the table was re-set.
     const star = lg.teams[ai].slots.QB1;
     const backup = lg.teams[u].slots.QB2;
-    const cheap = ['WR4', 'LB3'].map((sl) => lg.teams[u].slots[sl]).filter(Boolean);
-    if (!star || !backup || cheap.length < MAX_TRADE_SIDE - 1) continue;
-    const give = [backup, ...cheap.slice(0, MAX_TRADE_SIDE - 1)];
-    const r = proposeTrade(clone(lg), u, ai, give, [star], byId, PLAYERS, {});
-    if (!r.ok || r.accepted) continue;
+    if (!star || !backup) continue;
+    const bench = ROSTER_SLOTS.filter((sl) => !sl.starter && sl.pos !== 'QB').map((sl) => lg.teams[u].slots[sl.id]).filter(Boolean);
+    let give = null;
+    for (let i = 0; i < bench.length && !give; i++) {
+      for (let j = i + 1; j < bench.length && !give; j++) {
+        const g = [backup, bench[i], bench[j]].slice(0, MAX_TRADE_SIDE);
+        const t = proposeTrade(clone(lg), u, ai, g, [star], byId, PLAYERS, {});
+        if (t.ok && !t.accepted) give = g;
+      }
+    }
+    if (!give) continue;
     const c = counterOffer(lg, byId, PLAYERS, u, ai, give, [star]);
     for (const o of c?.options || []) {
       assert.ok(o.gives.length <= MAX_TRADE_SIDE, `a counter asked for ${o.gives.length} players a side`);

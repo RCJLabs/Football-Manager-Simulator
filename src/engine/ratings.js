@@ -240,8 +240,18 @@ export function composites(lineup) {
  * move his five times as far as the real game's (DESIGN.md, "The back was
  * worth nearly three times too much"). Every table before those came from one
  * roster, whose own quirks sat inside the numbers.
+ *
+ * Set a third time once the passer, the receivers and the backs' other
+ * channels were held to real seasons the same way (DESIGN.md, "The passing
+ * game, held to real quarterbacks" and "Backs, receivers and tight ends, held
+ * to real seasons"). A point of a quarterback's rating had moved his
+ * production 2.4 times the real game's, and the table priced him accordingly;
+ * with him right-sized, the back and the tight end, whose own targets,
+ * carries and fumbles were inflated too, would have stood at 0.8 of him.
+ * Measured with all of it fixed: the quarterback at 9.02, twice a corner and
+ * 2.3 backs.
  */
-export const TRUE_LEVERAGE = { QB: 16.13, RB: 5.44, TE: 4.87, CB: 4.81, WR: 3.14, S: 3.00, LB: 3.09, DL: 2.88, OL: 2.27, P: 1.47, K: 1.39 };
+export const TRUE_LEVERAGE = { QB: 9.02, CB: 4.52, TE: 4.06, RB: 3.90, DL: 3.90, LB: 3.57, S: 3.28, OL: 3.19, WR: 2.72, P: 1.98, K: 1.50 };
 
 /**
  * How strong a lineup is, on the 40..99 rating scale.

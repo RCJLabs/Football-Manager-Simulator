@@ -4,7 +4,8 @@ import { PLAYERS, PLAYERS_BY_ID as byId } from '../src/data/db.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, simulateWeekAi, advanceWeek, registerPlayers, userTeamIndex } from '../src/engine/season.js';
 import { autoCompleteAll } from '../src/engine/auction.js';
-import { seasonAwards, updateRecords, hallOfFame, hallScore, closeSeasonBooks, HOF_THRESHOLD, MVP_QB_OVER_RB } from '../src/engine/awards.js';
+import { seasonAwards, updateRecords, hallOfFame, hallScore, closeSeasonBooks, HOF_THRESHOLD, MVP_QB_OVER_RB, MVP_OTHERS, mvpWeight } from '../src/engine/awards.js';
+import { TRUE_LEVERAGE } from '../src/engine/ratings.js';
 import { enterOffseason, aiKeepers, confirmKeepers } from '../src/engine/offseason.js';
 import { fantasyPoints } from '../src/engine/stats.js';
 
@@ -58,6 +59,16 @@ test('the MVP weighs a back the way voters do, not the way the position table do
   assert.ok(qb && rb, 'a quarterback and a back in the race');
   const perZ = (r) => r.score / r.z;
   assert.ok(Math.abs(perZ(qb) / perZ(rb) - MVP_QB_OVER_RB) < 0.03, `a quarterback's z counts ${(perZ(qb) / perZ(rb)).toFixed(2)} times a back's`);
+  // And everyone else at a discount on the table, or a season's best pass
+  // rusher wins it one year in seven, which voters have not done since 1986.
+  // Read from the award's own weight, since the discount keeps them out of
+  // most races; and from the race too whenever one of them is in it.
+  for (const pos of ['DL', 'CB', 'TE', 'LB', 'WR']) {
+    assert.ok(Math.abs(mvpWeight(pos) - TRUE_LEVERAGE[pos] * MVP_OTHERS) < 1e-9, `the award weighs a ${pos} at ${mvpWeight(pos)}`);
+  }
+  for (const r of race.filter((x) => !['QB', 'RB'].includes(byId.get(x.id).pos))) {
+    assert.ok(Math.abs(perZ(r) / mvpWeight(byId.get(r.id).pos) - 1) < 0.01, 'the race is scored on the award\'s weights');
+  }
   for (let i = 1; i < race.length; i++) assert.ok(race[i - 1].score >= race[i].score, 'ranked by the weighted score');
 });
 

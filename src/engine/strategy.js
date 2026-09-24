@@ -9,14 +9,17 @@
 // end: every kind of squad does best with the dial all the way up.
 //
 //   league              always 0.70, against a flat 0.55
-//   fantasy, 8 clubs      +1.04 a game
-//   fantasy, 10 clubs     +1.01
-//   fantasy, 12 clubs     +1.10
-//   pro, 32 clubs         +1.11
+//   fantasy, 8 clubs      +0.68 a game
+//   fantasy, 10 clubs     +1.00
+//   fantasy, 12 clubs     +0.81
+//   pro, 32 clubs         +1.04
 //
 // Sorted into fifths by run edge, every fifth of every league wants 0.65 or
-// 0.70, and gains +0.40 to +1.68 at 0.70. So the read still says what a squad
-// is built to do, and tells every one of them to throw.
+// 0.70, and gains +0.13 to +1.68 at 0.70. So the read still says what a squad
+// is built to do, and tells every one of them to throw. Measured again once
+// the passer and the receivers were held to real seasons (DESIGN.md, "The
+// passing game, held to real quarterbacks"): it had read +1.04, +1.01, +1.10
+// and +1.11, and the fifths +0.40 to +1.68.
 //
 // **It said the opposite until the run game was fixed.** Fitted on the
 // engine of 24 September, the read had nearly every squad running, through
@@ -32,11 +35,14 @@
 // before the run game was broken.
 //
 // A dial that goes one way for every squad is a tax on anybody who does not
-// max it, which is what the team page's other dials already are. Two things
-// that would make it a decision again are recorded rather than done: the
-// passing game runs hotter at a league's level than the real game's (starting
-// quarterbacks at 8.0 yards an attempt against 7.1), and the engine's defences
-// never adjust to how often an offence throws, so throwing more has no price.
+// max it, which is what the team page's other dials already are. It is not in
+// itself unrealistic: in the real game a dropback was worth +0.007 expected
+// points in 2022-23 and a designed run -0.062, and a dropback was worth more in
+// 46 of 64 team-seasons. What keeps real teams running is defences that adjust
+// to how often an offence throws, and the engine's never do, so throwing more
+// has no price; that is recorded rather than done. The passing game's own heat
+// is mostly gone: drafted leagues throw for 7.8 yards an attempt against a
+// real 7.1, from 8.1.
 //
 // The metric itself reads the league correctly, which is what makes it worth
 // keeping: sorted by average run edge, Ground & Pound clubs come out most
@@ -52,15 +58,16 @@
 //
 // The other four dials are measured the same way against real leagues' clubs
 // (`npm run dials`), and none of them depends on the roster the way the
-// pass/run balance once did, so none gets a read. With the run game fixed and
-// every club throwing on this read: fourth-down aggression at the top of the
-// dial is worth +0.64 a game in eight-club leagues and +0.88 in pro ones, for
-// every kind of squad; blitzing least +0.32 and +0.34; the deepest shell +0.66
-// in eight-club leagues and nothing measurable in pro ones; tempo nothing
-// either way. Before the fix the same measurement read +1.19 to +1.25, +0.31 to
-// +0.48, +0.33 to +0.47 and nothing; the first, on 19 September and on
-// identical rosters, had aggression helping only a strong offence with a poor
-// kicker and the other three flat.
+// pass/run balance once did, so none gets a read. With the passer and the
+// receivers held to real seasons and every club throwing on this read:
+// fourth-down aggression at the top of the dial is worth +0.71 a game in
+// eight-club leagues and +0.82 in pro ones, for every kind of squad; blitzing
+// least +0.33 and +0.23; the deepest shell +0.38 in eight-club leagues and
+// nothing measurable in pro ones; tempo nothing either way. On the run game's
+// fix alone they read +0.64 and +0.88, +0.32 and +0.34, +0.66 and nothing;
+// before it +1.19 to +1.25, +0.31 to +0.48, +0.33 to +0.47 and nothing; and
+// the first, on 19 September and on identical rosters, had aggression helping
+// only a strong offence with a poor kicker and the other three flat.
 //
 // Why this exists at all: every AI personality drafts and calls plays to match
 // — Air Raid buys quarterbacks and receivers and throws at 0.66, Ground & Pound
@@ -192,7 +199,7 @@ export function strategyRead(league, teamIdx, byId) {
     // "Worth moving" only when the squad is off the crossover and the dial is not already there.
     act: !even && off,
     lean,
-    strength: even ? 'barely worth moving for this squad' : 'worth about a point a game, measured against the clubs you play',
+    strength: even ? 'barely worth moving for this squad' : 'worth two-thirds of a point to a point a game, measured against the clubs you play',
     why: `${built} ${advice}`,
   };
 }

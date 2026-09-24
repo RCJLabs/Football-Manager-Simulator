@@ -43,9 +43,14 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * from six rosters rather than one, which had the back at 0.97 of a
  * quarterback; then, once the run game itself was measured against real
  * carries and found to move a back's five times as far as the real game does,
- * at 0.34 (DESIGN.md, "The back was worth nearly three times too much"). The
- * audit replays the table now, and a second script replays the run game
- * against the real one.
+ * at 0.34 (DESIGN.md, "The back was worth nearly three times too much"). It
+ * was set a third time once the passer, the receivers and the backs' targets,
+ * carries and fumbles were held to real seasons as well: a point of a
+ * quarterback's rating had moved his production 2.4 times the real game's,
+ * and he fell from 16.13 to 9.02 (DESIGN.md, "Backs, receivers and tight ends,
+ * held to real seasons"). The audit replays the table now, and three scripts
+ * replay the run game, the passing game and the receivers against the real
+ * one.
  *
  * The absolute scale is not free, even though the price guide normalises it
  * away. `lineupStrength` in transactions.js sums overall × leverage raw, and
@@ -66,9 +71,9 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * below is the honest answer rather than the intuition. Cheap is not the same
  * as underpriced: linemen have low glamour and low leverage together, and come
  * out overpaid. Normalised against each other the underpaid positions are the
- * quarterback and the corner; the traps are the receiver, the defensive line
- * and the back. The strategy table in DESIGN.md agrees — the buyer who bids
- * off this table finishes first.
+ * corner and the offensive line; the quarterback is about right, and the
+ * traps are the receiver and the back. The strategy table in DESIGN.md is
+ * where that is tested against the buyers who bid on something else.
  */
 // Lives in ratings.js so `teamPower` can weight a lineup by it without this
 // file and that one importing each other; re-exported here because this is

@@ -87,8 +87,16 @@ test('the mispricing the whole auction rests on is actually there', () => {
   // quarterback while still being a twentieth of his win impact, and an
   // earlier version of this test asserted his ratio instead, which is the
   // mistake the board itself now avoids.
-  assert.ok(by.K.stake < 0.03 && by.P.stake < 0.05, 'kickers and punters cannot decide a season');
-  assert.ok(by.QB.stake > by.K.stake * 10 && by.QB.stake > by.P.stake * 5, 'and a quarterback plainly can');
+  //
+  // The quarterback is worth six kickers and four and a half punters now, not
+  // the ten and five this once asserted: those ratios were measured while a
+  // point of a passer's rating moved his production 2.4 times the real game's
+  // (DESIGN.md, "The passing game, held to real quarterbacks"). What has to
+  // hold is the board's own line for mattering, and that no other single
+  // player comes near him.
+  assert.ok(by.K.stake < MATTERS_AT && by.P.stake < MATTERS_AT, 'kickers and punters cannot decide a season');
+  const nextBest = Math.max(...rows.filter((r) => r.pos !== 'QB').map((r) => r.wins));
+  assert.ok(by.QB.wins > nextBest * 1.8, `and a quarterback plainly can: ${(by.QB.wins / nextBest).toFixed(2)} times any other single player`);
   // There is a real spread to exploit among the positions that matter, or the
   // panel is teaching nothing.
   const real = rows.filter((r) => r.verdict !== 'barely matters');

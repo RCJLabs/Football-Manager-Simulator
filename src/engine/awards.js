@@ -51,13 +51,30 @@ const ALL_LEAGUE_COUNTS = { QB: 1, RB: 1, WR: 3, TE: 1, DL: 4, LB: 3, CB: 2, S: 
  * further above his position than the best quarterback does above his — a z of
  * 3.02 against 2.09 on the engine as it now is — and how that trades against a
  * quarterback is a question about voters, not about what wins games. So the
- * award keeps one number of its own: a quarterback's season counts 1.7 times a
- * back's, which over forty seasons names 31 quarterbacks and 9 backs, against
+ * award keeps a number of its own: a quarterback's season counts 1.7 times a
+ * back's, which over forty seasons named 31 quarterbacks and 9 backs, against
  * real voting's four in five. It was 1.55 on the engine before the fix, fitted
- * the same way. Every other position is still weighted by the table.
+ * the same way.
+ *
+ * Then the passer and the receivers were held to real seasons too, and the
+ * quarterback fell from 16.13 to 9.02 in the table (DESIGN.md, "Backs,
+ * receivers and tight ends, held to real seasons"). Read straight, the new
+ * table named 33 quarterbacks, 6 defensive linemen and a corner in forty
+ * seasons: the season's best lineman stands 3.8 deviations above his position,
+ * nearly twice as far as the best quarterback does above his, and sacks are
+ * what a pass rusher's season is made of. Real voting has given the award to
+ * nobody but quarterbacks and backs since 2000, 21 and 4. So it keeps a second
+ * number: every position but those two counts at `MVP_OTHERS` of its table
+ * weight, and with a quarterback's season counting 1.25 times a back's the
+ * forty seasons name 33 quarterbacks and 7 backs. No other position came within
+ * 77% of a winner.
  */
-export const MVP_QB_OVER_RB = 1.7;
-const MVP_WEIGHT = { ...TRUE_LEVERAGE, RB: TRUE_LEVERAGE.QB / MVP_QB_OVER_RB };
+export const MVP_QB_OVER_RB = 1.25;
+export const MVP_OTHERS = 0.6;
+const MVP_WEIGHT = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([pos, v]) => [pos,
+  pos === 'QB' ? v : pos === 'RB' ? TRUE_LEVERAGE.QB / MVP_QB_OVER_RB : v * MVP_OTHERS]));
+/** What a season at this position is weighted by in the MVP race. */
+export const mvpWeight = (pos) => MVP_WEIGHT[pos] ?? 1;
 
 /** Every player with a stat line this season: { id, p, team (idx), s, pts, games }. */
 export function seasonLines(league, byId) {

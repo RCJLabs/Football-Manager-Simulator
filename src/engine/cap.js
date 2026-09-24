@@ -64,11 +64,12 @@ export const ROOKIE_CURVE = 5;
  * costs 104% to 114% of the cap. That is deliberately just over. A club cannot
  * field a side of men all paid what they are worth, so every roster is part
  * bargain and part rookie deal, which is the whole point of having a cap. It
- * has drifted further over since, to 119% at founding on the leverage table
- * of 2026-09-24 (`npm run cap -- 1 4`). A star quarterback at 87 costs 39, a
- * fifth of everything a club has; a back at 87 costs 13, where the table of
- * the morning before the run game was fixed made him 34; an 88-rated kicker
- * costs 4, because leverage says he is worth about that.
+ * has drifted over since, to 119% at founding on the tables of 2026-09-24, and
+ * back to 113% on the one set once the passer and the receivers were held to
+ * real seasons (`npm run cap -- 1 4`). A star quarterback at 87 costs 22, a
+ * ninth of everything a club has, where the table before made him 39; a back
+ * at 87 costs 9, where the morning before the run game was fixed made him 34;
+ * an 88-rated kicker costs 4, because leverage says he is worth about that.
  */
 export const MARKET_RATE = 0.09;
 export const REPLACEMENT_OVR = 60;

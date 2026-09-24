@@ -120,7 +120,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /normal\s+([\d.]+) injuries/,
     doc: /\| normal \| ([\d.]+) \| [\d.]+ \| [\d.]+ \| [\d.]+% of weeks \|/,
-    expect: 1.16, tol: 0.15,
+    expect: 1.15, tol: 0.15,
     why: 'the left-hand column of the injury table, which is the injury model itself',
   },
   {
@@ -128,7 +128,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /normal\s+([\d.]+) rostered players out per club-week/,
     doc: /\| normal \| [\d.]+ \| [\d.]+ \| ([\d.]+) \| [\d.]+% of weeks \|/,
-    expect: 0.36, tol: 0.08,
+    expect: 0.32, tol: 0.08,
     why: 'the right-hand column, which measures how well clubs cope rather than how violent the game is — it had halved while the left-hand column stood still',
   },
   {
@@ -137,7 +137,7 @@ const CHECKS = [
     script: 'yardstick-fit', args: ['CB', '500', '24', 'rookies'],
     extract: /overall vs point differential:\s+r = ([\d.]+)/,
     doc: /\| CB \| 500 \| [\d.]+ \| \*\*([\d.]+)\*\* \|/,
-    expect: 0.991, tol: 0.02,
+    expect: 0.959, tol: 0.02,
     why: "the shipped pool is collinear enough that almost any monotone weighting scores well on it, so the headline yardstick numbers are weak evidence the weights are RIGHT. This is the same fit against independently scattered attributes, where they have to earn it. CB rather than DL because DL needs 1500 games a man and this check runs beside twenty others",
   },
   {
@@ -161,7 +161,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /pro\s+normal\s+[\d.]+ games a club · ([\d.]+) starter-weeks/,
     doc: /\| pro \| normal \| 17\.0 \| ([\d.]+) \|/,
-    expect: 5.7, tol: 0.4,
+    expect: 5.1, tol: 0.4,
     why: "the high-count figure in the pro injury table, and the one that shows the 17-game season costing 1.15x the 14-game one. NOT the season-enders column beside it, which reads 0.10 over ten fantasy seasons and 0.17 over forty and is too thin at this sample to compare across modes",
   },
   {
@@ -229,15 +229,15 @@ const CHECKS = [
     cost: 'slow',
     script: 'pass-rate', args: ['read', '8', '150', '8', '41'], extract: /the read as it is \(strategy\.js\)\s+([+-]?[\d.]+)/,
     doc: /The audit re-measures it on eight of those leagues[^+]*\+([\d.]+)/,
-    expect: 1.04, tol: 0.4,
-    why: 'the read has gone stale twice: measured once at +0.98 and left behind a dozen engine changes, then refitted to an engine whose backs were worth far too much, where it told nearly every squad to run and scored +0.77, and -1.17 once the run game matched real carries. It now tells every squad to throw. This plays it: eight eight-club leagues, 150 games a club at each setting, about ninety seconds; a band rather than tol 0 because any engine change moves a deterministic figure a little',
+    expect: 0.68, tol: 0.4,
+    why: 'the read has gone stale twice: measured once at +0.98 and left behind a dozen engine changes, then refitted to an engine whose backs were worth far too much, where it told nearly every squad to run and scored +0.77, and -1.17 once the run game matched real carries. It tells every squad to throw, worth +1.04 on that engine and +0.68 once the passer and the receivers were held to real seasons. This plays it: eight eight-club leagues, 150 games a club at each setting, about ninety seconds; a band rather than tol 0 because any engine change moves a deterministic figure a little',
   },
   {
     name: 'fourth-down aggression still pays at the top of the dial',
     cost: 'slow',
     script: 'dials', args: ['aggression', '4', '100', '8', '41'], extract: /every club at 1: ([+-]?[\d.]+)/,
     doc: /The audit replays aggression on four of those leagues[^+]*\+([\d.]+)/,
-    expect: 0.62, tol: 0.5,
+    expect: 0.66, tol: 0.5,
     why: 'the team page tells the player that going for it more is worth two-thirds of a point to nine-tenths a game at the top of the dial. The first measurement had it helping only a strong offence with a poor kicker; later it helped every squad by a point and a quarter, and it fell to two-thirds once the run game matched real carries and every squad threw. About twenty-five seconds; a band because any engine change moves a deterministic figure a little',
   },
   {
@@ -307,7 +307,7 @@ const CHECKS = [
     name: 'the simulation fingerprint',
     cost: 'slow',
     script: 'game-fingerprint', extract: /fingerprint: ([0-9a-f]+)/,
-    expect: '44191a624ddc1ce4', text: true,
+    expect: 'bf4962feb20bca1a', text: true,
     why: 'changes whenever the game engine does, which is what makes a careers-only change provable',
   },
 ];
