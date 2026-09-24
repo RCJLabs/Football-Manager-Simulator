@@ -45,7 +45,8 @@
     "convert": "node scripts/convert-sim.mjs",
     "rookies": "node scripts/rookie-read.mjs",
     "weather": "node scripts/weather-sim.mjs",
-    "cap": "node scripts/cap-drift.mjs"
+    "cap": "node scripts/cap-drift.mjs",
+    "schemes": "node scripts/scheme-fit.mjs"
   },
   "engines": {
     "node": ">=20"

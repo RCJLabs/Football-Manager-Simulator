@@ -2923,7 +2923,32 @@ That second rule creates a hole: if you were the only coach sacked that year, th
 
 Plumbing: `jobs.js` deliberately does not import `season.js`, because `startSeason` has to stand the carousel up; `isPro`, `userTeamIndex` and a power ranking are small enough to keep locally rather than build a cycle for. Moving the human between clubs needed no other changes at all — all 68 references to the user's team derive from one `userTeamIndex` lookup, and the history entry already snapshots each season's club name and colours, so a multi-club career reads correctly in the hub.
 
-Not built: assistant coaches, contracts or compensation for a coach, interviews, or any say in which club poaches you. Speculation: whether 10% turnover is the right number. It is chosen against chemistry's three-season payoff rather than against the real league, and it has not been tested for how it feels over a long save.
+Not built: assistant coaches (see **Why there are no coordinators** below), contracts or compensation for a coach, interviews, or any say in which club poaches you. Speculation: whether 10% turnover is the right number. It is chosen against chemistry's three-season payoff rather than against the real league, and it has not been tested for how it feels over a long save.
+
+### Why there are no coordinators (`npm run schemes`)
+
+Assistant coaches were proposed after all — coordinators with scheme strengths — and a premise check stopped them. Three reasons, each enough on its own.
+
+**You are already the coach.** Scheme and play-calling are the human's job in this game: the strategy sliders, coach mode, and an owner who sacks you for the results. A coordinator under you either takes that control away, which makes the game worse, or matters only to the computer's clubs, which leaves you nothing to decide.
+
+**A scheme identity is already four systems.** Every AI personality drafts and calls plays as one (Air Raid throws at 0.66, Ground & Pound at 0.44); the pass/run read fits a club's mix to its roster, +0.98 points a game for following it; clubs game-plan each opponent; and every slider drifts weekly from results. A coordinator's scheme would be one more name for the same numbers.
+
+**A "strength" needs either a bonus or new physics.** An edge a coordinator adds outside the ratings is the thumb on the scale the difficulty dial was built without. The honest alternative is scheme fit — players who suit one scheme and not another — and the pool would support it. Each position ranked under two schemes that weight its attributes toward opposite sides of a real choice:
+
+| position | schemes | rank correlation, every man | top quarter | top quarter who fall out of it |
+| --- | --- | --- | --- | --- |
+| QB | pocket passer / mobile, vertical | 0.90 | 0.20 | 27% |
+| RB | power / zone and space | 0.79 | 0.09 | 44% |
+| WR | vertical / timing | 0.80 | 0.22 | 49% |
+| TE | in-line / move | 0.80 | 0.00 | 43% |
+| OL | pass protection / run blocking | 0.92 | 0.37 | 23% |
+| DL | penetrate / two-gap | 0.59 | 0.25 | 38% |
+| CB | press man / zone | 0.97 | 0.82 | 17% |
+| S | centre field / box | 0.72 | 0.14 | 50% |
+
+Across a whole position the two rankings agree, because good against bad dominates — the collinearity the audit's yardstick check already records. Among the men who start they barely agree at all. It is the engine that does not support it. An inside run and an outside run read the back identically — speed, elusiveness, power and vision enter both the same way, behind one run-blocking composite — so a power scheme and a zone scheme would differ in base yards and in nothing about the roster. Every pass reads a receiver's routes and hands at the same weights, and only the deep shot adds his speed and the arm. Press against zone, and a box safety against a centre fielder, are not in the play model at all. Of the axes a coordinator would sell, the engine plays pass against run, which the read already fits, and in part deep against short.
+
+Making the rest real means new run, coverage and safety physics, then re-measuring realism, the position weights and the leverage table the auction economy rests on. By design it would also make a player's worth depend on his club, lowering how well overall predicts production, which the audit holds at 0.98 to 0.99. That is a different game's worth of change for a feature whose first effect would be to take decisions away from the player. Not built.
 
 ## Scouting (`scouting.js`)
 
