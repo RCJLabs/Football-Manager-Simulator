@@ -46,7 +46,8 @@
     "rookies": "node scripts/rookie-read.mjs",
     "weather": "node scripts/weather-sim.mjs",
     "cap": "node scripts/cap-drift.mjs",
-    "schemes": "node scripts/scheme-fit.mjs"
+    "schemes": "node scripts/scheme-fit.mjs",
+    "passrate": "node scripts/pass-rate.mjs"
   },
   "engines": {
     "node": ">=20"

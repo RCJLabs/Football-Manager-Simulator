@@ -8,7 +8,7 @@ import { GM_PERSONALITIES } from '../src/data/teams.js';
 import { composites, buildLineup } from '../src/engine/ratings.js';
 import { syntheticTeam } from '../scripts/synthetic.mjs';
 import {
-  runEdge, recommendedPassRate, strategyRead, RATE_MIN, RATE_MAX, EVEN_ENOUGH, FIT_BASE,
+  runEdge, recommendedPassRate, strategyRead, RATE_MIN, RATE_MAX, EVEN_ENOUGH, CROSSOVER, RAMP, crossoverFor,
 } from '../src/engine/strategy.js';
 
 registerPlayers(PLAYERS_BY_ID);
@@ -18,14 +18,22 @@ const compFor = (posMeans) => {
   return composites(buildLineup(t.slots, t.byId));
 };
 
-test('the recommendation reproduces the sweep it was fitted to', () => {
-  // Measured best pass rate at each run edge, 450 paired games per cell. If the
-  // engine is retuned these move and this test is the thing that says so.
-  const measured = [[-19.6, 0.7], [-13.1, 0.7], [-6.8, 0.7], [-0.2, 0.65], [6.2, 0.5], [12.5, 0.35], [19.0, 0.35]];
-  for (const [edge, best] of measured) {
-    const got = recommendedPassRate(edge);
-    assert.ok(Math.abs(got - best) <= 0.055, `run edge ${edge}: recommends ${got.toFixed(2)}, measured best ${best}`);
+test("the recommendation runs from all-out throwing to all-out running through each league's crossover", () => {
+  // Fitted by what following it earns against real leagues' AI clubs and
+  // checked on seeds it was not fitted to (`npm run passrate -- read`): every
+  // kind of league wants one end or the other, and is level between. If the
+  // engine or the AI's game plans are retuned these move, and this is the test
+  // that says the read needs measuring again.
+  assert.deepEqual(CROSSOVER, { fantasy: -5.25, pro: -3.5 });
+  assert.equal(RAMP, 0.15);
+  for (const e0 of Object.values(CROSSOVER)) {
+    assert.ok(Math.abs(recommendedPassRate(e0, e0) - 0.525) < 1e-9, 'level at the crossover');
+    assert.equal(recommendedPassRate(e0 - 1.2, e0), RATE_MAX, 'a squad a little more pass-built than the crossover throws');
+    assert.equal(recommendedPassRate(e0 + 1.2, e0), RATE_MIN, 'a squad a little more run-built than it runs');
   }
+  assert.equal(crossoverFor({ mode: 'pro' }), CROSSOVER.pro);
+  assert.equal(crossoverFor({ mode: 'fantasy' }), CROSSOVER.fantasy);
+  assert.equal(crossoverFor({}), CROSSOVER.fantasy, 'a league with no mode on it is a fantasy league');
 });
 
 test('it never recommends a setting the slider cannot reach', () => {
@@ -52,9 +60,11 @@ test('a roster built to run reads as one, and so does a roster built to throw', 
   assert.ok(recommendedPassRate(run) < recommendedPassRate(pass), 'the two should want opposite ends');
 });
 
-test('an even squad is told the dial is close to a free choice, not given a number to chase', () => {
+test('a squad at the crossover is told the dial is close to a free choice, not given a number to chase', () => {
+  // Even means level against the clubs it plays, not even on paper: in a
+  // fantasy league that is a squad whose passing game is somewhat the better.
   const league = { teams: [{ isUser: true, slots: {}, strategy: { passRate: 0.55 } }], injuries: {} };
-  const t = syntheticTeam('even', 82, 2, 5);
+  const t = syntheticTeam('even', 82, 2, 5, { posMeans: { QB: 92, WR: 90 } });
   league.teams[0].slots = t.slots;
   const read = strategyRead(league, 0, t.byId);
   assert.ok(read.even, `an even squad read ${read.edge.toFixed(1)}`);
@@ -106,9 +116,49 @@ test('a club with no squad at all does not throw', () => {
   assert.equal(strategyRead(lg, 9, new Map()), null, 'a club that does not exist has no read');
 });
 
-test('the fitted base is where a balanced squad is told to sit', () => {
-  assert.ok(Math.abs(recommendedPassRate(0) - FIT_BASE) < 1e-9);
-  assert.ok(FIT_BASE > 0.55, 'the sweep put an even squad above the old flat default, not at it');
+test('a squad whose passer is its best player is usually told to run, and told why', () => {
+  // Measured: against real AI clubs most fantasy squads earn more at 0.35 than
+  // at 0.55, pass-built or not. The read this replaced told nearly all of them
+  // to throw, and lost to 0.55 for it.
+  const lg = createLeague({ name: 'R', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 41, draftType: 'snake' });
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(41));
+  startSeason(lg, PLAYERS_BY_ID);
+  const reads = lg.teams.map((_, i) => strategyRead(lg, i, PLAYERS_BY_ID));
+  assert.ok(reads.filter((r) => r.rate < 0.5).length >= lg.teams.length / 2, `told to run: ${reads.map((r) => r.rate.toFixed(2)).join(' ')}`);
+  const passBuiltToldToRun = reads.find((r) => r.lean === 'pass' && r.rate < 0.5 && !r.even);
+  assert.ok(passBuiltToldToRun, 'some pass-built squad is told to run');
+  // It reads backwards, so it says so, and says it is measured rather than
+  // offering a reason nobody established.
+  assert.match(passBuiltToldToRun.why, /^Your quarterback and receivers are the better half.*Even so, squads built like yours win more by leaning on the run, measured/);
+  assert.doesNotMatch(passBuiltToldToRun.why, /shell/);
+});
+
+test('in a pro league the most pass-built squads are told to throw', () => {
+  const lg = createLeague({ name: 'Q', mode: 'pro', numTeams: 32, franchise: 5, seed: 3301, draftType: 'snake', user: {} });
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(3301));
+  startSeason(lg, PLAYERS_BY_ID);
+  const reads = lg.teams.map((_, i) => strategyRead(lg, i, PLAYERS_BY_ID)).sort((a, b) => a.edge - b.edge);
+  const top = reads.slice(0, 6);
+  assert.ok(top.every((r) => r.rate >= 0.65), `the six most pass-built: ${top.map((r) => `${r.edge.toFixed(1)}→${r.rate.toFixed(2)}`).join(' ')}`);
+  assert.ok(top.every((r) => /throw/.test(r.why)));
+  const bottom = reads.slice(-6);
+  assert.ok(bottom.every((r) => r.rate <= 0.4), `the six most run-built: ${bottom.map((r) => `${r.edge.toFixed(1)}→${r.rate.toFixed(2)}`).join(' ')}`);
+  // A pro league reads on the pro crossover, not the fantasy one.
+  for (const r of reads) assert.ok(Math.abs(r.rate - recommendedPassRate(r.edge, CROSSOVER.pro)) < 1e-9, `edge ${r.edge.toFixed(2)} read ${r.rate}`);
+  assert.ok(reads.some((r) => Math.abs(recommendedPassRate(r.edge, CROSSOVER.fantasy) - r.rate) > 0.05), 'and it makes a difference somewhere in the league');
+});
+
+test('what the team page claims for moving the dial is what was measured', () => {
+  // +0.42 to +0.68 a game out of sample, against a flat 0.55. The read this
+  // replaced claimed a point and was worth -0.27 to +0.28.
+  const lg = createLeague({ name: 'C', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 41, draftType: 'snake' });
+  autoDraftAll(lg, lg.draft, PLAYERS, new RNG(41));
+  startSeason(lg, PLAYERS_BY_ID);
+  const reads = lg.teams.map((_, i) => strategyRead(lg, i, PLAYERS_BY_ID));
+  const tilted = reads.find((r) => !r.even);
+  assert.ok(tilted);
+  assert.match(tilted.strength, /half a point/);
+  assert.doesNotMatch(tilted.strength, /about a point/);
 });
 
 test('the user starts on a dial that matches the squad they drafted', () => {
@@ -131,10 +181,11 @@ test('it is an opening position, not a hand on the tiller', () => {
   autoDraftAll(lg, lg.draft, PLAYERS, new RNG(78));
   startSeason(lg, PLAYERS_BY_ID);
   const u = userTeamIndex(lg);
-  // The player disagrees and turns it right down.
-  lg.teams[u].strategy.passRate = 0.35;
+  // The player disagrees and turns it to the other end from the read.
+  const chosen = lg.teams[u].strategy.passRate > 0.5 ? 0.35 : 0.7;
+  lg.teams[u].strategy.passRate = chosen;
   startSeason(lg, PLAYERS_BY_ID);
-  assert.equal(lg.teams[u].strategy.passRate, 0.35, 'a later season must not overwrite what the player chose');
+  assert.equal(lg.teams[u].strategy.passRate, chosen, 'a later season must not overwrite what the player chose');
 });
 
 test('the flat default only ever reached the human, which is why this existed', () => {

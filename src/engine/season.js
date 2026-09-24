@@ -555,10 +555,10 @@ export function previousDivisionRanks(league) {
  * `assignGms` hands every AI club its personality's strategy, so an Air Raid
  * club throws at 0.66 and a Ground & Pound club runs at 0.44 — each matched to
  * the roster that personality also drafted. The human's roster is whatever the
- * human drafted and the dial sat at a flat 0.55 regardless, which is the one
- * asymmetry in the strategy layer that measured as real: following the read
- * rather than the flat default is worth +0.98 ± 0.22 points a game over 3,200
- * games on real rosters.
+ * human drafted and the dial sat at a flat 0.55 regardless. Following the read
+ * rather than the flat default is worth +0.35 to +0.70 points a game, measured
+ * against real leagues' AI clubs on seeds the read was not fitted to (see
+ * strategy.js).
  *
  * Done once, when the roster first exists, so it is a sensible opening position
  * and not a hand on the tiller — after this the dial is the player's, and the

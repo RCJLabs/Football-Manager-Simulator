@@ -218,6 +218,14 @@ const CHECKS = [
     why: 'the same for kicking range, where a mean taken at an 80 leg sits 0.07 yards off',
   },
   {
+    name: 'the pass/run read still beats a flat 0.55',
+    cost: 'slow',
+    script: 'pass-rate', args: ['read', '8', '150', '8', '41'], extract: /the read as it is \(strategy\.js\)\s+([+-]?[\d.]+)/,
+    doc: /The audit re-measures it on eight of those leagues[^+]*\+([\d.]+)/,
+    expect: 0.77, tol: 0.4,
+    why: 'the read this replaced was measured once at +0.98 and went stale behind a dozen engine changes, to -0.16, because its test pinned the formula to the table it came from rather than to the engine. This plays it: eight eight-club leagues, 150 games a club at each setting, about ninety seconds. Half that sample was tried first and could not tell the two reads apart (+0.86 against +0.27). On these games the stale read scores +0.04; a band rather than tol 0 because any engine change moves a deterministic figure a little',
+  },
+  {
     name: 'the game still looks like football',
     cost: 'slow',
     script: 'realism', extract: /(none|\d+) of 44 wholly outside/,

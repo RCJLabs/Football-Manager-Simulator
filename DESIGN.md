@@ -108,7 +108,7 @@ Third-down conversion 43.9 → 39.4 (real ~39), red zone touchdowns 64.1 → 58.
 
 **A cascade that did not work,** recorded because it looked obvious and cost a day. Letting a carry break several tackles in a row, each less likely than the last, should produce the geometric tail real carries have. It does buy tail — +0.11 explosive plays, paired and significant — but it buys mean with it, and every way of paying that mean back costs more than it gives: shaving the base run moves the *left* tail too and pushes the stuffed share out of range, and shrinking each break to compensate cancels the gain outright (+0.002, inside the noise). The tail was coming from the extra yards and not from the stacking, so the cascade was an expensive way to write `+= more`. What worked instead was changing the shape of the draw that was already there.
 
-**A convergence worth noting.** Strengthening the run — `RUN_IN`, `RUN_OUT` and a lower `STUFF_RATE` — fixed a strategy problem as a side effect. The pass/run dial used to reward maximum passing at every setting; on a balanced roster it now peaks at 0.65 (+0.21 points against a flat 0.55) and turns back down at 0.70 (−0.18), and a run-tilted roster wants 0.35. Re-measured after the tuning above with `scripts/gameplan-sim.mjs` and a 600-game-per-cell sweep. A dial with an interior optimum is a decision; a monotone one is a tax on anybody who doesn't know to max it.
+**A convergence worth noting.** Strengthening the run — `RUN_IN`, `RUN_OUT` and a lower `STUFF_RATE` — fixed a strategy problem as a side effect. The pass/run dial used to reward maximum passing at every setting; on a balanced roster it now peaks at 0.65 (+0.21 points against a flat 0.55) and turns back down at 0.70 (−0.18), and a run-tilted roster wants 0.35. Re-measured after the tuning above with `scripts/gameplan-sim.mjs` and a 600-game-per-cell sweep. A dial with an interior optimum is a decision; a monotone one is a tax on anybody who doesn't know to max it. (That was the engine of the time, in mirror matches. The play model has changed since, and against real AI clubs the dial is now two-ended — see **The pass/run read**.)
 
 Leverage, measured by boosting one position group 8 points on an otherwise equal synthetic team: QB → 69% wins, WR → 66%, RB/OL/DL → 62%, LB/CB → 61%, S → 58%, K → no effect on win rate. Boosting every group by 2 points wins ~78% because the effects stack. In a snake draft with the value-over-replacement AI, total talent equalizes (team power spread ≈ 1 point), so AI-vs-AI seasons are close to coin flips and the user's edge comes from out-drafting the AI and from strategy. Constants to reach for when tuning: `baseComp`, `baseInt`, `yacMean`, `stuffP`, the run `base` normals, `pressureP`, and the `edge()` k values (bigger k = flatter response to rating gaps).
 
@@ -2931,7 +2931,7 @@ Assistant coaches were proposed after all — coordinators with scheme strengths
 
 **You are already the coach.** Scheme and play-calling are the human's job in this game: the strategy sliders, coach mode, and an owner who sacks you for the results. A coordinator under you either takes that control away, which makes the game worse, or matters only to the computer's clubs, which leaves you nothing to decide.
 
-**A scheme identity is already four systems.** Every AI personality drafts and calls plays as one (Air Raid throws at 0.66, Ground & Pound at 0.44); the pass/run read fits a club's mix to its roster, +0.98 points a game for following it; clubs game-plan each opponent; and every slider drifts weekly from results. A coordinator's scheme would be one more name for the same numbers.
+**A scheme identity is already four systems.** Every AI personality drafts and calls plays as one (Air Raid throws at 0.66, Ground & Pound at 0.44); the pass/run read fits a club's mix to its roster, about half a point a game for following it; clubs game-plan each opponent; and every slider drifts weekly from results. A coordinator's scheme would be one more name for the same numbers.
 
 **A "strength" needs either a bonus or new physics.** An edge a coordinator adds outside the ratings is the thumb on the scale the difficulty dial was built without. The honest alternative is scheme fit — players who suit one scheme and not another — and the pool would support it. Each position ranked under two schemes that weight its attributes toward opposite sides of a real choice:
 
@@ -3186,7 +3186,7 @@ Speculation, not measured: that these sizes are right. The ordering, wind by a d
 
 Running more pays no more in any weather than it does indoors, and in rain if anything less, since a wet ball costs a runner as well as a passer. So the AI does not lean. The table resolves a difference of about 0.7 points between two conditions; a rough estimate from what a gale does to a medium throw (five completion points, about half a yard an attempt at 0.053 points a yard, over the ten plays a 0.15 lean moves) puts the true gain near 0.3 points in a gale and less elsewhere. So "too small to matter" is the honest reading, not "none".
 
-It turned up one thing that is not about weather. In every condition, indoors included, the home side gained about a point and a half of margin by running 15 points more than its kickoff pass rate. That is one set of founding lineups, and in a real season the strategy drift in `gm.js` moves a club's pass rate from its own results, which this test leaves out. Not investigated.
+It turned up one thing that looked like it was not about weather: in every condition, indoors included, the home side gained about a point and a half of margin by running 15 points more than its kickoff pass rate. Investigated since, and it did not replicate — across eight pro leagues an AI club's pass rate is flat, anywhere from −0.20 to +0.10 — and the "every condition" was the same games replayed under five skies, which is one sample seen five times. Chasing it found something real elsewhere: the read that sets the human's pass rate had gone stale. See **The pass/run read** below.
 
 **Tests** (`tests/weather.test.js`, 11) cover the setting and old saves, the seeding and the domes, the climate, each effect's direction and resistance, the means on an independent stream, every hook in a game, the recorded result and the share code. A mutation pass over `weather.js` and every hook in the engine killed 32 of 36 mutants. Four survive, each below what the tests resolve: dropping the wet-ball factor from any one of the three fumble sites alone — each is about a third of the fumbles, and dropping all three is caught — and the weather in the end-of-half kick's range, a handful of decisions a season.
 
@@ -3859,7 +3859,7 @@ Measured properly, by point differential from a round robin of every club agains
 | 8-club snake | **5.5 points a game** |
 | 8-club auction | **6.4 points a game** |
 
-That is not a flat league. The pass/run read is worth about a point, so tactics come to roughly a sixth of the roster gap, which is a defensible ratio rather than a broken one. The premise was wrong; there is no structural problem here to fix.
+That is not a flat league. The pass/run read is worth about half a point (see **The pass/run read**), so tactics come to roughly a twelfth of the roster gap, which is a defensible ratio rather than a broken one. The premise was wrong; there is no structural problem here to fix.
 
 What is true, and was never the point being argued: the draft distributes talent evenly *relative to what the pool allows*. An eight-club league could produce a 6.40 power spread and produces 0.88 — 12% of the available range, and the same 12% at every league size, because the snake order hands out equal draft capital and the roster template forbids concentrating it. The pool is not the constraint: at eight clubs every drafted player is 88 or better.
 
@@ -4089,21 +4089,54 @@ Also measured and not built: the per-opponent game plan the audit proposed. `mak
 
 Every AI personality drafts and calls plays coherently — Air Raid buys quarterbacks and receivers and throws at 0.66, Ground & Pound buys backs and linemen and runs at 0.44. The human's roster is whatever the human drafted and the dial starts at a flat 0.55 regardless. That asymmetry, not the absence of a weekly decision, was the real gap.
 
-`runEdge(comp)` scores how much a club's running game beats its passing game from the composites the engine already builds, so it moves when a player is signed, hurt, dropped down the depth chart or developed. The recommendation is a line fitted to a sweep of 450 paired games per cell:
+`runEdge(comp)` scores how much a club's running game beats its passing game from the composites the engine already builds, so it moves when a player is signed, hurt, dropped down the depth chart or developed.
 
-| run edge | −19.6 | −13.1 | −6.8 | −0.2 | +6.2 | +12.5 | +19.0 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| best pass rate | .70 | .70 | .70 | .65 | .50 | .35 | .35 |
+**The first read had gone stale.** It was a line through a synthetic sweep, 450 paired games a cell, with the best pass rate falling from 0.70 at a run edge of −19.6 to 0.35 at +19.0: `clamp(0.64 − edge × 0.023, 0.35, 0.70)`. It was checked by playing real drafted clubs against their own clones, both on the default sliders and neither allowed a game plan, and came out at +0.98 ± 0.22 a game against a flat 0.55 — the figure the team page quoted. That was the engine of 19 September. A dozen changes to the play model followed, several of them strengthening the run ("A look that rewards the run", awareness, power and elusiveness given work to do, a passing game rebuilt around short throws), and nothing measured the read again. Its test pinned the formula to the table it had come from rather than to the engine, so no retune could make it fail. Replayed today in exactly that clone setup, it loses to 0.55: −0.29 ± 0.08 a game in eight-club leagues and −0.13 ± 0.14 in pro ones.
 
-giving `clamp(0.64 − edge × 0.023, 0.35, 0.70)`, which reproduces every cell.
+It came to light sideways: testing weather turned up one set of pro lineups that gained a point and a half by running more, and chasing that showed the AI clubs were fine and the human's advice was not.
 
-**The honest size of it.** That sweep used synthetic rosters built to order and overstates what a real league offers. Surveyed across 144 drafted clubs the run edge only spans −7.3 to +1.4 in an eight-club snake league, −8.9 to −0.4 in an auction and −11.1 to +4.6 in a 32-club pro league: the pool and the worth table between them mean nearly every squad comes out leaning pass, and none comes out as run-built as the sweep's far end. So the figure quoted on screen is the one measured on real rosters — following the read rather than sitting at 0.55 is worth **+0.98 ± 0.22 points a game over 3,200 games**. Real, and about a point. The test that pins the fit to the sweep is the thing that will fail first if the engine is retuned.
+**What the dial is worth to you, measured the way you play.** Every club in real drafted leagues was played as the human's club is — no matchup plan, the default sliders — at each setting the dial allows, against its own league's AI clubs, every game paired against the same game at 0.55 (`npm run passrate -- read`). By run edge, in fifths:
+
+| run edge, sixteen eight-club leagues | at 0.35 | at 0.45 | at 0.65 | at 0.70 |
+| --- | --- | --- | --- | --- |
+| −7.8 to −4.9 | −0.34 | −0.17 | −0.06 | +0.01 |
+| −4.9 to −4.0 | +0.81 | +0.44 | +0.04 | +0.34 |
+| −4.0 to −3.1 | +0.51 | +0.15 | −0.13 | −0.27 |
+| −3.1 to −2.2 | +0.77 | +0.43 | −0.30 | −0.36 |
+| −2.2 to +1.1 | +1.37 | +0.72 | −0.58 | −0.59 |
+
+| run edge, four pro leagues | at 0.35 | at 0.45 | at 0.65 | at 0.70 |
+| --- | --- | --- | --- | --- |
+| −11.8 to −5.5 | −0.85 | −0.61 | +0.44 | +1.13 |
+| −5.5 to −3.9 | −0.38 | +0.14 | +0.24 | +0.67 |
+| −3.9 to −1.9 | +0.57 | +0.51 | −0.11 | −0.02 |
+| −1.9 to +0.1 | +1.05 | +0.57 | −0.24 | +0.06 |
+| +0.1 to +5.5 | +1.18 | +0.47 | −0.37 | −0.67 |
+
+A cell carries ±0.16 to 0.18 in the first table and ±0.31 to 0.36 in the second. The payoff is two-ended: the most pass-built squads want the dial all the way up, nearly everybody else all the way down, and between the two it is flat. A middle setting is almost never the best one.
+
+**The read now** is a ramp through the run edge where the two ends trade places: `clamp(0.525 − 0.15 × (edge − crossover), 0.35, 0.70)`, with the crossover at −5.25 in a fantasy league and −3.5 in a pro one. It was fitted by what following it earns — every ramp scored on the margin it would have won over these club-games — and each crossover is rounded between what its populations chose: eight-club leagues −5.5, ten-club −6.0, twelve-club −4.75 to −5.0; three pro seed sets −3.0, −3.25 and −3.75 to −4.25. A fantasy squad has an elite passer and faces elite opponents, a pro squad neither, which is why the two differ. A hard switch at the crossover earned the same out of sample, and would have flipped the advice between 35% and 70% whenever one injury nudged the edge, so the ramp runs over about two and a third points instead. Following it, against a flat 0.55:
+
+| league | the read now | the read as it was | always 0.35 |
+| --- | --- | --- | --- |
+| eight clubs, where it was fitted | +0.66 ± 0.07 | −0.16 ± 0.07 | +0.62 ± 0.08 |
+| ten clubs | +0.47 ± 0.10 | −0.27 ± 0.10 | +0.46 ± 0.10 |
+| twelve clubs | +0.66 ± 0.10 | −0.27 ± 0.10 | +0.49 ± 0.10 |
+| pro, the seeds it was fitted on | +0.80 ± 0.15 | +0.31 ± 0.14 | +0.31 ± 0.15 |
+| pro, a second seed set | +0.68 ± 0.15 | +0.28 ± 0.14 | +0.29 ± 0.15 |
+| pro, a third | +0.42 ± 0.15 | −0.13 ± 0.14 | +0.16 ± 0.15 |
+
+Out of sample it is worth +0.42 to +0.68 a game where the read it replaced was worth −0.27 to +0.28, and the team page now says about half a point. In a fantasy league it comes out close to "always run", because most fantasy squads sit on the run side of −5.25, and that is the answer rather than a defect in it. Where the advice reads backwards — a squad whose passer is its best player, told to run — the screen says so and says the advice is measured, because the reason is not established. The audit re-measures it on eight of those leagues, 150 games a club at each setting: +0.77 ± 0.17 against 0.55, where the read it replaced scores +0.04 on the same games, and it flags anything outside +0.37 to +1.17. Half that sample was tried first and could not tell the two apart.
+
+**Why running pays is not established, and one likely reason was tested and mostly ruled out.** An AI club plans against its opponent's personnel, and against a good passer its plan is a shell over the top — the look the run eats, +2.0 and +2.2 yards a carry. That was the first explanation, and it is testable: take the opponents' plans away and see whether the run stops paying. It mostly does not. In eight-club leagues running at 0.35 earns +0.55 ± 0.08 a game with nobody planning against +0.62 ± 0.08 with plans on, and +0.22 against +0.31 in pro leagues; the most run-built fifth barely moves either way. The clone replay above points the same way, since nobody plans there and running still wins. So the plans explain a small part at most, and the rest belongs to the play model as it now stands — which of the changes since the first read moved it was not isolated.
+
+**The AI clubs were fine, give or take the opening weeks.** Every club in four pro leagues played its own league with its pass rate moved, paired by seed (`npm run passrate -- ai`). Moving every club the same way, anywhere from −0.20 to +0.10, was worth −0.13 to +0.29 — flat — and flat again at midseason. The weather finding did not replicate. What is left is fit: moved each to its own read at kickoff, AI clubs would gain +0.46 ± 0.14 a game, nearly all of it run-built clubs that open too pass-heavy (Ground & Pound +0.96, the most run-built third +1.02), and the weekly drift walks those down by midseason — Ground & Pound from 0.44 to 0.33, after which running still more earns nothing. Starting AI clubs on the read is a possible change, not made.
 
 What makes the metric trustworthy is that it reads the league correctly without being told: sorted by average run edge, Ground & Pound clubs come out the most run-leaning (−0.1) and Air Raid the most pass-leaning (−6.1), in personality order, with the personality never consulted.
 
 Only the club you manage gets a read; telling you what a rival should be doing is coaching the opposition.
 
-**The opening position is now fitted too.** `assignGms` hands every AI club its personality's strategy when the league is created, matched to the roster that personality then drafts — Air Raid at 0.66, Ground & Pound at 0.44. The human's dial sat at `DEFAULT_STRATEGY`'s flat 0.55 whatever they built, and that club was the only one the default ever reached. `fitUserStrategy` in `season.js` points it at the squad once, when the roster first exists. Once only: after that the dial is the player's and the team page says when the squad has changed enough to want a different one. `scripts/gameplan-sim.mjs` runs all of the above.
+**The opening position is now fitted too.** `assignGms` hands every AI club its personality's strategy when the league is created, matched to the roster that personality then drafts — Air Raid at 0.66, Ground & Pound at 0.44. The human's dial sat at `DEFAULT_STRATEGY`'s flat 0.55 whatever they built, and that club was the only one the default ever reached. `fitUserStrategy` in `season.js` points it at the squad once, when the roster first exists. Once only: after that the dial is the player's and the team page says when the squad has changed enough to want a different one. `scripts/gameplan-sim.mjs` runs the clone test the first read was checked on, and `scripts/pass-rate.mjs` everything above it.
 
 **Weekly drift.** After each week every AI club drifts its sliders from its own season: toward the pass when the passing game is the efficient unit, away from it when the passer is being sacked, toward the blitz when points are pouring in, toward aggression when the playoff line is slipping away late and toward caution when it is safe. Every slider stays within 0.12 of the personality's base, so a Ground & Pound club never turns into an Air Raid.
 
