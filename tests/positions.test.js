@@ -39,11 +39,13 @@ test('the moves on offer stay inside a group rated against the same peers, and g
   for (const [from, tos] of Object.entries(CONVERSIONS)) for (const to of tos) assert.equal(GROUP[from], GROUP[to]);
   // A linebacker's speed and coverage are a linebacker's, rated against
   // linebackers: across into the secondary they would pass the guess bound
-  // and still be wrong, which is what the group rule is for.
-  for (const to of ['CB', 'S']) {
-    assert.ok(guessError('LB', to) <= MAX_GUESS, `LB -> ${to} is turned away by the guess, so this proves nothing about groups`);
-    assert.equal(canMove('LB', to), false, `LB -> ${to} is on offer`);
-  }
+  // and still be wrong, which is what the group rule is for. The safety shows
+  // it. The corner did too until his ball skills, the one skill a linebacker
+  // lacks, went from 0.11 of his rating to 0.19, when the guess alone started
+  // turning that move away.
+  assert.ok(guessError('LB', 'S') <= MAX_GUESS, 'LB -> S is turned away by the guess, so this proves nothing about groups');
+  assert.equal(canMove('LB', 'S'), false, 'LB -> S is on offer');
+  assert.equal(canMove('LB', 'CB'), false, 'LB -> CB is on offer');
   for (const [from, tos] of Object.entries(CONVERSIONS)) {
     for (const to of tos) {
       const miss = POSITIONS[to].attrs.filter((a) => !POSITIONS[from].attrs.includes(a));

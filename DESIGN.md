@@ -139,8 +139,8 @@ reshuffled random stream: an injury change that drew one extra number per
 injury took it to 9.1, while two 48-league samples either side of that change
 read 8.2 and 8.5. So the audit now holds the thing the auction produces before a
 ball is snapped, which no in-season randomness can move — the spread of roster
-quality, leverage-weighted: a standard deviation of 40.4 under the auction
-against 22.6 from the draft, over the default twelve leagues.
+quality, leverage-weighted: a standard deviation of 40.2 under the auction
+against 22.0 from the draft, over the default twelve leagues.
 
 "Leverage-weighted" meant a table of its own until 2026-09-24: `auction-sim`
 carried a literal copy of the very first measurement (tight end 9.3, back 5.0)
@@ -150,7 +150,8 @@ shipped table now. Weighed that way, the table before the back's rise gave 43.8
 against 29.0, the one after it 41.1 against 30.2, and the one set once the run
 game matched real carries 37.0 against 26.9, the one set once the passer and
 the receivers were held to real seasons 37.0 against 21.9, and the one set on
-the drive model 40.4 against 22.6: the auction now spreads rosters about four
+the drive model 40.4 against 22.6, and 40.2 against 22.0 once the rating
+weights were re-measured on it: the auction now spreads rosters about four
 fifths more than the draft does, where on the one before it was two-thirds
 more, before that a third more and on the oldest half again more.
 
@@ -216,20 +217,22 @@ at the default setting and penalties on:
 
 | Strategy | Wins of 14 | Point differential | Average finish of 8 | Titles of 24 |
 |---|---|---|---|---|
-| Value shopper (bid 1.15× true worth) | 8.0 | +28 | 3.4 | 5 |
-| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.4 | −2 | 4.1 | 1 |
-| Trenches first (1.7× worth on the lines) | 7.2 | 0 | 4.3 | 3 |
-| Skill players first (1.5× asking at QB/RB/WR/TE) | 6.6 | −19 | 5.2 | 1 |
-| Spread it evenly | 6.0 | −45 | 5.7 | 1 |
-| Market follower (pay the asking price) | 5.6 | −59 | 5.8 | 2 |
+| Value shopper (bid 1.15× true worth) | 7.7 | +24 | 3.8 | 9 |
+| Trenches first (1.7× worth on the lines) | 7.5 | +28 | 4.2 | 3 |
+| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.2 | −1 | 4.2 | 3 |
+| Market follower (pay the asking price) | 6.2 | −56 | 5.3 | 1 |
+| Skill players first (1.5× asking at QB/RB/WR/TE) | 5.9 | −35 | 5.5 | 5 |
+| Spread it evenly | 5.0 | −65 | 6.5 | 0 |
 
-Re-run once the drive was held to real play-by-play and the table set on it. Value shopping still wins most, but reads 8.0 where it read 9.1, and following the market reads 5.6 where it read 5.0. The table is not what moved it. On the same engine and the same 24 leagues the table before reads 8.6, and on 24 more leagues both tables read 8.0: 8.3 against 8.0 over the 48, where a difference like that carries about ±0.45. Whether the engine did it, or the 9.1 was a high draw, is not established either: the table before reads 8.3 on this engine against 9.1 on the last, about 1.4 standard errors. Over the 48 leagues the new table helped skill players first (6.75 against 5.9 on the table before) and trenches first (7.65 against 7.0) most, the second most likely the offensive line becoming the first bargain; stars and scrubs reads 7.6 against 7.25. None of those differences reaches two standard errors.
+Re-run once the rating weights were re-measured on the drive model (see "The rating weights, re-measured on the engine as it now is"), which changes who every club bids on: value shopping still wins most, 7.7 where it read 8.0, and every strategy is within about a standard error of the run before. Following the market reads 6.2 against 5.6.
+
+Re-run before that once the drive was held to real play-by-play and the table set on it. Value shopping still wins most, but reads 8.0 where it read 9.1, and following the market reads 5.6 where it read 5.0. The table is not what moved it. On the same engine and the same 24 leagues the table before reads 8.6, and on 24 more leagues both tables read 8.0: 8.3 against 8.0 over the 48, where a difference like that carries about ±0.45. Whether the engine did it, or the 9.1 was a high draw, is not established either: the table before reads 8.3 on this engine against 9.1 on the last, about 1.4 standard errors. Over the 48 leagues the new table helped skill players first (6.75 against 5.9 on the table before) and trenches first (7.65 against 7.0) most, the second most likely the offensive line becoming the first bargain; stars and scrubs reads 7.6 against 7.25. None of those differences reaches two standard errors.
 
 Before that, re-run on 2026-09-24 once the passer, the receivers and the backs were held to real seasons and the table re-set with them. Value shopping reads 9.1, the best it has measured; trenches first rises from 6.5 to 8.0 and ties it for titles, which is the offensive line becoming the bargain; stars and scrubs falls from 7.8 to 7.0, a star receiver no longer taking the ball from everyone else. Earlier the same day, once the run game was measured against real carries, value shopping read 8.8, skill players first fell from 6.4 to 5.3 and trenches first rose from 5.8 to 6.5, which was the back being worth a third of what he had been. Earlier the same day, paired on the same leagues, the table that had the back at nearly a quarterback took value shopping from 7.3 to 8.2 over the one before it — right about an engine that was wrong. Every correction to the worth table before the drive model made the strategy bidding off it better, which is what a more accurate table should do; the one set on the drive model made no measurable difference to it. Twenty-four leagues is a small sample and the ordering is stable across runs while the individual numbers move by a few tenths.
 
-About two and a half wins separate reading the market from following it (four
-on the engine before the drive model), so how you bid is still the main thing
-that decides a season.
+A win and a half to two and a half separate reading the market from following
+it (four on the engine before the drive model), so how you bid is still the
+main thing that decides a season.
 The lesson is learnable from play: buy the positions the room undervalues, and
 do not pay a premium for a name. Stars and scrubs had closed the gap on value
 shopping once the pool gained a real tail, then fell back a win when AI clubs
@@ -1084,7 +1087,7 @@ were not true, and the 250/500 swing column is why.
 | position | `overall` vs point differential | games | swing, 250 vs 500 | differential, worst to best |
 | --- | --- | --- | --- | --- |
 | QB | **r = 0.975** | 500 | 0.005 | 9.1 |
-| CB | **r = 0.966** | 500 | 0.034 | 5.6 |
+| CB | **r = 0.975** | 500 | 0.034 | 5.6 |
 | OL | r = 0.972 | 1500 | 0.065 | 3.6 |
 | S | r = 0.956 | 1500 | 0.064 | 3.4 |
 | DL | r = 0.952 | 1500 | 0.136 | 3.9 |
@@ -1099,7 +1102,9 @@ were not true, and the 250/500 swing column is why.
 0.988 over 22.0 points and 0.984 over 7.7 when this table was made. The
 quarterback's range fell 2.4 times, the same factor by which a point of his
 rating had moved his production too far before the passer was held to real
-seasons. The other rows, and the swing column, were not re-run.*
+seasons. The corner read 0.966 on the drive model and 0.975 once his weights
+were re-measured on it. The other rows, and the swing column, were not
+re-run.*
 
 **`overall` is a better guide than this file has ever claimed, and the reason it
 looked otherwise was sampling.** Nine of eleven positions sit at 0.87 or above
@@ -1699,7 +1704,7 @@ sample size the yardstick table specifies for it:
 | position | games a man | shipped pool | generated rookies | pair correlation, shipped / generated |
 |---|---|---|---|---|
 | QB | 200 | 0.988 | **0.988** | 0.98 / 0.82 |
-| CB | 500 | 0.966 | **0.958** | 0.96 / 0.79 |
+| CB | 500 | 0.975 | **0.968** | 0.96 / 0.79 |
 | DL | 1500 | 0.952 | **0.964** | 0.95 / 0.79 |
 
 *The corner's generated figure was 0.991 until 2026-09-24, when the passer and
@@ -1714,8 +1719,9 @@ old engine read 0.58, 0.11, 0.11, 0.12 and 0.08. Real corners still read 0.987,
 because their attributes move together. Refitting the weights would move every
 corner's rating and goes through `legacy-check`, so it is recorded here and not
 done. On the drive model the real corners read 0.966 and the generated ones
-0.958, the gap between them a third of what it was; the attribute shares were
-not re-measured.*
+0.958, and the weights were then re-measured on it (see "The rating weights,
+re-measured on the engine as it now is"): ball skills 0.19, coverage 0.51,
+tackling 0.05, and the two read 0.975 and 0.968.*
 
 **The weights transfer, and that makes the original numbers worth more rather
 than less.** On the generated pool the weight vector is genuinely identified —
@@ -1911,12 +1917,12 @@ per season rather than per club-week for a reason given below):
 
 | mode | setting | games a club | starter-weeks lost | QB1 misses | season-enders |
 |---|---|---|---|---|---|
-| fantasy | low | 14.0 | 2.2 | 0.17 | 0.04 |
-| pro | low | 17.0 | 2.6 | 0.19 | 0.12 |
-| fantasy | normal | 14.0 | 5.0 | 0.42 | 0.09 |
-| pro | normal | 17.0 | 5.8 | 0.43 | 0.22 |
-| fantasy | high | 14.0 | 10.4 | 0.95 | 0.28 |
-| pro | high | 17.0 | 12.0 | 1.18 | 0.44 |
+| fantasy | low | 14.0 | 2.2 | 0.39 | 0.06 |
+| pro | low | 17.0 | 2.6 | 0.20 | 0.13 |
+| fantasy | normal | 14.0 | 4.4 | 0.71 | 0.23 |
+| pro | normal | 17.0 | 5.4 | 0.41 | 0.17 |
+| fantasy | high | 14.0 | 9.8 | 0.84 | 0.29 |
+| pro | high | 17.0 | 11.5 | 1.08 | 0.41 |
 
 **The rate cannot differ between the modes, and does not.** Injury risk is
 `BASE_PER_PLAY` per snap, so a game is a game whichever league it is played in,
@@ -1931,10 +1937,12 @@ drafts, they read 0.86, 1.16 and 1.09. Normal and high still agree; low, the
 thinnest row at two or three starter-weeks a club-season, does not, and the
 evidence is weaker than it was. Re-drawn again on the drive model and the table
 set on it, they read 1.18, 1.16 and 1.15, and all three agree again. The
-starter-weeks rose about a seventh in both modes (fantasy normal 4.4 to 5.0,
-pro 5.1 to 5.8), which is the engine rather than the draws: injury risk is per
-snap, and a game has about 5% more snaps than it had; the rest of the rise
-was not isolated.*
+starter-weeks rose about a seventh in both modes on that draw (fantasy normal
+4.4 to 5.0, pro 5.1 to 5.8), and this said it was the engine. It was mostly the
+draw: re-drawn once more on the rating weights re-measured on the drive model,
+they read 4.4 and 5.4, ratios 1.18, 1.23 and 1.17. A game has about 5% more
+snaps than it had and injury risk is per snap, which is the part of any rise
+that is the engine; the rest moves by half a starter-week a draw.*
 
 **What actually bites is the bench.** Thirty-two clubs roster 64 of the pool's
 128 quarterbacks where eight clubs roster 16, so a pro club's QB2 is drawn from
@@ -1942,14 +1950,14 @@ very much further down:
 
 | mode | clubs | QB1 | QB2 | backup gap | sd |
 |---|---|---|---|---|---|
-| fantasy | 64 | 93.8 | 90.2 | 3.5 | 2.7 |
+| fantasy | 64 | 93.8 | 90.5 | 3.3 | 1.7 |
 | pro | 256 | 90.0 | 84.3 | **5.7** | **3.7** |
 
 Both ends are diluted and the backup end far more. The spread matters as much
-as the mean: at sd 2.7 a fantasy club is usually well covered at quarterback,
-while at sd 3.7 a pro club's cover is a lottery. (The fantasy spread was 1.4
-on the drafts of the table before this one; the drafts, not the pool, moved
-it, and the pro row did not move at all.) Measured over
+as the mean: at sd 1.7 a fantasy club is nearly always well covered at
+quarterback, while at sd 3.7 a pro club's cover is a lottery. (The fantasy
+spread has read 1.4, 2.7 and 1.7 on the drafts of three successive tables and
+weights; the drafts, not the pool, move it, and the pro row has not moved.) Measured over
 every club in eight leagues per mode, because the first attempt read one club's
 QB1/QB2 pair as a finding and a single pair is one draw from a wide
 distribution.
@@ -3220,7 +3228,7 @@ A pro club plays where its city is, and from September to January that means hea
 
 **The one decision it adds** is an arm and a leg. At 20 mph a 95 arm gives up 3.6 points of deep completion and an 80 arm 6.1; a 95 leg gives up 1.4 yards of range and a 75 leg 2.9. A club that plays eight games a year by Lake Michigan has a reason to want both that a dome club does not. It is a small reason — 9% of games blow 15 mph or more — and the rest of weather is atmosphere, which is what it was built to be.
 
-**The means are taken at the arm and leg that start.** The first version took them at the centres of the engine's own formulas, an 82 arm and an 80 leg. But the starters throw nearly every pass and kick every kick, and eight founding pro drafts start an 89.9 arm (sd 4.8) and an 87.3 leg (sd 4.6) (`npm run weather arms`). The wind costs a strong arm less than the middling one the means had assumed, so weather lifted league completion by 0.13 ± 0.03 points; with the means taken at the starters', the same games give 0.04 ± 0.03.
+**The means are taken at the arm and leg that start.** The first version took them at the centres of the engine's own formulas, an 82 arm and an 80 leg. But the starters throw nearly every pass and kick every kick, and eight founding pro drafts start an 89.9 arm (sd 4.8) and an 87.7 leg (sd 4.4) (`npm run weather arms`; the leg was 87.3, sd 4.6, until a kicker's rating weighed his leg as much as his accuracy). The wind costs a strong arm less than the middling one the means had assumed, so weather lifted league completion by 0.13 ± 0.03 points; with the means taken at the starters', the same games give 0.04 ± 0.03.
 
 ### Measured (`npm run weather`)
 
@@ -4004,8 +4012,9 @@ seasons (next section).
 
 **Held to it by the audit.** The audit now reads the quarterbacks' slope (1.15
 at 200 games, flagged outside ±0.15) and a pro league's adjusted net yards a
-dropback (6.04, ±0.3). They read 1.02 and 6.63 when this was written; the drive
-model held to real play-by-play (below) moved them.
+dropback (6.13, ±0.3). They read 1.02 and 6.63 when this was written; the drive
+model held to real play-by-play (below) moved them, the second to 6.04, and the
+rating weights re-measured on it moved that to 6.13 by changing who clubs draft.
 
 ### Backs, receivers and tight ends, held to real seasons
 
@@ -4129,8 +4138,9 @@ men rather than assume them.
 the audit reads the receivers' target-share slope (0.89, flagged outside ±0.2)
 and the backs' carries slope (1.03, ±0.25). From `npm run rushing` it reads the
 backs' slope (0.86, flagged outside ±0.15) and a pro league's yards a carry
-(4.55, ±0.25). They read 0.80, 1.13, 0.88 and 4.57 when this was written; the
-drive model held to real play-by-play (next section) moved them.
+(4.58, ±0.25). They read 0.80, 1.13, 0.88 and 4.57 when this was written; the
+drive model held to real play-by-play (next section) moved them, the last to
+4.55, and the rating weights re-measured on it moved that to 4.58.
 
 ### The drive model, held to real play-by-play
 
@@ -4332,7 +4342,7 @@ edge of one side of it.
 | fourth-down aggression at the top, eight clubs / pro | +0.71 / +0.82 | +0.37 / +0.14 (+0.39 / +0.31 at 0.8) |
 | blitzing least | +0.33 / +0.23 | +0.41 / +0.50 |
 | the deepest shell | +0.38 / nothing | +0.36 / nothing |
-| starter-weeks lost to injury a club-season, fantasy / pro, normal | 4.4 / 5.1 | 5.0 / 5.8 |
+| starter-weeks lost to injury a club-season, fantasy / pro, normal | 4.4 / 5.1 | 5.0 / 5.8, a high draw (4.4 / 5.4 on the next) |
 | a fantasy club's backup quarterback, gap / spread | 3.3 / 1.4 | 3.5 / 2.7 |
 | a replacement-level quarterback, points of win probability | 34 | 39 |
 
@@ -4369,9 +4379,184 @@ edge of one side of it.
   those drives against a real 33.
 - Weather still moves a field goal by yards of distance. On the real kicking
   curve, which is flat from 47 to 52 yards, the same yards cost fewer points of
-  make chance than they did on the logistic, so a snowy gale gives up 58% of
-  the long tries, where it gave up two thirds. Its constants were never set
+  make chance than they did on the logistic, so a snowy gale gives up about
+  half the long tries (53 to 56% over 1,200 games), where it gave up two
+  thirds, and costs nine or ten points of makes from 40 to 47 yards, where it
+  cost sixteen. Its constants were never set
   against real games, and are not reset here.
+
+### The rating weights, re-measured on the engine as it now is
+
+`overall` prices every player from one weight vector a position
+(positions.js), and each vector was last moved toward the field on an engine
+since rebuilt under it: the run game held to real carries, the passer and the
+receivers held to real seasons, the drive held to real play-by-play. The
+corner's ball skills had been noticed at 21% of his value against an 11%
+weight; nothing else had been checked.
+
+**Every position had drifted.** `npm run attrs` at 40,000 games a reading, the
+punter at 160,000 because 40,000 left his accuracy at 1.4σ. Shares of each
+position's leverage, with the shipped weight after the slash:
+
+| position | measured / shipped |
+| --- | --- |
+| QB | awareness .38 / .35, accuracy .33 / .40, mobility .15 / .08, arm .14 / .17 |
+| RB | speed .36 / .30, receiving .22 / .10, awareness .17 / .19, elusiveness .15 / .19, power .08 / .14 (2σ), ball security .02 / .08 |
+| WR | catching .38 / .26, speed .34 / .30, routes .17 / .25, after the catch .11 / .19 |
+| TE | blocking .47 / .25, catching .24 / .25, routes .18 / .20, speed .08 / .10, after the catch .04 / .20 (1.4σ) |
+| OL | run blocking .57 / .45, pass blocking .34 / .45, awareness .10 / .10 |
+| DL | pass rush .49 / .61, run defence .32 / .20, awareness .16 / .07, tackling .03 / .12 |
+| LB, off the ball | run defence .34 / .23, coverage .19 / .23, tackling .18 / .27, awareness .17 / .13, rush .06 / .05, speed .05 / .09 |
+| LB, on the edge | run defence .31 / .19, pass rush .31 / .45, tackling .18 / .17, awareness .14 / .08, speed .06 / .11; coverage below nothing (−5σ) |
+| CB | coverage .51 / .57, ball skills .19 / .11, speed .16 / .13, awareness .09 / .11, tackling .05 / .08 |
+| S | coverage .32 / .34, ball skills .20 / .12, run defence .17 / .12, speed .12 / .14, tackling .10 / .24, awareness .09 / .04 |
+| K | power .50 / .40, accuracy .50 / .60 |
+| P | power .85 / .69, accuracy .15 / .31 |
+
+A pattern runs through the defence and the line: run defence gained at every
+defensive position and run blocking beat pass blocking, while the pass rush,
+pass protection and tackling lost. The engine now rewards the fight for the
+ground more than the fight for the quarterback. Why was not isolated; the run
+game's fixes and the drive model's quieter early-down rush are the likely
+places, and real salaries run the other way. An edge rusher's coverage reads
+below nothing because it makes him rush less, which is why his vector carries
+none.
+
+**The rule, and where it needed tightening.** A position moves as far toward
+the measurement as the record allows (see "Two authorities, and where they
+disagree"), and `npm run blend` now walks that blend in eighths against the
+record. Its first reading said the edge vector could go the whole way for
+free. It could not: that took Derrick Thomas from 88 to 84, Kevin Greene from
+86 to 82 and DeMarcus Ware, Micah Parsons and Justin Houston three points each,
+every one of them inside `legacy-check`'s three-point tolerance and so
+invisible to its count. The tolerance is right for one man, whose rating is an
+editorial estimate, and wrong for a reweight, which moves an archetype
+together. So the blend also counts every point a position's recorded seasons
+sit below their floors, and a step is taken only when that grows by a point
+at most, one man's rounding. Even half the edge move cost a point: Terrell
+Suggs rates 85.56 on the shipped vector against a bar of 86, and the test that
+guards the twelve rushers the linebacker work brought up to their bars caught
+him. The record's objection is to an edge rusher's pass rush weighing less at
+all, not to the rest of the vector, so the rush holds at 0.45 and speed, run
+defence and awareness move the measurement's way.
+
+**A second check, against production.** The measurement lifts one attribute
+eight points on a side of 82s; `overall` has to rank men across the whole
+range. So each change was also scored on eighty generated players a position
+(sixty for the kickers), whose attributes scatter independently as a
+dynasty's do: each man's production measured once, playing in the same side,
+then correlated with his rating under each vector, with a bootstrap over the
+men for the difference. Lifting one starter alone rather than every starter
+(`npm run attrs -- 80000 WR1`, new) read the same as the group lift at
+receiver, corner and safety within 0.06 on every attribute. At linebacker it
+put coverage at
+0.33 rather than 0.19, since the best-covering backer takes the tight end and
+the back. Both linebacker vectors improved the fit alike, and the group's is
+the one taken.
+
+**What moved.**
+
+| position | blend | now | the record | generated players' fit |
+| --- | --- | --- | --- | --- |
+| CB | all | cov .51, bal .19, spd .16, awr .09, tck .05 | no change | 0.984 → 0.988 (+0.004, 95% 0.002 to 0.006) |
+| LB, off the ball | all | rsd .35, cov .19, tck .18, awr .17, prs .06, spd .05 | no change | 0.968 → 0.972 (+0.004, 0.001 to 0.008) |
+| LB, on the edge | all but the rush | prs .45, rsd .23, tck .17, awr .09, spd .06 | no change | 0.960 → 0.964 (+0.004, 0.002 to 0.007) |
+| DL | an eighth | prs .60, rsd .21, tck .11, awr .08 | Gastineau a point further under | 0.930 → 0.933 (+0.003, 0.002 to 0.004) |
+| K | all | kac .50, kpw .50 | one fewer under | 0.967 → 0.971 (+0.004, −0.001 to 0.010) |
+| P | all | ppw .85, pac .15 | no change | 0.974 → 0.978 (+0.003, −0.002 to 0.008) |
+
+The kickers' intervals touch zero, and both go anyway: the punter's own
+sample, fitted by least squares, splits 0.84 and 0.16, the measurement's
+0.85 and 0.15 on independent games, and the kicker's 0.53 and 0.47.
+
+**What did not, and why.**
+
+- **The defensive line** stops at an eighth. A quarter costs Dwight Freeney and
+  more costs Mark Gastineau, both pass rushers. The whole measured vector would
+  have lifted the generated fit from 0.930 to 0.954, the largest gain on
+  offer, so this is the two authorities plainly disagreeing: the engine says
+  a lineman's run defence is worth two thirds of his rush, the record's great
+  linemen say otherwise, and the record wins by the rule.
+- **The quarterback** stays. An eighth costs no named man but adds four points
+  of shortfall across twelve quarterbacks, and further costs Lamonica, Layne,
+  Namath and the pre-merger pocket passers. The full measured vector would
+  lift the generated fit by 0.003.
+- **The running back** stays. An eighth is free and changes nothing measurable
+  (−0.0003); a quarter costs Hornung and then the power backs.
+- **The tight end and the offensive line** have no free step. The tight end is
+  the recorded disagreement above (Brock Bowers at every step). The line costs
+  Ron Mix at every step, and "run blocking is worth 1.7 times pass blocking"
+  is decisive about this engine (40σ) and contentious about football, the
+  combination that stopped the tight end.
+- **The receiver and the safety** measured a long way off, 0.32 and 0.36 from
+  the shipped weights summed over their attributes, twice over (the group lift
+  and the single starter). The record allows the receiver's whole move and the safety's
+  three quarters, and neither improves the generated players' fit: the
+  receiver −0.003 (−0.014 to 0.008), the safety −0.001 (−0.004 to 0.002), whose
+  interval rules out a gain the size of the corner's. Fitted by least squares
+  on the same men, a receiver's speed is worth nothing independent of the rest
+  and a safety's tackling is his largest attribute, the opposite of what the
+  lift says in both cases. The likeliest reading is that some of these effects
+  are not straight lines across the range the lift does not visit (the speed
+  terms are clamped at the defence's speed), which was not tested. Two readings
+  that disagree are not a price, so neither is taken; the receiver's weights
+  are the ones the record allowed last time, and his fit is the weakest in the
+  game, 0.85, for reasons this did not find.
+
+**What it does to ratings.** Real players' attributes run together, so they
+barely notice: no one moves more than three points and most move none. The
+ball-hawking corners rise (Trevon Diggs 3, Asante Samuel and Marcus Peters 2)
+and the shutdown corner who rarely picked a ball off falls (Nnamdi Asomugha 2);
+big legs rise at kicker and punter (Sebastian Janikowski 2, Todd Sauerbrun 3)
+and accurate short legs fall (Matt Stover and John Carney 2); a coverage
+linebacker falls (Telvin Smith 2) as run stoppers gain a point. The record
+still reads two violations, Csonka and Riggins. Generated players, whose
+attributes scatter and who make up most of a long dynasty, are where the
+weights decide who is worth what, and that is where the fit improved.
+
+**What moved with it.** Every club drafts and bids on `overall`, so the
+drafts came out differently and everything read from a drafted league was
+re-drawn:
+
+| | before | after |
+| --- | --- | --- |
+| the starting kicker's leg, founding pro leagues | 87.3 | 87.7, so weather takes its kicking means at 88 |
+| roster spread, auction / draft | 40.4 / 22.6 | 40.2 / 22.0 |
+| a roster at market against the cap, founding | 113% | 113% |
+| AI offers a league-season / helping the human | 10.3 / 41% | 7.3 / 35% |
+| value shopper, wins of 14, 24 leagues | 8.0 | 7.7 |
+| a pro league's adjusted net yards a dropback / yards a carry | 6.04 / 4.55 | 6.13 / 4.58 |
+| fourth-down aggression four-fifths up, eight clubs / pro | +0.39 / +0.31 | +0.16 / +0.33 |
+| starter-weeks lost to injury, fantasy / pro, normal | 5.0 / 5.8 | 4.4 / 5.4 |
+| corner's overall against production, shipped / generated | 0.966 / 0.958 | 0.975 / 0.968 |
+
+Most of that is a new draw rather than a new game: the AI's offer count has
+read between 7.3 and 10.6 on the last four drafts, the aggression dial moved
+about a standard error (the dials section above has it), and the injury row
+showed the previous draw's rise to have been mostly the draw. The corner's
+yardstick is the one number here the weights were meant to move, and it moved
+on both populations. The weather constant moved because the leg did, as its
+audit check asks: kickers are now rated on leg and accuracy alike, and clubs
+draft accordingly.
+
+Five tests failed on the first version and none was a regression in the
+game. The edge rushers' test caught Suggs, which changed the edge vector. One
+had its premise moved: linebacker to corner was the example that the group
+rule, not the guess bound, turns a conversion away, and with the corner's ball
+skills at 0.19 the guess bound turns it away on its own, so the test now shows
+the rule with linebacker to safety. The other three were defects in the tests
+that new drafts happened to expose, each fixed in the test and passing on both
+sets of drafts: the deal finder's compared a deal worth exactly a tenth, which
+floating point makes 0.0999…, against a floor of a tenth, where the finder
+itself works in tenths; the coaching test forced 1-16 seasons but finished the
+club thirteenth, inside the playoff line, so whether that was a miss depended
+on where the draft ranked his roster; and the gale test still expected field
+goals from 40 to 47 yards to fall by sixteen points, as on the kicking curve
+the drive model replaced, where over 1,200 games they fall by 0.100 (0.092 on
+these weights), so a bound of seven points passed on one draw of 200 games and
+failed on the next. A sixth, the free-agency length test, failed on the final
+weights: it pinned a seed whose market no longer had a dear free agent at an
+open slot, and now searches for one, as its neighbour in the same file did.
 
 ### A fingerprint that could not see the roster
 
@@ -5260,7 +5445,7 @@ Aggression helps every mix of offence and kicker in both (+0.50 to +0.80 in eigh
 | Deep coverage at its best | +0.36 ± 0.23 at 0.6 | nothing (+0.01 ± 0.15 at 0) |
 | Tempo at any setting | within ±0.22 | within ±0.24 |
 
-Aggression is worth half what it was in eight-club leagues and about a third in pro ones, and its best setting is no longer the top of the dial. Most likely that is the fourth-down call itself: the default is now fitted to real coaches' decisions, which go for it more than the old margin of 1.15 points did, so there is less left for the dial to find. That was not isolated. A weak offence with a poor kicker gains nothing measurable at any setting (+0.17 ± 0.21 and +0.16 ± 0.19 at 0.8, −0.08 at the top in both). Blitzing least reads higher in pro leagues (+0.50 from +0.23) and the deepest shell is flat in them (from +0.15 ± 0.15). Tempo is flat for every club taken together. One third of eight-club leagues, the middle one, read +1.26 ± 0.42 at the fastest setting; on eight fresh leagues the same third read −0.66 ± 0.44 there, so it was noise, and the sixteen leagues together keep every setting within about a quarter of a point of the default. The team page's notes say the new numbers, and no longer say that every dial leans one way for every kind of squad. The audit replays aggression on four of those leagues, 100 games a club: +0.48 four-fifths of the way up the dial, flagged if it leaves +0.08 to +0.88. It read +0.66 at the top before the drive model and reads +0.56 there now; the eight leagues above put the top level with 0.8.
+Aggression is worth half what it was in eight-club leagues and about a third in pro ones, and its best setting is no longer the top of the dial. Most likely that is the fourth-down call itself: the default is now fitted to real coaches' decisions, which go for it more than the old margin of 1.15 points did, so there is less left for the dial to find. That was not isolated. A weak offence with a poor kicker gains nothing measurable at any setting (+0.17 ± 0.21 and +0.16 ± 0.19 at 0.8, −0.08 at the top in both). Blitzing least reads higher in pro leagues (+0.50 from +0.23) and the deepest shell is flat in them (from +0.15 ± 0.15). Tempo is flat for every club taken together. One third of eight-club leagues, the middle one, read +1.26 ± 0.42 at the fastest setting; on eight fresh leagues the same third read −0.66 ± 0.44 there, so it was noise, and the sixteen leagues together keep every setting within about a quarter of a point of the default. The team page's notes say the new numbers, and no longer say that every dial leans one way for every kind of squad. The audit replayed aggression on four of the eight-club leagues, 100 games a club: +0.48 four-fifths of the way up the dial. Once the rating weights were re-measured on the drive model (see "The rating weights, re-measured on the engine as it now is") the drafts came out differently, and on the new drafts four-fifths of the way up reads +0.16 ± 0.14 in the eight eight-club leagues and +0.33 ± 0.10 in the pro ones, where it read +0.39 and +0.31; the four the audit replayed read −0.03. A difference between two sets of drafts that size is about one standard error, so the dial pays a sixth to a third of a point four-fifths of the way up, and going for it less costs a fifth to a quarter (−0.21 ± 0.09, −0.28 ± 0.07 at the bottom). The audit now replays the pro leagues, whose error is half the eight-club ones': +0.33 at 0.8, flagged if it leaves +0.03 to +0.63.
 
 Also measured and not built: the per-opponent game plan the audit proposed. `makeGameplan` already exists and every AI club gets one; it nudges the dials by ±0.06 to ±0.15 and fires in **16 of 1,500** even matchups because its thresholds need a composite gap over 5 or 8 points. Where it does fire it is worth +0.39 ± 0.41 points. The `planForUser` option that would extend it to the human has never been passed by anything, which is deliberate (see the game plan note above) and costs the player nothing measurable.
 
@@ -5565,7 +5750,9 @@ jobs** below. The diagnosis held: it took an engine change, and reweighting on
 its own could never have got there.*
 
 Safety awareness dropping to 0.06 is not the wiring being wasted. Before it, the
-correct weight was 0.00.
+correct weight was 0.00. *Every position was measured again once the drive was held to real
+play-by-play, and moved by the same rule with one tightening: see "The rating
+weights, re-measured on the engine as it now is".*
 
 **What it cost.** Run-stuffing nose tackles lose ground — Ted Washington 79 → 75
 — because `rsd` fell with `prs` rising, which is what the field says. The

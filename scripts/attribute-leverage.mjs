@@ -29,6 +29,15 @@
 // every linebacker reshaped into a rusher, so the edge vector can be checked
 // against the field instead of asserted.
 //
+// Pass a position with a 1 after it (`WR1`, `CB1`) to lift the attribute on
+// the first starter alone. Lifting every starter together answers what an
+// attribute is worth to a position group, and `overall` prices one man. The
+// two can differ where an attribute decides who does the job rather than how
+// well it is done. First run, they agreed within 0.06 on every attribute at
+// receiver, corner and safety; at linebacker the one-starter lift put coverage
+// at 0.33 against 0.19, because the best-covering backer is the one who takes
+// the tight end and the back.
+//
 // Method is `leverage-sim.mjs`'s, narrowed: mirrored rosters so the baseline is
 // zero by construction, home advantage off, sides swapped every other game,
 // margin rather than win rate because margin is continuous and a win is one bit.
@@ -44,7 +53,8 @@ import { createGame, simulateGame } from '../src/engine/game.js';
 import { POSITIONS, ROSTER_SLOTS } from '../src/data/positions.js';
 
 const N = Number(process.argv[2] || 3000);
-const ONLY = process.argv.slice(3).filter((a) => POSITIONS[a] || a === 'EDGE');
+const ONLY = process.argv.slice(3).filter((a) => POSITIONS[a] || a === 'EDGE' || (a.endsWith('1') && POSITIONS[a.slice(0, -1)]));
+const realPos = (pos) => (pos === 'EDGE' ? 'LB' : pos.endsWith('1') ? pos.slice(0, -1) : pos);
 const BOOST = 8;
 const MEAN = 82;
 const SD = 2;
@@ -136,12 +146,12 @@ function edgeify(team, slotId) {
 export function sweep(games = N, positions = Object.keys(POSITIONS)) {
   const out = {};
   for (const pos of positions) {
-    const real = pos === 'EDGE' ? 'LB' : pos;
+    const real = realPos(pos);
     const all = starterSlots(real);
     if (!all.length) continue;
     // EDGE lifts and reshapes a SINGLE linebacker, so the margins are about a
     // third the size of a whole-corps reading and want more games to settle.
-    const slots = pos === 'EDGE' ? [all[0]] : all;
+    const slots = pos === 'EDGE' || pos.endsWith('1') ? [all[0]] : all;
     out[pos] = POSITIONS[real].attrs.map((attr) => {
       let [a, b] = mirrorPair(1, slots, attr, BOOST);
       if (pos === 'EDGE') { a = edgeify(a, slots[0]); b = edgeify(b, slots[0]); }
@@ -154,7 +164,7 @@ export function sweep(games = N, positions = Object.keys(POSITIONS)) {
 
 if (process.argv[1] && process.argv[1].endsWith('attribute-leverage.mjs')) {
   const positions = ONLY.length ? ONLY : Object.keys(POSITIONS);
-  console.log(`${N} games a reading, +${BOOST} on one attribute across every starter, base ${MEAN}, no home edge.`);
+  console.log(`${N} games a reading, +${BOOST} on one attribute across every starter (the first alone where a position ends in 1), base ${MEAN}, no home edge.`);
   const zero = measure(...mirrorPair(1, [], null, 0), Math.min(N, 2000));
   console.log(`baseline (must be zero): ${zero.margin.toFixed(3)} ± ${zero.se.toFixed(3)}\n`);
   const res = sweep(N, positions);
@@ -162,10 +172,11 @@ if (process.argv[1] && process.argv[1].endsWith('attribute-leverage.mjs')) {
     // Negative readings are noise around zero, not evidence an attribute hurts;
     // clamp before normalising so one unlucky reading cannot flip a weight.
     const total = rows.reduce((s, r) => s + Math.max(0, r.margin), 0) || 1;
-    const real = pos === 'EDGE' ? 'LB' : pos;
+    const real = realPos(pos);
     const w = pos === 'EDGE' ? POSITIONS.LB.edgeWeights : POSITIONS[real].weights;
     const note = pos === 'EDGE' ? '  — ONE linebacker reshaped into a rusher, against LB.edgeWeights'
-      : real === 'LB' ? '  — off-ball backers, against LB.weights' : '';
+      : pos.endsWith('1') ? '  — the first starter alone'
+        : real === 'LB' ? '  — off-ball backers, against LB.weights' : '';
     console.log(`${pos}  (${starterSlots(real).length} starters)${note}`);
     console.log('  attr   margin      se     σ    measured   shipped   change');
     let weak = 0;

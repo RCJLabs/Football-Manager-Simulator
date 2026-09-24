@@ -164,17 +164,20 @@ test('a snowy gale reaches every part of the game it should, against the same ga
   assert.ok(storm.comp < indoor.comp - 4, `completions: ${says}`);
   assert.ok(storm.punt < indoor.punt - 4, `punts: ${says}`);
   // The coach knows his kicker's range has shrunk, and a kick from 40 to 47
-  // yards, which both still try, misses more. By about sixteen points: 0.164 and
-  // 0.158 over 1,200 games on two versions of the engine. This sample has about
-  // 160 kicks in the band on each side, a standard error of 0.043 on the gap, so
-  // the bound sits two of those under it rather than on it, where it used to be.
-  // Long tries fall by more than half. It was two thirds on the old kicking
-  // curve, which fell off a cliff past forty-eight yards; the real make rates
-  // it was replaced by are nearly flat from forty-seven to fifty-two (77 and
-  // 73%), so the same yards of weather cost fewer points of make chance
-  // there and a coach gives up fewer of those kicks: 174 against 415 here.
-  assert.ok(storm.from48 < indoor.from48 / 2, `long tries: ${says}`);
-  assert.ok(storm.band < indoor.band - 0.07, `makes from 40 to 47: ${says}`);
+  // yards, which both still try, misses more: by about sixteen points on the
+  // old kicking curve (0.164 and 0.158 over 1,200 games), and by nine or ten on
+  // the real make rates that replaced it, which are nearly flat from forty-seven
+  // to fifty-two (77 and 73%): 0.100 over 1,200 games on the drive model, 0.092
+  // once the rating weights, which draft kickers with more leg, were
+  // re-measured on it. This sample has about 160 kicks in the band on each side,
+  // a standard error of 0.043 on the gap, so the bound sits two of those under
+  // it. The bound stayed at seven points through the kicking curve's change and
+  // passed on one set of drafts and failed on the next.
+  // Long tries fall too, and by the same flatter curve by less than they did,
+  // when it was two thirds: the gale keeps 0.445 and 0.473 of them over 1,200
+  // games on those two engines, and this sample's ratio carries about 0.035.
+  assert.ok(storm.from48 < indoor.from48 * 0.55, `long tries: ${says}`);
+  assert.ok(storm.band < indoor.band - 0.01, `makes from 40 to 47: ${says}`);
   assert.ok(storm.fum > indoor.fum * 1.15, `fumbles: ${says}`);
 });
 

@@ -45,6 +45,21 @@ function target(lg, byId, { min = 20 } = {}) {
     && byId.get(r.id) && ROSTER_SLOTS.some((s) => s.pos === r.pos && !lg.teams[u].slots[s.id]));
 }
 
+/**
+ * The first market from `seed` on that has such a man. The test below pinned
+ * seed 22, which held until the rating weights were re-measured and that
+ * league's market came out without one: whether a market has a dear man at an
+ * open slot is a fact about the drafts, the same reason `contest` searches.
+ */
+function marketWithTarget(seed = 22) {
+  for (let s = seed; s < seed + 20; s++) {
+    const m = toMarket(s);
+    const row = target(m.lg, m.byId);
+    if (row) return { ...m, row };
+  }
+  return null;
+}
+
 test('three years is the market price, and every length is priced off it', () => {
   for (let m = 1; m <= 50; m++) {
     assert.equal(askAt(m, 3), m, `three years at a $${m} market should be $${m}`);
@@ -82,10 +97,10 @@ test('an offer saved as a bare number is a three-year deal, and still counts and
 });
 
 test('an offer carries a length, the asking price follows it, and the tag keeps one year', () => {
-  const { lg, byId } = toMarket(22);
+  const found = marketWithTarget(22);
+  assert.ok(found, 'no dear free agent at an open position in twenty markets');
+  const { lg, byId, row } = found;
   const u = userTeamIndex(lg);
-  const row = target(lg, byId);
-  assert.ok(row, 'no dear free agent at an open position');
   const five = askAt(row.ask, 5);
   assert.ok(five < row.ask, 'the test needs a man dear enough for five years to be cheaper');
   const low = submitOffer(lg, u, row.id, five - 1, byId, 5);

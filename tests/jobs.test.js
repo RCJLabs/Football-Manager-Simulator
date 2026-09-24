@@ -83,11 +83,15 @@ test('heat accumulates on misses, clears on a title, and ends in the sack', () =
   const u = userTeamIndex(lg);
   const you = yourCoach(lg);
   const patience = lg.teams[u].patience;
-  // Force a run of bad seasons rather than waiting for one.
+  // Force a run of bad seasons rather than waiting for one. The club finishes
+  // last: the finish order used to be the clubs' index order, which put this
+  // one thirteenth, inside the playoff line, so whether a 1-16 season was a
+  // miss depended on where the draft happened to rank his roster, and a change
+  // to the rating weights ranked it lower and let him keep the job.
   lg.phase = 'complete';
   for (let i = 0; i < 6; i++) {
     lg.teams.forEach((t) => { t.record = { w: 1, l: 16, t: 0, pf: 100, pa: 500 }; });
-    lg.history = [{ season: lg.season, champion: (u + 1) % 32, finish: lg.teams.map((_, k) => k) }];
+    lg.history = [{ season: lg.season, champion: (u + 1) % 32, finish: [...lg.teams.map((_, k) => k).filter((k) => k !== u), u] }];
     reviewSeason(lg, byId, new RNG(i));
     if (you.team == null) break;
     lg.season++;

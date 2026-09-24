@@ -66,7 +66,10 @@
 // worth +0.39 a game four-fifths of the way up in eight-club leagues and +0.31
 // in pro ones, and +0.37 and +0.14 at the top, where it had read +0.71 and
 // +0.82. Most likely that is the default call, now fitted to real coaches',
-// who go for it more than the old margin did; not isolated. A weak offence
+// who go for it more than the old margin did; not isolated. On the drafts
+// that came out once the rating weights were re-measured, four-fifths of the
+// way up reads +0.16 and +0.33, about a standard error from the first
+// reading: a sixth to a third of a point. A weak offence
 // with a poor kicker gains nothing measurable from it. Blitzing least is worth
 // +0.41 and +0.50; the deepest shell +0.36 in eight-club leagues and nothing
 // in pro ones; tempo within a quarter of a point either way. With the passer

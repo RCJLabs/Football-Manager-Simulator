@@ -31,6 +31,18 @@
 // position. Some take all of it, some take none, and where a position takes
 // none that is a finding about the simulation rather than about the weights —
 // see DESIGN.md, "Two authorities, and where they disagree".
+//
+// Re-measured once the drive was held to real play-by-play (DESIGN.md, "The
+// rating weights, re-measured on the engine as it now is"), with `npm run
+// blend` walking each position's blend against the record and counting every
+// point its recorded seasons sit below their floors as well as the misses the
+// check reports. The corner, the off-ball linebacker, the kicker and the punter
+// went the whole way and the defensive line an eighth, where the record's pass
+// rushers stop it. The edge vector moved everywhere but its pass rush, which
+// the record will not let fall by a hundredth (Terrell Suggs sits on his bar).
+// The receiver and the safety measured a long way off on the field and did not
+// move: the vectors the field asks for predict a generated player's production
+// no better than these, so the two readings disagree and neither is taken.
 export const POSITIONS = {
   QB: { name: 'Quarterback',   attrs: ['thp', 'tha', 'awr', 'mob'],
         weights: { tha: 0.40, awr: 0.35, thp: 0.17, mob: 0.08 } },
@@ -43,22 +55,22 @@ export const POSITIONS = {
   OL: { name: 'Offensive Line', attrs: ['pbk', 'rbk', 'awr'],
         weights: { pbk: 0.45, rbk: 0.45, awr: 0.10 } },
   DL: { name: 'Defensive Line', attrs: ['prs', 'rsd', 'tck', 'awr'],
-        weights: { prs: 0.61, rsd: 0.20, tck: 0.12, awr: 0.07 } },
+        weights: { prs: 0.60, rsd: 0.21, tck: 0.11, awr: 0.08 } },
   // `edgeWeights` is the same position doing a different job -- see `edgeness`
   // below. A linebacker's rating blends the two by how much of an edge rusher
   // he is, so the pool does not have to be hand-tagged and a man who grows into
   // a rusher is re-priced as one without anybody editing a file.
   LB: { name: 'Linebacker',    attrs: ['spd', 'tck', 'rsd', 'cov', 'prs', 'awr'],
-        weights:     { tck: 0.27, cov: 0.23, rsd: 0.23, awr: 0.13, spd: 0.09, prs: 0.05 },
-        edgeWeights: { prs: 0.45, rsd: 0.19, tck: 0.17, spd: 0.11, awr: 0.08, cov: 0.00 } },
+        weights:     { rsd: 0.35, cov: 0.19, tck: 0.18, awr: 0.17, prs: 0.06, spd: 0.05 },
+        edgeWeights: { prs: 0.45, rsd: 0.23, tck: 0.17, awr: 0.09, spd: 0.06, cov: 0.00 } },
   CB: { name: 'Cornerback',    attrs: ['spd', 'cov', 'bal', 'tck', 'awr'],
-        weights: { cov: 0.57, spd: 0.13, bal: 0.11, awr: 0.11, tck: 0.08 } },
+        weights: { cov: 0.51, bal: 0.19, spd: 0.16, awr: 0.09, tck: 0.05 } },
   S:  { name: 'Safety',        attrs: ['spd', 'cov', 'bal', 'tck', 'rsd', 'awr'],
         weights: { cov: 0.34, tck: 0.24, spd: 0.14, bal: 0.12, rsd: 0.12, awr: 0.04 } },
   K:  { name: 'Kicker',        attrs: ['kpw', 'kac'],
-        weights: { kac: 0.60, kpw: 0.40 } },
+        weights: { kac: 0.50, kpw: 0.50 } },
   P:  { name: 'Punter',        attrs: ['ppw', 'pac'],
-        weights: { ppw: 0.69, pac: 0.31 } },
+        weights: { ppw: 0.85, pac: 0.15 } },
 };
 
 /**

@@ -41,13 +41,27 @@ test('every found deal clears both bars, not just the club’s', () => {
   const lg = midSeason(9);
   const u = userTeamIndex(lg);
   const base = lineupStrength(lg.teams[u].slots, byId, lg);
+  // The finder works in tenths of lineup strength and its floor is a tenth.
+  // This compared the raw difference instead, which for a deal worth exactly
+  // a tenth is 0.09999999999999 in floating point: it failed the first time a
+  // week's best deals included one, on the drafts that came out once the
+  // rating weights moved. And a deal closed with next year's pick counts the
+  // pick on both sets of books, as the trade screen does when it is pressed.
+  const slots = projectedSlots(lg, byId);
   for (const d of findDeals(lg, byId, PLAYERS)) {
-    assert.equal(validateTrade(lg, d.club, u, d.gives, d.wants, byId, PLAYERS).ok, true);
-    assert.equal(evaluateTrade(lg, d.club, d.gives, d.wants, byId, PLAYERS).accept, true, 'a club would not take its own deal');
+    const picked = d.aiPicks.length + d.userPicks.length > 0;
+    const clubPicks = pickTradeDelta(lg, byId, d.club, d.aiPicks, d.userPicks, slots);
+    const userPicks = pickTradeDelta(lg, byId, u, d.userPicks, d.aiPicks, slots);
+    assert.equal(validateTrade(lg, d.club, u, d.gives, d.wants, byId, PLAYERS, { aPicks: d.aiPicks, bPicks: d.userPicks }).ok, true);
+    assert.equal(evaluateTrade(lg, d.club, d.gives, d.wants, byId, PLAYERS, { pickDelta: clubPicks }).accept, true, 'a club would not take its own deal');
     const out = slotsAfterTrade(lg, u, d.wants, d.gives, PLAYERS, byId);
     assert.ok(out, 'the human could not field a roster');
-    assert.ok(lineupStrength(out.slots, byId, lg) - base >= DEAL_FLOOR, 'a deal that does not help the human was offered');
-    assert.equal(Math.round((lineupStrength(out.slots, byId, lg) - base) * 10) / 10, d.userDelta);
+    const gain = Math.round((lineupStrength(out.slots, byId, lg) - base) * 10) / 10 + userPicks;
+    assert.ok(Math.round(gain * 10) / 10 >= DEAL_FLOOR, `a deal that does not help the human was offered: ${gain}`);
+    // A pick's worth is not in tenths, and the finder rounds before adding it
+    // and again after, so there the two can differ by a rounding.
+    if (picked) assert.ok(Math.abs(gain - d.userDelta) <= 0.05 + 1e-9, `the finder says ${d.userDelta}, the books say ${gain}`);
+    else assert.equal(Math.round(gain * 10) / 10, d.userDelta);
   }
 });
 

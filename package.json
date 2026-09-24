@@ -31,6 +31,7 @@
     "yardstick-fit": "node scripts/yardstick-fit.mjs",
     "legacy": "node scripts/legacy-check.mjs",
     "attrs": "node scripts/attribute-leverage.mjs",
+    "blend": "node scripts/weight-blend.mjs",
     "budgets": "node scripts/budget-spread.mjs",
     "turnover": "node scripts/turnover-price.mjs",
     "playbook": "node scripts/playbook-equilibrium.mjs",
