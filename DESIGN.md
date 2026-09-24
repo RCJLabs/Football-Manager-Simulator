@@ -54,7 +54,7 @@ Offense: pass block (OL pbk + TE), run block, QB attributes, receiver target wei
 
 Offense chooses one of `run_in, run_out, screen, pass_short, pass_med, pass_deep, pa_pass, fg, punt, kneel, spike`; defense chooses `base, run_stop, blitz, deep`. A small matchup matrix (`MATRIX`) applies modifiers, e.g. blitz vs. screen favors the offense, deep shell vs. deep shot hurts completion, stacked box hurts runs.
 
-Pass: pressure probability from rush vs. protection (logistic, `edge()`); pressure → sack (QB mobility/awareness reduce), scramble, or a hurried throw. Target chosen by role and skill; the primary defender is matched by role (WR1 ↔ CB1, TE ↔ best-coverage LB or S…), so Deion on Rice is a real matchup. Completion probability = base by depth + (QB accuracy/receiver skill − coverage) × slope. Interceptions scale with defense ball skills, QB awareness, pressure, and how badly coverage wins. Yards = air (by depth, QB arm for deep) + run-after-catch (exponential, receiver RAC vs. tackling, breakaway chance from speed vs. secondary speed).
+Pass: pressure probability from rush vs. protection (logistic, `edge()`; the line's awareness against the front's); pressure → sack (the QB's awareness against the defence's, at `POCKET_WEIGHT`; mobility does not reduce it), scramble, or a hurried throw. Target chosen by role and skill; the primary defender is matched by role (WR1 ↔ CB1, TE ↔ best-coverage LB or S…), so Deion on Rice is a real matchup. Completion probability = base by depth + (passer vs. coverage at `PASSER_WEIGHT` + receiver vs. coverage) × slope, with the coverage's awareness read against the passer's and, on a deep ball, its speed against the receiver's; the arm reads against the secondary's speed. Interceptions follow the same edge, the defence's ball skills against the receiver's hands, and pressure. Yards = air (by depth; the deep ball's length from the arm against the secondary's speed) + run-after-catch (exponential, receiver RAC vs. tackling, breakaway chance from speed vs. secondary speed). See "The passing game, held to real quarterbacks".
 
 Run: stuff chance from run stop vs. run block (+RB vision against the front's awareness, power against its run stopping); otherwise base gain + blocking edge + break-tackle chance (power/elusiveness vs. tackling) + breakaway chance (speed vs. secondary speed, elusiveness vs. tackling). Every term that reads the carrier reads him against his opposite number, at `CARRIER_WEIGHT` — a fifth, measured against real carries (see "The back was worth nearly three times too much"). QB sneaks on 4th-and-1. Fumbles scale with ball security and tackling.
 
@@ -3789,7 +3789,9 @@ throws, which the engine does not model. Only the uniform
 cooling was measured; cooling through the four terms would take yards away in
 different places and might move the dial differently.
 
-**The fix, not made.** Three parts, in the order the evidence supports them:
+**The fix, not made.** Three parts, in the order the evidence supports them.
+*Parts 1 and 2 were made the same day and part 3 turned out to be blocked; see
+the next section.*
 
 1. Level-neutral terms: sacks from mobility and awareness against the rush
    rather than against 70 and 80, the line's awareness against the front, and
@@ -3805,11 +3807,147 @@ other dials and most of the audit's slow checks would move with it.
 
 **Held to it by the audit.** `npm run passing` plays all three in about
 thirty seconds: 58 quarterbacks at 200 games each, 1,000 games at each level,
-two drafted pro leagues. The audit reads two numbers from it: the quarterbacks'
-slope (0.41 at 200 games, flagged outside ±0.15) and a pro league's adjusted net
-yards a dropback (7.18, ±0.3). Both are pinned where the engine is, not where
-the real game is, so a fix will trip them, and the audit will then ask for this
-section to be rewritten in the same commit.
+two drafted pro leagues. The audit pinned two numbers from it where the engine
+stood, 0.41 for the quarterbacks at 200 games and 7.18 for a pro league, so
+that the fix would trip them; the next section has what they read now.
+
+### The passing game, held to real quarterbacks
+
+Two of the three parts proposed above are made. The third, yards a completion,
+is blocked: the hot passing game had been paying for a drive model that turns
+real yards into too few points, and cooling it takes the realism check's
+scoring rows out of range. And the fix exposed something the quarterback's
+inflated value had hidden, which is why this change is not yet released: the
+back and the tight end are worth nearly as much as a quarterback on the fixed
+engine, far more than the real game supports.
+
+**Every passer term reads the other side** (plays.js, `resolvePass`):
+
+- A sack once pressured reads the quarterback's awareness against the
+  defence's, at `POCKET_WEIGHT` 0.15. His mobility no longer reduces it: across
+  the 58, real mobile quarterbacks were sacked slightly more, not less
+  (correlation +0.27), where the engine had it at −0.78.
+- The line's awareness in the pressure roll reads against the front's.
+- The arm reads against the secondary's speed, the men who have to close, on
+  every throw and in how far a deep ball travels.
+- The coverage composites read a defender's awareness, and deep a
+  secondary's speed, against a fixed 82 (ratings.js). A composite cannot see the
+  other side, so the pass resolver re-reads those shares against the man each
+  has to beat: the passer's awareness, the receiver's speed.
+- Interceptions follow the accuracy edge that sets completion, plus the
+  defence's ball skills against the receiver's hands. A separate term for the
+  quarterback's awareness made them steeper than the real game's (−0.042 a
+  point against −0.028) without it; ball skills against a fixed 80 would have
+  risen with the level on one side only.
+- The passer's half of the accuracy edge is his accuracy and awareness in the
+  proportion his rating weighs them, 0.53 and 0.47. Across real quarterbacks
+  the two correlate 0.99, so the record cannot separate them, and accuracy
+  alone left awareness, a third of the rating, moving almost nothing.
+- Each is re-centred so that sides at 82 stay where they were. Chemistry keeps
+  its old weight everywhere: it is not a rating spread.
+
+Equal synthetic sides at 90 now throw for 0.06 more adjusted net yards a
+dropback than sides at 82 (6.56 and 6.62), against 0.50 before, and sacks no
+longer fall with the level (6.80% and 6.86%, from 6.90% and 5.01%).
+
+**Weighted to the real quarterbacks.** `PASSER_WEIGHT` 0.45 on the accuracy and
+arm terms; the 58 quarterbacks at 200 games each, against the same seasons:
+
+| | before | now | real |
+|---|---|---|---|
+| slope, real on engine, adjusted net | 0.41 | 0.99 | 1 |
+| adjusted net per overall point | 0.192 | 0.079 | 0.080 |
+| completion per point | 0.630 | 0.357 | 0.273 |
+| interceptions per point | −0.159 | −0.027 | −0.028 |
+| sacks per point | −0.175 | −0.017 | −0.019 |
+| rated 52–72 / 86–96, adjusted net | 2.85 / 8.21 | 5.21 / 7.47 | 5.98 / 8.14 |
+
+Completion stays a little steep. The real game's big arms throw deeper and
+complete less (a point of arm is worth −0.2 of completion rate, holding
+accuracy fixed), and the engine's play calling does not know a quarterback's
+arm.
+
+**Interceptions at the real rate.** The base rates rise by 1.2 against the old
+fixed-centre factors' 1.31 at 82, so sides at 82 are intercepted on 2.40% of
+attempts (2.71 before) and drafted pro leagues on 2.27% (1.99 before), against
+a real 2.31 to 2.36. Fewer drives end in a pick, and the realism check's
+scoring rows move off their floors: 21.3 points a team game (21.1) and 42.5 in
+all (42.1). None of the 44 rows is outside the real range.
+
+**At the level people play.** Two drafted pro leagues:
+
+| | before | now | real, 2019–2023 |
+|---|---|---|---|
+| adjusted net yards a dropback | 7.18 | 6.81 | 5.84–6.18 |
+| yards an attempt | 8.10 | 7.91 | 7.05–7.25 |
+| completion | 67.8% | 66.8% | 63.7–65.0% |
+| interceptions | 1.99% | 2.27% | 2.31–2.36% |
+| sacks | 7.30% | 7.49% | 6.25–7.17% |
+
+What is left is yards a completion, which part 3 was for, and the make-up of
+drafted rosters: their quarterbacks come from the top quarter of the pool at
+the position and their corners from the top half, and linebackers are rated to
+cover far below their other skills.
+
+**Part 3 is blocked by the drive model.** The engine's completions carry 7.85
+yards in the air and 4.58 after the catch against a real 5.75 and 5.17. Taking
+15% off the air on short, medium and play-action throws brings drafted pro
+leagues to 6.05 adjusted net, inside the real range, and takes four realism
+rows out of theirs at 82: points 19.4 a team game (20–27), scoring drives 33.9%
+(35–42), twenty-yard plays 3.38 (3.5–5.5) and total points 38.8 (42–47). Pro
+leagues score 20.45 a team against a real 21.8 to 22.8. By down, with passing at
+the real rate:
+
+| | engine | real, 2019–2023 |
+|---|---|---|
+| first downs gained on first down | 23.6% | 19.3–20.6% |
+| on second down | 36.9% | 31.2–33.3% |
+| third downs a team game | 11.2 | 12.7–13.1 |
+| yards to go on third down | 7.48 | 6.86–7.30 |
+| third and seven or more converted | 18.3% | 24.1–25.6% |
+| scrimmage plays a team game | about 58 | about 62 |
+| points a drive | 1.81 | 1.95–2.02 |
+
+Too many first downs early and too few on third and long: the play-length shape
+problem the realism section already records, where the real game has more
+short gains and more long ones at the same mean. Refitting `STICKS_YAC` alone
+does not close it: at 2 yards rather than 7, third and long reaches 22.5% while
+third and medium overshoots at 50% against 45%. Yards a completion stays at 11.9
+(realism range 10.8–12.0) until the drive model is fixed.
+
+**A replacement quarterback is a bad quarterback, not an absurd one.** A
+stand-in rated 48 on everything threw for 0.65 adjusted net yards a dropback,
+completing 43.8% with 7.75% intercepted and 13.2% sacked; now 4.81, 53.7%, 2.47%
+and 6.6%, about the worst real starters. Losing a good starter to him costs 21.5
+points of win rate, three and a half wins over seventeen games, where it cost
+60. The injuries test asserted the old number as an absolute bound and now
+asserts the drop.
+
+**What the quarterback's inflation hid.** Re-measured on the six rosters at
+10,000 games each, per starter:
+
+| | QB | RB | TE | CB | WR | LB | DL | S | OL | P | K |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| before | 5.75 | 1.94 | 1.74 | 1.71 | 1.12 | 1.10 | 1.02 | 1.07 | 0.81 | 0.52 | 0.50 |
+| now | 2.52 | 2.11 | 2.06 | 1.40 | 1.33 | 1.06 | 1.05 | 0.99 | 0.81 | 0.57 | 0.51 |
+
+Scaled to the table's total that is QB 7.79, RB 6.53, TE 6.37: a back at 0.84 of
+a quarterback. A +8 quarterback is now worth 2.7 points a game, close to what
+the real game's production per point implies (about 2.2). A +8 back is worth
+2.0: about 1.2 of it from rushing, where his yards a carry move 1.35 times the
+real game's per point and the AI hands him 2.4 more carries, and 0.8 from 0.2
+fewer turnovers a game. A +8 tight end is worth 2.1, mostly from blocking. The
+real game's expected points value a back's talent at about a fifth of a
+quarterback's. The old table looked right, with the back at a third of a
+quarterback, only because the quarterback was inflated too.
+
+So the table is not set on this engine yet, and this change is held back from
+release: the back and the tight end get the same test against real seasons
+first, covering carries, ball security, receiving, target shares and blocking.
+
+**Held to it by the audit.** The audit now reads the quarterbacks' slope (0.99
+at 200 games, flagged outside ±0.15) and a pro league's adjusted net yards a
+dropback (6.81, ±0.3).
 
 ### A fingerprint that could not see the roster
 

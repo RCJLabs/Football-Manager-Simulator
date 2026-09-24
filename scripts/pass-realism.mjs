@@ -14,8 +14,8 @@
 //                (82 against 82), against what he really did that season. The
 //                line to watch is the slope of real adjusted net yards a
 //                dropback on the engine's: 1 means the engine's differences
-//                between quarterbacks come true one for one. It read 0.41 when
-//                this was written.
+//                between quarterbacks come true one for one. It read 0.41
+//                before the passer's terms read the defence, 0.99 after.
 //   the level    equal synthetic sides at 82 and at 90. A rate that moves
 //                between them is being measured against a fixed number rather
 //                than against the other side, which is how a league of all-time

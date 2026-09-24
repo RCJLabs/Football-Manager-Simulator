@@ -74,6 +74,18 @@ export function buildLineup(slots, byId, injuries = null) {
   return lineup;
 }
 
+/**
+ * Where the coverage composites centre a defender's awareness and a
+ * secondary's speed, and how much of each they add. Exported because the
+ * passing game re-reads both against the offence (plays.js, `resolvePass`):
+ * a composite cannot see the other side, and a term centred on a fixed 82
+ * rises with the level of play on one side of the ball only.
+ */
+export const AWR_MID = 82;
+export const COV_AWR = 0.30;
+export const DB_SPD_MID = 82;
+export const DEEP_SPD = 0.30;
+
 /** Team-level composite ratings the simulator consumes. */
 export function composites(lineup) {
   const g = (pos) => lineup[pos] || [];
@@ -118,12 +130,12 @@ export function composites(lineup) {
   // It reaches the field now through the thing it improves rather than as a
   // number of its own, and it improves its OWN group: a smart corner covers
   // better, a smart front fits the run better. Centred on 82, the mean of the
-  // synthetic population the engine's constants were fitted against, for the
-  // same reason `olAwr` centres on 80 — the calibration is what has to hold
-  // still. Real defenders average nearer 88, so a real defence reads above the
-  // reference, which is what being better than the reference means.
-  const AWR_MID = 82;
-  const covOf = (arr) => (arr.length ? mean(arr, 'cov') + (mean(arr, 'awr') - AWR_MID) * 0.30 : 60);
+  // synthetic population the engine's constants were fitted against, so the
+  // calibration holds still. A real defence reads above that reference, but so
+  // does the offence it plays, and a composite only sees one side: the passing
+  // game reads the coverage's share against the passer's awareness instead
+  // (DESIGN.md, "The passing game, held to real quarterbacks").
+  const covOf = (arr) => (arr.length ? mean(arr, 'cov') + (mean(arr, 'awr') - AWR_MID) * COV_AWR : 60);
   /**
    * The linebackers' share of coverage, weighted by how much of an off-ball
    * player each one is.
@@ -143,8 +155,6 @@ export function composites(lineup) {
    * which is the trade-off this is supposed to create.
    */
   // Deep coverage's footrace term; see `covDeep` below.
-  const DB_SPD_MID = 82;
-  const DEEP_SPD = 0.30;
   const dbSpeed = () => 0.6 * mean(cb, 'spd') + 0.4 * mean(s, 'spd');
 
   const OFF_BALL_MIN = 0.5;
@@ -154,7 +164,7 @@ export function composites(lineup) {
     const tot = w.reduce((a, b) => a + b, 0);
     if (tot < OFF_BALL_MIN) return covOf(lb);
     const wm = (key) => lb.reduce((acc, x, i) => acc + x.r[key] * w[i], 0) / tot;
-    return wm('cov') + (wm('awr') - AWR_MID) * 0.30;
+    return wm('cov') + (wm('awr') - AWR_MID) * COV_AWR;
   };
   const fitOf = (arr) => (arr.length ? mean(arr, 'rsd') + (mean(arr, 'awr') - AWR_MID) * 0.25 : 60);
 

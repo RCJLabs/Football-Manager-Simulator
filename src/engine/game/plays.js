@@ -15,6 +15,7 @@ import { fgDistance, fgProbability, scoreDiff } from '../playcall.js';
 import { statFor, shortName } from '../stats.js';
 import { pickReceiver, primaryDefender, pickTackler, pickRusher, pickBallhawk, pickReturner } from './picks.js';
 import { passShift, fumbleFactor, puntShift } from '../weather.js';
+import { AWR_MID, COV_AWR, DB_SPD_MID, DEEP_SPD } from '../ratings.js';
 
 const MATRIX = {
   // offense call -> defense call -> modifiers
@@ -206,6 +207,42 @@ export const SQUEEZE_YAC = 0.58;    // taken off yards after the catch
 export const PASS_BREAKAWAY = 0.024;
 
 /**
+ * How much a quarterback's own ratings move his throws, against the defence
+ * that has to stop them.
+ *
+ * The passing game had both of the run game's defects, measured the same way
+ * (DESIGN.md, "The passing game, held to real quarterbacks"). The sack, the
+ * line's awareness and the arm read the quarterback against a fixed number
+ * rather than the defence, so synthetic sides at 90 threw for half a yard a
+ * dropback more than sides at 82 and drafted leagues of greats ran at 7.18
+ * adjusted net yards against a real 5.84 to 6.18. And a point of a passer's
+ * rating moved his adjusted net yards 0.192 where the real game moves them
+ * 0.080: the 58 quarterbacks in the pool with a real season from 1999 on,
+ * played in the same average side, spread 2.43 against the 1.22 the same men
+ * managed in the same seasons.
+ *
+ * Every passer term below now reads him against its opposite number, and at
+ * these weights the same 58 move 0.079 a point. The accuracy and arm terms
+ * scale by `PASSER_WEIGHT`. Interceptions follow the same accuracy edge and
+ * nothing of his own besides: a separate awareness term made them twice as
+ * steep as the real game's, where a quarterback's interception rate is mostly
+ * luck (it correlates 0.27 with his next season's). Sacks read his awareness
+ * at `POCKET_WEIGHT` and his mobility not at all: real mobile quarterbacks
+ * are sacked slightly more, not less (correlation +0.27 across the 58).
+ */
+export const PASSER_WEIGHT = 0.45;
+export const POCKET_WEIGHT = 0.15;
+/**
+ * The passer's half of the accuracy matchup: his accuracy and awareness, in
+ * the proportion his rating weighs them. Across real quarterbacks the two
+ * correlate 0.99, so the record cannot tell them apart; reading accuracy alone
+ * left awareness, a third of the rating, moving almost nothing.
+ */
+const PASSER_MIX = { tha: 0.53, awr: 0.47 };
+/** A sack once pressured, at the calibration level: the old fixed-centre terms' value at 82. */
+const SACK_BASE = 0.214;
+
+/**
  * What the defence showed, when it is the reason the play went the way it did.
  *
  * Every snap is decided by the MATRIX above — a blitz buys pressure and sells
@@ -265,12 +302,13 @@ export function callVerb(call) {
  * this document cannot justify, so the numbers below aim for the shape and stop
  * short of claiming the destination.
  */
-export function airYards(rng, call, qb, target) {
+export function airYards(rng, call, qb, target, def) {
   switch (call) {
     case 'screen': return clamp(rng.normal(0, 2.2), -4, 4);
     case 'pass_short': return clamp(rng.normal(4.5, 2.6), -1, 11);
     case 'pass_med': return clamp(rng.normal(11.8, 3.5), 7, 20);
-    case 'pass_deep': return clamp(rng.normal(27 + (qb.r.thp - 85) * 0.15, 7), 17, 52);
+    // The deep ball's length: the arm against how fast the secondary gets back.
+    case 'pass_deep': return clamp(rng.normal(26.55 + (qb.r.thp - (def?.defSpeed ?? 82)) * 0.15 * PASSER_WEIGHT, 7), 17, 52);
     case 'pa_pass': return clamp(rng.normal(13, 5.5), 3, 31);
     default: return 6;
   }
@@ -391,10 +429,11 @@ export function resolvePass(g, rng, call, defCall) {
   // Pressure.
   const rush = blitz ? def.blitzRush + 4 : def.passRush;
   const baseP = { screen: 0.13, pass_short: 0.22, pass_med: 0.27, pass_deep: 0.33, pa_pass: 0.29 }[call];
-  const pressureP = clamp(baseP * (0.3 + edge(rush, comp.passBlock + (comp.olAwr - 80) * 0.2, 11) * 1.4) + (m.pressure || 0), 0.05, 0.7);
+  // The line's awareness against the front's: picking up the stunt and the blitz.
+  const pressureP = clamp(baseP * (0.3 + edge(rush, comp.passBlock + (comp.olAwr - def.defAwr) * 0.2, 11) * 1.4) + (m.pressure || 0), 0.05, 0.7);
   const pressured = rng.chance(pressureP);
   if (pressured) {
-    const sackP = clamp(0.27 - (qb.r.mob - 70) * 0.004 - (qb.r.awr + comp.chem - 80) * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0), 0.08, 0.5);
+    const sackP = clamp(SACK_BASE - (qb.r.awr - def.defAwr) * 0.004 * POCKET_WEIGHT - comp.chem * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0), 0.08, 0.5);
     if (rng.chance(sackP)) {
       const sacker = pickRusher(g, defT, blitz, rng);
       let yards = -rng.int(3, 10);
@@ -444,16 +483,23 @@ export function resolvePass(g, rng, call, defCall) {
   const covComp = { screen: def.covShort, pass_short: def.covShort, pass_med: def.covMed, pass_deep: def.covDeep, pa_pass: def.covMed }[call];
   let cov = prim ? 0.55 * prim.r.cov + 0.45 * covComp : covComp;
   cov += m.cov || 0;
+  // The composite reads the coverage's awareness, and on a deep ball its speed,
+  // against a fixed 82 (ratings.js). Here each is read against the man it has
+  // to beat instead: the passer reading the coverage, the receiver in the race.
+  const share = prim ? 0.45 : 1;
+  cov += share * COV_AWR * (AWR_MID - qb.r.awr);
+  if (call === 'pass_deep') cov += share * DEEP_SPD * (DB_SPD_MID - (target.r.spd ?? 80));
   const tSkill = target.pos === 'RB' ? target.r.rec : 0.45 * target.r.rte + 0.55 * target.r.cth;
+  const passer = qb.r.tha * PASSER_MIX.tha + qb.r.awr * PASSER_MIX.awr;
   // Chemistry reaches the passing game as timing with receivers he knows.
-  const skill = qb.r.tha * 0.6 + tSkill * 0.4 + comp.chem - (pressured ? 9 : 0);
+  const matchup = 0.6 * PASSER_WEIGHT * (passer - cov) + 0.4 * (tSkill - cov) + comp.chem - (pressured ? 9 : 0);
   // `pass_short` completes more often than it used to because it IS shorter
   // now: its air yards came down from a mean of 6 to 4.5 when the passing game
   // was re-composed, and completion probability here is per call rather than
   // per yard, so the rate has to move with it or the shorter throw is priced as
   // though it were still the longer one.
-  const baseComp = { screen: 0.78, pass_short: 0.775, pass_med: 0.615, pass_deep: 0.425, pa_pass: 0.625 }[call];
-  let compP = baseComp + (skill - cov) * 0.008 + (m.comp || 0);
+  const baseComp = { screen: 0.78, pass_short: 0.775, pass_med: 0.615, pass_deep: 0.416, pa_pass: 0.625 }[call];
+  let compP = baseComp + matchup * 0.008 + (m.comp || 0);
   if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003;
   // Arm strength, by how far the ball has to travel.
   //
@@ -466,15 +512,14 @@ export function resolvePass(g, rng, call, defCall) {
   // Velocity gets the ball to a covered man before the defender closes, and
   // that is a sideline out as much as a post.
   //
-  // Centred on 82, the mean of the synthetic population the engine's constants
-  // were fitted against, so a league of average arms is left exactly where the
-  // calibration put it. The deep coefficient keeps its own 85 and its own
-  // magnitude: it was fitted there, and re-centring it would move deep-ball
-  // completion for no reason connected to this change.
-  const ARM_MID = 82;
+  // Read against the secondary's speed, the defenders who have to close. It
+  // was centred on a fixed 82 (85 on the deep ball), which let a league of
+  // great arms throw into a league of great secondaries as if they were
+  // ordinary; the deep base rate absorbs the old 85.
   const ARM_BY_CALL = { screen: 0, pass_short: 0.0008, pass_med: 0.0018, pa_pass: 0.0018, pass_deep: 0 };
-  compP += (qb.r.thp - ARM_MID) * (ARM_BY_CALL[call] ?? 0);
-  if (call === 'pass_deep') compP += (qb.r.thp - 85) * 0.003;
+  const arm = (qb.r.thp - def.defSpeed) * PASSER_WEIGHT;
+  compP += arm * (ARM_BY_CALL[call] ?? 0);
+  if (call === 'pass_deep') compP += arm * 0.003;
   if (pressured) compP -= 0.08;
   compP -= squeeze(g.ballOn) * SQUEEZE_PASS * (SQUEEZE_COMP[call] ?? 1);
   // The sky: wind by how far the ball travels, against the arm throwing it;
@@ -487,13 +532,18 @@ export function resolvePass(g, rng, call, defCall) {
   ts.rec.tgt++;
   g.stats[off].team.passAtt++;
 
-  // Interception.
-  const baseInt = { screen: 0.004, pass_short: 0.011, pass_med: 0.021, pass_deep: 0.04, pa_pass: 0.02 }[call];
-  let intP = baseInt * (1 + (def.ballSkills - 80) / 35) * (1 + (88 - qb.r.awr - comp.chem) / 25) * (pressured ? 1.5 : 1) * (1 + (cov - skill) / 40) + (m.int || 0);
+  // Interception: the accuracy matchup above, and the ball skills of the men in
+  // coverage against the hands of the man they are contesting it with. Both
+  // read one side against the other, so a league of greats throws them as
+  // often as an ordinary one. The base rates are the old ones times 1.2, which
+  // is 2.4% of attempts at the calibration level against a real 2.31 to 2.36.
+  const baseInt = { screen: 0.0048, pass_short: 0.0132, pass_med: 0.0252, pass_deep: 0.048, pa_pass: 0.024 }[call];
+  const hands = target.pos === 'RB' ? target.r.rec : target.r.cth;
+  let intP = baseInt * (1 + (def.ballSkills - hands) / 35) * (1 - comp.chem / 25) * (pressured ? 1.5 : 1) * (1 - matchup / 40) + (m.int || 0);
   if (g.quarter >= 4 && scoreDiff(g, off) < -8 && g.clock < 240) intP *= 1.25; // desperation
   intP = clamp(intP, 0.002, 0.2);
 
-  const air = airYards(rng, call, qb, target);
+  const air = airYards(rng, call, qb, target, def);
   if (rng.chance(intP)) {
     st.pass.int++;
     const picker = rng.chance(0.55) && prim ? prim : pickBallhawk(g, defT, rng);
