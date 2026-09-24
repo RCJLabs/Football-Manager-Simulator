@@ -1,6 +1,6 @@
 // Re-audit TRUE_LEVERAGE, the table the whole auction economy hangs on.
 //
-//   node scripts/leverage-sim.mjs [games]
+//   node scripts/leverage-sim.mjs [games] [roster seed] [game seed base]
 //
 // The shipped numbers came from one method: boost a position group by 8 points
 // on an otherwise equal team, take the extra win rate, divide by the number of
@@ -27,8 +27,19 @@ import { POSITIONS, ROSTER_SLOTS } from '../src/data/positions.js';
 import { TRUE_LEVERAGE } from '../src/engine/auction.js';
 
 const N = Number(process.argv[2] || 4000);
+// Which synthetic roster, and games seeded from it. A position's value depends
+// on the roster around it — a quarterback is worth more or less with these
+// receivers and this line — by more than one roster's game noise says: across
+// six rosters the quarterback read 5.12 to 6.28 at ±0.12 each. Every table
+// before 2026-09-24 was set from roster 1 alone; that one averages rosters 1 to
+// 6 (`for r in 1 2 3 4 5 6; do node scripts/leverage-sim.mjs 10000 $r; done`).
+const ROSTER_SEED = Number(process.argv[3] || 1);
+const GAME_SEED = Number(process.argv[4] || 90000 + (ROSTER_SEED - 1) * 100000);
 const BOOST = 8;
-const MEAN = 82;
+// The level the rosters sit at. 82 is what the engine's constants were fitted
+// around and what every table has been measured at; LEV_MEAN=90 asks the same
+// question of rosters the size of a fantasy league's.
+const MEAN = Number(process.env.LEV_MEAN || 82);
 const SD = 2;
 
 const STARTERS = {};
@@ -81,7 +92,7 @@ function measure(A, B, games) {
     const flip = i % 2 === 1;
     const home = flip ? { ...B, lineup: lb } : { ...A, lineup: la };
     const away = flip ? { ...A, lineup: la } : { ...B, lineup: lb };
-    const g = createGame(home, away, { seed: 90000 + i, homeAdvantage: false });
+    const g = createGame(home, away, { seed: GAME_SEED + i, homeAdvantage: false });
     simulateGame(g);
     const aScore = flip ? g.score[1] : g.score[0];
     const bScore = flip ? g.score[0] : g.score[1];
@@ -98,7 +109,7 @@ function measure(A, B, games) {
 const starterSlots = (pos) => ROSTER_SLOTS.filter((s) => s.starter && s.pos === pos).map((s) => s.id);
 
 console.log(`Measuring over ${N} games per reading, boost +${BOOST}, base rating ${MEAN}, no home edge.`);
-const base = measure(...mirrorPair(1, [], 0), N);
+const base = measure(...mirrorPair(ROSTER_SEED, [], 0), N);
 console.log(`Baseline (mirrored rosters, must be zero): margin ${base.margin.toFixed(3)} ± ${base.se.toFixed(3)}, win rate ${base.win.toFixed(4)}`);
 console.log('');
 console.log('pos  n   group margin  per starter    solo margin      solo win%   shipped');
@@ -107,10 +118,10 @@ const rows = [];
 for (const pos of POS) {
   const slots = starterSlots(pos);
   if (!slots.length) continue;
-  const group = measure(...mirrorPair(1, slots, BOOST), N);
-  const solo = measure(...mirrorPair(1, [slots[0]], BOOST), N);
+  const group = measure(...mirrorPair(ROSTER_SEED, slots, BOOST), N);
+  const solo = measure(...mirrorPair(ROSTER_SEED, [slots[0]], BOOST), N);
   const perStarter = group.margin / slots.length;
-  rows.push({ pos, starters: slots.length, group: group.margin, perStarter, solo: solo.margin, se: solo.se, win: solo.win, shipped: TRUE_LEVERAGE[pos] });
+  rows.push({ pos, starters: slots.length, group: group.margin, perStarter, perStarterSe: group.se / slots.length, solo: solo.margin, se: solo.se, win: solo.win, shipped: TRUE_LEVERAGE[pos] });
   console.log(
     `  ${pos.padEnd(3)} ${String(slots.length)}   ${group.margin.toFixed(2).padStart(10)}   ${perStarter.toFixed(2).padStart(9)}   ${solo.margin.toFixed(2).padStart(8)} ±${solo.se.toFixed(2)}   ${(solo.win * 100).toFixed(1).padStart(6)}%   ${String(TRUE_LEVERAGE[pos]).padStart(6)}`,
   );
@@ -126,19 +137,28 @@ console.log('order, group/starter :', byGroup.join(' > '));
 console.log('order, solo (marginal):', bySolo.join(' > '));
 
 // The table's own definition is the group method, so that is what a corrected
-// table should be built from. Only ratios matter downstream — the price guide
-// normalises by the sum — so the scale is pinned to the shipped quarterback to
-// keep the numbers reading the same size as before.
-const qb = rows.find((r) => r.pos === 'QB');
-const scale = (TRUE_LEVERAGE.QB || 1) / qb.perStarter;
-console.log('');
-console.log('Recalibrated from the group method, scaled so QB keeps its shipped value:');
+// table is built from. The scale is not free — `lineupStrength` sums
+// overall × leverage raw and `aiGreed` compares that against fixed thresholds —
+// so a corrected table keeps the shipped starter-weighted total, as every
+// correction since the first audit has.
+const total = rows.reduce((t, r) => t + r.shipped * r.starters, 0);
+const scale = total / rows.reduce((t, r) => t + r.group, 0);
 const fixed = Object.fromEntries(rows.map((r) => [r.pos, Math.round(r.perStarter * scale * 100) / 100]));
+console.log('');
+console.log(`Recalibrated from the group method, scaled to the shipped starter-weighted total of ${total.toFixed(2)}:`);
 console.log('  ' + JSON.stringify(fixed));
 console.log('');
-console.log('pos   shipped   measured   change');
+// Materially different means both: more than 30% away, and further than three
+// standard errors of this reading, since a kicker read at 0.38 ± 0.12 can be
+// 30% away from anything by chance.
+console.log('pos   shipped   measured   change    z');
+let differ = 0;
 for (const r of rows.slice().sort((a, b) => fixed[b.pos] - fixed[a.pos])) {
   const ratio = fixed[r.pos] / (r.shipped || 0.01);
-  const flag = ratio > 1.5 || ratio < 0.67 ? '  <-- materially different' : '';
-  console.log(`  ${r.pos.padEnd(4)} ${String(r.shipped).padStart(6)}   ${fixed[r.pos].toFixed(2).padStart(8)}   ${ratio.toFixed(2).padStart(5)}×${flag}`);
+  const z = (r.perStarter * scale - r.shipped) / (r.perStarterSe * scale || 1);
+  const material = Math.abs(ratio - 1) > 0.3 && Math.abs(z) > 3;
+  if (material) differ++;
+  console.log(`  ${r.pos.padEnd(4)} ${String(r.shipped).padStart(6)}   ${fixed[r.pos].toFixed(2).padStart(8)}   ${ratio.toFixed(2).padStart(5)}×  ${z.toFixed(1).padStart(5)}${material ? '  <-- materially different' : ''}`);
 }
+console.log('');
+console.log(`positions where the shipped table and the engine disagree: ${differ}`);

@@ -278,9 +278,15 @@ test('parting cost tracks leverage: a kicker goes cheap, a quarterback does not'
 });
 
 test('a user-facing uneven deal reports the lineup it would leave behind', () => {
-  const lg = league(18, 12);
-  const u = user(lg);
-  const up = swapPair(lg, u, 'S', 'LB');
+  // Searched rather than pinned: whether some club will swap a linebacker for
+  // the user's safety falls out of the auction, which bids on the leverage
+  // table, and a pinned seed broke the day the table was re-measured.
+  let lg = null, u = null, up = null;
+  for (let seed = 18; seed < 40 && !up; seed++) {
+    lg = league(seed, 12);
+    u = user(lg);
+    up = swapPair(lg, u, 'S', 'LB');
+  }
   assert.ok(up, 'somebody will swap a linebacker for a safety');
   const other = up.team, give = up.give, getId = up.get;
   const v = validateTrade(lg, u, other, [give], [getId], byId, PLAYERS);

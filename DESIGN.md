@@ -139,8 +139,17 @@ reshuffled random stream: an injury change that drew one extra number per
 injury took it to 9.1, while two 48-league samples either side of that change
 read 8.2 and 8.5. So the audit now holds the thing the auction produces before a
 ball is snapped, which no in-season randomness can move — the spread of roster
-quality, leverage-weighted: a standard deviation of 42.3 under the auction
+quality, leverage-weighted: a standard deviation of 41.1 under the auction
 against 30.2 from the draft, over the default twelve leagues.
+
+"Leverage-weighted" meant a table of its own until 2026-09-24: `auction-sim`
+carried a literal copy of the very first measurement (tight end 9.3, back 5.0)
+through both re-measurements, so the check weighed rosters by a table the game
+had thrown out and moved only when the auction's own bidding did. It reads the
+shipped table now. Weighed that way, the table before the back's rise gave 43.8
+against 29.0, and the one after it 41.1 against 30.2: the auction still spreads
+rosters about a third more than the draft does, where on the old table it was
+half again more.
 
 The auction fixes it with a $200 cap and 27 slots. Teams take turns nominating a
 player they have room for; the nominator automatically opens at $1, so every
@@ -186,17 +195,17 @@ Two things the re-measurement exposed that were not about the tight end at all:
 
 **A value ratio is meaningless when the stake is trivial.** Re-measured, the punter came out at better value-for-money than the quarterback — arithmetically true, and it had the value board telling a new manager that punters are the best buy in the game. `positionValue()` now carries each position's whole-squad stake and calls anything under 5% "barely matters" however good its ratio, measured on the group so five cheap linemen are not mistaken for a specialist.
 
-**Which positions are actually the bargains**, after the correction:
+**Which positions are actually the bargains**, on the table as it stands (re-measured on 2026-09-24; see "The back is worth nearly a quarterback now"):
 
-| | QB | CB | TE | S | OL | LB | RB | DL | WR |
+| | RB | QB | CB | TE | S | OL | LB | DL | WR |
 |---|---|---|---|---|---|---|---|---|---|
-| Wins share | 35.6% | 9.3% | 11.4% | 5.8% | 4.2% | 5.8% | 11.9% | 4.9% | 6.5% |
-| Price share | 22.5% | 6.9% | 9.3% | 5.9% | 4.9% | 7.3% | 15.7% | 9.3% | 14.7% |
-| Value | 1.58× | 1.35× | 1.23× | 0.99× | 0.85× | 0.79× | 0.76× | 0.53× | 0.44× |
+| Wins share | 26.5% | 27.4% | 8.2% | 8.3% | 5.2% | 3.7% | 5.2% | 4.9% | 5.3% |
+| Price share | 15.7% | 22.5% | 6.9% | 9.3% | 5.9% | 4.9% | 7.3% | 9.3% | 14.7% |
+| Value | 1.69× | 1.22× | 1.20× | 0.89× | 0.88× | 0.75× | 0.71× | 0.52× | 0.36× |
 
-Cheap is not the same as underpriced, which is where the intuition goes wrong: linemen have low glamour and low leverage together and come out overpaid. The underpaid positions are the quarterback and the corner; receivers and the defensive line are the traps. The strategy table below agrees independently — the trenches-first buyer has never beaten the value shopper.
+Cheap is not the same as underpriced, which is where the intuition goes wrong: linemen have low glamour and low leverage together and come out overpaid. The back is the one clear bargain now, where two tables ago he was a trap; the quarterback and the corner are still better than fair, and receivers and the defensive line are still the traps. The strategy table below agrees independently — the trenches-first buyer has never beaten the value shopper.
 
-One limitation to carry openly: this is an average across a position's starters, and where a position has several the first is worth appreciably more than the average. Measured solo, a number one receiver is worth 1.90 against the positional average of 1.13 — about two-thirds again. The value panel says so.
+Two limitations to carry openly. This is an average across a position's starters, and where a position has several the first is worth appreciably more than the average: measured solo over the same six rosters, a number one receiver is worth 2.06 against the positional average of 1.10, nearly twice. And a table is one number a position, where a back's worth is not linear in his rating — eight points is worth 0.17 a point to a 75-rated back and 0.80 to an 88 — so he is the bargain the table says at starter level and overpriced by the same table below it. The value panel says both.
 
 Measured over twenty-four 8-team leagues with the human team following fixed
 strategies, on the current 1,500-player pool with the 27-slot roster, injuries
@@ -204,20 +213,17 @@ at the default setting and penalties on:
 
 | Strategy | Wins of 14 | Point differential | Average finish of 8 | Titles of 24 |
 |---|---|---|---|---|
-| Value shopper (bid 1.15× true worth) | 8.5 | +39 | 3.0 | 10 |
-| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.3 | +10 | 4.0 | 6 |
-| Trenches first (1.7× worth on the lines) | 5.6 | −50 | 6.2 | 0 |
-| Skill players first (1.5× asking at QB/RB/WR/TE) | 5.3 | −43 | 5.7 | 2 |
-| Spread it evenly | 4.5 | −69 | 6.8 | 1 |
-| Market follower (pay the asking price) | 4.4 | −87 | 7.0 | 0 |
+| Value shopper (bid 1.15× true worth) | 8.2 | +49 | 3.2 | 11 |
+| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.3 | +7 | 3.8 | 4 |
+| Skill players first (1.5× asking at QB/RB/WR/TE) | 6.4 | −23 | 4.8 | 2 |
+| Trenches first (1.7× worth on the lines) | 5.8 | −50 | 5.5 | 1 |
+| Market follower (pay the asking price) | 4.3 | −94 | 7.1 | 0 |
+| Spread it evenly | 4.3 | −102 | 6.9 | 0 |
 
-Re-run after the 2026 leverage correction. Value shopping got *better*, not worse — 7.7 wins before, 8.5 after — which is what a more accurate worth table should do to a strategy that bids off it. The spread between reading the market and following it is four wins a season. Twenty-four leagues is a small sample and the ordering is stable across runs while the individual numbers move by a few tenths.
-| Market follower (pay the asking price) | 5.0 | −60 | 6.4 | 0 |
-| Spread the budget evenly | 4.5 | −83 | 6.8 | 0 |
+Re-run on 2026-09-24 with the re-measured table, and paired against the table before it on the same engine and the same leagues: value shopping went from 7.3 wins to 8.2, and nothing else moved by a whole win. It is the second correction to the worth table that has made the strategy bidding off it better — the first took it from 7.7 to 8.5 — which is what a more accurate table should do. Twenty-four leagues is a small sample and the ordering is stable across runs while the individual numbers move by a few tenths.
 
-About three wins separate the best approach from the worst, so how you bid is
-still the main thing that decides a season, though the gap has narrowed from
-four since injuries and penalties began adding noise a roster cannot control.
+About four wins separate reading the market from following it, so how you bid is
+still the main thing that decides a season.
 The lesson is learnable from play: buy the positions the room undervalues, and
 do not pay a premium for a name. Stars and scrubs had closed the gap on value
 shopping once the pool gained a real tail, then fell back a win when AI clubs
@@ -239,9 +245,9 @@ league selects between them.
 
 ## The value board (`ui/value-panel.js`, `ui/views/guide.js`)
 
-The auction's mispricing was the most interesting thing in the game and it was documented here and nowhere in the product. A first-time manager faced $200 over 1,500 names with no way to know a kicker is worth a fortieth of a quarterback, and the only way to find out was to lose a season to it.
+The auction's mispricing was the most interesting thing in the game and it was documented here and nowhere in the product. A first-time manager faced $200 over 1,500 names with no way to know a kicker is worth about a tenth of a quarterback, and the only way to find out was to lose a season to it.
 
-It is positional, never per player. Showing what an individual is worth would hand over the answer and delete the auction; showing that the room overpays for running backs is a strategy you still have to execute under a budget, against nine other bidders, with the best names gone by the time you commit. There is no per-player worth figure anywhere on screen.
+It is positional, never per player. Showing what an individual is worth would hand over the answer and delete the auction; showing which positions the room underpays is a strategy you still have to execute under a budget, against nine other bidders, with the best names gone by the time you commit. There is no per-player worth figure anywhere on screen.
 
 Everything is derived from `positionValue()` at render time rather than written into the view, so retuning a leverage number moves the panel with it and it cannot quietly start teaching something the simulation no longer does. A test asserts the derivation against the tables directly for exactly that reason.
 
@@ -251,7 +257,7 @@ The page also carries the three things the table cannot show: that bench slots a
 
 ## Draft AI (`draft.js`)
 
-Value over replacement: for each position, the replacement level is the overall of the Nth-best available player where N is the league's remaining demand at that position. Pick = highest (overall − replacement) × positional impact multiplier (QB 2.6, CB 1.1, RB/WR 1.0, DL 0.9 … K 0.5, P 0.35, mirroring measured sim leverage) × GM personality weights (+ era bias for Old School / Analytics) + noise. Kickers and punters are held until the last three rounds unless forced. A slot-count guard guarantees every roster fills.
+Value over replacement: for each position, the replacement level is the overall of the Nth-best available player where N is the league's remaining demand at that position. Pick = highest (overall − replacement) × positional impact multiplier (`POS_BASE`: QB 2.6, RB 1.15, CB 1.1, WR 1.0, DL 0.9 … K 0.5, P 0.35 — hand-set, not the measured leverage table, and checked against it by wins under "The draft's position weights") × GM personality weights (+ era bias for Old School / Analytics) + noise. Kickers and punters are held until the last three rounds unless forced. A slot-count guard guarantees every roster fills.
 
 ### Trading picks (`draftpicks.js`)
 
@@ -353,7 +359,10 @@ mechanism — a cheap rookie deal runs out and the bill arrives at what the play
 is now worth. `marketSalary` is leverage times rating over a replacement level,
 calibrated so a roster priced entirely at market costs 104% to 114% of the cap.
 Just over, on purpose: no club can field a side of men all paid what they are
-worth, so every roster is part bargain and part rookie deal.
+worth, so every roster is part bargain and part rookie deal. It has drifted
+further over since: 120% at founding on the table before 2026-09-24 and 122% on
+the one after it (`npm run cap -- 1 4`), with the cap left where it was for the
+reasons under "Twenty-five seasons in".
 
 **Three things were wrong before it worked, and all three are the same mistake
 in different clothes — the money kept being thrown away:**
@@ -1194,6 +1203,18 @@ under-read him — but 0.82 against a kicker's 2.10 is a bigger inversion than
 that explains. Left open: the two tables disagree about two of eleven positions,
 and nothing in the game turns on it until somebody is deciding what to bid for a
 punter.
+
+**The agreement fell to 0.864 on 2026-09-24, and it is the back.** Against the
+re-measured table the same yardstick column correlates at 0.864: the table has
+the back at 13.99 and the yardstick's spread at 7.73. They are not measuring the
+same thing once a position's worth is not linear in its rating. The yardstick
+column is a whole pool's spread, worst man to best, and most backs sit where a
+point of rating buys little; the table is the price of a point where starters
+sit. Put the table's own method onto real backs in the yardstick's harness and
+it agrees with the table at the top: eight points on everything is worth 0.80 a
+point to an 88-rated back and 0.56 to an 85, against 0.61 to 0.64 for
+quarterbacks at 79 to 85, and 0.17 to a back at 75. Details under "The back is
+worth nearly a quarterback now".
 
 ### What the general managers' decisions are worth (`npm run gm`)
 
@@ -3080,6 +3101,13 @@ every seed run again with the halves swapped so draft slot cancels:
 No difference a season can see, so it stays; replacement levels and each
 club's open slots settle most picks before the weights do.
 
+On the table re-measured on 2026-09-24 there is a difference, and it points the
+same way: in 12-club fantasy leagues the table's clubs now come out −3.9 ± 1.2
+points (ahead in 7 of 30), against −0.6 ± 1.3 for the old table on the same
+engine, and they spend an early pick on a second back. `POS_BASE` stays on firmer
+ground than before; the detail is under "The back is worth nearly a quarterback
+now".
+
 **A bug in the engine, found because a measurement was impossible.** The first
 dynasty comparisons ran both arms in one process and had every alternative
 read losing forty to sixty points by the seventh season — the arrival read,
@@ -3293,6 +3321,135 @@ had always, when its fixed seed produced no offer, made offers in a *second*
 league and then checked them against the first — reading the wrong rosters
 entirely; fewer offers finally made it fire. Both now go through the seed search
 that was already sitting in the file for this purpose.
+
+### The back is worth nearly a quarterback now
+
+`TRUE_LEVERAGE` went stale a second time the way it did the first: a change to
+how the run game plays, and no re-measure after it. The audit replays the table
+now, so a third time would be caught.
+
+**One roster was not enough to set it.** Every table before this one came from
+synthetic roster 1, and a position's worth depends on the roster around it by
+more than one roster's game noise: over six rosters at 10,000 games each the
+quarterback read 5.12 to 6.28, at ±0.12 apiece. The table is now the mean of
+rosters 1 to 6 (`npm run leverage -- 10000 <roster>`, each roster on its own
+game seeds), with its error taken between rosters, scaled as always so the
+starter-weighted total stays 86.45 and `aiGreed`'s thresholds still mean what
+they meant:
+
+| | QB | **RB** | TE | CB | WR | S | LB | DL | OL | P | K |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| per starter, six rosters | 5.67 | **5.48** | 1.72 | 1.70 | 1.10 | 1.07 | 1.08 | 1.01 | 0.76 | 0.59 | 0.51 |
+| ± between rosters | 0.21 | 0.18 | 0.13 | 0.02 | 0.03 | 0.02 | 0.02 | 0.02 | 0.02 | 0.04 | 0.05 |
+| table before | 15.89 | **9.39** | 5.58 | 4.39 | 2.95 | 2.87 | 2.76 | 2.46 | 2.17 | 2.00 | 1.25 |
+| table now | 14.46 | **13.99** | 4.38 | 4.33 | 2.80 | 2.73 | 2.75 | 2.57 | 1.95 | 1.51 | 1.31 |
+| z, now against before | −2.7 | **+10.0** | −3.6 | −1.0 | −2.2 | −2.6 | −0.2 | +2.7 | −4.5 | −4.8 | +0.4 |
+
+The back is the change that matters: half as much again, from 0.59 of a
+quarterback to 0.97. The tight end, the line and the punter moved by more than
+three standard errors too, each by a quarter or less.
+
+**The cause is one commit.** The harness as it is now, copied into a checkout of
+each commit since the old table was set so that only the engine varies, roster 1
+at 4,000 paired games a reading:
+
+| engine at | QB | RB | TE | WR |
+|---|---|---|---|---|
+| a8cd49c, the engine the old table was set on | 5.90 | 3.53 | 1.95 | 1.06 |
+| 9ccd5b1, awareness, power and elusiveness given something to do | 6.14 | **5.83** | 1.92 | 1.08 |
+| 188dfec, the short passing game | 6.24 | 5.97 | 1.94 | 1.26 |
+| bc1b5f1, the tight end's job | 6.23 | 5.74 | 1.56 | 1.24 |
+| today | 6.23 | 5.74 | 1.56 | 1.24 |
+
+On the engine it was set on, the old table was right: a back at 0.60 of a
+quarterback against a shipped 0.59. 9ccd5b1 wired elusiveness and power into the
+run game and took the back from 3.53 to 5.83 in one commit; nothing since has
+moved him by a quarter of a point. The receiver's rise and the tight end's fall
+are the two later commits, and they are in the new table too. Today reads the
+same as bc1b5f1 to the hundredth: nothing since has touched these games, and the
+table itself does not reach play. Outcomes read the attributes; the table prices
+players and sets the win-probability prior, which is only ever logged — so the
+fingerprint moved with it (it hashes that line) while no score did.
+
+**Real backs agree at the top and not below it.** The method boosts every
+attribute of a synthetic man by eight. The yardstick swaps real men in instead,
+and across the whole pool it disagrees: 0.29 points of differential per overall
+point for a back (24 men, 67 to 93, 500 games each) against 0.54 for a
+quarterback (59 to 96), which is nearly the old ratio. Putting the method's own
+boost onto real men in the yardstick's harness shows why:
+
+| eight points on everything | rated | worth per overall point |
+|---|---|---|
+| David Montgomery, RB | 75 | 0.17 |
+| Rick Casares, RB | 83 | 0.42 |
+| Bill Dudley, RB | 85 | 0.56 |
+| Adrian Peterson, RB | 88 | 0.80 |
+| Jim Everett, QB | 70 | 0.43 |
+| Jalen Hurts, QB | 79 | 0.64 |
+| Boomer Esiason, QB | 85 | 0.61 |
+
+A back's worth is steeply convex in his rating, where a quarterback's is close to
+straight. Where starters sit, a point on a back is worth about what a point on a
+quarterback is, as the table says; below that it is worth far less, and a
+whole-pool slope is an average over a pool where most backs sit below. Also
+tested, and ruled out: that the table holds only at the synthetic rosters' level
+of 82. At a mean of 90, a fantasy league's level, the back reads
+5.12, 5.67 and 6.54 on three rosters against the quarterback's 5.11, 5.50 and
+5.54. What this does mean is that a table of one number a position now
+overprices every back below starter level by more than it did, and the value
+panel says so.
+
+**Drafting on the table loses, so the draft keeps POS_BASE.** Nothing in play
+drafts on the table, but `npm run rookies -- weights` asks whether it should:
+half of each league drafting on it and half on `POS_BASE`, then the halves
+swapped. Paired on today's engine, 12-club fantasy leagues, 30 seeds from 100:
+
+| table | its clubs minus `POS_BASE`'s, win share |
+|---|---|
+| before 2026-09-24 | −0.6 ± 1.3 points (ahead in 11 of 30) |
+| now | **−3.9 ± 1.2 points** (ahead in 7 of 30) |
+
+In 32-club pro leagues it is −0.7 ± 0.8 (12 seeds from 100), against −0.6 ±
+0.8 when first measured. Measured, not inferred, is how the table's clubs draft,
+over ten of those fantasy leagues: they take their second back in round 3.5 on
+average against round 18.8 on `POS_BASE`, nearly two backs each in the first six
+rounds. The draft's guard against an early second back is a flat four points,
+sized for `POS_BASE`'s back weight of 1.15, and the table's 2.88 swamps it, so an
+early pick goes on a bench back — who plays only when the starter is hurt, and
+who tends to be the lower-rated back the table overprices.
+How much of the 3.9 that accounts for is not measured. The answer it gives is
+the one already shipped: the snake draft keeps `POS_BASE`.
+
+**What else moved, paired against the old table on today's engine.**
+
+| | old table | new table |
+|---|---|---|
+| AI trade offers to the human, a league-season (`npm run offers`) | 9.3 | 9.0 |
+| weeks with an offer | 43% | 44% |
+| offers that help the human | 61% | 52% |
+| their mean worth to the human, lineup strength | 3.2 | 1.6 |
+| roster spread, auction against draft (`npm run auction`) | 43.8 / 29.0 | 41.1 / 30.2 |
+| a roster at market against the cap, founding (`npm run cap -- 1 4`) | 120% | 122% |
+| MVPs to backs in 40 seasons, the award reading the table | 2 | 37 |
+| the human bidding off the table (value shopper), wins of 14 in 24 leagues (`npm run strategy 24`) | 7.3 | **8.2** |
+
+Offers stay where `OFFER_LOPSIDED` put them, about half of them worth taking.
+The MVP could not stay on the table and now has one number of its own (Awards,
+above). The value board's verdicts follow the table at render time: the back is
+now its one clear bargain at 1.69×, and the tight end goes from better than
+fair (1.16×) to overpaid (0.89×).
+
+**Open: whether a back should be worth nearly a quarterback at all.** The real
+game's own analytics say not by a distance. This engine says so at starter
+level, and the cause is identified — how much elusiveness and power buy in the
+run game since 9ccd5b1. If that is too strong, the fix belongs there, and this
+table would follow it on the next re-measure; it is not decided here.
+
+**The audit replays the table.** `the position-value table still matches the
+engine` runs roster 1 at 4,000 games and counts positions that differ from the
+shipped table by more than 30% and by more than three standard errors, both. It
+reads 0 on this table and 2 on the one before it, the back and the tight end,
+in about two minutes.
 
 ### A fingerprint that could not see the roster
 
@@ -3841,6 +3998,18 @@ Swept over the same seasons, by patching the constant and playing the dynasty ou
 Real MVP voting since 2000 runs about 79% quarterbacks and 12% backs. That makes 1.0 the fit, and 1.0 is not an exponent — it is the leverage table itself, so the parameter is gone and the award is simply a player's season weighted by what his position is worth. Backs keep one in five, a shade more often than they really manage; correcting that would need a value past 1.0, which buys a point of realism at the price of a league where nobody but a quarterback ever wins.
 
 Two caveats that are not speculation but are worth stating. The sweep holds the rest of the engine fixed, so a later change to `TRUE_LEVERAGE` moves this distribution again — it now moves it *directly*, with no exponent damping it, which is a feature only if the leverage table is trusted. And 29 seasons is a small sample for a distribution: the per-seed splits ranged from 44% to 80% quarterbacks at the chosen value, so the pooled 79% carries real width.
+
+**The first caveat came true, and the award has one number of its own now.** Re-measured on 2026-09-24, the table has the back at 0.97 of a quarterback, and read straight it handed backs 37 MVPs in 40 seasons. Forty seasons at four seeds (2026 to 2029, ten each, the playthrough's dynasty), every eligible line kept at each season's end so every weighting is scored on the same seasons; the harness names the engine's own MVP in all forty:
+
+| weighting | QB | RB |
+| --- | --- | --- |
+| the table, read straight (quarterback over back 1.03) | 3 | 37 |
+| the table before 2026-09-24 (1.69) | 38 | 2 |
+| quarterback over back 1.5 | 30 | 10 |
+| 1.55 or 1.6 | 33 | 7 |
+| 1.65 | 37 | 3 |
+
+It is the same failure as the first time, reached from the other side: the season's best back stands further above his position than the best quarterback does above his — a z of 2.78 against 2.11, averaged over those forty seasons — so once the weights are level his noisier line decides it. The engine may well be right about what a back is worth (that question is open, and belongs to the run game), but the award is modelled on real voting, and voters do not weigh a back like a quarterback. So a quarterback's season counts 1.55 times a back's, `MVP_QB_OVER_RB`, inside the plateau that names 33 quarterbacks and 7 backs — 82% against real voting's 79%, and eight or nine quarterbacks in every ten-season run. Every other position is still weighted by the table, so a later re-measure still moves them, and the playthrough is where that shows. A test reads the ratio back from the race's own scores, and pointing the award at the table again fails it.
 
 ## AI general managers (`gm.js`)
 
@@ -4982,8 +5151,9 @@ same as being bad at it. And a verdict needs at least three shared attributes �
 a back and a quarterback share only awareness, and "right leads 1–0 of 1" reads
 like a finding while saying nothing, so the cross-position note about leverage
 carries that case instead. Overalls of different positions are not the same
-currency and the note says so: a running back is worth 9.39 against a
-quarterback's 15.89.
+currency and the note says so, reading the table live: a running back was worth
+9.39 against a quarterback's 15.89 when this was written, and is 13.99 against
+14.46 since the table was re-measured on 2026-09-24.
 
 The overall badge sits above the name rather than below it. With it below, a
 name that wrapped to two lines pushed its badge a line clear of the other

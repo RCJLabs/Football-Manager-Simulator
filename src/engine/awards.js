@@ -41,8 +41,22 @@ const ALL_LEAGUE_COUNTS = { QB: 1, RB: 1, WR: 3, TE: 1, DL: 4, LB: 3, CB: 2, S: 
  * start. Backs still take one in five, a little more often than they really do;
  * pushing past 1.0 to correct that buys realism nobody asked for at the cost of
  * a league where only quarterbacks ever win.
+ *
+ * That held while the table priced a back at 0.6 of a quarterback. Re-measured
+ * on 2026-09-24 he is worth 0.97 of one, and played straight the table hands the
+ * award to a back in 37 seasons of 40 (four seeds, ten seasons each). It is the
+ * same failure as before, reached from the other side: the season's best back
+ * stands further above his position than the best quarterback does above his, a
+ * z of 2.78 against 2.11 on average, so once the weights are level his noisier
+ * line decides it. The engine may be right about what a back is worth; the
+ * award is modelled on real voting, and voters do not weigh a back like a
+ * quarterback. So the award keeps one number of its own: a quarterback's season
+ * counts 1.55 times a back's, which over the same forty seasons names 33
+ * quarterbacks and 7 backs, eight or nine quarterbacks in every ten-season run.
+ * Every other position is still weighted by the table.
  */
-const MVP_WEIGHT = TRUE_LEVERAGE;
+export const MVP_QB_OVER_RB = 1.55;
+const MVP_WEIGHT = { ...TRUE_LEVERAGE, RB: TRUE_LEVERAGE.QB / MVP_QB_OVER_RB };
 
 /** Every player with a stat line this season: { id, p, team (idx), s, pts, games }. */
 export function seasonLines(league, byId) {

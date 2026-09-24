@@ -38,6 +38,13 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * Everything else came back within about a tenth of where it was, so the table
  * was sound and one number in it was not.
  *
+ * It has gone stale twice since, silently, both times from run-game work that
+ * nobody re-measured after. The second time backs' elusiveness and power were
+ * wired into play, so a table pricing the back at 0.6 of a quarterback sat over
+ * an engine that plays him at 0.97 where starters sit. Re-set on 2026-09-24 as
+ * the mean of six rosters rather than one (DESIGN.md, "The back is worth nearly
+ * a quarterback now"), and the audit now replays it.
+ *
  * The absolute scale is not free, even though the price guide normalises it
  * away. `lineupStrength` in transactions.js sums overall × leverage raw, and
  * `aiGreed` compares the result against fixed thresholds, so shrinking this
@@ -57,9 +64,9 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * below is the honest answer rather than the intuition. Cheap is not the same
  * as underpriced: linemen have low glamour and low leverage together, and come
  * out overpaid. Normalised against each other the underpaid positions are the
- * tight end, the quarterback and the corner; the traps are the receiver, the
- * back and the defensive line. The strategy table in DESIGN.md agrees — a
- * trenches-first buyer finished worst of every strategy measured.
+ * back, the quarterback and the corner; the traps are the receiver and the
+ * defensive line. The strategy table in DESIGN.md agrees — the buyer who bids
+ * off this table finishes first.
  */
 // Lives in ratings.js so `teamPower` can weight a lineup by it without this
 // file and that one importing each other; re-exported here because this is
@@ -79,7 +86,7 @@ const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) =
  *
  * `starters` is carried too, because the per-player number is the right unit
  * when bidding on one man and the wrong one when deciding where a budget goes:
- * a lineman is worth a fifth of a tight end and you have to buy five of him.
+ * a lineman is worth under half a tight end and you have to buy five of him.
  */
 /**
  * Below this share of a club's total win impact, a position cannot decide a

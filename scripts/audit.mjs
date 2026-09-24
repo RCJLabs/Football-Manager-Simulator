@@ -88,8 +88,8 @@ const CHECKS = [
     // produces is fixed before a snap, and nothing in-season can move it.
     extract: /=== AUCTION[\s\S]*?roster quality \(leverage-weighted\): sd ([\d.]+)/,
     doc: /a standard deviation of ([\d.]+) under the auction/,
-    expect: 42.3, tol: 0.5,
-    why: 'the number the auction exists to produce; the win figure it replaced drifted from 7.4 to 8.6 to 9.1 on noise alone',
+    expect: 41.1, tol: 0.5,
+    why: 'the number the auction exists to produce; the win figure it replaced drifted from 7.4 to 8.6 to 9.1 on noise alone. Weighed by the shipped table since 2026-09-24, where it used to carry a stale copy of the first one',
   },
   {
     name: 'overall predicts production at quarterback',
@@ -218,6 +218,13 @@ const CHECKS = [
     why: 'the same for kicking range, where a mean taken at an 80 leg sits 0.07 yards off',
   },
   {
+    name: 'the position-value table still matches the engine',
+    cost: 'slow',
+    script: 'leverage-sim', args: ['4000', '1'], extract: /positions where the shipped table and the engine disagree: (\d+)/,
+    expect: 0, tol: 0,
+    why: 'TRUE_LEVERAGE prices every player — the auction, pro salaries, the value panel, AI bidding and trades — and it has gone stale twice the same way, a change to the run game and no re-measure after it. The second time it was set on 21 September, the same day an engine change wired a back\'s elusiveness and power into play, and his real value rose half again while the table stood still for three days. This replays one roster and counts positions more than 30% and three standard errors away from the table. Roster 1 at 4,000 games reads 0 on the table set on 2026-09-24 and 2 on the one before it, the back and the tight end; about two minutes',
+  },
+  {
     name: 'the pass/run read still beats a flat 0.55',
     cost: 'slow',
     script: 'pass-rate', args: ['read', '8', '150', '8', '41'], extract: /the read as it is \(strategy\.js\)\s+([+-]?[\d.]+)/,
@@ -252,7 +259,7 @@ const CHECKS = [
     name: 'the simulation fingerprint',
     cost: 'slow',
     script: 'game-fingerprint', extract: /fingerprint: ([0-9a-f]+)/,
-    expect: '9bdd8b3cabb95381', text: true,
+    expect: '4dcc1864c6b389a2', text: true,
     why: 'changes whenever the game engine does, which is what makes a careers-only change provable',
   },
 ];

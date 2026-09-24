@@ -5,12 +5,12 @@
 // value follows win impact, and the gap between them is the entire strategy —
 // but until now that gap was documented in DESIGN.md and nowhere in the product,
 // so a first-time player faced a $200 budget over 1,269 names with no idea that
-// a kicker is worth a fortieth of a quarterback.
+// a kicker is worth about a tenth of a quarterback.
 //
 // It is positional, never per player. Showing what an individual is worth would
-// hand over the answer and delete the auction; showing that the room overpays
-// for running backs is a strategy you still have to execute under a budget,
-// against nine other bidders, with the good ones gone by the time you commit.
+// hand over the answer and delete the auction; showing which positions the room
+// underpays is a strategy you still have to execute under a budget, against
+// nine other bidders, with the good ones gone by the time you commit.
 //
 // Everything here is derived from the engine's own tables at render time rather
 // than written down, so retuning a leverage number moves this screen with it and
@@ -21,6 +21,7 @@ import { positionValue } from '../engine/auction.js';
 import { POSITIONS } from '../data/positions.js';
 
 const VERDICT_CLASS = { underpaid: 'good', 'about right': 'fair', overpaid: 'poor', 'badly overpaid': 'bad', 'barely matters': 'nil' };
+const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 
 /**
  * The panel. `compact` drops the explanation for the in-auction version, where
@@ -29,6 +30,7 @@ const VERDICT_CLASS = { underpaid: 'good', 'about right': 'fair', overpaid: 'poo
 export function valuePanel({ compact = false } = {}) {
   const rows = positionValue();
   const maxShare = Math.max(...rows.flatMap((r) => [r.wins, r.price]));
+  const worth = Object.fromEntries(rows.map((r) => [r.pos, r.leverage]));
   const bar = (v, cls) => `<span class="vbar ${cls}" style="width:${(v / maxShare * 100).toFixed(1)}%"></span>`;
   const body = rows.map((r) => `<tr>
     <td><b>${r.pos}</b> <span class="muted hide-sm">${POSITIONS[r.pos].name}</span></td>
@@ -46,7 +48,7 @@ export function valuePanel({ compact = false } = {}) {
       <thead><tr><th>Position</th><th>Wins</th><th>Price</th><th class="num">Value</th><th class="num hide-sm">Starters</th></tr></thead>
       <tbody>${raw(body)}</tbody>
     </table></div>
-    <small class="muted">Per player of equal rating, so it is the right unit when bidding on one man and the wrong one for a whole budget: a lineman is worth a fifth of a quarterback and you have to buy five of him. Two caveats worth knowing. It is an average across a position's starters, and where there are several the first is worth appreciably more than the average — a number one receiver is worth about two-thirds again what the figure here says. And a good ratio on a position worth almost nothing is still worth almost nothing, which is what <span class="verdict nil">barely matters</span> means. All measured against this simulation, not received football wisdom.</small>
+    <small class="muted">Per player of equal rating, so it is the right unit when bidding on one man and the wrong one for a whole budget: a quarterback is worth about ${WORDS[Math.round(worth.QB / worth.OL)] ?? Math.round(worth.QB / worth.OL)} linemen and you have to buy five of them. Two caveats worth knowing. It is an average across a position's starters, and where there are several the first is worth appreciably more than the average — a number one receiver is worth nearly twice what the figure here says. The back's figure holds for a starter: below that his worth falls away steeply, so a backup back is worth far less than it says. And a good ratio on a position worth almost nothing is still worth almost nothing, which is what <span class="verdict nil">barely matters</span> means. All measured against this simulation, not received football wisdom.</small>
   </div>`;
 }
 

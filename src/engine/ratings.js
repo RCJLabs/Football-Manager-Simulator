@@ -218,12 +218,17 @@ export function composites(lineup) {
 /** A single number summarizing team strength, for standings/AI flavor. */
 /**
  * What a position is actually worth, measured by boosting it on an otherwise
- * equal roster and taking the extra win rate. Documented in auction.js, which
- * is where it is used to price players and where it is re-exported from; it
- * lives here so `teamPower` can weight by it without the two files importing
- * each other.
+ * equal roster and taking the extra margin (`npm run leverage`). Documented in
+ * auction.js, which is where it is used to price players and where it is
+ * re-exported from; it lives here so `teamPower` can weight by it without the
+ * two files importing each other.
+ *
+ * Set on 2026-09-24 as the mean of six synthetic rosters at 10,000 games each,
+ * scaled to keep the starter-weighted total at 86.45 (DESIGN.md, "The back is
+ * worth nearly a quarterback now"). Every table before it came from one roster,
+ * whose own quirks sat inside the numbers.
  */
-export const TRUE_LEVERAGE = { QB: 15.89, RB: 9.39, TE: 5.58, CB: 4.39, WR: 2.95, S: 2.87, LB: 2.76, DL: 2.46, OL: 2.17, P: 2.00, K: 1.25 };
+export const TRUE_LEVERAGE = { QB: 14.46, RB: 13.99, TE: 4.38, CB: 4.33, WR: 2.80, S: 2.73, LB: 2.75, DL: 2.57, OL: 1.95, P: 1.51, K: 1.31 };
 
 /**
  * How strong a lineup is, on the 40..99 rating scale.

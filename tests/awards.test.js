@@ -4,7 +4,7 @@ import { PLAYERS, PLAYERS_BY_ID as byId } from '../src/data/db.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, simulateWeekAi, advanceWeek, registerPlayers, userTeamIndex } from '../src/engine/season.js';
 import { autoCompleteAll } from '../src/engine/auction.js';
-import { seasonAwards, updateRecords, hallOfFame, hallScore, closeSeasonBooks, HOF_THRESHOLD } from '../src/engine/awards.js';
+import { seasonAwards, updateRecords, hallOfFame, hallScore, closeSeasonBooks, HOF_THRESHOLD, MVP_QB_OVER_RB } from '../src/engine/awards.js';
 import { enterOffseason, aiKeepers, confirmKeepers } from '../src/engine/offseason.js';
 import { fantasyPoints } from '../src/engine/stats.js';
 
@@ -43,6 +43,22 @@ test('the final hands out honours, and the MVP is scored against his position', 
   // The race view works mid-season too and ranks by the position-corrected score.
   const race = seasonAwards(league, byId).mvpRace;
   assert.ok(race.length === 5 && race[0].score >= race[1].score);
+});
+
+test('the MVP weighs a back the way voters do, not the way the position table does', () => {
+  // The table has a back at 0.97 of a quarterback, and played straight that
+  // gave backs 37 MVPs in 40 seasons (awards.js). The race is scored on the
+  // award's own ratio instead, read back here from the race's own scores, so
+  // pointing the award at the table again fails.
+  const league = auctionLeague(31);
+  playSeason(league);
+  const race = seasonAwards(league, byId).mvpRace;
+  const qb = race.find((r) => byId.get(r.id).pos === 'QB');
+  const rb = race.find((r) => byId.get(r.id).pos === 'RB');
+  assert.ok(qb && rb, 'a quarterback and a back in the race');
+  const perZ = (r) => r.score / r.z;
+  assert.ok(Math.abs(perZ(qb) / perZ(rb) - MVP_QB_OVER_RB) < 0.03, `a quarterback's z counts ${(perZ(qb) / perZ(rb)).toFixed(2)} times a back's`);
+  for (let i = 1; i < race.length; i++) assert.ok(race[i - 1].score >= race[i].score, 'ranked by the weighted score');
 });
 
 test('the record book keeps season, single-game and team marks', () => {

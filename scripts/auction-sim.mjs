@@ -5,7 +5,7 @@ import { PLAYERS, PLAYERS_BY_ID } from '../src/data/db.js';
 import { createLeague, startSeason, simulateWeekAi, advanceWeek, standings, powerRankings } from '../src/engine/season.js';
 import { autoDraftAll, RNG } from '../src/engine/draft.js';
 import { autoCompleteAll, spendByPos } from '../src/engine/auction.js';
-import { overall, buildLineup } from '../src/engine/ratings.js';
+import { overall, buildLineup, TRUE_LEVERAGE } from '../src/engine/ratings.js';
 
 const L = Number(process.argv[2] || 12);
 
@@ -13,7 +13,13 @@ const L = Number(process.argv[2] || 12);
 // Plain team power averages every starter equally, which rates an elite-QB /
 // weak-line roster the same as a balanced one, so it cannot see whether an
 // auction roster is well built.
-const LEV = { QB: 16.6, TE: 9.3, RB: 5.0, WR: 4.4, CB: 4.2, S: 3.0, LB: 2.7, DL: 2.45, OL: 1.9, K: 0.35, P: 0.2 };
+//
+// The shipped table, read rather than copied. This used to be a literal of the
+// first measurement (tight end 9.3, back 5.0) and stayed one through two
+// re-measurements, so the audit's spread check went on weighing rosters by a
+// table the game had thrown out, and only moved when the auction's own bidding
+// did.
+const LEV = TRUE_LEVERAGE;
 const STARTERS = { QB: 1, RB: 1, WR: 3, TE: 1, OL: 5, DL: 4, LB: 3, CB: 2, S: 2, K: 1, P: 1 };
 function trueStrength(lineup) {
   let total = 0;
