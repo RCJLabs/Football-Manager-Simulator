@@ -218,10 +218,13 @@ export function chooseOffense(g, rng) {
   if (isClockKill(g, team)) pass -= 0.3;
   if (g.quarter >= 4 && diff <= -14) pass += 0.2;
   if (g.quarter >= 3 && diff >= 17) pass -= 0.15;
-  // Team-fit: elite RB vs weak QB nudges to the run.
+  // Team-fit: elite RB vs weak QB nudges to the run. Gently: at /200 a back
+  // eight points better took 2.3 more carries a game, and a point of a back's
+  // rating moved his carries 2.6 times as far as the real game's (DESIGN.md,
+  // "Backs, receivers and tight ends, held to real seasons").
   const rbOvr = comp.rb1 ? (comp.rb1.r.spd + comp.rb1.r.elu + comp.rb1.r.pow + comp.rb1.r.awr) / 4 : 75;
   const qbOvr = comp.qb ? (comp.qb.r.tha + comp.qb.r.awr) / 2 : 75;
-  pass += (qbOvr - rbOvr) / 200;
+  pass += (qbOvr - rbOvr) / 1000;
   pass = Math.min(0.95, Math.max(0.1, pass));
 
   if (rng.chance(pass)) {

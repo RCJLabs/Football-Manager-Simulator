@@ -56,7 +56,7 @@ Offense chooses one of `run_in, run_out, screen, pass_short, pass_med, pass_deep
 
 Pass: pressure probability from rush vs. protection (logistic, `edge()`; the line's awareness against the front's); pressure → sack (the QB's awareness against the defence's, at `POCKET_WEIGHT`; mobility does not reduce it), scramble, or a hurried throw. Target chosen by role and skill; the primary defender is matched by role (WR1 ↔ CB1, TE ↔ best-coverage LB or S…), so Deion on Rice is a real matchup. Completion probability = base by depth + (passer vs. coverage at `PASSER_WEIGHT` + receiver vs. coverage) × slope, with the coverage's awareness read against the passer's and, on a deep ball, its speed against the receiver's; the arm reads against the secondary's speed. Interceptions follow the same edge, the defence's ball skills against the receiver's hands, and pressure. Yards = air (by depth; the deep ball's length from the arm against the secondary's speed) + run-after-catch (exponential, receiver RAC vs. tackling, breakaway chance from speed vs. secondary speed). See "The passing game, held to real quarterbacks".
 
-Run: stuff chance from run stop vs. run block (+RB vision against the front's awareness, power against its run stopping); otherwise base gain + blocking edge + break-tackle chance (power/elusiveness vs. tackling) + breakaway chance (speed vs. secondary speed, elusiveness vs. tackling). Every term that reads the carrier reads him against his opposite number, at `CARRIER_WEIGHT` — a fifth, measured against real carries (see "The back was worth nearly three times too much"). QB sneaks on 4th-and-1. Fumbles scale with ball security and tackling.
+Run: stuff chance from run stop vs. run block (+RB vision against the front's awareness, power against its run stopping); otherwise base gain + blocking edge + break-tackle chance (power/elusiveness vs. tackling) + breakaway chance (speed vs. secondary speed, elusiveness vs. tackling). Every term that reads the carrier reads him against his opposite number, at `CARRIER_WEIGHT` 0.16, measured against real carries (see "The back was worth nearly three times too much" and "Backs, receivers and tight ends, held to real seasons"). QB sneaks on 4th-and-1. Fumbles: ball security against the tackling that strips it, at `BALL_SECURITY`.
 
 Special teams: FG probability is a logistic in distance with the midpoint set by kicker power and accuracy. Punts: distance from punter power, pooch logic near midfield, placement skill avoids touchbacks and forces fair catches. Kickoffs: touchback rate from kicker power, returns by the fastest non-starter, rare breakaway. Onside kicks when trailing late.
 
@@ -3559,7 +3559,11 @@ At the level people play, it comes into line:
 A fifth rather than the 0.16 a slope of exactly 1 would ask for: the slope
 carries a standard error of 0.10, the ratings are editorial and their errors
 pull it under 1 even for a correct engine, and at a fifth a season's spread
-between starting backs already sits a little under the real one.
+between starting backs already sits a little under the real one. *Corrected
+the same day: the middle reason was wrong. The engine knows only the ratings,
+so what it can be right about is what a rating predicts, and an engine right
+about that has a slope of 1 by construction. It is 0.16 now, with the backs at
+0.88 (see "Backs, receivers and tight ends, held to real seasons").*
 
 **Re-measured, the back is worth a third of a quarterback.** Six rosters at
 10,000 games each again:
@@ -3644,8 +3648,9 @@ for; recorded, not retuned.
 
 **Held to it by the audit.** `npm run rushing` plays both halves — the 81 backs
 against their real seasons, and a season of two drafted pro leagues — and the
-audit reads two numbers from it: the backs' slope (0.77, flagged outside
-±0.15) and a pro league's yards a carry (4.66, ±0.25). About four minutes.
+audit pinned two numbers from it where the engine stood that day, 0.77 for the
+backs and 4.66 for a pro league. About four minutes. What they read now is in
+"Backs, receivers and tight ends, held to real seasons".
 
 ### The passing game, against real quarterbacks
 
@@ -3846,21 +3851,24 @@ engine, far more than the real game supports.
 - Each is re-centred so that sides at 82 stay where they were. Chemistry keeps
   its old weight everywhere: it is not a rating spread.
 
-Equal synthetic sides at 90 now throw for 0.06 more adjusted net yards a
-dropback than sides at 82 (6.56 and 6.62), against 0.50 before, and sacks no
-longer fall with the level (6.80% and 6.86%, from 6.90% and 5.01%).
+Equal synthetic sides at 90 now throw for 0.06 to 0.13 more adjusted net yards
+a dropback than sides at 82, run to run, against 0.50 before, and sacks no
+longer fall with the level (7.15% and 6.98% on the last run, from 6.90% and
+5.01%).
 
-**Weighted to the real quarterbacks.** `PASSER_WEIGHT` 0.45 on the accuracy and
-arm terms; the 58 quarterbacks at 200 games each, against the same seasons:
+**Weighted to the real quarterbacks.** `PASSER_WEIGHT` on the accuracy and arm
+terms, 0.45 when fitted and 0.5 once the receiver's side of the same edge was
+weighted too (next section), which took some of the coverage's share with it;
+the 58 quarterbacks at 200 games each, against the same seasons:
 
 | | before | now | real |
 |---|---|---|---|
-| slope, real on engine, adjusted net | 0.41 | 0.99 | 1 |
-| adjusted net per overall point | 0.192 | 0.079 | 0.080 |
-| completion per point | 0.630 | 0.357 | 0.273 |
+| slope, real on engine, adjusted net | 0.41 | 1.02 | 1 |
+| adjusted net per overall point | 0.192 | 0.077 | 0.080 |
+| completion per point | 0.630 | 0.373 | 0.273 |
 | interceptions per point | −0.159 | −0.027 | −0.028 |
-| sacks per point | −0.175 | −0.017 | −0.019 |
-| rated 52–72 / 86–96, adjusted net | 2.85 / 8.21 | 5.21 / 7.47 | 5.98 / 8.14 |
+| sacks per point | −0.175 | −0.009 | −0.019 |
+| rated 52–72 / 86–96, adjusted net | 2.85 / 8.21 | 5.22 / 7.39 | 5.98 / 8.14 |
 
 Completion stays a little steep. The real game's big arms throw deeper and
 complete less (a point of arm is worth −0.2 of completion rate, holding
@@ -3869,20 +3877,21 @@ arm.
 
 **Interceptions at the real rate.** The base rates rise by 1.2 against the old
 fixed-centre factors' 1.31 at 82, so sides at 82 are intercepted on 2.40% of
-attempts (2.71 before) and drafted pro leagues on 2.27% (1.99 before), against
-a real 2.31 to 2.36. Fewer drives end in a pick, and the realism check's
-scoring rows move off their floors: 21.3 points a team game (21.1) and 42.5 in
-all (42.1). None of the 44 rows is outside the real range.
+attempts (2.71 before) and drafted pro leagues on 2.41% (1.99 before), against
+a real 2.31 to 2.36. None of the 44 realism rows is outside the real range.
+Scoring sits at the bottom of it: 20.9 points a team game and 41.7 in all, the
+second straddling its floor of 42, once the next section spread targets the
+way the real game does.
 
 **At the level people play.** Two drafted pro leagues:
 
 | | before | now | real, 2019–2023 |
 |---|---|---|---|
-| adjusted net yards a dropback | 7.18 | 6.81 | 5.84–6.18 |
-| yards an attempt | 8.10 | 7.91 | 7.05–7.25 |
-| completion | 67.8% | 66.8% | 63.7–65.0% |
-| interceptions | 1.99% | 2.27% | 2.31–2.36% |
-| sacks | 7.30% | 7.49% | 6.25–7.17% |
+| adjusted net yards a dropback | 7.18 | 6.63 | 5.84–6.18 |
+| yards an attempt | 8.10 | 7.82 | 7.05–7.25 |
+| completion | 67.8% | 66.2% | 63.7–65.0% |
+| interceptions | 1.99% | 2.41% | 2.31–2.36% |
+| sacks | 7.30% | 7.43% | 6.25–7.17% |
 
 What is left is yards a completion, which part 3 was for, and the make-up of
 drafted rosters: their quarterbacks come from the top quarter of the pool at
@@ -3941,13 +3950,94 @@ real game's expected points value a back's talent at about a fifth of a
 quarterback's. The old table looked right, with the back at a third of a
 quarterback, only because the quarterback was inflated too.
 
-So the table is not set on this engine yet, and this change is held back from
-release: the back and the tight end get the same test against real seasons
-first, covering carries, ball security, receiving, target shares and blocking.
+So the table was not set on that engine, and the change was held back from
+release until the back and the tight end had the same test against real
+seasons (next section).
 
-**Held to it by the audit.** The audit now reads the quarterbacks' slope (0.99
+**Held to it by the audit.** The audit now reads the quarterbacks' slope (1.02
 at 200 games, flagged outside ±0.15) and a pro league's adjusted net yards a
-dropback (6.81, ±0.3).
+dropback (6.63, ±0.3).
+
+### Backs, receivers and tight ends, held to real seasons
+
+The quarterback's inflated value had hidden the rest. The same test, run on the
+85 backs, 103 receivers and 50 tight ends in the pool with a real season from
+1999 on, each in the same average side against what he really did that season,
+found the receiving game's version of the passer's defect and two of the
+backs'. `npm run receiving` replays it.
+
+**What a point of rating moved**, per point of overall, against the same men
+in the same seasons:
+
+| | before | now | real |
+|---|---|---|---|
+| a receiver's share of the targets | 1.80 | 0.36 | 0.28 |
+| a tight end's | 1.10 | 0.26 | 0.27 |
+| a back's | 0.87 | 0.22 | 0.24 |
+| a receiver's yards a target | 0.134 | 0.073 | 0.064 |
+| a back's yards a target | 0.143 | 0.067 | 0.053 |
+| a back's carries a game | 0.323 | 0.111 | 0.122 |
+| a back's yards a carry | 0.050 | 0.039 | 0.031 |
+| a back's fumbles a 100 touches | −0.032 | 0.001 | −0.006 |
+
+- **Targets.** A receiver's skill pulled the ball his way by
+  `exp((skill − 82) / 9)`: nine points better drew 2.7 times the targets, and
+  a star took the ball from everyone else. The spread is 60 now, and the role
+  bases split a league's targets 61.5 / 19.9 / 18.5 between receivers, tight
+  ends and backs against a real 59.3 / 21.1 / 19.4 (65 / 20 / 15 before).
+- **After the catch.** His share of the catch itself was about right. The
+  excess was after it: yards after the catch, the breakaway and the deep
+  ball's footrace. `RECEIVER_WEIGHT` 0.8 on the catch, `AFTER_CATCH_WEIGHT`
+  0.3 on the rest. The breakaway's speed term is clamped at zero, which
+  averages above zero even between equal sides, so its base rate rose from
+  0.024 to 0.0261 to leave sides at 82 where they were.
+- **Ball security** read a fixed 82 and the tackling that strips the ball a
+  fixed 80, and moved a back's fumbles seven times as far a point as the real
+  game's. It reads one against the other at `BALL_SECURITY` 0.2, and the base
+  rate is the real one: backs fumble 0.77 times a 100 touches against a real
+  0.79, and a team loses 0.54 fumbles a game against a real 0.54 to 0.56.
+- **Carries.** The play caller leaned on the run by the quarterback's rating
+  less the back's over 200, so a back eight points better took 2.3 more carries
+  a game. Over 1,000 now, and the second back's share reads trust over 400
+  rather than 150.
+- **`CARRIER_WEIGHT` 0.2 → 0.16.** It was set above the 0.16 a slope of 1
+  asks for, on the argument that rating errors pull a correct engine under 1.
+  They do not, for an engine that knows only the ratings (see the correction
+  in "The back was worth nearly three times too much"). The 81 backs read 0.88
+  now, 0.040 a point against a real 0.036; drafted pro leagues run 4.57 a carry
+  (real 4.49) with 2.92% of runs going twenty yards (2.52).
+
+**What a starter eight points better is worth**, in points of margin a game,
+one roster at 6,000 games, box score against box score:
+
+| | QB | RB | TE | WR, each | CB, each |
+|---|---|---|---|---|---|
+| after the passing fix | 2.69 | 1.96 | 2.06 | 1.34 | 1.32 |
+| now | 2.36 | 0.97 | 1.15 | 0.76 | 1.14 |
+
+A back is worth about 0.41 of a quarterback on that measure, where he was 0.73.
+The real game's expected points put a back's talent nearer a fifth of a
+quarterback's, but that figure counts rushing alone; the engine's back also
+catches and holds on to the ball. The table below is measured on six rosters.
+
+**Still open.**
+
+- A back's catch rate still moves with his rating, 0.41 a point, where the
+  real game's barely does (0.03): real backs are thrown checkdowns whatever
+  their hands, and catch 77% of them against the engine's 70%.
+- One weight serves receivers and tight ends: receivers are a little steep a
+  point (catch rate 0.33 against 0.26), tight ends a little flat (yards a
+  target 0.054 against 0.084).
+- A tight end's blocking has no real record to test against here. It is a
+  share of the line's, scaled to his rating.
+- Scoring sits at the bottom of the real range, 20.9 points a team game, with
+  targets spread the real game's way. The drive model again (previous section).
+
+**Held to it by the audit.** `npm run receiving` takes about seventy seconds;
+the audit reads the receivers' target-share slope (0.80, flagged outside ±0.2)
+and the backs' carries slope (1.13, ±0.25). From `npm run rushing` it reads the
+backs' slope (0.88, flagged outside ±0.15) and a pro league's yards a carry
+(4.57, ±0.25).
 
 ### A fingerprint that could not see the roster
 

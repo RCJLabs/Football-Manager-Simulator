@@ -45,30 +45,58 @@ function run(pos, attr, value, games = 260) {
   return { cmpPct: cmp / att, fumPerGame: fum / games, margin: margin / games, carries: carries / games };
 }
 
+/**
+ * Completion on everything but the deep ball, read from the log, for the home
+ * side with its quarterback's arm forced to one value.
+ */
+function underneath(value, games = 400) {
+  let att = 0, cmp = 0, margin = 0;
+  for (let k = 0; k < games; k++) {
+    const home = teamWith(k, 'QB', 'thp', value);
+    const a = syntheticTeam('opp', 82, 2, 70000 + k);
+    const g = simulateGame(createGame(home, { ...a, lineup: buildLineup(a.slots, a.byId) }, { seed: 4400 + k, homeAdvantage: false }));
+    margin += g.score[0] - g.score[1];
+    for (const e of g.log || []) {
+      if (e.off !== 0 || !['pass', 'incomplete', 'int'].includes(e.type) || /deep pass/.test(e.text || '')) continue;
+      att++;
+      if (e.type === 'pass') cmp++;
+    }
+  }
+  return { pct: 100 * cmp / att, margin: margin / games };
+}
+
 test('a strong arm completes more than a weak one, and not only deep', () => {
   // The whole point of the rewiring. Deep shots are roughly a tenth of throws,
-  // so if arm strength only reached them it could not move a season.
-  const weak = run('QB', 'thp', 62);
-  const strong = run('QB', 'thp', 99);
-  assert.ok(strong.cmpPct > weak.cmpPct + 0.01,
-    `arm strength must move completion rate (${(weak.cmpPct * 100).toFixed(1)}% -> ${(strong.cmpPct * 100).toFixed(1)}%)`);
-  assert.ok(strong.margin > weak.margin + 0.5,
+  // so if arm strength only reached them it could not move a season. Counted
+  // on everything BUT the deep ball, so the deep term cannot pass this alone.
+  // The arm reads against the secondary's speed at the passer's weight now
+  // (DESIGN.md, "The passing game, held to real quarterbacks"), and 62 to 99 is
+  // about two points underneath: 66.7% to 69.0%, measured.
+  const weak = underneath(62);
+  const strong = underneath(99);
+  assert.ok(strong.pct > weak.pct + 1,
+    `arm strength must move completion underneath (${weak.pct.toFixed(1)}% -> ${strong.pct.toFixed(1)}%)`);
+  assert.ok(strong.margin > weak.margin,
     `and must be worth something on the scoreboard (${weak.margin.toFixed(2)} -> ${strong.margin.toFixed(2)})`);
 });
 
 test('the arm term is centred so the league does not drift', () => {
-  // A CALIBRATION PIN, and the reason for one: `ARM_MID` decides where the new
-  // term is worth nothing, so getting it wrong shifts every completion in the
-  // game rather than only the ones it should. Centred on 82, the mean of the
-  // synthetic population the constants were fitted against. At 70 the league
-  // throws about a point higher and at 92 about a point lower, and BOTH of
-  // those sit inside any sane realistic range, so a loose band cannot catch it.
-  // Hence the narrow one.
+  // A CALIBRATION PIN, and the reason for one: where a term is worth nothing
+  // decides every completion in the game, not only the ones it should move. The
+  // arm used to be centred on a fixed 82; it reads against the secondary's
+  // speed now, so it is worth nothing between equal sides by construction, and
+  // what this pins is the passing game's calibration as a whole, where a point
+  // either way would sit inside any sane realistic range and a loose band
+  // could not catch it. Hence the narrow one.
   //
   // Re-measured at 64.90% when the passing game was re-composed: `pass_short`
   // was shortened by a yard and a half and its completion rate moved with it,
-  // which lifts the league. That is the deliberate change this comment said to
-  // re-measure for. The number moved; the band did not widen.
+  // which lifts the league. And at 64.37% when targets were spread the way the
+  // real game spreads them: at the old spread, whichever receiver drew the
+  // better ratings soaked up the throws, and that lifted completion too
+  // (DESIGN.md, "Backs, receivers and tight ends, held to real seasons"). Both
+  // were deliberate changes this comment said to re-measure for. The number
+  // moved; the band did not widen.
   //
   // Centring on the wrong population has happened twice in this engine's
   // history. If this fails after a deliberate change, re-measure and move the
@@ -83,7 +111,7 @@ test('the arm term is centred so the league does not drift', () => {
     for (const t of [0, 1]) { att += g.stats[t].team.passAtt || 0; cmp += g.stats[t].team.passCmp || 0; }
   }
   const pct = 100 * cmp / att;
-  assert.ok(pct > 64.5 && pct < 65.4, `league completion drifted to ${pct.toFixed(2)}%, expected 64.90%`);
+  assert.ok(pct > 63.92 && pct < 64.82, `league completion drifted to ${pct.toFixed(2)}%, expected 64.37%`);
 });
 
 test('ball security counts on a catch, not only on a carry', () => {
@@ -95,26 +123,37 @@ test('ball security counts on a catch, not only on a carry', () => {
   // time a game carrying and a tenth of a time catching, so the change worth
   // testing was five per cent of the number being measured and reverting it
   // failed nothing.
-  const catchFumbles = (car, games = 320) => {
+  //
+  // Ball security moves a fumble a fifth as far as it used to, which is the
+  // real game's rate (DESIGN.md, "Backs, receivers and tight ends, held to real
+  // seasons"), and at that size a back's own catches cannot show it in any
+  // number of games a test can afford. So every man who catches the ball
+  // carries the rating here: only backs have it in play, but the catch reads it
+  // for whoever makes the catch, and six times the catches is enough to see
+  // 40 against 99, which the formula puts at 1.64 times.
+  const catchFumbles = (car, games = 1600) => {
     let n = 0;
     for (let k = 0; k < games; k++) {
-      const home = teamWith(k, 'RB', 'car', car);
+      let home = teamWith(k, 'RB', 'car', car);
+      for (const pos of ['WR', 'TE']) {
+        const byId = new Map(home.byId);
+        for (const s of ROSTER_SLOTS) if (s.pos === pos) { const p = byId.get(home.slots[s.id]); if (p) byId.set(p.id, { ...p, r: { ...p.r, car } }); }
+        home = { ...home, byId, lineup: buildLineup(home.slots, byId) };
+      }
       const a = syntheticTeam('opp', 82, 2, 70000 + k);
       const g = simulateGame(createGame(home, { ...a, lineup: buildLineup(a.slots, a.byId) },
         { seed: 4400 + k, homeAdvantage: false }));
-      const mine = new Set((home.lineup.RB || []).map((p) => p.name.split(' ').pop()));
       for (const e of g.log || []) {
         const t = e.text || '';
-        if (!/FUMBLE/.test(t) || !/complete to/.test(t)) continue;
-        if ([...mine].some((nm) => t.includes(nm))) n++;
+        if (e.off === 0 && /FUMBLE/.test(t) && /complete to/.test(t)) n++;
       }
     }
     return n / games;
   };
-  const loose = catchFumbles(45);
+  const loose = catchFumbles(40);
   const safe = catchFumbles(99);
-  assert.ok(loose > safe * 1.5 && loose - safe > 0.01,
-    `a careless back must drop more of what he catches (${safe.toFixed(3)} vs ${loose.toFixed(3)} a game)`);
+  assert.ok(loose > safe * 1.25,
+    `a careless receiver must drop more of what he catches (${safe.toFixed(3)} vs ${loose.toFixed(3)} a game)`);
 });
 
 test('but ball security is still cheap, which is why its price came down', () => {

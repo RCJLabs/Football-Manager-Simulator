@@ -14,6 +14,21 @@ export function pickReturner(comp) {
   return cands.reduce((a, b) => (b.r.spd > a.r.spd ? b : a));
 }
 
+/**
+ * How far a receiver's skill pulls the ball his way, and what each role's
+ * share is before skill.
+ *
+ * Fitted to real seasons (DESIGN.md, "Backs, receivers and tight ends, held to
+ * real seasons"). At a spread of 9 a receiver nine points better drew 2.7 times
+ * the targets, and a point of a receiver's rating moved his share of the
+ * targets six times as far as the real game's; a tight end's four times, a
+ * back's nearly four. At 60 the three move 0.36, 0.25 and 0.23 of a point of
+ * share per point of rating against a real 0.29, 0.27 and 0.24. The role bases
+ * split a league's targets as the real one does, 62/20/18 against 59/21/19:
+ * receivers took 65 and backs 15.
+ */
+const TARGET_SPREAD = 60;
+
 export function pickReceiver(g, rng, comp, call) {
   const cands = [];
   const roles = [];
@@ -21,7 +36,7 @@ export function pickReceiver(g, rng, comp, call) {
   if (comp.te) { cands.push(comp.te); roles.push('TE'); }
   if (comp.rb1) { cands.push(comp.rb1); roles.push('RB1'); }
   if (comp.rb2) { cands.push(comp.rb2); roles.push('RB2'); }
-  const roleBase = { WR1: 1.0, WR2: 0.8, WR3: 0.52, WR4: 0.14, TE: 0.7, RB1: 0.5, RB2: 0.12 };
+  const roleBase = { WR1: 1.0, WR2: 0.8, WR3: 0.52, WR4: 0.14, TE: 0.78, RB1: 0.65, RB2: 0.16 };
   const typeMult = {
     screen:     { WR1: 0.8, WR2: 0.8, WR3: 0.7, WR4: 0.4, TE: 0.4, RB1: 3.0, RB2: 1.5 },
     pass_short: { WR1: 1.0, WR2: 1.0, WR3: 1.1, WR4: 1.0, TE: 1.35, RB1: 1.4, RB2: 1.2 },
@@ -32,8 +47,8 @@ export function pickReceiver(g, rng, comp, call) {
   const weights = cands.map((p, i) => {
     const role = roles[i];
     const skill = p.pos === 'RB' ? p.r.rec : 0.5 * p.r.rte + 0.3 * p.r.cth + 0.2 * p.r.spd;
-    let w = roleBase[role] * Math.exp((skill - 82) / 9) * (typeMult[role] ?? 1);
-    if (call === 'pass_deep' && p.pos !== 'RB') w *= Math.exp((p.r.spd - 88) / 10);
+    let w = roleBase[role] * Math.exp((skill - 82) / TARGET_SPREAD) * (typeMult[role] ?? 1);
+    if (call === 'pass_deep' && p.pos !== 'RB') w *= Math.exp((p.r.spd - 88) / TARGET_SPREAD);
     return w;
   });
   const idx = cands.indexOf(rng.weighted(cands, weights));

@@ -126,7 +126,14 @@ export const STUFF_RATE = 0.1370;
  * really did on what the engine said has a slope of 0.20: the engine's
  * differences between backs came true a fifth as much.
  */
-export const CARRIER_WEIGHT = 0.2;
+//
+// It was set at a fifth first, with a slope of 0.77, on the argument that the
+// ratings' own errors pull even a correct engine's slope under 1. That was
+// wrong: the engine knows only the ratings, so what it can be right about is
+// what a rating predicts, and an engine right about that has a slope of 1 by
+// construction. 0.16 is the weight that asks for it (DESIGN.md, "Backs,
+// receivers and tight ends, held to real seasons").
+export const CARRIER_WEIGHT = 0.16;
 export const BREAK_YDS_IN = 1.9;    // mean yards a broken tackle adds inside
 export const BREAK_YDS_OUT = 2.6;   // the same outside, where there is grass
 export const BREAKAWAY_RATE = 2.4;  // multiplier on the per-carry breakaway chance
@@ -204,7 +211,32 @@ export const SQUEEZE_YAC = 0.58;    // taken off yards after the catch
  * not also buy back the conversions, since a breakaway is rare and lands on
  * early downs as often as late.
  */
-export const PASS_BREAKAWAY = 0.024;
+export const PASS_BREAKAWAY = 0.0261;
+
+/**
+ * How much a receiver's own ratings move a throw to him, and how much a ball
+ * carrier's move a fumble.
+ *
+ * Measured the way the passer and the back were, against real seasons
+ * (DESIGN.md, "Backs, receivers and tight ends, held to real seasons"). At full
+ * weight a point of a receiver's rating moved his yards a target twice as far
+ * as the real game's and a back's 2.6 times, and almost all of it was after
+ * the catch: yards after the catch, the breakaway and the deep ball's footrace.
+ * His share of the catch itself was about right, so `RECEIVER_WEIGHT` takes
+ * off a little and `AFTER_CATCH_WEIGHT` most. The breakaway's speed term is
+ * clamped at zero, which averages above zero even between equal sides, so
+ * `PASS_BREAKAWAY` rose from 0.024 to pay back what weighting it cost at 82.
+ *
+ * Ball security moved a back's fumbles seven times as far a point as the real
+ * game's, against a fixed 82 while the tackling that strips it read a fixed
+ * 80. It reads one against the other now, at a fifth, and the base rate is the
+ * real one: 0.77 fumbles a 100 touches for backs against a real 0.79.
+ */
+export const RECEIVER_WEIGHT = 0.8;
+export const AFTER_CATCH_WEIGHT = 0.3;
+export const BALL_SECURITY = 0.2;
+const RUN_FUMBLE = 0.0085;
+const CATCH_FUMBLE = 0.00525;
 
 /**
  * How much a quarterback's own ratings move his throws, against the defence
@@ -230,7 +262,7 @@ export const PASS_BREAKAWAY = 0.024;
  * at `POCKET_WEIGHT` and his mobility not at all: real mobile quarterbacks
  * are sacked slightly more, not less (correlation +0.27 across the 58).
  */
-export const PASSER_WEIGHT = 0.45;
+export const PASSER_WEIGHT = 0.5;
 export const POCKET_WEIGHT = 0.15;
 /**
  * The passer's half of the accuracy matchup: his accuracy and awareness, in
@@ -333,7 +365,9 @@ export function resolveRun(g, rng, call, defCall) {
   let sneak = false;
   if (shortYardage && g.toGo <= 1 && !outside && comp.qb && rng.chance(0.4)) { carrier = comp.qb; sneak = true; }
   else {
-    const share = comp.rb2 ? clamp(0.28 + (comp.rb2.r.awr - comp.rb1.r.awr) / 150, 0.1, 0.45) : 0;
+    // The second back's share, by how much the staff trusts each. At /150 a point of
+    // a back's rating moved his carries far more than the real game's.
+    const share = comp.rb2 ? clamp(0.28 + (comp.rb2.r.awr - comp.rb1.r.awr) / 400, 0.1, 0.45) : 0;
     carrier = comp.rb2 && rng.chance(share) ? comp.rb2 : comp.rb1;
   }
   if (!carrier) carrier = comp.qb;
@@ -386,8 +420,8 @@ export function resolveRun(g, rng, call, defCall) {
   yards = Math.min(yards, rem);
   const td = yards >= rem;
 
-  // Fumble.
-  const fumP = clamp(0.011 * (1 + (82 - car) / 22) * (1 + (def.tackling - 80) / 60) * fumbleFactor(g.weather), 0.002, 0.05);
+  // Fumble: ball security against the tackling that tries to strip it.
+  const fumP = clamp(RUN_FUMBLE * (1 + (def.tackling - car) * BALL_SECURITY / 22) * fumbleFactor(g.weather), 0.002, 0.05);
   let fumble = !td && rng.chance(fumP);
   const tackler = pickTackler(g, defT, 'run', rng);
   let text = `${shortName(carrier)} ${sneak ? 'sneaks' : outside ? 'runs outside' : 'runs inside'} for ${yardsText(yards)}`;
@@ -492,7 +526,7 @@ export function resolvePass(g, rng, call, defCall) {
   const tSkill = target.pos === 'RB' ? target.r.rec : 0.45 * target.r.rte + 0.55 * target.r.cth;
   const passer = qb.r.tha * PASSER_MIX.tha + qb.r.awr * PASSER_MIX.awr;
   // Chemistry reaches the passing game as timing with receivers he knows.
-  const matchup = 0.6 * PASSER_WEIGHT * (passer - cov) + 0.4 * (tSkill - cov) + comp.chem - (pressured ? 9 : 0);
+  const matchup = 0.6 * PASSER_WEIGHT * (passer - cov) + 0.4 * RECEIVER_WEIGHT * (tSkill - cov) + comp.chem - (pressured ? 9 : 0);
   // `pass_short` completes more often than it used to because it IS shorter
   // now: its air yards came down from a mean of 6 to 4.5 when the passing game
   // was re-composed, and completion probability here is per call rather than
@@ -500,7 +534,7 @@ export function resolvePass(g, rng, call, defCall) {
   // though it were still the longer one.
   const baseComp = { screen: 0.78, pass_short: 0.775, pass_med: 0.615, pass_deep: 0.416, pa_pass: 0.625 }[call];
   let compP = baseComp + matchup * 0.008 + (m.comp || 0);
-  if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003;
+  if (call === 'pass_deep') compP += ((target.r.spd ?? 80) - def.defSpeed) * 0.003 * AFTER_CATCH_WEIGHT;
   // Arm strength, by how far the ball has to travel.
   //
   // This used to be a deep-ball term and nothing else, which is why `thp`
@@ -575,9 +609,9 @@ export function resolvePass(g, rng, call, defCall) {
   // real game makes up the difference after the catch rather than before it.
   const yacMean = { screen: 5.9, pass_short: 4.6, pass_med: 3.0, pass_deep: 3.4, pa_pass: 3.4 }[call] + (m.yac || 0);
   const rac = target.r.rac ?? (target.r.elu ? (target.r.elu * 0.6 + target.r.pow * 0.4) : 70);
-  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09)) * (1 - squeeze(g.ballOn) * SQUEEZE_YAC);
+  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09 * AFTER_CATCH_WEIGHT)) * (1 - squeeze(g.ballOn) * SQUEEZE_YAC);
   yac = Math.max(0, yac - sticks(g.down, g.toGo) * STICKS_YAC);
-  const baP = clamp(PASS_BREAKAWAY + Math.max(0, (target.r.spd ?? 80) - def.defSpeed) / 300 + (call === 'screen' ? 0.015 : 0), 0.004, 0.15);
+  const baP = clamp(PASS_BREAKAWAY + Math.max(0, (target.r.spd ?? 80) - def.defSpeed) / 300 * AFTER_CATCH_WEIGHT + (call === 'screen' ? 0.015 : 0), 0.004, 0.15);
   if (rng.chance(baP)) yac += rng.int(15, 45);
   let yards = Math.round(air + yac);
   yards = Math.max(yards, -g.ballOn + 1);
@@ -597,7 +631,7 @@ export function resolvePass(g, rng, call, defCall) {
   // never did catching, which is `car` meaning two different things on two
   // plays. Only backs carry the attribute; a receiver's `car` is undefined and
   // defaults to the centre, leaving him exactly where he was.
-  if (!td && rng.chance(0.005 * (1 + (82 - (target.r.car ?? 82)) / 22) * (1 + (def.tackling - 80) / 40) * fumbleFactor(g.weather))) {
+  if (!td && rng.chance(CATCH_FUMBLE * (1 + (def.tackling - (target.r.car ?? 82)) * BALL_SECURITY / 22) * fumbleFactor(g.weather))) {
     ts.rush.fum++;
     if (tackler) statFor(g.stats[defT], tackler.id).def.ff++;
     if (rng.chance(0.5)) {

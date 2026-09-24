@@ -140,10 +140,10 @@ for (const p of PLAYERS.filter((x) => REAL_QBS[x.id] && REAL_QBS[x.id][0] >= 250
   rows.push({ ovr: overall(p), e: rates(l), r: rates(REAL_QBS[p.id]) });
 }
 console.log(`${rows.length} quarterbacks from 1999 on with 250+ real attempts, each ${GAMES} games in the same average side:`);
-console.log(`  ${'rate'.padEnd(30)} engine mean / sd    real mean / sd    slope, real on engine`);
+console.log(`  ${'rate'.padEnd(30)} engine mean / sd    real mean / sd    slope, real on engine   a point of overall, engine / real`);
 for (const [k, label] of RATES) {
-  const e = rows.map((r) => r.e[k]), re = rows.map((r) => r.r[k]);
-  console.log(`  ${label.padEnd(30)} ${f2(mean(e)).padStart(6)} / ${f2(sd(e)).padEnd(8)} ${f2(mean(re)).padStart(6)} / ${f2(sd(re)).padEnd(8)} ${f2(slope(e, re)).padStart(6)}`);
+  const e = rows.map((r) => r.e[k]), re = rows.map((r) => r.r[k]), o = rows.map((r) => r.ovr);
+  console.log(`  ${label.padEnd(30)} ${f2(mean(e)).padStart(6)} / ${f2(sd(e)).padEnd(8)} ${f2(mean(re)).padStart(6)} / ${f2(sd(re)).padEnd(8)} ${f2(slope(e, re)).padStart(6)}                  ${slope(o, e).toFixed(3)} / ${slope(o, re).toFixed(3)}`);
 }
 const byO = [...rows].sort((a, b) => a.ovr - b.ovr), third = Math.ceil(byO.length / 3);
 for (const [label, rs] of [['lowest third', byO.slice(0, third)], ['highest third', byO.slice(2 * third)]]) {
