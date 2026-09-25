@@ -13,6 +13,7 @@
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall, TRUE_LEVERAGE } from './ratings.js';
 import { ownerMap, slotOf } from './transactions.js';
+import { signablePool } from './proleague.js';
 import { availability } from './injuries.js';
 
 const STARTERS = {};
@@ -36,12 +37,15 @@ export function roomIds(team, pos) {
 
 /**
  * The best free agent at each position, once, so the block does not re-sort
- * the pool twenty-seven times a club.
+ * the pool twenty-seven times a club. A man a club could actually sign: in a
+ * pro league the raw pool holds the players the drain has shown out and this
+ * year's rookies, and pricing a parting against either prices it against a
+ * replacement nobody can have.
  */
 export function bestAvailable(league, pool) {
   const owned = ownerMap(league);
   const best = {};
-  for (const p of pool) {
+  for (const p of signablePool(league, pool)) {
     if (p.retired || owned.has(p.id)) continue;
     const cur = best[p.pos];
     if (!cur || overall(p) > overall(cur)) best[p.pos] = p;

@@ -54,7 +54,8 @@
     "passing": "node scripts/pass-realism.mjs",
     "receiving": "node scripts/skill-realism.mjs",
     "drives": "node scripts/drive-realism.mjs",
-    "trenches": "node scripts/trench-realism.mjs"
+    "trenches": "node scripts/trench-realism.mjs",
+    "sweep": "node scripts/invariant-sweep.mjs"
   },
   "engines": {
     "node": ">=20"

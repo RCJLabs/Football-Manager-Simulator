@@ -378,8 +378,14 @@ export function backfillPlan(league, teamIdx, gives, gets, pool, byId) {
   }
 
   const owned = ownerMap(league);
+  // Signable men only: free agency, the wire and the kickoff fill all sign
+  // from `signablePool`, and this was the one route that did not. In a pro
+  // league it signed men the drain had shown out of the league, and it was the
+  // only way one ever reached a roster (DESIGN.md, "What the invariant sweep
+  // found").
+  const market = signablePool(league, pool);
   for (const [pos, n] of Object.entries(delta.short)) {
-    const avail = pool.filter((p) => p.pos === pos && !p.retired && !owned.has(p.id))
+    const avail = market.filter((p) => p.pos === pos && !p.retired && !owned.has(p.id))
       .sort((a, b) => overall(b) - overall(a));
     for (let i = 0; i < n; i++) {
       if (!avail[i]) return { ok: false, reason: `No free agent ${pos} left to fill ${team.abbr}'s hole` };

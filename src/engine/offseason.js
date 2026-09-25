@@ -22,8 +22,8 @@ import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex, thinCompletedLogs } from './season.js';
 import { drainVeterans, proPools, rookieClass } from './proleague.js';
 import { clearIr } from './injuries.js';
-import { addRookieClass } from './rookies.js';
-import { advanceCareers, releaseRetired, primeOf } from './careers.js';
+import { addRookieClass, leaguePool, leagueIndex } from './rookies.js';
+import { advanceCareers, releaseRetired, primeOf, careerIndex, applyCareers } from './careers.js';
 import { focusPlan, clearFocus } from './focus.js';
 // The price of a contract's length lives in terms.js, because free agency
 // needs it and this file imports free agency — importing it back would be a
@@ -277,9 +277,13 @@ export function enterOffseason(league, pool, byId) {
   // The undrafted all-timers clear out a quarter at a time. Done before the
   // keeper round so the market a club shops in is the one it will actually
   // find, rather than one that shrinks under it between screens.
+  // Everyone a club is paying is on a roster, reserve and practice squad
+  // included. Counting the slots alone let the drain show a man on injured
+  // reserve out of the league, and then `clearIr` below put him straight back
+  // in his slot.
   const left = drainVeterans(
     league,
-    new Set(league.teams.flatMap((t) => ROSTER_SLOTS.map((s) => t.slots[s.id]).filter(Boolean))),
+    new Set(league.teams.flatMap((_, i) => teamContractIds(league, i))),
     pool,
   );
   // Injured reserve empties: anyone whose slot was filled behind him is let go.
@@ -313,6 +317,15 @@ export function enterOffseason(league, pool, byId) {
   // a coach who has just been hired should be choosing for his new one.
   const carousel = jobsOn(league) ? runCarousel(league, byId, rng) : null;
   league.rngState = rng.state;
+  // Who everybody is now. The index handed in was built before careers moved
+  // and before the class arrived, and the tag's going rates and the AI's
+  // keepers — both about the season coming — were read off it: last season's
+  // players, while the keeper screen and `confirmKeepers` read this season's.
+  // A club could choose a list its own cap test passed and the real one did
+  // not. The carousel above keeps the old index on purpose: it judges the
+  // season that was played.
+  const nowById = careerIndex(league, leagueIndex(league, byId));
+  const nowPool = applyCareers(league, leaguePool(league, pool));
   league.offseason = {
     season: league.season, step: carousel && carousel.offers ? 'jobs' : 'keepers',
     keepers: {}, user: null, releasedFromIr: released,
@@ -320,7 +333,7 @@ export function enterOffseason(league, pool, byId) {
     // same figure all round and no screen pays to recompute it. After careers,
     // because a rate built on who these men were last season prices the tag
     // off a league that no longer exists.
-    rates: capOn(league) ? positionRates(league, byId) : null, tagged: {},
+    rates: capOn(league) ? positionRates(league, nowById) : null, tagged: {},
     rookies: intake.arrived.length, washedOut: intake.washed.length, leftTheLeague: left.length,
     expired: expired.length,
     aged: careers.aged,
@@ -332,7 +345,7 @@ export function enterOffseason(league, pool, byId) {
   };
   league.phase = 'offseason';
   // The keeper round waits for a coach without a club to find one.
-  if (league.offseason.step === 'keepers') pickAiKeepers(league, pool, byId);
+  if (league.offseason.step === 'keepers') pickAiKeepers(league, nowPool, nowById);
   return league.offseason;
 }
 
