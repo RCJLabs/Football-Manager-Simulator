@@ -5241,7 +5241,9 @@ speed scale, fitted on the 326 men in the pool with a combine time (28 points
 a second), that is half a point for a corner and none for a safety; a point
 and a half at most on a scale matched deviation for deviation (75 a second);
 and under six on that scale even if every snap nobody has a time for (30% and
-42% of them) went to a man a deviation slower than the average undrafted one. The engine's absence
+42% of them) went to a man a deviation slower than the average undrafted one. Linebackers and
+receivers are the same: 0.019 seconds (0.000 to 0.037, 687 games) and 0.017
+(-0.001 to 0.034, 767 games), each about half a point. The engine's absence
 test takes eight off every attribute, speed included.
 
 So the fair test holds speed and takes 9.3 off the rest, which leaves the man
@@ -5268,11 +5270,11 @@ six), every one of the corner's figures but yards an attempt is inside, and the
 absences cannot tell six from eight: the sack channel is what set the gap, and
 with speed held the corner's sacks read -0.49, inside the real interval and a
 quarter over the point COVERAGE_HOLD was fitted to. The safety does not depend
-on the gap. A real one is worth interceptions and nothing else measurable; the
-engine's is worth under half the interceptions and points he should not move,
-so any gap small enough to bring his points inside takes his interceptions out.
-That is the next thing to hold to real absences, and it is recorded here, not
-done.
+on the gap's size. A real one is worth interceptions and nothing else
+measurable; the engine's is worth under half the interceptions and points he
+should not move, so any gap small enough to bring his points inside takes his
+interceptions out. That was to be the next thing held to real absences; the
+charting further down says why it was not.
 
 **The receivers' half, tested again.** Two more ways, and neither decides it.
 Pressure and time to throw are measured on every dropback, so they carry more
@@ -5302,6 +5304,35 @@ assumes, which could be scheme as easily as skill, and nothing that sizes its
 sacks. The half stays as it is. It remains the least certain part of the term,
 and it carries about a fifth of a receiver's table worth and route running's
 place at the top of his weights.
+
+**The safety, checked before changing him.** In the engine a safety is
+coverage first. One attribute eight worse at a time, his points against come
++0.20 from coverage, +0.14 from speed, +0.08 from ball skills (which carry all
+of his interceptions, -0.10), +0.08 from awareness, +0.07 from tackling and
++0.03 from run defence. His mismatch with the real absences does not depend on
+the gap's size, but it does depend on its make-up, and PFR's charting says the
+make-up is the answer. In the 511 games from 2018 to 2024 where one starting
+safety sat out and the men who took his snaps were charted, each against the
+starter's own rates a snap that season (95% resampling team-seasons):
+
+| replacements against the starter, a snap | safeties | corners |
+| --- | --- | --- |
+| yards allowed | 0.97 (0.89 to 1.04) | 1.06 (1.01 to 1.11) |
+| targeted | 1.03 (0.96 to 1.08) | 1.02 (0.99 to 1.06) |
+| completion allowed, points | -2.0 (-4.4 to +0.4) | +1.5 (+0.2 to +2.5) |
+| interceptions | 0.82 (0.62 to 1.07) | 0.78 (0.61 to 0.99) |
+
+A real backup safety covers about as well as the starter; what he lacks, if
+anything, is the ball. The corners, 942 games, are the contrast: worse at both.
+So a starting safety's absence costs interceptions and not yards because of
+who replaces him. The engine's test, eight worse at everything but speed, does
+not describe that man, and the absences say nothing about how far a safety's
+coverage should move the passing game. The engine is left as it is, and
+COVERAGE_HOLD with it: the gap it was fitted on is wrong in make-up for corners
+too (speed nothing, coverage a little, the ball more), and refitting it on a
+test that is still wrong would not be better evidence. The same charting could
+put a size on each part of the gap, position by position, which is what a
+better absence test would need; that is not done here.
 
 **The level.** At 82 nothing moves: none of the 44 realism rows outside the
 real range, the passers' slope 1.02, the level drift from 82 to 90 -0.04, the
