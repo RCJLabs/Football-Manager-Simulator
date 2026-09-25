@@ -5274,6 +5274,35 @@ so any gap small enough to bring his points inside takes his interceptions out.
 That is the next thing to hold to real absences, and it is recorded here, not
 done.
 
+**The receivers' half, tested again.** Two more ways, and neither decides it.
+Pressure and time to throw are measured on every dropback, so they carry more
+than sacks. A starting receiver's absence moves his side's pressure -0.27
+points (-0.63 to +0.38) and its time to throw not at all (+0.000 seconds,
+-0.012 to +0.016). The engine's receiver eight worse adds 0.38 ± 0.09 to
+pressure, 0.44 from his route running alone, and 0.22 to sacks: the pressure at
+the top of the real interval, the sacks inside it. Against his own passing
+effect, which does not lean on the gap, the real ratio runs from -3.8 to +2.9
+sacks a point of adjusted net, too wide to read.
+
+Then the receivers who got open. NGS separation over what a man's depth
+predicts, his season leaving the week out, weighted by the snaps of the
+receivers who played, within team-seasons with every group's absences, the
+week and the weather held, over 4,099 team-games from 2016 to 2024. A yard more
+of it brings the ball out 0.11 seconds sooner (0.04 to 0.17) and cuts scrambles
+1.7 points (0.9 to 2.8), with the receivers' own route depth held too. On sacks
+it reads nothing (-0.16, -1.38 to +1.18), and nothing on pressure. And it fails
+the check that it is receiver quality at all: it does not raise completions
+over expected (-1.39, -2.98 to +0.76), and with tight ends counted it lowers
+them (-3.00, -5.58 to -0.31). A yard of it is worth 5.9 ± 4.6 points of the
+database's route running (47 receivers, r 0.19), so it would not have
+translated to the engine's scale anyway.
+
+So there is a time channel on the receivers' side, in the direction the term
+assumes, which could be scheme as easily as skill, and nothing that sizes its
+sacks. The half stays as it is. It remains the least certain part of the term,
+and it carries about a fifth of a receiver's table worth and route running's
+place at the top of his weights.
+
 **The level.** At 82 nothing moves: none of the 44 realism rows outside the
 real range, the passers' slope 1.02, the level drift from 82 to 90 -0.04, the
 drive model where it was. A drafted pro league throws for 5.99 adjusted net
