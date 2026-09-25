@@ -52,9 +52,16 @@
 // max it, which is what the team page's other dials already are. It is not in
 // itself unrealistic: in the real game a dropback was worth +0.007 expected
 // points in 2022-23 and a designed run -0.062, and a dropback was worth more in
-// 46 of 64 team-seasons. What keeps real teams running is defences that adjust
-// to how often an offence throws, and the engine's never do, so throwing more
-// has no price; that is recorded rather than done. The passing game's own heat
+// 46 of 64 team-seasons. This said that what keeps real teams running is
+// defences that adjust to how often an offence throws, which the engine's
+// never do. Measured, real defences do adjust and it costs next to nothing
+// (DESIGN.md, "The pass/run read"): against an offence that throws ten points
+// more than expected in its other games, the same defence puts 0.11 fewer men
+// in the box and 0.09 more defensive backs on the field, which costs its
+// dropbacks about 0.004 expected points and gives its runs 0.006, where a
+// neutral early-down dropback is worth 0.19 more than a designed run. So the
+// real game's incentive is one-ended too, and a defence that adjusted as real
+// ones do would not move this read. The passing game's own heat
 // is mostly gone: drafted leagues throw for 7.8 yards an attempt against a
 // real 7.1, from 8.1.
 //
