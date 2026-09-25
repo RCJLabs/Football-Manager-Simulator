@@ -12,7 +12,7 @@ import { autoDepth } from '../../engine/season.js';
 import { focusOn, focusOf, namedFocus, toggleFocus, resetFocus, ageOf, FOCUS_SLOTS } from '../../engine/focus.js';
 import { careerPhase, primeOf, rootOf } from '../../engine/careers.js';
 import { teamContractIds } from '../../engine/cap.js';
-import { movesOpen, candidatesFor, convertPlayer } from '../../engine/convert.js';
+import { movesOn, movesOpen, candidatesFor, convertPlayer, moveOptions, swapPositions, positionsFor } from '../../engine/convert.js';
 import { SETTLING } from '../../engine/translate.js';
 
 // Grouped by what each one was measured to be worth, because presenting five
@@ -306,7 +306,7 @@ export function view(root, params, ctx) {
       return;
     }
     const show = e.target.closest('[data-show]');
-    if (show) { playerModal(ctx.byId.get(show.dataset.show)); return; }
+    if (show) { showPlayer(ctx.byId.get(show.dataset.show)); return; }
     const ir = e.target.closest('[data-ir]');
     if (ir && canEdit) {
       const p = ctx.byId.get(ir.dataset.ir);
@@ -407,6 +407,57 @@ export function view(root, params, ctx) {
         m.close();
       } catch (err) { toast(err.message); }
     });
+  }
+
+  /**
+   * The player's card, with a way to change his position when he is ours and
+   * his skills translate. It used to be reachable only from an empty slot on
+   * the depth chart, and after a draft every slot is full, so the feature was
+   * there and nobody could find it. The card says why when it cannot be done:
+   * a fantasy league (no cap to price the move), the setting off, the calendar.
+   */
+  function showPlayer(p) {
+    if (!p) return;
+    const ours = canEdit && (ROSTER_SLOTS.some((sl) => team.slots[sl.id] === p.id) || squadList(team).includes(p.id));
+    const m = playerModal(p, ours ? positionBlock(p) : '');
+    if (!ours) return;
+    m.el.addEventListener('click', (e) => {
+      const mv = e.target.closest('[data-pmove]');
+      const sw = e.target.closest('[data-pswap]');
+      if (!mv && !sw) return;
+      let res;
+      if (mv) ctx.update((st) => { res = convertPlayer(st.league, idx, p.id, mv.dataset.pmove, ctx.byId); });
+      else ctx.update((st) => { res = swapPositions(st.league, idx, p.id, sw.dataset.pswap, ctx.byId); });
+      m.close();
+      if (!res?.ok) { toast(res?.reason || 'That move is not possible'); return; }
+      if (mv) toast(`${p.name} moves to ${res.to}${res.premium ? ` — +$${res.premium} a year` : ''}${res.opened ? `; ${res.opened} is open` : ''}`);
+      else toast(`${p.name} moves to ${res.a.to} and ${ctx.byId.get(sw.dataset.pswap)?.name || 'he'} to ${res.b.to}${res.premium ? ` — +$${res.premium} a year` : ''}`);
+    });
+  }
+
+  function positionBlock(p) {
+    const targets = positionsFor(p).filter((pos) => pos !== p.pos);
+    if (!targets.length) return '';
+    const head = '<h3 style="margin:.9rem 0 .3rem">Position</h3>';
+    const list = targets.join(' or ');
+    if (!movesOn(league)) {
+      return head + `<p class="muted">His skills translate to ${esc(list)}, but ${league.mode === 'pro' ? 'position changes are switched off in this league (Settings).' : 'position changes are a pro-league feature: a move up the market is paid for, which needs a salary cap.'}</p>`;
+    }
+    if (!movesOpen(league)) return head + `<p class="muted">He can play ${esc(list)}. Position changes open in season, once it is over, and in the offseason's keeper round and market.</p>`;
+    const rows = moveOptions(league, idx, p.id, ctx.byId).map((o) => {
+      const rating = o.home ? `back home: <b>${o.settled}</b>` : `<b>${o.first}</b> first season, <b>${o.settled}</b> settled`;
+      const prem = o.premium ? ` · <span class="badge warn">+$${o.premium} a year</span>` : '';
+      let act;
+      if (o.reason) act = `<small class="muted">${esc(o.reason)}</small>`;
+      else if (o.open) act = `<button class="btn sm primary" data-pmove="${esc(o.open)}">Move to ${esc(o.open)}</button>`;
+      else if (o.swaps.some((w) => !w.reason)) {
+        act = o.swaps.map((w) => (w.reason
+          ? `<small class="muted" style="display:block">${esc(w.name || w.slot)}: ${esc(w.reason)}</small>`
+          : `<button class="btn sm" style="margin:.15rem .3rem .15rem 0" data-pswap="${esc(w.id)}">Swap with ${esc(w.name)}, ${esc(w.slot)}${w.theirs ? ` (${w.theirs.first} first season at ${esc(p.pos)}${w.theirs.premium ? `, +$${w.theirs.premium}` : ''})` : ''}</button>`)).join('');
+      } else act = `<small class="muted">Every ${esc(o.pos)} slot is full. Open one first — send a man there down, put an injured one on injured reserve, or drop one for a free agent on the <a href="#/moves">moves page</a> — then move him in.</small>`;
+      return `<li style="margin:.35rem 0"><b>${esc(o.pos)}</b> · ${rating}${prem}<div style="margin-top:.2rem">${act}</div></li>`;
+    });
+    return head + `<p class="muted" style="margin:0 0 .3rem">Learning a new position costs ${SETTLING[0]} on every skill in his first season there and ${SETTLING[1]} in his second. A move to a position the market pays more for raises his salary by the difference for the rest of his deal.</p><ul style="list-style:none;padding:0;margin:0">${rows.join('')}</ul>`;
   }
 
   /**

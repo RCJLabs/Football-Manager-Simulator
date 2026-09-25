@@ -1345,6 +1345,35 @@ try {
       }
     }
 
+    // Position changes from the player's card. The only way in used to be a
+    // button on an EMPTY depth-chart slot, and a drafted roster has none, so
+    // the feature was there and a player could not find it. A pro league's
+    // keeper round has moves open; a defensive back's card has to offer one.
+    {
+      const { u, id } = await page.evaluate(() => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        const st = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active));
+        const i = st.league.teams.findIndex((t) => t.isUser);
+        const sl = st.league.teams[i].slots;
+        return { u: i, id: sl.S1 || sl.S2 || sl.CB1 || sl.CB2 };
+      });
+      await page.goto(`http://localhost:${port}/#/team/${u}/depth`);
+      await page.reload();
+      await sleep(600);
+      const card = id && await page.$(`[data-show="${id}"]`);
+      if (!card) errors.push('could not open a defensive back to change his position');
+      else {
+        await card.click();
+        await sleep(300);
+        const offer = await page.evaluate(() => document.querySelectorAll('.modal [data-pswap], .modal [data-pmove]').length);
+        if (!offer) errors.push('a defensive back\'s card in a pro league offers no position change');
+        await checkOverflow('player card with a position change');
+        await shot('16b-position');
+        const close = await page.$('[data-close]');
+        if (close) await close.click();
+      }
+    }
+
     // The free-agent market with contract lengths: the bid dialog offers a
     // length, moving it moves the asking price and the amount with it, and the
     // offer that goes in is the length chosen. Built from the same league,

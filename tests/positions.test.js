@@ -15,7 +15,7 @@ import {
   CONVERSIONS, GROUP, canMove, estimateFor, guessError, fillFor, movedBase, settlingCost,
   UNTRAINED, SETTLING, MAX_GUESS,
 } from '../src/engine/translate.js';
-import { movesOn, movesOpen, firstSeason, asAt, movePremium, moveBlocker, candidatesFor, convertPlayer } from '../src/engine/convert.js';
+import { movesOn, movesOpen, firstSeason, asAt, movePremium, moveBlocker, candidatesFor, convertPlayer, moveOptions, swapPositions, swapBlocker } from '../src/engine/convert.js';
 
 registerPlayers(rawById);
 
@@ -125,6 +125,66 @@ test('a club moves its own man into an open slot, pays the premium, and his old 
   assert.equal(index().get(sId).pos, 'S');
   assert.equal(index().get(sId).settling, undefined);
   assert.equal(lg.contracts[sId].salary, salary + premium, 'a move down refunded the premium');
+});
+
+// After a draft every slot is full, and the depth chart only offered a move on
+// an empty one, so the feature was there and could not be found. The player's
+// card reads `moveOptions`, which has to offer something on a full chart.
+test('a full depth chart still offers a move: a safety and a corner trade places', () => {
+  const { lg, u, index } = league(81, { open: null });
+  const byId = index();
+  const t = lg.teams[u];
+  const sId = t.slots.S1, cbId = t.slots.CB1;
+  assert.ok(ROSTER_SLOTS.every((sl) => t.slots[sl.id]), 'the chart is not full');
+  const opt = moveOptions(lg, u, sId, byId).find((o) => o.pos === 'CB');
+  assert.ok(opt, 'a safety is not offered corner');
+  assert.equal(opt.open, null);
+  assert.equal(opt.reason, null, opt.reason);
+  const w = opt.swaps.find((x) => x.id === cbId);
+  assert.ok(w && !w.reason, w?.reason || 'the corner is not offered as a swap');
+  assert.equal(w.theirs.settled, overall(asAt(lg, byId.get(cbId), 'S').view));
+  const sSal = lg.contracts[sId].salary, cSal = lg.contracts[cbId].salary;
+  const premium = movePremium(lg, byId.get(sId), 'CB') + movePremium(lg, byId.get(cbId), 'S');
+  const res = swapPositions(lg, u, sId, cbId, byId);
+  assert.equal(res.ok, true, res.reason);
+  assert.equal(t.slots.CB1, sId);
+  assert.equal(t.slots.S1, cbId);
+  assert.equal(res.premium, premium);
+  assert.equal(lg.contracts[sId].salary + lg.contracts[cbId].salary, sSal + cSal + premium);
+  assert.equal(lg.moves[sId].to, 'CB');
+  assert.equal(lg.moves[cbId].to, 'S');
+  assert.equal(lg.transactions.filter((x) => x.type === 'position').length, 2);
+  const after = index();
+  assert.equal(after.get(sId).pos, 'CB');
+  assert.equal(after.get(cbId).pos, 'S');
+  // And back again: both go home, with no refund.
+  const back = swapPositions(lg, u, sId, cbId, after);
+  assert.equal(back.ok, true, back.reason);
+  assert.equal(lg.moves[sId], undefined);
+  assert.equal(lg.moves[cbId], undefined);
+});
+
+test('the card says why when a full position cannot be swapped into, and offers the open slot when there is one', () => {
+  const { lg, u, index } = league(81, { open: 'CB2' });
+  const byId = index();
+  const t = lg.teams[u];
+  const opt = moveOptions(lg, u, t.slots.S1, byId).find((o) => o.pos === 'CB');
+  assert.equal(opt.open, 'CB2');
+  assert.equal(opt.reason, null, opt.reason);
+  // A tight end can go to receiver, but no receiver can come back: every swap
+  // carries its reason, and the card falls back to saying how to open a slot.
+  const full = league(82, { open: null });
+  const te = full.lg.teams[full.u].slots.TE1;
+  const wr = moveOptions(full.lg, full.u, te, full.index()).find((o) => o.pos === 'WR');
+  assert.ok(wr && wr.open === null && wr.swaps.length === 4);
+  for (const x of wr.swaps) assert.match(x.reason, /do not translate/);
+  assert.match(swapBlocker(full.lg, full.u, te, full.lg.teams[full.u].slots.WR1, full.index()), /do not translate/);
+  // No cap, no position changes: a fantasy league's card says so rather than offering nothing.
+  const fl = createLeague({ name: 'F', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 83, draftType: 'snake' });
+  autoDraftAll(fl, fl.draft, PLAYERS, new RNG(83));
+  startSeason(fl, rawById);
+  assert.equal(movesOn(fl), false);
+  assert.deepEqual(moveOptions(fl, userTeamIndex(fl), fl.teams[userTeamIndex(fl)].slots.S1, careerIndex(fl, leagueIndex(fl, rawById))), []);
 });
 
 test('what stops a move', () => {

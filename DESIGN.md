@@ -2993,6 +2993,23 @@ which proves nothing; rewritten as valid code it is caught by the ceiling
 test. Pro leagues only, since the premium needs a cap; on for new leagues and
 off for existing ones until switched on in settings.
 
+**Where a player finds it.** For its first life the only way in was a "Move a
+man here" button on an empty depth-chart slot. Every slot at corner, safety,
+linebacker, the line and tight end is a starter's, so after a draft a club has
+no empty one: the feature was there and the person playing it could not find
+it. The player's card now carries a Position section for a man of your own
+whose skills translate (`moveOptions`): what he would be at each position he
+can play, first season and settled, and the premium; a button to move him when
+a slot there is open; and, since safety and corner translate both ways, a swap
+with the man in the other slot (`swapPositions`), each half a move with its own
+settling and premium and the two premiums together inside the cap in season,
+which is how a club with a full chart moves anybody at all. When neither is
+possible it says how to open a slot. In a fantasy league, or with the setting
+off, it says why there is nothing to do rather than showing nothing, and out of
+season it says when the window opens. Two more tests cover the swap and the
+card's options, and the smoke test opens a defensive back's card in a pro
+keeper round and requires an offer.
+
 ## Difficulty (`difficulty.js`)
 
 There was no difficulty setting at all: every league ran the same fixed spread of general managers, so a manager who had learned where value hides beat the room every year with no dial to turn.
