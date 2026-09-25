@@ -57,6 +57,17 @@
 // neither is taken. Jim Ringo '61, whom the line's move put a point under his
 // Hall of Fame floor, was rated below every centre of his time and is corrected
 // rather than recorded, as the record's own rule for a five-point nudge asks.
+//
+// And once the pocket read the lines (DESIGN.md, "The pocket, held to real
+// absences"), which put what a catch gains after it on the protection against
+// the rush: the line measured pass blocking at 5.2 times run blocking and went
+// the whole way, which the record allows and generated players' production
+// neither asks for nor objects to (-0.001, -0.003 to +0.001). The defensive
+// line and the edge rusher measured more pass rush again, and generated
+// players again rank better on more run defence at every step, so they stay.
+// The tight end measured blocking at 0.39 and generated players agree, but
+// the record will not have it: an eighth puts Brock Bowers '24 three points
+// under his floor, the receiving tight end the real game pays for.
 export const POSITIONS = {
   QB: { name: 'Quarterback',   attrs: ['thp', 'tha', 'awr', 'mob'],
         weights: { tha: 0.40, awr: 0.35, thp: 0.17, mob: 0.08 } },
@@ -67,7 +78,7 @@ export const POSITIONS = {
   TE: { name: 'Tight End',     attrs: ['spd', 'cth', 'rte', 'rac', 'blk'],
         weights: { cth: 0.25, blk: 0.25, rte: 0.20, rac: 0.20, spd: 0.10 } },
   OL: { name: 'Offensive Line', attrs: ['pbk', 'rbk', 'awr'],
-        weights: { pbk: 0.60, rbk: 0.24, awr: 0.16 } },
+        weights: { pbk: 0.69, awr: 0.18, rbk: 0.13 } },
   DL: { name: 'Defensive Line', attrs: ['prs', 'rsd', 'tck', 'awr'],
         weights: { prs: 0.60, rsd: 0.21, tck: 0.11, awr: 0.08 } },
   // `edgeWeights` is the same position doing a different job -- see `edgeness`
