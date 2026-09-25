@@ -50,9 +50,12 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * and he fell from 16.13 to 9.02 (DESIGN.md, "Backs, receivers and tight ends,
  * held to real seasons"). A fourth time once the drive around them was held
  * to real play-by-play, at 8.68 (DESIGN.md, "The drive model, held to real
- * play-by-play"). The audit replays the table now, and four scripts replay
- * the run game, the passing game, the receivers and the drive against the
- * real one.
+ * play-by-play"). A fifth once the lines were held to real absences, which
+ * halved the offensive line's worth and took a quarter to a third off the
+ * defensive line, the linebacker and the tight end (DESIGN.md, "The trenches,
+ * held to real absences"). The audit replays the table now, and five scripts
+ * replay the run game, the passing game, the receivers, the drive and the
+ * lines against the real one.
  *
  * The absolute scale is not free, even though the price guide normalises it
  * away. `lineupStrength` in transactions.js sums overall × leverage raw, and
@@ -71,11 +74,15 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  *
  * Which bargains, exactly, is not what it looks like, and `positionValue()`
  * below is the honest answer rather than the intuition. Cheap is not the same
- * as underpriced: linemen have low glamour and low leverage together, and come
- * out overpaid. Normalised against each other the underpaid positions are the
- * corner and the offensive line; the quarterback is about right, and the
- * traps are the receiver and the back. The strategy table in DESIGN.md is
- * where that is tested against the buyers who bid on something else.
+ * as underpriced: linemen have low glamour and low leverage together. Once
+ * the lines were held to real absences the offensive line came out about
+ * right rather than a bargain, and the defensive line and the linebacker
+ * overpaid. Normalised against each other the one underpaid position is the
+ * corner; the quarterback, the tight end, the safety and the offensive line
+ * are about right, and the trap is the receiver above all, with the back
+ * and the defensive line level behind him.
+ * The strategy table in DESIGN.md is where that is tested against the buyers
+ * who bid on something else.
  */
 // Lives in ratings.js so `teamPower` can weight a lineup by it without this
 // file and that one importing each other; re-exported here because this is
@@ -108,9 +115,11 @@ const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) =
  * It was 0.05 until the table measured on the drive model put the punter's
  * stake at 0.0499: half a hundredth more on his table weight, which is
  * measured to ± 0.18, and the board would have called him the best buy on it.
- * The kicker and the punter stand at 0.045 and 0.050 and the next position,
+ * The kicker and the punter stood at 0.045 and 0.050 and the next position,
  * the back, at 0.100, so the line sits in the gap between them rather than at
- * the edge of one side.
+ * the edge of one side. On the table after the lines were held to real
+ * absences they stand at 0.048 and 0.061 and the next, the tight end, at
+ * 0.092: still the gap.
  */
 export const MATTERS_AT = 0.075;
 

@@ -30,7 +30,10 @@ const playWeeks = (lg, n, seed = 4) => {
 test('a free agent is ranked by what he adds, not by his rating', () => {
   const lg = league(3);
   const u = user(lg);
-  const board = faBoard(lg, PLAYERS, byId, u, { limit: 400 });
+  // The whole board: the best-rated free agent can be a punter whose gain puts
+  // him far down it (Jack Fox, 493rd of 1,176 once the rating weights were
+  // re-measured on the held lines), which a 400-row window cannot see.
+  const board = faBoard(lg, PLAYERS, byId, u, { limit: Infinity });
   assert.ok(board.total > 0);
   assert.equal(board.claims, waiverLimit(lg));
   // Sorted by gain, rating only breaking ties.

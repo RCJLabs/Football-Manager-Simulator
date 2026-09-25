@@ -260,8 +260,17 @@ export function composites(lineup) {
  * The kicker rose from 1.50 to 1.87 and the offensive line from 3.19 to 3.53,
  * and the defensive line fell from 3.90 to 3.60 and the corner from 4.52 to
  * 4.15, none of it isolated.
+ *
+ * Set a fifth time once the lines were held to real absences (DESIGN.md, "The
+ * trenches, held to real absences"): a carry had read the two lines three to
+ * six times as far as the real game's, and reads them at a quarter now. In
+ * raw margin a lineman lost half his value and a defensive lineman, a
+ * linebacker and a tight end about a quarter to a third, and nothing else
+ * moved outside its noise; the table keeps its total, so every other position
+ * rose with the room they left. The offensive line is 2.21, the lowest of any
+ * starter; the quarterback 11.16 (± 0.64 between rosters), 2.1 backs.
  */
-export const TRUE_LEVERAGE = { QB: 8.68, TE: 4.43, RB: 4.17, CB: 4.15, DL: 3.60, OL: 3.53, LB: 3.49, S: 3.08, WR: 2.75, P: 2.09, K: 1.87 };
+export const TRUE_LEVERAGE = { QB: 11.16, RB: 5.37, CB: 5.32, TE: 4.28, WR: 3.55, S: 3.48, DL: 3.16, LB: 2.90, P: 2.84, K: 2.23, OL: 2.21 };
 
 /**
  * How strong a lineup is, on the 40..99 rating scale.

@@ -10,7 +10,7 @@ import { leaguePool } from '../src/engine/rookies.js';
 import { enterOffseason, confirmKeepers, aiKeepers, takeJob, closeFreeAgency } from '../src/engine/offseason.js';
 import {
   remainingPicks, usablePicks, validatePickTrade, executePickTrade, projectPickTrade, pickOwner,
-  pickOfferCandidates, FUTURE_BUDGET, OFFER_BUDGET,
+  pickOfferCandidates, FUTURE_BUDGET, OFFER_BUDGET, MAX_SHORT,
 } from '../src/engine/draftpicks.js';
 import { lineupStrength } from '../src/engine/transactions.js';
 import {
@@ -166,7 +166,22 @@ test('a deal can carry both kinds, and the projection counts both', () => {
 });
 
 test('a future pick does not count towards finishing the draft short', () => {
-  const lg = secondDraft(9);
+  // A second draft where the user's club is not over the limit on finishing
+  // short already, and is within two men of it, so that counting the two
+  // future picks below would take it over and the test can fail. Seed 9's club
+  // had a pick to spare, where counting them could not have failed it, until
+  // the rating weights were re-measured on the held lines; then it went into
+  // the draft four men short, where it could not trade at all.
+  const shortOf = (lg) => {
+    const me = userTeamIndex(lg);
+    return openSlots(lg.teams[me]).length - remainingPicks(lg.draft, me).length;
+  };
+  let lg;
+  for (const seed of [9, 10, 11, 12, 13]) {
+    lg = secondDraft(seed);
+    if (shortOf(lg) > MAX_SHORT - 2 && shortOf(lg) <= MAX_SHORT) break;
+  }
+  assert.ok(shortOf(lg) > MAX_SHORT - 2 && shortOf(lg) <= MAX_SHORT, `no seed put the user's club within two of the limit (${shortOf(lg)} short)`);
   const d = lg.draft;
   const u = userTeamIndex(lg);
   const them = lg.teams.map((_, i) => i).find((i) => i !== u && remainingPicks(d, i).length);

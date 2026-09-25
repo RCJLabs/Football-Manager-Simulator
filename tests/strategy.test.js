@@ -162,7 +162,7 @@ test('what the team page claims for moving the dial is what was measured', () =>
   const reads = lg.teams.map((_, i) => strategyRead(lg, i, PLAYERS_BY_ID));
   const tilted = reads.find((r) => !r.even);
   assert.ok(tilted);
-  assert.match(tilted.strength, /half a point to three-quarters of a point/);
+  assert.match(tilted.strength, /four-tenths to seven-tenths of a point/);
   assert.doesNotMatch(tilted.strength, /to a point a game/);
 });
 

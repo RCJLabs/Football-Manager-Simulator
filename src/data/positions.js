@@ -41,19 +41,33 @@
 // rushers stop it. The edge vector moved everywhere but its pass rush, which
 // the record will not let fall by a hundredth (Terrell Suggs sits on his bar).
 // The receiver and the safety measured a long way off on the field and did not
-// move: the vectors the field asks for predict a generated player's production
-// no better than these, so the two readings disagree and neither is taken.
+// move then, on a check that turned out to be too noisy to decide it (below).
+//
+// Re-measured again once the lines were held to real absences (DESIGN.md, "The
+// trenches, held to real absences"), which turned the offensive line from run
+// blocking at 1.7 times pass blocking to pass blocking at 3.8 times run
+// blocking. The line went three quarters of the way, the off-ball linebacker the
+// whole way (run defence 0.35 -> 0.16), the safety five eighths and the
+// receiver the whole way. The check against generated players' production had
+// read each man over 600 games once, and on independent games the same
+// comparison moved by as much as 0.04; averaged over 3,000 it agrees with the
+// field at all four. The defensive line and the edge rusher stay: there the
+// generated players rank better on more run defence, not less, on every run of
+// games, against the field's reading, so the two authorities disagree and
+// neither is taken. Jim Ringo '61, whom the line's move put a point under his
+// Hall of Fame floor, was rated below every centre of his time and is corrected
+// rather than recorded, as the record's own rule for a five-point nudge asks.
 export const POSITIONS = {
   QB: { name: 'Quarterback',   attrs: ['thp', 'tha', 'awr', 'mob'],
         weights: { tha: 0.40, awr: 0.35, thp: 0.17, mob: 0.08 } },
   RB: { name: 'Running Back',  attrs: ['spd', 'elu', 'pow', 'awr', 'rec', 'car'],
         weights: { spd: 0.30, elu: 0.19, awr: 0.19, pow: 0.14, car: 0.08, rec: 0.10 } },
   WR: { name: 'Wide Receiver', attrs: ['spd', 'cth', 'rte', 'rac'],
-        weights: { spd: 0.30, cth: 0.26, rte: 0.25, rac: 0.19 } },
+        weights: { cth: 0.38, spd: 0.33, rte: 0.20, rac: 0.09 } },
   TE: { name: 'Tight End',     attrs: ['spd', 'cth', 'rte', 'rac', 'blk'],
         weights: { cth: 0.25, blk: 0.25, rte: 0.20, rac: 0.20, spd: 0.10 } },
   OL: { name: 'Offensive Line', attrs: ['pbk', 'rbk', 'awr'],
-        weights: { pbk: 0.45, rbk: 0.45, awr: 0.10 } },
+        weights: { pbk: 0.60, rbk: 0.24, awr: 0.16 } },
   DL: { name: 'Defensive Line', attrs: ['prs', 'rsd', 'tck', 'awr'],
         weights: { prs: 0.60, rsd: 0.21, tck: 0.11, awr: 0.08 } },
   // `edgeWeights` is the same position doing a different job -- see `edgeness`
@@ -61,12 +75,12 @@ export const POSITIONS = {
   // he is, so the pool does not have to be hand-tagged and a man who grows into
   // a rusher is re-priced as one without anybody editing a file.
   LB: { name: 'Linebacker',    attrs: ['spd', 'tck', 'rsd', 'cov', 'prs', 'awr'],
-        weights:     { rsd: 0.35, cov: 0.19, tck: 0.18, awr: 0.17, prs: 0.06, spd: 0.05 },
+        weights:     { cov: 0.28, tck: 0.23, rsd: 0.16, awr: 0.16, prs: 0.10, spd: 0.07 },
         edgeWeights: { prs: 0.45, rsd: 0.23, tck: 0.17, awr: 0.09, spd: 0.06, cov: 0.00 } },
   CB: { name: 'Cornerback',    attrs: ['spd', 'cov', 'bal', 'tck', 'awr'],
         weights: { cov: 0.51, bal: 0.19, spd: 0.16, awr: 0.09, tck: 0.05 } },
   S:  { name: 'Safety',        attrs: ['spd', 'cov', 'bal', 'tck', 'rsd', 'awr'],
-        weights: { cov: 0.34, tck: 0.24, spd: 0.14, bal: 0.12, rsd: 0.12, awr: 0.04 } },
+        weights: { cov: 0.36, tck: 0.17, bal: 0.16, spd: 0.14, awr: 0.09, rsd: 0.08 } },
   K:  { name: 'Kicker',        attrs: ['kpw', 'kac'],
         weights: { kac: 0.50, kpw: 0.50 } },
   P:  { name: 'Punter',        attrs: ['ppw', 'pac'],

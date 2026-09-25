@@ -695,7 +695,7 @@ export const RAW = {
     ['Mike Wahle', 2004, 'GB', 80, 84, 78],
     ['Ron Mix', 1963, 'SD', 85, 79, 77],
     ['Rodney Hudson', 2019, 'OAK', 82, 80, 86],
-    ['Jim Ringo', 1961, 'GB', 80, 82, 86],
+    ['Jim Ringo', 1961, 'GB', 84, 86, 86],
     ['Jesse Sapolu', 1994, 'SF', 80, 82, 86],
     ['Dave Rimington', 1985, 'CIN', 80, 82, 84],
     ['Barret Robbins', 2002, 'OAK', 78, 84, 84],

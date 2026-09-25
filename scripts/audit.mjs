@@ -88,7 +88,7 @@ const CHECKS = [
     // produces is fixed before a snap, and nothing in-season can move it.
     extract: /=== AUCTION[\s\S]*?roster quality \(leverage-weighted\): sd ([\d.]+)/,
     doc: /a standard deviation of ([\d.]+) under the auction/,
-    expect: 40.2, tol: 0.5,
+    expect: 33.0, tol: 0.5,
     why: 'the number the auction exists to produce; the win figure it replaced drifted from 7.4 to 8.6 to 9.1 on noise alone. Weighed by the shipped table since 2026-09-24, where it used to carry a stale copy of the first one',
   },
   {
@@ -97,7 +97,7 @@ const CHECKS = [
     script: 'yardstick-fit', args: ['QB', '500', '24'],
     extract: /overall vs point differential:\s+r = ([\d.]+)/,
     doc: /\| QB \| \*\*r = ([\d.]+)\*\*/,
-    expect: 0.975, tol: 0.015,
+    expect: 0.978, tol: 0.015,
     why: 'the table under "do not rebuild it"',
   },
   {
@@ -106,8 +106,8 @@ const CHECKS = [
     script: 'yardstick-fit', args: ['CB', '500', '24'],
     extract: /overall vs point differential:\s+r = ([\d.]+)/,
     doc: /\| CB \| \*\*r = ([\d.]+)\*\*/,
-    expect: 0.975, tol: 0.02,
-    why: "for most of this file's life the harness scored a man by his own team's points, which a corner barely affects — he read 0.72 there and 0.82 overall, and two commits were written about a weakness that was the instrument. Against the opponent's points he reads -0.976",
+    expect: 0.951, tol: 0.02,
+    why: "for most of this file's life the harness scored a man by his own team's points, which a corner barely affects — he read 0.72 there and 0.82 overall, and two commits were written about a weakness that was the instrument. Against the opponent's points he reads -0.976. Holding the lines to real absences took it from 0.975 to 0.951 with his weights unchanged: his range narrowed from 5.6 points to 4.7, most of it in what his own side scores",
   },
   // Deliberately not registered: the line, the receiver and the punter. Their
   // entries in the yardstick table need 1500 games a man before they hold still
@@ -120,8 +120,8 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /normal\s+([\d.]+) injuries/,
     doc: /\| normal \| ([\d.]+) \| [\d.]+ \| [\d.]+ \| [\d.]+% of weeks \|/,
-    expect: 1.15, tol: 0.15,
-    why: 'the left-hand column of the injury table, which is the injury model itself',
+    expect: 1.34, tol: 0.1,
+    why: 'the left-hand column of the injury table, which is the injury model itself. Over a thousand games since 2026-09-25: at three hundred the default carried about 0.07 of noise, and a change to the engine that re-drew the random stream moved it from 1.20 to 1.39 with nothing in the injury model touched, while the table had quoted 1.15 from an engine with fewer snaps a game',
   },
   {
     name: 'how much of a club is missing at the default setting',
@@ -137,7 +137,7 @@ const CHECKS = [
     script: 'yardstick-fit', args: ['CB', '500', '24', 'rookies'],
     extract: /overall vs point differential:\s+r = ([\d.]+)/,
     doc: /\| CB \| 500 \| [\d.]+ \| \*\*([\d.]+)\*\* \|/,
-    expect: 0.968, tol: 0.02,
+    expect: 0.961, tol: 0.02,
     why: "the shipped pool is collinear enough that almost any monotone weighting scores well on it, so the headline yardstick numbers are weak evidence the weights are RIGHT. This is the same fit against independently scattered attributes, where they have to earn it. CB rather than DL because DL needs 1500 games a man and this check runs beside twenty others",
   },
   {
@@ -161,8 +161,8 @@ const CHECKS = [
     cost: 'slow',
     script: 'injury-sim', extract: /pro\s+normal\s+[\d.]+ games a club · ([\d.]+) starter-weeks/,
     doc: /\| pro \| normal \| 17\.0 \| ([\d.]+) \|/,
-    expect: 5.4, tol: 0.5,
-    why: "the high-count figure in the pro injury table, and the one that shows the 17-game season costing about 1.2x the 14-game one. It has read 5.1, 5.8 and 5.4 on the drafts of three successive tables and weights, so the band is half a starter-week; the drive model's extra snaps account for about 5% of any rise, since injury risk is per snap. NOT the season-enders column beside it, which reads 0.10 over ten fantasy seasons and 0.17 over forty and is too thin at this sample to compare across modes",
+    expect: 5.7, tol: 0.5,
+    why: "the high-count figure in the pro injury table, and the one that shows the 17-game season costing about 1.2x the 14-game one. It has read 5.1, 5.8, 5.4 and 5.7 on the drafts of four successive tables and weights, so the band is half a starter-week; the drive model's extra snaps account for about 5% of any rise, since injury risk is per snap. NOT the season-enders column beside it, which reads 0.10 over ten fantasy seasons and 0.17 over forty and is too thin at this sample to compare across modes",
   },
   {
     name: 'the re-sign premium still un-dominates the keeper round',
@@ -206,7 +206,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'weather-sim', args: ['arms'], extract: /the starting quarterback's arm ([\d.]+)/,
     doc: /start an ([\d.]+) arm \(sd/,
-    expect: 89.9, tol: 0,
+    expect: 89.8, tol: 0,
     why: "taken at the formulas' 82 instead, weather lifted league completion by 0.13 points, because the wind costs a strong arm less than the means assumed. tol 0 is earned: eight fixed-seed drafts and a read of their ratings, no simulation",
   },
   {
@@ -214,7 +214,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'weather-sim', args: ['arms'], extract: /the kicker's leg ([\d.]+)/,
     doc: /and an ([\d.]+) leg \(sd/,
-    expect: 87.7, tol: 0,
+    expect: 87.6, tol: 0,
     why: 'the same for kicking range, where a mean taken at an 80 leg sits 0.07 yards off',
   },
   {
@@ -229,7 +229,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'pass-rate', args: ['read', '8', '150', '8', '41'], extract: /the read as it is \(strategy\.js\)\s+([+-]?[\d.]+)/,
     doc: /The audit re-measures it on eight of those leagues[^+]*\+([\d.]+)/,
-    expect: 0.71, tol: 0.4,
+    expect: 0.70, tol: 0.4,
     why: 'the read has gone stale twice: measured once at +0.98 and left behind a dozen engine changes, then refitted to an engine whose backs were worth far too much, where it told nearly every squad to run and scored +0.77, and -1.17 once the run game matched real carries. It tells every squad to throw, worth +1.04 on that engine, +0.68 once the passer and the receivers were held to real seasons and +0.71 once the drive was held to real play-by-play. This plays it: eight eight-club leagues, 150 games a club at each setting, about ninety seconds; a band rather than tol 0 because any engine change moves a deterministic figure a little',
   },
   {
@@ -237,15 +237,15 @@ const CHECKS = [
     cost: 'slow',
     script: 'dials', args: ['aggression', '4', '100', 'pro', '41'], extract: /every club at 0\.8: ([+-]?[\d.]+)/,
     doc: /The audit now replays the pro leagues[^+]*\+([\d.]+)/,
-    expect: 0.33, tol: 0.3,
-    why: 'the team page tells the player that going for it more is worth about a third of a point a game four-fifths of the way up the dial, and no more at the top. The first measurement had it helping only a strong offence with a poor kicker; later it helped every squad by a point and a quarter at the top, two-thirds once the run game matched real carries and every squad threw, and half that once the fourth-down call itself was fitted to real coaches, when the best setting moved off the top. It read +0.66 at the top here before the drive model; +0.56 at the top and +0.48 at 0.8 on it, on four eight-club leagues whose drafts then changed with the rating weights and read -0.03, a standard error and a half from the rest. So it replays four pro leagues now, where the error is half as large: +0.33 at 0.8. About four minutes; a band because any change to the drafts moves it',
+    expect: 0.36, tol: 0.3,
+    why: 'the team page tells the player that going for it more is worth about a third of a point a game four-fifths of the way up the dial, and no more at the top. The first measurement had it helping only a strong offence with a poor kicker; later it helped every squad by a point and a quarter at the top, two-thirds once the run game matched real carries and every squad threw, and half that once the fourth-down call itself was fitted to real coaches, when the best setting moved off the top. It read +0.66 at the top here before the drive model; +0.56 at the top and +0.48 at 0.8 on it, on four eight-club leagues whose drafts then changed with the rating weights and read -0.03, a standard error and a half from the rest. So it replays four pro leagues now, where the error is half as large: +0.33 at 0.8, and +0.36 once the lines were held to real absences and the drafts changed with the table and the weights. About four minutes; a band because any change to the drafts moves it',
   },
   {
     name: 'a back\'s rating moves his carries as far as the real game\'s',
     cost: 'slow',
     script: 'run-realism', extract: /backs, real on engine slope: ([\d.]+)/,
     doc: /the\s+backs'\s+slope\s+\(([\d.]+),\s+flagged/,
-    expect: 0.86, tol: 0.15,
+    expect: 0.93, tol: 0.15,
     why: 'the 81 backs in the pool with a real season from 1999 on, each in the same average side, against what each really ran (nflverse): the slope of real yards a carry on the engine\'s. 1 is the engine\'s differences between backs coming true one for one; it read 0.20 before 2026-09-24, when a point of a back\'s rating moved his carries five times too far and nothing compared the two, then 0.77 at a carrier weight of 0.2 and 0.88 at 0.16, once the argument for stopping short of a slope of 1 turned out to be wrong. About four minutes, shared with the check below',
   },
   {
@@ -253,7 +253,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'run-realism', extract: /pro league yards a carry: ([\d.]+)/,
     doc: /a\s+pro\s+league's\s+yards\s+a\s+carry\s+\(([\d.]+)/,
-    expect: 4.58, tol: 0.25,
+    expect: 4.59, tol: 0.25,
     why: 'the realism check plays sides rated 82, where the engine was fitted, and cannot see a term that grows with the level of play. Two of them did — power and elusiveness measured against a fixed 82 rather than the defence — and drafted pro leagues ran at 5.95 yards a carry against a real 4.49 while it read clean',
   },
   {
@@ -261,7 +261,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'pass-realism', extract: /passers, real on engine slope \(adjusted net yards a dropback\): ([\d.]+)/,
     doc: /the quarterbacks'\s+slope\s+\(([\d.]+)\s+at\s+200\s+games/,
-    expect: 1.15, tol: 0.15,
+    expect: 1.05, tol: 0.15,
     why: 'the 58 quarterbacks in the pool with a real season from 1999 on, each in the same average side, against what each really did (nflverse): the slope of real adjusted net yards a dropback on the engine\'s. 1 is the engine\'s differences between quarterbacks coming true one for one. It read 0.41 when first measured on 2026-09-24, with a point of a passer\'s rating moving his production 2.4 times as far as the real game\'s, and 0.99 once every passer term read the defence and was weighted to the real quarterbacks (DESIGN.md, "The passing game, held to real quarterbacks"). About thirty seconds, shared with the check below',
   },
   {
@@ -269,7 +269,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'pass-realism', extract: /pro league adjusted net yards a dropback: ([\d.]+)/,
     doc: /a\s+pro\s+league's\s+adjusted\s+net\s+yards\s+a\s+dropback\s+\(([\d.]+)/,
-    expect: 6.13, tol: 0.3,
+    expect: 5.97, tol: 0.3,
     why: 'the realism check plays sides rated 82 and cannot see a term that grows with the level of play. Drafted pro leagues threw for 7.18 adjusted net yards a dropback against a real 5.84 to 6.18 (2019-2023) while it read clean, because the sack, the line and the arm read the quarterback against fixed numbers. 6.81 once they read the defence, 6.63 once each passer term was weighted to real quarterbacks, and 6.03, inside the real range, once yards a completion came to real length with the drive model held to real play-by-play',
   },
   {
@@ -277,7 +277,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'skill-realism', extract: /receivers, share of targets, real on engine slope: ([\d.]+)/,
     doc: /the\s+receivers'\s+target-share\s+slope\s+\(([\d.]+)/,
-    expect: 0.89, tol: 0.2,
+    expect: 0.82, tol: 0.2,
     why: 'the 103 receivers in the pool with a real season from 1999 on, each in the same average side, against the share of his team\'s targets he really drew (nflverse): at a target spread of 9 a point of rating moved it six times as far as the real game\'s and a star took the ball from everyone else, which priced receivers, tight ends and backs far above what their play is worth. About seventy seconds, shared with the check below',
   },
   {
@@ -285,7 +285,7 @@ const CHECKS = [
     cost: 'slow',
     script: 'skill-realism', extract: /backs, carries a game, real on engine slope: ([\d.]+)/,
     doc: /the\s+backs'\s+carries\s+slope\s+\(([\d.]+)/,
-    expect: 1.03, tol: 0.25,
+    expect: 0.86, tol: 0.25,
     why: 'the play caller leaned on the run by the quarterback\'s rating less the back\'s, and at /200 a back eight points better took 2.3 more carries a game: 2.6 times the real game\'s pull. That is volume on top of his yards a carry, which the rushing checks cannot see',
   },
   {
@@ -363,7 +363,7 @@ const CHECKS = [
     name: 'the simulation fingerprint',
     cost: 'slow',
     script: 'game-fingerprint', extract: /fingerprint: ([0-9a-f]+)/,
-    expect: '06e72fd7fe4b03e8', text: true,
+    expect: 'f550a04f1de48aa4', text: true,
     why: 'changes whenever the game engine does, which is what makes a careers-only change provable',
   },
 ];

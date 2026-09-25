@@ -153,8 +153,9 @@ const ARM_MID = 82;
 const LEG_MID = 80;
 /**
  * The arm and leg that actually start in a pro league, which throw nearly
- * every pass and kick every kick: 89.9 and 87.7 over eight founding drafts
- * (`npm run weather arms`). The means are taken here, not at the formulas'
+ * every pass and kick every kick: 89.8 and 87.6 over eight founding drafts
+ * (`npm run weather arms`; 89.9 and 87.7 before the lines were held to real
+ * absences, which changed who clubs draft). The means are taken here, not at the formulas'
  * centres — taken there, weather lifted league completion by 0.13 points,
  * because the wind costs a strong starting arm less than the middling arm the
  * means had assumed. The leg was 87.3 until a kicker's rating weighed his leg

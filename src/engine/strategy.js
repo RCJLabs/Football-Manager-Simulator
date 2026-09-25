@@ -9,18 +9,19 @@
 // end: every kind of squad does best with the dial all the way up.
 //
 //   league              always 0.70, against a flat 0.55
-//   fantasy, 8 clubs      +0.71 a game
-//   fantasy, 10 clubs     +0.54
-//   fantasy, 12 clubs     +0.56
-//   pro, 32 clubs         +0.70
+//   fantasy, 8 clubs      +0.70 a game
+//   fantasy, 10 clubs     +0.60
+//   fantasy, 12 clubs     +0.40
+//   pro, 32 clubs         +0.52
 //
 // Sorted into fifths by run edge, eighteen of the twenty fifths do best at
-// 0.65 or 0.70, and at 0.70 the fifths gain -0.02 to +1.52; the two that do
-// not are within their noise of it, ± 0.4 a fifth, and neither is the most
-// run-built fifth of its league. So the read still says what a squad is built
-// to do, and tells every one of them to throw. Measured again once the drive
-// was held to real play-by-play (DESIGN.md, "The drive model, held to real
-// play-by-play"): it had read +0.68, +1.00, +0.81 and +1.04, and +1.04, +1.01,
+// 0.65 or 0.70; the two that do not, one at 0.55 and one at 0.45, are within
+// their noise of it, ± 0.4 a fifth. So the read still says what a squad is
+// built to do, and tells every one of them to throw. Measured again once the
+// lines were held to real absences (DESIGN.md, "The trenches, held to real
+// absences"): it had read +0.71, +0.54, +0.56 and +0.70 on the drive model,
+// and before it (DESIGN.md, "The drive model, held to real play-by-play")
+// +0.68, +1.00, +0.81 and +1.04, and +1.04, +1.01,
 // +1.10 and +1.11 before the passer and the receivers were held to real
 // seasons (DESIGN.md, "The passing game, held to real quarterbacks").
 //
@@ -69,10 +70,13 @@
 // who go for it more than the old margin did; not isolated. On the drafts
 // that came out once the rating weights were re-measured, four-fifths of the
 // way up reads +0.16 and +0.33, about a standard error from the first
-// reading: a sixth to a third of a point. A weak offence
+// reading: a sixth to a third of a point; and once the lines were held to real
+// absences +0.24 and +0.36, a quarter to a third. A weak offence
 // with a poor kicker gains nothing measurable from it. Blitzing least is worth
 // +0.41 and +0.50; the deepest shell +0.36 in eight-club leagues and nothing
-// in pro ones; tempo within a quarter of a point either way. With the passer
+// in pro ones; tempo within a quarter of a point either way. On the drafts
+// once the lines were held, blitzing least reads +0.25 and +0.37 and the
+// deepest shell +0.41 and +0.27, each about a standard error from before. With the passer
 // and the receivers held to real seasons blitzing least read +0.33 and +0.23
 // and the deepest shell +0.38 and nothing; on the run game's fix alone the
 // three read +0.64 and +0.88, +0.32 and +0.34, +0.66 and nothing; before it
@@ -213,7 +217,7 @@ export function strategyRead(league, teamIdx, byId) {
     // "Worth moving" only when the squad is off the crossover and the dial is not already there.
     act: !even && off,
     lean,
-    strength: even ? 'barely worth moving for this squad' : 'worth half a point to three-quarters of a point a game, measured against the clubs you play',
+    strength: even ? 'barely worth moving for this squad' : 'worth four-tenths to seven-tenths of a point a game, measured against the clubs you play',
     why: `${built} ${advice}`,
   };
 }

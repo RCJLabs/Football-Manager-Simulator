@@ -34,20 +34,26 @@ function yearsToCeiling(lg, p) {
 }
 
 test('pace decides when he arrives and leaves where alone', () => {
-  const lg = league(5);
-  const rookies = generateRookies(lg, new RNG(5)) || [];
+  // Five classes, not one. A class has a dozen slow developers, so its mean
+  // arrival carries about a third of a season of noise, and the gap it is held
+  // to is one season: one class read 1.09 and then 0.87 when the rating weights
+  // changed which season a man first reads his ceiling in, while the five
+  // together read 1.38 and 1.40.
   const rows = [];
-  for (const p of rookies) {
-    const c = startCareer(lg, p);
-    const room = (c.ceiling ?? 0) - overall(developed(p, c));
-    if (room < 6) continue;
-    const y = yearsToCeiling(lg, p);
-    if (y) rows.push({ pace: c.pace ?? 1, room, y });
+  for (const seed of [5, 6, 7, 8, 9]) {
+    const lg = league(seed);
+    for (const p of generateRookies(lg, new RNG(seed)) || []) {
+      const c = startCareer(lg, p);
+      const room = (c.ceiling ?? 0) - overall(developed(p, c));
+      if (room < 6) continue;
+      const y = yearsToCeiling(lg, p);
+      if (y) rows.push({ pace: c.pace ?? 1, room, y });
+    }
   }
-  assert.ok(rows.length >= 40, `only ${rows.length} prospects with room reached a ceiling`);
+  assert.ok(rows.length >= 200, `only ${rows.length} prospects with room reached a ceiling`);
   const slow = rows.filter((r) => r.pace < 0.9);
   const fast = rows.filter((r) => r.pace > 1.15);
-  assert.ok(slow.length >= 8 && fast.length >= 8, 'the draw produces both kinds');
+  assert.ok(slow.length >= 40 && fast.length >= 40, 'the draw produces both kinds');
   const mean = (a, k) => a.reduce((s, x) => s + x[k], 0) / a.length;
 
   // The point of the whole thing: slow developers take longer.

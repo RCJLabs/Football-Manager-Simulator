@@ -20,10 +20,14 @@ import { syntheticTeam } from './synthetic.mjs';
 const tf = (t) => ({ id: t.id, name: t.name, abbr: t.abbr, color: t.color, strategy: t.strategy, lineup: buildLineup(t.slots, t.byId) });
 const A = syntheticTeam('a', 85, 4, 1), B = syntheticTeam('b', 85, 4, 2);
 
-console.log('Per game (both teams), synthetic equal rosters, 300 games each:');
+// A thousand games, not three hundred: at 300 the default setting's injuries a
+// game carry about 0.07 of noise, and a change to the engine that re-draws the
+// random stream moved it from 1.20 to 1.39 with nothing in the injury model
+// touched (1.29 and 1.26 over a thousand games either side of the change).
+console.log('Per game (both teams), synthetic equal rosters, 1000 games each:');
 for (const [name, level] of Object.entries(INJURY_LEVELS)) {
   let inj = 0, weeks = 0, multi = 0;
-  const n = 300;
+  const n = 1000;
   for (let i = 0; i < n; i++) {
     const g = createGame(tf(A), tf(B), { seed: 10000 + i, injuryLevel: level });
     simulateGame(g);
