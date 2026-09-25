@@ -5223,7 +5223,56 @@ Whether a real backup corner is slower than the man he replaces cannot be told
 from absences, so the speed mechanics are left as they are. His completion
 effect, +1.28 against +0.73 (0.26 to 1.19), is too large either way, and the
 safety's points a game (+0.53 against -0.17, -0.66 to +0.39) are still the
-engine's, half of them his speed on the same test.
+engine's, half of them his speed on the same test. *Both halves of that were
+wrong, as the next paragraph says: it can be told, from the combine, and he is
+not slower; and that test took speed out of the gap without putting it
+anywhere else.*
+
+**A real backup is as fast as the man he replaces.** In the 1,283 games from
+2016 to 2024 where one starting corner sat out (a starter as in the absence
+regression, six games at 60% of the snaps), the men whose share of the snaps
+rose that day ran the 40 0.020 seconds slower than he did (0.009 to 0.030, over
+the 951 games with both times known, resampling team-seasons), and the 3-cone
+and the shuttle a hundredth and a half slower. In the 752 where a safety sat
+out they ran no slower at all (-0.019 to +0.016). They were drafted more than a
+round later (corners 4.9 against 3.75, safeties 5.4 against 3.9, undrafted
+counted as the eighth): worse players, not slower ones. On the database's own
+speed scale, fitted on the 326 men in the pool with a combine time (28 points
+a second), that is half a point for a corner and none for a safety; a point
+and a half at most on a scale matched deviation for deviation (75 a second);
+and under six on that scale even if every snap nobody has a time for (30% and
+42% of them) went to a man a deviation slower than the average undrafted one. The engine's absence
+test takes eight off every attribute, speed included.
+
+So the fair test holds speed and takes 9.3 off the rest, which leaves the man
+eight worse overall. It moves the engine's figures less than the test above
+implied (6,000 games, ± a jackknife standard error):
+
+| one starter eight worse | real | every attribute | speed held, the rest 9.3 | speed held, the rest 8 |
+| --- | --- | --- | --- | --- |
+| corner: completion | +0.73 (0.26 to 1.19) | +1.28 ± 0.09 | +1.50 ± 0.08 | +1.27 ± 0.08 |
+| corner: yards a completion | +0.01 (-0.13 to 0.11) | +0.18 ± 0.02 | +0.12 ± 0.02 | +0.11 ± 0.02 |
+| corner: yards an attempt | +0.086 (-0.017 to 0.167) | +0.255 ± 0.017 | +0.237 ± 0.017 | +0.206 ± 0.018 |
+| corner: adjusted net | +0.281 (0.158 to 0.397) | +0.420 ± 0.024 | +0.429 ± 0.021 | +0.367 ± 0.021 |
+| corner: sacked | -0.39 (-0.57 to -0.25) | -0.38 ± 0.04 | -0.49 ± 0.04 | -0.40 ± 0.04 |
+| safety: interceptions | -0.26 (-0.43 to -0.09) | -0.11 ± 0.02 | -0.11 ± 0.02 | -0.10 ± 0.02 |
+| safety: points | -0.17 (-0.66 to +0.39) | +0.55 ± 0.09 | +0.52 ± 0.08 | +0.41 ± 0.09 |
+
+The last column is the test above: it left the man 6.9 points worse, not eight,
+and what came inside came inside by being smaller. With the gap where it
+belongs, speed is not what the corner and the safety overstate. Where speed
+was, the corner's yards a completion come to the edge of the real interval, but
+his completion effect grows and his yards an attempt and adjusted net stay
+over. Scaled in proportion to a gap of six rather than eight (not measured at
+six), every one of the corner's figures but yards an attempt is inside, and the
+absences cannot tell six from eight: the sack channel is what set the gap, and
+with speed held the corner's sacks read -0.49, inside the real interval and a
+quarter over the point COVERAGE_HOLD was fitted to. The safety does not depend
+on the gap. A real one is worth interceptions and nothing else measurable; the
+engine's is worth under half the interceptions and points he should not move,
+so any gap small enough to bring his points inside takes his interceptions out.
+That is the next thing to hold to real absences, and it is recorded here, not
+done.
 
 **The level.** At 82 nothing moves: none of the 44 realism rows outside the
 real range, the passers' slope 1.02, the level drift from 82 to 90 -0.04, the
