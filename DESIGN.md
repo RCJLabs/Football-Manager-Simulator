@@ -4416,9 +4416,11 @@ position's leverage, with the shipped weight after the slash:
 A pattern runs through the defence and the line: run defence gained at every
 defensive position and run blocking beat pass blocking, while the pass rush,
 pass protection and tackling lost. The engine now rewards the fight for the
-ground more than the fight for the quarterback. Why was not isolated; the run
-game's fixes and the drive model's quieter early-down rush are the likely
-places, and real salaries run the other way. An edge rusher's coverage reads
+ground more than the fight for the quarterback. Why was not isolated here; the
+run game's fixes and the drive model's quieter early-down rush were the likely
+places, and real salaries run the other way. *Isolated in the next section: the
+line moved a carry three to six times as far as the real game's lines do.* An
+edge rusher's coverage reads
 below nothing because it makes him rush less, which is why his vector carries
 none.
 
@@ -4557,6 +4559,136 @@ these weights), so a bound of seven points passed on one draw of 200 games and
 failed on the next. A sixth, the free-agency length test, failed on the final
 weights: it pinned a seed whose market no longer had a dear free agent at an
 open slot, and now searches for one, as its neighbour in the same file did.
+
+### The trenches, held to real absences
+
+The rating weights, re-measured (previous section), found run defence gaining at
+every defensive position and run blocking worth 1.7 times pass blocking: the
+opposite of how the real game pays its linemen. Whether that was the engine or
+football had never been tested, because nothing held a lineman to anything
+real. The realism scripts hold a back to his carries, a passer to his dropbacks
+and a receiver to his targets; no box score counts a block.
+
+**Clubs against real teams first, and why that could not decide it.** Sixteen
+drafted pro leagues, a season each, against every team-season of 2016-24
+(nflverse play-by-play), each split into alternate games so that what persists
+across the halves, the club rather than the draw, can be separated from the
+spread. How far clubs sat apart, the draw taken out:
+
+| | engine, before this | real |
+| --- | --- | --- |
+| yards a carry, for / against | 0.29 / 0.34 | 0.30 / 0.28 |
+| adjusted net yards a dropback, for / against | 0.34 / 0.20 | 0.84 / 0.46 |
+| sacked %, for / against | 0.55 / under 0.4 | 1.34 / 0.75 |
+| points a game (a round robin, 300 games a club) | 1.13 | 4.87 |
+
+Clubs spread in the run game as far as real teams do and in everything that
+passes less than half as far. That looks like the answer and is not one: a
+drafted league is far more even than a real one (the last row; see "How even is
+the league, really"), and how far a real team's line sits from the next in
+rating points cannot be known. A run game that spreads as far as the real one
+from compressed talent is steep only if the talent is compressed there as much
+as elsewhere, which this cannot show.
+
+**The same man, with and without him.** What can be known is what one man's
+absence does. Every real starter of 2016-24 (six or more games at 60% of the
+snaps or more, from the snap counts) who missed games: his side's numbers in
+the games he missed against the games he played, as a regression within
+team-seasons on how many starters at each position sat out, adjusted for the
+opponent. 1,032 lineman-seasons and 4,212 games missed on the line alone; a 95%
+interval from a bootstrap over team-seasons. In the engine, one starter at a
+time eight points worse on every attribute, in the average side against the
+average side, on the seeds of the unchanged one. Eight is not a guess for the
+positions already held to real seasons: it reproduces a missing quarterback
+(-0.615 adjusted net yards a dropback against a real -0.612) and a missing back
+(-0.21 yards a carry against -0.26). For everyone else it is an assumption, so
+the comparison that matters most is the one that does not lean on it: a
+position's run effect against its effect on sacks, where the gap cancels.
+
+| one starter out | engine, yards a carry | real | engine, sacked % | real |
+| --- | --- | --- | --- | --- |
+| offensive line | -0.167 | -0.053 (-0.109 to 0.015) | +0.41 | +0.30 |
+| defensive line | +0.137 | +0.023 (-0.035 to 0.089) | -0.26 | -0.23 |
+| linebacker | +0.181 | +0.097 (0.013 to 0.199) | -0.13 | -0.44 |
+| tight end | -0.123 | -0.045 (-0.172 to 0.064) | | |
+
+The line moved sacks as far as the real one and a carry three to six times as
+far. Without the gap: a lineman's absence cost 0.41 yards a carry for every
+point of sack rate, against a real 0.18; a defensive lineman's 0.53 against
+0.10. The run game had never been held to the lines; it had been held to the
+backs, whose carries were fitted in an average side where the two lines cancel.
+
+**The pass rush was not the problem.** Sacks are partly shared between a
+team's rushers, and the real game says by how much. Every rusher with six or
+more sacks in a season who missed two or more games, 111 of them: his team was
+sacking 6.81% of dropbacks with him and 5.84% without, against his own 1.57%,
+so 62% of his sacks were the team's (0.33 to 0.90) and the rest would have
+fallen to somebody else. On the pool's 101 linemen with a real season from 1999
+on, a point of pass rush is worth 0.025 real sacks a game, so about 0.016 to
+his team; the engine's team gains 0.014. What was wrong was the credit. A
+sack went to a rusher by his pass rush over seven, so J.J. Watt's 2014 took two
+thirds of his side's sacks and came to 33 a season, Aaron Donald's 2018 to 30,
+and linemen's sacks spread twice as far as the same men's real ones (real on
+engine, a slope of 0.52).
+
+**The fix is a weight on the lines' side of a carry.** `LINE_WEIGHT` in
+plays.js scales the run blocking against the run stopping wherever a carry
+reads it: the stuff, the gain when not stuffed, the sneak. The carrier's terms
+sit outside it, so the backs stay where they were held. Fitted on the four
+front positions against the real absences, a quarter:
+
+| one starter out, yards a carry | full | a third | a quarter | real |
+| --- | --- | --- | --- | --- |
+| offensive line | -0.167 | -0.072 | -0.058 | -0.053 |
+| defensive line | +0.137 | +0.058 | +0.041 | +0.023 |
+| linebacker | +0.181 | +0.096 | +0.075 | +0.097 |
+| tight end | -0.123 | -0.049 | -0.035 | -0.045 |
+
+Every position's run effect now sits inside its real interval, and without the
+gap a lineman's absence costs 0.18 yards a carry a point of sack rate against
+the real 0.18. At the level the engine was fitted nothing moves: none of the 44
+realism rows outside the real range, every drive-model row where it was, a
+carry at 82 averaging 4.24 against a real 4.30. The backs read a slope of 0.93 against their real
+seasons (0.86 before), a pro league 4.63 yards a carry (4.58), and clubs now
+spread about half as far in the run game as real teams, as they do in
+everything else. A drafted league's true spread of club strength falls from
+1.13 points a game to 0.88.
+
+Credit for a sack now goes by the pass rush over 13 (`SACK_CREDIT_SCALE` in
+picks.js). An edge rusher is one of the four on every snap, so he is credited
+as a lineman is, by how much of an edge rusher he is; an off-ball backer at 0.6
+when he rushes with the four and 1.2 on a blitz. It decides no play: the draw is
+one random number whatever the weights, so the same seed plays the same game.
+Linemen's sacks now come true at a slope of 0.91, edge rushers' at 0.90, and
+the most any lineman takes is Watt's 19.2 a season against his real 21.8.
+
+**Not fixed, and recorded.** The absences found four more things the engine
+does not do, none of them in the run game:
+
+- A lineman's absence costs a real offence 0.195 adjusted net yards a dropback
+  (0.119 to 0.290) and the engine's 0.11. The real cost is mostly yards an
+  attempt, 0.088, not pressure: the quarterback is hit 0.25 points more often,
+  within noise, where a missing defensive lineman takes 0.75 off. That reads
+  like offences shortening their throws behind a weak line, which the engine's
+  play caller does not do. Not modelled; a pressure term fitted to the lineman's
+  would carry a defensive lineman's effect past its real interval.
+- Coverage makes sacks in the real game: a starting corner's absence takes
+  0.39 points off his defence's sack rate (0.26 to 0.58), a linebacker's 0.44.
+  The engine has no route from coverage to the rush and reads next to nothing.
+- A back's absence costs his quarterback 0.50 points of sack rate (0.05 to
+  0.98) and 0.84 of hits: pass protection, which the engine does not give a
+  back.
+- A safety eight points worse costs the engine's defence 0.71 points a game and
+  0.21 adjusted net yards a dropback; a real safety's absence reads -0.26
+  (-0.77 to 0.32) and 0.02. Either a real team's second safety is as good as
+  its first or the engine's safeties carry too much of the coverage; absences
+  cannot tell which.
+
+**Held to it by the audit.** `npm run trenches` (new) plays both tests, a few
+minutes at its defaults. The audit reads it at 2,000 games a position and
+100 a rusher: a lineman eight points worse costs his side 0.073 yards a carry, a
+defensive lineman eight points worse gives up 0.032 yards a carry, and the
+linemen's sack slope (0.87 at 100 games a rusher).
 
 ### A fingerprint that could not see the roster
 

@@ -53,7 +53,8 @@
     "rushing": "node scripts/run-realism.mjs",
     "passing": "node scripts/pass-realism.mjs",
     "receiving": "node scripts/skill-realism.mjs",
-    "drives": "node scripts/drive-realism.mjs"
+    "drives": "node scripts/drive-realism.mjs",
+    "trenches": "node scripts/trench-realism.mjs"
   },
   "engines": {
     "node": ">=20"

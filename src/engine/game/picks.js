@@ -7,6 +7,7 @@
 // your head.
 
 import { RNG } from '../rng.js';
+import { edgeness } from '../../data/positions.js';
 
 export function pickReturner(comp) {
   const cands = [...(comp.wr || []).slice(1), ...(comp.rb2 ? [comp.rb2] : []), ...(comp.cb || [])];
@@ -92,11 +93,34 @@ export function pickTackler(g, defT, kind, rng, prim) {
   return rng.weighted(cands, weights);
 }
 
+/**
+ * Who is credited with a sack. It decides nothing on the field: the draw is one
+ * random number whatever the weights, so the same seed plays the same game,
+ * and only the box score, the awards and the records read it.
+ *
+ * Held to real seasons (DESIGN.md, "The trenches, held to real absences"). The
+ * 185 linemen and linebackers in the pool with a real season from 1999 on,
+ * each played in the same average side: on `(prs - 80) / 7` a lineman's sacks
+ * spread twice as far as the same men's real ones did (real on engine, slope
+ * 0.52), J.J. Watt's 2014 came to 33 a season and Aaron Donald's 2018 to 30,
+ * and an elite rusher took two thirds of his side's sacks, where the real
+ * game's leader takes a quarter. At 13 the slope is 0.98 for linemen, 1.07 for
+ * edge rushers and 1.18 for off-ball backers, and the best lineman comes to
+ * about nineteen. An edge rusher is one of the four on every snap, so he is
+ * credited as a lineman is, by how much of an edge rusher he is (`edgeness`);
+ * an off-ball backer at 0.6 when he rushes with the four and 1.2 on a blitz.
+ */
+const SACK_CREDIT_SCALE = 13;
+
 export function pickRusher(g, defT, blitz, rng) {
   const d = g.teams[defT].comp;
   const cands = [], weights = [];
-  for (const p of d.dl || []) { cands.push(p); weights.push(Math.exp((p.r.prs - 80) / 7)); }
-  for (const p of d.lb || []) { cands.push(p); weights.push(Math.exp((p.r.prs - 80) / 7) * (blitz ? 1.2 : 0.45)); }
+  const rush = (p) => Math.exp((p.r.prs - 80) / SACK_CREDIT_SCALE);
+  for (const p of d.dl || []) { cands.push(p); weights.push(rush(p)); }
+  for (const p of d.lb || []) {
+    const e = edgeness(p.pos, p.r);
+    cands.push(p); weights.push(rush(p) * (e + (1 - e) * (blitz ? 1.2 : 0.6)));
+  }
   if (blitz) for (const p of d.s || []) { cands.push(p); weights.push(Math.exp((p.r.tck - 85) / 10) * 0.25); }
   if (!cands.length) return null;
   return rng.weighted(cands, weights);

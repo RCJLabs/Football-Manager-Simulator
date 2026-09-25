@@ -147,6 +147,28 @@ export const STUFF_LOSS = 1.9;
 // whose body the carrier terms move less than they moved the old normal one:
 // at 0.16 the slope went to 1.23, at 0.19 1.07, at 0.22 0.90.
 export const CARRIER_WEIGHT = 0.20;
+/**
+ * How far the line's run blocking against the front's run stopping moves a
+ * carry. Everything a carry reads from the two lines goes through this edge:
+ * the chance it is stuffed, what it gains when it is not, and the sneak.
+ *
+ * Measured by what a starter's absence does (DESIGN.md, "The trenches, held to
+ * real absences"). Real starters of 2016-24 who missed games: their side's
+ * numbers in the games they missed against the games they played, within the
+ * team-season and adjusted for the opponent. In the engine: one starter eight
+ * points worse on every attribute, in the average side. Eight is the gap that
+ * reproduces a missing quarterback (-0.615 adjusted net yards a dropback
+ * against a real -0.612) and a missing back (-0.21 yards a carry against
+ * -0.26). At full weight the line moved a carry three to six times as far as
+ * the real one while moving sacks as far: a lineman eight worse cost 0.167
+ * yards a carry against a real 0.053 (95% -0.109 to +0.015), a defensive
+ * lineman 0.137 against 0.023 (-0.035 to +0.089), a linebacker 0.181 against
+ * 0.097, a tight end 0.123 against 0.045. At a quarter they read 0.058, 0.041,
+ * 0.075 and 0.035; a third fits worse on every position but the linebacker.
+ * The carrier's own terms are outside it, so the backs stay where they were
+ * held.
+ */
+export const LINE_WEIGHT = 0.25;
 export const BREAK_YDS_IN = 1.9;    // mean yards a broken tackle adds inside
 export const BREAK_YDS_OUT = 2.6;   // the same outside, where there is grass
 // The exponential body makes its own ten-yard carries, so the breakaway only
@@ -485,11 +507,11 @@ export function resolveRun(g, rng, call, defCall) {
   // CARRIER_WEIGHT (above). Vision reads the blocks against a front that reads
   // them back.
   const k = CARRIER_WEIGHT;
-  const blockEdge = edge(comp.runBlock + (vis - def.defAwr) * 0.4 * k, def.runStop, 11);
+  const blockEdge = edge(LINE_WEIGHT * (comp.runBlock - def.runStop) + (vis - def.defAwr) * 0.4 * k, 0, 11);
   let yards;
   let gone = false; // a breakaway that goes the distance
   if (sneak) {
-    yards = rng.chance(0.78 + (comp.runBlock - def.runStop) / 200) ? rng.int(1, 3) : rng.int(-1, 0);
+    yards = rng.chance(0.78 + LINE_WEIGHT * (comp.runBlock - def.runStop) / 200) ? rng.int(1, 3) : rng.int(-1, 0);
   } else {
     // A back with real power turns a would-be stuff into two yards, and that is
     // most of what power is for — against a front that stops the run, not
