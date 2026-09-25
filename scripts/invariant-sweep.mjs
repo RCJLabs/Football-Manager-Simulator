@@ -31,6 +31,9 @@
 // In every keeper round:
 //   every AI club's own list passes the check the user's must pass
 //   what a club's keepers were priced at is what was written
+// At every season's end, where a save is largest:
+//   the save packs and unpacks to exactly what went in, at both of the
+//     levels the store packs at, and packs to under a third of the origin
 //
 // Runs on as many workers as the machine has cores to spare. Exits 1 on any
 // problem, printing each; the numbers for the last run are in DESIGN.md, "What
@@ -54,6 +57,8 @@ import { departedSet } from '../src/engine/proleague.js';
 import { irCapacity } from '../src/engine/injuries.js';
 import { squadCapacity } from '../src/engine/squad.js';
 import { LEVELS, DEFAULT_DIFFICULTY } from '../src/engine/difficulty.js';
+import { serializeSlot } from '../src/slots.js';
+import { encode, decode } from '../src/savecodec.js';
 
 registerPlayers(PLAYERS_BY_ID);
 const SEASONS = Number(process.argv[2] || 5);
@@ -170,6 +175,23 @@ function kickoff(lg, room) {
   return v;
 }
 
+// Characters of localStorage Chromium gives an origin, filled until it refused.
+// Three slots share it, so a save packing to more than a third is a league the
+// browser cannot keep beside two others like it.
+const ORIGIN = 5242546;
+
+/** What the store would write now, both ways it packs it. */
+function saved(lg) {
+  const v = [];
+  const json = serializeSlot({ league: lg, game: null });
+  for (const level of [1, 6]) {
+    const packed = encode(json, level);
+    if (decode(packed) !== json) v.push(`the save does not come back from packing at level ${level} as it went in`);
+    if (packed.length > ORIGIN / 3) v.push(`the save packs to ${packed.length} characters at level ${level}, over a third of the origin`);
+  }
+  return v;
+}
+
 function run(cfg) {
   const out = { name: cfg.name, seed: cfg.seed, problems: [], ms: 0 };
   const t0 = Date.now();
@@ -180,6 +202,7 @@ function run(cfg) {
     for (let s = 2; s <= SEASONS; s++) {
       simulateAhead(lg, index(lg), pool(lg), new RNG(cfg.seed * 97 + s), 'offseason');
       if (lg.phase !== 'complete') throw new Error(`season ${s - 1} ended in ${lg.phase}`);
+      note(s - 1, saved(lg));
       enterOffseason(lg, pool(lg), index(lg));
       if (lg.offseason?.step === 'jobs') {
         const byId = index(lg);

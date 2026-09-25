@@ -3,7 +3,7 @@
 import { migrateLeague } from './engine/season.js';
 import {
   loadRegistry, readSlot, writeSlot, createSlot, activateSlot, deleteSlot, renameSlot, slotSizeKb,
-  firstEmptySlot, slotIsEmpty, MAX_SLOTS, PREFS_KEY,
+  firstEmptySlot, slotIsEmpty, MAX_SLOTS, PREFS_KEY, serializeSlot, slotMeta, commitSlot,
 } from './slots.js';
 
 const DEFAULT_PREFS = { autoplayMs: 900, showAttrs: true };
@@ -23,6 +23,7 @@ let saveTimer = null;
 // zeroes out of the career table on the way to storage (`packCareers`) take
 // the same save to 1,361 KB and three of them to 4.0 MB.
 //
+// Packing (`savecodec.js`) has since taken a save to a twelfth of its JSON.
 // It is headroom and not a ceiling removed, so this still has to work: the
 // failure used to be swallowed into a console warning, which meant the game
 // carried on accepting moves it was no longer writing down and threw the whole
@@ -31,6 +32,63 @@ let saveTimer = null;
 let lastSaveError = null;
 
 const storage = typeof localStorage !== 'undefined' ? localStorage : null;
+
+// Routine saves are packed in a worker (`save-worker.js`) and written when it
+// answers. Where a save has to land before anything else happens — the page
+// going away, a slot switched or emptied, an import — it is packed on the spot
+// instead, and that supersedes whatever the worker is holding: its answer is
+// dropped, which is what the numbering is for.
+//
+// The worker is given one save at a time. A change made while one is packed
+// waits for it and goes as soon as it lands, from the state as it is by then:
+// a watched game changes after every play, and on a slow phone a fast autoplay
+// outruns the packing, so posting every change queued work that the next one
+// made pointless, each holding a copy of the league.
+let saveGen = 0;
+let inFlight = null; // the save the worker holds: { gen, id, meta }
+let queued = false; // a routine save asked for while the worker held one
+let saveWorker;
+
+function backgroundWorker() {
+  if (saveWorker !== undefined) return saveWorker;
+  saveWorker = null;
+  if (typeof window === 'undefined' || typeof Worker === 'undefined') return saveWorker;
+  try {
+    const w = new Worker(new URL('./save-worker.js', import.meta.url), { type: 'module' });
+    w.onmessage = (e) => landPacked(e.data);
+    // A browser that cannot run a module worker can say so here rather than
+    // by throwing above. Either way every save from then on packs on the spot,
+    // and the one the worker was holding is done again now rather than lost.
+    w.onerror = () => {
+      saveWorker = null;
+      if (inFlight) { inFlight = null; saveNow(); }
+    };
+    saveWorker = w;
+  } catch { saveWorker = null; }
+  return saveWorker;
+}
+
+function landPacked({ gen, packed, error }) {
+  if (!inFlight || gen !== inFlight.gen) return;
+  const job = inFlight;
+  inFlight = null;
+  const wasFailing = !!lastSaveError;
+  try {
+    if (error) throw new Error(error);
+    if (!registry) registry = loadRegistry(storage);
+    commitSlot(storage, registry, job.id, packed, job.meta);
+    lastSaveError = null;
+  } catch (e) {
+    console.warn('Could not save state', e);
+    // Unsaved again, so the next change retries, as after a refused write on
+    // the page — the next change, and not now, or a full origin would have the
+    // worker packing the same league over and over.
+    dirty = true;
+    lastSaveError = { quota: isQuotaError(e), message: String((e && e.message) || e), at: Date.now() };
+  }
+  if (wasFailing !== !!lastSaveError) notify();
+  if (queued) saveNow({ background: true });
+}
 
 export function getState() {
   return state;
@@ -74,22 +132,43 @@ export function load() {
   return state;
 }
 
-export function saveNow() {
+/**
+ * Write the open slot. On the spot by default, which is what every caller that
+ * is about to do something else needs; `background` hands the packing to the
+ * worker, which is what the debounced routine save asks for.
+ */
+export function saveNow({ background = false } = {}) {
   if (!storage) return;
+  if (background && inFlight) { queued = true; return; }
+  // Whatever the debounce was waiting to write, this writes.
+  clearTimeout(saveTimer);
+  saveTimer = null;
   const wasFailing = !!lastSaveError;
+  inFlight = null;
+  queued = false;
   try {
     storage.setItem(PREFS_KEY, JSON.stringify(state.prefs));
     if (!registry) registry = loadRegistry(storage);
     // A league in memory with nowhere to go keeps its data rather than losing
     // it to the slot limit: `force` makes room beyond the three if it has to.
     if (!registry.active && state.league) createSlot(storage, registry, state.league.name, { force: true });
+    const worker = background && registry.active ? backgroundWorker() : null;
+    if (worker) {
+      const gen = ++saveGen;
+      const meta = slotMeta(state);
+      worker.postMessage({ gen, json: serializeSlot(state) });
+      inFlight = { gen, id: registry.active, meta };
+      dirty = false;
+      return;
+    }
     if (registry.active) writeSlot(storage, registry, registry.active, state);
     dirty = false;
     lastSaveError = null;
   } catch (e) {
     console.warn('Could not save state', e);
-    // `dirty` is deliberately left set, so the next change tries again and a
-    // save that starts working clears the warning without a reload.
+    // Left unsaved, so the next change tries again and a save that starts
+    // working clears the warning without a reload.
+    dirty = true;
     lastSaveError = { quota: isQuotaError(e), message: String((e && e.message) || e), at: Date.now() };
   }
   // Only on a change of answer. saveNow runs behind a 250ms debounce on every
@@ -110,7 +189,7 @@ function scheduleSave() {
   dirty = true;
   clearTimeout(saveTimer);
   if (firstWritePending && state.league) { firstWritePending = false; saveNow(); return; }
-  saveTimer = setTimeout(saveNow, 250);
+  saveTimer = setTimeout(() => saveNow({ background: true }), 250);
 }
 
 /**
@@ -123,7 +202,13 @@ function dropPendingSave() {
   saveTimer = null;
   dirty = false;
   firstWritePending = false;
+  // And a save the worker is still packing: it would land on an emptied slot.
+  inFlight = null;
+  queued = false;
 }
+
+/** Anything not yet on disk — a change waiting, or a save still being packed. */
+const unsaved = () => dirty || !!inFlight;
 
 /** Mutate state in place via fn, then persist and notify. */
 export function update(fn, { silent = false } = {}) {
@@ -182,7 +267,7 @@ export function listSlots() {
  * a message rather than overwriting anything.
  */
 export function openNewSlot(name = 'New league') {
-  if (dirty) saveNow();
+  if (unsaved()) saveNow();
   if (!storage) { state = { league: null, game: null, prefs: state.prefs }; return null; }
   if (!registry) registry = loadRegistry(storage);
   const id = createSlot(storage, registry, name);
@@ -202,7 +287,7 @@ export function hasEmptySlot() {
 
 export function switchSlot(id) {
   if (!storage) return;
-  if (dirty) saveNow();
+  if (unsaved()) saveNow();
   if (!registry) registry = loadRegistry(storage);
   const slot = activateSlot(storage, registry, id);
   state = { league: slot.league || null, game: slot.game || null, prefs: state.prefs };
@@ -217,7 +302,7 @@ export function removeSlot(id) {
   // Cancel first: a debounced write still in flight would land on the slot
   // being emptied, or on whatever is open, moments after the delete.
   if (wasActive) dropPendingSave();
-  else if (dirty) saveNow();
+  else if (unsaved()) saveNow();
   deleteSlot(storage, registry, id);
   if (wasActive) state = { league: null, game: null, prefs: state.prefs };
   notify();
@@ -249,6 +334,8 @@ export function importJSON(text) {
 }
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('pagehide', () => { if (dirty) saveNow(); });
-  window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && dirty) saveNow(); });
+  // On the spot, and including a save the worker still holds: a page being
+  // hidden may never run again, and its worker with it.
+  window.addEventListener('pagehide', () => { if (unsaved()) saveNow(); });
+  window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && unsaved()) saveNow(); });
 }

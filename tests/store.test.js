@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { decode } from '../src/savecodec.js';
 
 // store.js warns on every refused write, which is the point of it — but these
 // tests refuse writes deliberately, so the warnings are noise here.
@@ -144,7 +145,7 @@ test('a refused write leaves the last good save intact', async () => {
   const registryBefore = storage.getItem('gridiron-eras:slots:v1');
   const slotKey = JSON.parse(registryBefore).active;
   const slotBefore = storage.getItem(`gridiron-eras:slot:${slotKey}`);
-  assert.ok(slotBefore.includes('"week":1'), 'the first save should have landed');
+  assert.ok(decode(slotBefore).includes('"week":1'), 'the first save should have landed');
 
   storage.full = true;
   store.update((s) => { s.league.week = 99; });
@@ -200,7 +201,7 @@ test('deleting the open league leaves nothing open, and it does not come back', 
   const after = store.listSlots();
   assert.equal(after.slots.length, 3, 'the slot stays, it is just empty');
   assert.equal(after.slots.filter((s) => !s.empty).length, 1);
-  assert.equal(JSON.parse(storage.getItem(`gridiron-eras:slot:${doomed}`)).league, null);
+  assert.equal(JSON.parse(decode(storage.getItem(`gridiron-eras:slot:${doomed}`))).league, null);
   // The other save is untouched and reopens cleanly.
   store.switchSlot(keepId);
   assert.equal(store.getState().league.name, 'Keep');
@@ -231,7 +232,7 @@ test('a slot taken for a new league is written at once, not on the debounce', as
   // No saveNow, no timers: the first write into a fresh slot is immediate,
   // because until it lands the slot reads as empty to everything that asks.
   store.update((s) => { s.league = { ...league(), name: 'Two' }; });
-  assert.equal(JSON.parse(storage.getItem(`gridiron-eras:slot:${id}`)).league.name, 'Two');
+  assert.equal(JSON.parse(decode(storage.getItem(`gridiron-eras:slot:${id}`))).league.name, 'Two');
   assert.equal(store.listSlots().slots.filter((s) => !s.empty).length, 2);
   assert.equal(store.hasEmptySlot(), true, 'the third is still free');
 });

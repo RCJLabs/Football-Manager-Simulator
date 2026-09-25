@@ -9,7 +9,8 @@ import {
 import { autoDraftAll } from '../src/engine/draft.js';
 import { enterOffseason, takeJob } from '../src/engine/offseason.js';
 import { blankCareer, packCareers, unpackCareers } from '../src/engine/awards.js';
-import { loadRegistry, createSlot, writeSlot, readSlot, slotKey } from '../src/slots.js';
+import { loadRegistry, createSlot, writeSlot, readSlot, slotKey, serializeSlot } from '../src/slots.js';
+import { encode, decode, isPacked } from '../src/savecodec.js';
 
 registerPlayers(byId);
 
@@ -130,12 +131,30 @@ test('a slot round trip keeps the league whole', () => {
   const reg = loadRegistry(storage);
   const id = createSlot(storage, reg, 'Round trip', { force: true });
   writeSlot(storage, reg, id, { league: lg, game: null });
-  // What went to storage is packed; what comes back is not.
-  assert.equal(JSON.parse(storage.getItem(slotKey(id))).league.careers.a.sacks, undefined);
+  // What went to storage is packed, twice over — deflated, and the career
+  // table without its zeroes inside that; what comes back is neither.
+  assert.ok(isPacked(storage.getItem(slotKey(id))), 'the slot was written as plain JSON');
+  assert.equal(JSON.parse(decode(storage.getItem(slotKey(id)))).league.careers.a.sacks, undefined);
   const back = readSlot(storage, id);
   assert.equal(back.league.careers.a.sacks, 0);
   assert.equal(back.league.careers.a.recYds, 800);
   assert.equal(back.league.teams.length, lg.teams.length);
   // And the league still in memory was never packed behind the caller's back.
   assert.equal(lg.careers.a.sacks, 0);
+});
+
+test('a save at its largest packs to a tenth of its JSON, and back exactly', () => {
+  // The largest a save gets: a season played and its logs not yet thinned.
+  // Measured at x10.4 packed fast (what a save on the spot uses) and x12.7 at
+  // the worker's level, on three seeds; the bounds leave room for the data to
+  // change shape without leaving room for the packing to stop working.
+  const lg = playedSeason(7);
+  const json = serializeSlot({ league: lg, game: null });
+  assert.ok(json.length > 1e6, `the fixture is not the peak it stands for: ${json.length} characters`);
+  const fast = encode(json, 1);
+  const small = encode(json, 6);
+  assert.ok(fast.length < json.length / 8, `level 1 packed ${json.length} characters to ${fast.length}`);
+  assert.ok(small.length < json.length / 10, `level 6 packed ${json.length} characters to ${small.length}`);
+  assert.equal(decode(fast), json);
+  assert.equal(decode(small), json);
 });

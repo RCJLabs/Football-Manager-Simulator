@@ -22,8 +22,9 @@ function reachable(entry) {
     if (seen.has(file)) continue;
     seen.add(file);
     const src = readFileSync(file, 'utf8');
-    for (const m of src.matchAll(/(?:import|export)[^'"]*?from\s*['"](\.[^'"]+)['"]|import\(\s*['"](\.[^'"]+)['"]\s*\)/g)) {
-      const target = normalize(join(dirname(file), m[1] || m[2]));
+    // A worker is loaded by URL rather than imported, so that is followed too.
+    for (const m of src.matchAll(/(?:import|export)[^'"]*?from\s*['"](\.[^'"]+)['"]|import\(\s*['"](\.[^'"]+)['"]\s*\)|new\s+URL\(\s*['"](\.[^'"]+)['"]\s*,\s*import\.meta\.url/g)) {
+      const target = normalize(join(dirname(file), m[1] || m[2] || m[3]));
       if (existsSync(target)) stack.push(target);
     }
   }
@@ -33,6 +34,7 @@ function reachable(entry) {
 test('every module the app can load is precached by the service worker', () => {
   const modules = reachable('src/main.js');
   assert.ok(modules.size > 50, `only ${modules.size} modules found; the import scan is broken`);
+  assert.ok(modules.has('src/save-worker.js'), 'the scan does not reach the save worker');
   const missing = [...modules].filter((f) => !listed.has(f)).sort();
   assert.deepEqual(missing, [], `not precached, so the installed app cannot load them offline after an update: ${missing.join(', ')}`);
 });

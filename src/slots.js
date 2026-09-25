@@ -17,6 +17,7 @@
 // the open slot now leaves nothing open, and the player picks.
 
 import { packCareers, unpackCareers } from './engine/awards.js';
+import { encode, decode } from './savecodec.js';
 
 export const REGISTRY_KEY = 'gridiron-eras:slots:v1';
 /** How many saves a browser holds. Three is a menu; a list is a filing system. */
@@ -26,7 +27,7 @@ export const PREFS_KEY = 'gridiron-eras:prefs:v1';
 export const slotKey = (id) => `gridiron-eras:slot:${id}`;
 
 function read(storage, key) {
-  try { const raw = storage.getItem(key); return raw ? JSON.parse(raw) : null; } catch { return null; }
+  try { const raw = storage.getItem(key); return raw ? JSON.parse(decode(raw)) : null; } catch { return null; }
 }
 function write(storage, key, value) {
   storage.setItem(key, JSON.stringify(value));
@@ -118,15 +119,38 @@ export function readSlot(storage, id) {
   return raw;
 }
 
-export function writeSlot(storage, reg, id, state) {
-  write(storage, slotKey(id), { league: packLeague(state.league), game: state.game });
+/** A slot's state as the JSON it is stored as, before packing. */
+export function serializeSlot(state) {
+  return JSON.stringify({ league: packLeague(state.league), game: state.game });
+}
+
+/** What the registry says about a slot, taken when its state is serialized. */
+export function slotMeta(state) {
+  return { summary: summarize(state.league), name: state.league?.name || null };
+}
+
+/**
+ * Put an already-packed slot on disk and bring the registry up to date. Split
+ * from `writeSlot` because the store packs its routine saves off the page's
+ * thread and lands them here when they come back.
+ */
+export function commitSlot(storage, reg, id, packed, meta) {
+  storage.setItem(slotKey(id), packed);
   const s = reg.slots.find((x) => x.id === id);
   if (s) {
     s.updated = Date.now();
-    s.summary = summarize(state.league);
-    if (state.league && state.league.name) s.name = state.league.name;
+    s.summary = meta.summary;
+    if (meta.name) s.name = meta.name;
   }
   write(storage, REGISTRY_KEY, reg);
+}
+
+/**
+ * Serialize, pack and store a slot, all at once. Deflate's fast level, because
+ * whoever calls this is waiting: the page going away, a slot being switched.
+ */
+export function writeSlot(storage, reg, id, state) {
+  commitSlot(storage, reg, id, encode(serializeSlot(state), 1), slotMeta(state));
 }
 
 /**

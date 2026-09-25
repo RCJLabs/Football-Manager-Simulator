@@ -17,10 +17,33 @@ await sleep(800);
 const browser = await chromium.launch();
 // Narrowest phone we support: 360 CSS px (Galaxy S-series portrait).
 const page = await browser.newPage({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+// Saves are packed (src/savecodec.js), and the checks below read them where
+// they lie, some from inside waitForFunction, which needs an answer at once.
+// So the page is given the app's own codec as a plain script before anything
+// else loads — the vendored deflate and savecodec.js with their import and
+// export lines taken off — rather than a second decoder that could agree with
+// itself and not with the app.
+const { encode, decode } = await import(`${R}/src/savecodec.js`);
+{
+  const { readFileSync } = await import('node:fs');
+  const script = (f) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')
+    .replace(/^import .*$/gm, '')
+    .replace(/^export \{[^}]*\};?\s*$/gm, '')
+    .replace(/^export (?=function|var|let|const|class)/gm, '');
+  await page.addInitScript({ content: `(() => {\n${script('vendor/fflate.js')}\n${script('savecodec.js')}\nwindow.__geDecode = decode;\n})();` });
+}
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
 const shot = async (name) => page.screenshot({ path: `${process.env.SHOT_DIR || '/tmp'}/${name}.png`, fullPage: false });
+/**
+ * Some checks write a save into localStorage under the running app and reload
+ * to load it. The app writes whatever it has not saved as the page goes away,
+ * and a routine save sits in its worker for a moment after the debounce — so
+ * the reload meant to load the injected save could write the app's own over it
+ * first. Firing its own pagehide flush beforehand leaves it nothing unsaved.
+ */
+const settleSave = () => page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
 
 /**
  * Everything in the nav has to be reachable: on the bar, or in the menu that
@@ -522,11 +545,11 @@ try {
   await page.goto(`http://localhost:${port}/#/season`);
   await page.waitForSelector('#advance');
   await sleep(400); // the store saves on a short debounce
-  const weekBefore = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league.week);
+  const weekBefore = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(__geDecode(raw)) : { league: null }; })().league.week);
   await page.click('#advance');
   await page.waitForSelector('#play');
-  await page.waitForFunction((w) => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league.week === w + 1, weekBefore, { timeout: 5000 });
-  const wire = await page.evaluate(() => { const lg = (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league; return { user: lg.teams.findIndex((t) => t.isUser), week: lg.lastWaivers && lg.lastWaivers.week, results: lg.lastWaivers ? lg.lastWaivers.results : [] }; });
+  await page.waitForFunction((w) => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(__geDecode(raw)) : { league: null }; })().league.week === w + 1, weekBefore, { timeout: 5000 });
+  const wire = await page.evaluate(() => { const lg = (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(__geDecode(raw)) : { league: null }; })().league; return { user: lg.teams.findIndex((t) => t.isUser), week: lg.lastWaivers && lg.lastWaivers.week, results: lg.lastWaivers ? lg.lastWaivers.results : [] }; });
   if (wire.week !== weekBefore) errors.push(`the wire resolved for week ${wire.week}, expected ${weekBefore}`);
   if (!wire.results.some((r) => r.team === wire.user)) errors.push(`the user claim never resolved on advance: ${JSON.stringify(wire)}`);
   await page.goto(`http://localhost:${port}/#/moves/offers`);
@@ -652,10 +675,11 @@ try {
   // Injured reserve: park a long injury, then bring him back. Let the app's
   // debounced save flush first, or reloading writes its state over ours.
   await sleep(600);
+  await settleSave();
   const irTarget = await page.evaluate(() => {
     const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
     const key = 'gridiron-eras:slot:' + reg.active;
-    const st = JSON.parse(localStorage.getItem(key));
+    const st = JSON.parse(__geDecode(localStorage.getItem(key)));
     const u = st.league.teams.findIndex((t) => t.isUser);
     const slot = Object.keys(st.league.teams[u].slots).find((k) => st.league.teams[u].slots[k]);
     const id = st.league.teams[u].slots[slot];
@@ -674,17 +698,18 @@ try {
   await page.waitForSelector('[data-release]');
   await checkOverflow('injured reserve');
   await shot('10b-ir');
-  const irSaved = (want) => page.waitForFunction((n) => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; return (lg.teams.find((t) => t.isUser).ir || []).length === n; }, want, { timeout: 5000 }).then(() => true).catch(() => false);
+  const irSaved = (want) => page.waitForFunction((n) => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; return (lg.teams.find((t) => t.isUser).ir || []).length === n; }, want, { timeout: 5000 }).then(() => true).catch(() => false);
   if (!(await irSaved(1))) errors.push('injured reserve did not persist');
-  const parked = await page.evaluate((slot) => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; const t = lg.teams.find((x) => x.isUser); return { ir: (t.ir || []).length, slot: t.slots[slot] }; })(), irTarget.slot);
+  const parked = await page.evaluate((slot) => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; const t = lg.teams.find((x) => x.isUser); return { ir: (t.ir || []).length, slot: t.slots[slot] }; })(), irTarget.slot);
   if (parked.slot) errors.push(`the slot did not open: ${JSON.stringify(parked)}`);
 
   // Heal him and activate back into the slot he left.
   await sleep(600);
+  await settleSave();
   await page.evaluate(() => {
     const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
     const key = 'gridiron-eras:slot:' + reg.active;
-    const st = JSON.parse(localStorage.getItem(key));
+    const st = JSON.parse(__geDecode(localStorage.getItem(key)));
     const u = st.league.teams.findIndex((t) => t.isUser);
     for (const id of st.league.teams[u].ir) delete st.league.injuries[id];
     localStorage.setItem(key, JSON.stringify(st));
@@ -696,7 +721,7 @@ try {
   await checkOverflow('activate from IR');
   await page.click('.modal [data-take]');
   if (!(await irSaved(0))) errors.push('activation did not persist');
-  const back = await page.evaluate((slot) => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; const t = lg.teams.find((x) => x.isUser); return !!t.slots[slot]; })(), irTarget.slot);
+  const back = await page.evaluate((slot) => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; const t = lg.teams.find((x) => x.isUser); return !!t.slots[slot]; })(), irTarget.slot);
   if (!back) errors.push('the activated player did not take his slot back');
 
   await page.goto(`http://localhost:${port}/#/players`);
@@ -740,13 +765,30 @@ try {
   if (shown === 0) errors.push('real names did not come back');
   await page.goto(`http://localhost:${port}/#/settings`);
   await page.waitForSelector('#injuries');
-  const dialSaved = await page.waitForFunction(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league.settings.injuries === 'normal', null, { timeout: 3000 }).then(() => true).catch(() => false);
+  const dialSaved = await page.waitForFunction(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(__geDecode(raw)) : { league: null }; })().league.settings.injuries === 'normal', null, { timeout: 3000 }).then(() => true).catch(() => false);
   if (!dialSaved) errors.push('injury dial change was not saved');
+  // Saves are packed: a routine one in the worker at level 6, one that has to
+  // land before the page does anything else on the spot at level 1. Deflate is
+  // deterministic, so packing what is stored again says which wrote it — and a
+  // browser that could not run the worker would be saving at level 1 here.
+  {
+    const raw = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); return localStorage.getItem('gridiron-eras:slot:' + reg.active); });
+    if (!raw || !raw.startsWith('\u0001GE1:')) errors.push('the open slot is stored as plain JSON, not packed');
+    else if (encode(decode(raw), 6) !== raw) errors.push(`a routine save was not packed by the worker${encode(decode(raw), 1) === raw ? ': it was packed on the page, so the worker never ran' : ''}`);
+  }
+  // And a change the page closes on before its save has gone is written on
+  // the way out rather than lost with the worker.
+  await page.selectOption('#injuries', 'low');
+  await page.reload();
+  await page.waitForSelector('#injuries');
+  const keptOnClose = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); return JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league.settings.injuries; });
+  if (keptOnClose !== 'low') errors.push(`a change made just before the page closed was lost (saved: ${keptOnClose})`);
+  await page.selectOption('#injuries', 'normal');
 
   await page.goto(`http://localhost:${port}/#/season`);
   await page.reload();
   await page.waitForSelector('#advance');
-  const saved = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league.week);
+  const saved = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(__geDecode(raw)) : { league: null }; })().league.week);
   console.log('persisted week:', saved);
 
   // The scouting report on the next opponent. It only scouts a game not yet
@@ -775,7 +817,7 @@ try {
   await checkOverflow('simulate ahead');
   await shot('09z-simahead');
   await page.click('[data-sim="playoffs"]');
-  const inPlayoffs = await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; return lg.phase === 'playoffs' || lg.phase === 'complete'; }, null, { timeout: 20000 }).then(() => true).catch(() => false);
+  const inPlayoffs = await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; return lg.phase === 'playoffs' || lg.phase === 'complete'; }, null, { timeout: 20000 }).then(() => true).catch(() => false);
   if (!inPlayoffs) errors.push('simulating to the playoffs did not get there');
   await checkOverflow('after simulating to the playoffs');
 
@@ -789,7 +831,7 @@ try {
       text: document.body.innerText,
       leaders: document.querySelectorAll('#awards-view .card')[1]?.querySelectorAll('tbody tr').length || 0,
       clubs: document.querySelector('#statCat') ? document.querySelector('#statCat').closest('.card').querySelectorAll('tbody tr').length : 0,
-      teams: (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); return JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league.teams.length; })(),
+      teams: (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); return JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league.teams.length; })(),
     }));
     if (!/League leaders/i.test(t.text)) errors.push('the team stats tab has no league leaders');
     if (!/Red-zone touchdown % allowed/i.test(t.text)) errors.push('team stats carry no red-zone defence');
@@ -838,10 +880,10 @@ try {
       await page.waitForSelector('[data-accept]');
       await checkOverflow('trade offer');
       await shot('09d2-offer');
-      const before = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; return (lg.transactions || []).filter((t) => t.type === 'trade').length; })());
+      const before = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; return (lg.transactions || []).filter((t) => t.type === 'trade').length; })());
       await page.click('[data-accept]');
       await sleep(400);
-      const after = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; return (lg.transactions || []).filter((t) => t.type === 'trade').length; })());
+      const after = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; return (lg.transactions || []).filter((t) => t.type === 'trade').length; })());
       if (after <= before) errors.push('accepting a trade offer did not log a trade');
       tookOffer = true;
       await page.goto(`http://localhost:${port}/#/season`);
@@ -893,8 +935,8 @@ try {
   const intake = await page.$eval('#offseason-view', (e) => e.textContent);
   if (!/rookies entered the pool/.test(intake)) errors.push('the offseason did not announce a rookie class');
   // The store saves on a debounce, so read the slot only once the class has landed in it.
-  const readRookies = () => page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return 0; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return slot?.league?.rookies?.length || 0; });
-  await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return false; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return (slot?.league?.rookies?.length || 0) >= 16; }, { timeout: 4000 }).catch(() => {});
+  const readRookies = () => page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return 0; const slot = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active)) || 'null'); return slot?.league?.rookies?.length || 0; });
+  await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return false; const slot = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active)) || 'null'); return (slot?.league?.rookies?.length || 0) >= 16; }, { timeout: 4000 }).catch(() => {});
   const rookieCount = await readRookies();
   if (rookieCount < 16) errors.push(`only ${rookieCount} rookies were generated`);
   // Rookies sit around the middle of the pool, so find them by their RK team code rather
@@ -912,8 +954,8 @@ try {
   await page.waitForSelector('#offseason-view');
   const yearOlder = await page.$eval('#offseason-view', (e) => e.textContent);
   if (!/A year older/.test(yearOlder)) errors.push('the offseason did not report the ageing');
-  await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return false; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return Object.keys(slot?.league?.dev || {}).length > 20; }, { timeout: 4000 }).catch(() => {});
-  const careers = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return 0; const slot = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active) || 'null'); return Object.keys(slot?.league?.dev || {}).length; });
+  await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return false; const slot = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active)) || 'null'); return Object.keys(slot?.league?.dev || {}).length > 20; }, { timeout: 4000 }).catch(() => {});
+  const careers = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || 'null'); if (!reg) return 0; const slot = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active)) || 'null'); return Object.keys(slot?.league?.dev || {}).length; });
   if (careers < 20) errors.push(`only ${careers} careers started after a season`);
   // Rookies are fogged in the pool: a band, not a number, until they have played.
   await page.goto(`http://localhost:${port}/#/players`);
@@ -957,9 +999,9 @@ try {
   await page.click('#autoAll');
   await page.waitForSelector('#start');
   // The store saves on a short debounce; wait for the finished market to land.
-  const marketSaved = await page.waitForFunction(() => { const lg = (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league; return lg.season === 2 && lg.auction && lg.auction.complete; }, null, { timeout: 5000 }).then(() => true).catch(() => false);
+  const marketSaved = await page.waitForFunction(() => { const lg = (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(__geDecode(raw)) : { league: null }; })().league; return lg.season === 2 && lg.auction && lg.auction.complete; }, null, { timeout: 5000 }).then(() => true).catch(() => false);
   if (!marketSaved) errors.push('the offseason auction never persisted as complete in season 2');
-  const leftover = await page.evaluate(() => { const lg = (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(raw) : { league: null }; })().league; return { kept: Object.values(lg.contracts).filter((c) => c.kept > 0).length, full: lg.teams.every((t) => Object.values(t.slots).every(Boolean)) }; });
+  const leftover = await page.evaluate(() => { const lg = (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; return raw ? JSON.parse(__geDecode(raw)) : { league: null }; })().league; return { kept: Object.values(lg.contracts).filter((c) => c.kept > 0).length, full: lg.teams.every((t) => Object.values(t.slots).every(Boolean)) }; });
   if (!leftover.full) errors.push('the offseason auction left a slot open');
   if (!leftover.kept) errors.push('no keeper survived into season 2');
   await page.click('#start');
@@ -1004,7 +1046,7 @@ try {
   if (slotCount !== 2) errors.push(`home lists ${slotCount} leagues, expected 2`);
   await page.click('[data-open]');
   await page.waitForSelector('[data-open]');
-  const reopened = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); return JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league.teams.find((t) => t.isUser).name; })());
+  const reopened = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); return JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league.teams.find((t) => t.isUser).name; })());
   if (reopened !== 'Time Travelers') errors.push(`reopened slot belongs to ${reopened}`);
   // Sharing: the league code round-trips through the setup screen into a third slot.
   await page.goto(`http://localhost:${port}/#/settings`);
@@ -1021,8 +1063,8 @@ try {
   await page.click('#openCode');
   await page.waitForSelector('#season-view');
   // The store saves on a short debounce; wait for the new slot's league to land.
-  await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const raw = reg.active && localStorage.getItem('gridiron-eras:slot:' + reg.active); return !!(raw && JSON.parse(raw).league); }, null, { timeout: 5000 }).catch(() => errors.push('the league from the code never saved'));
-  const fromCode = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active)).league; return lg ? { n: reg.slots.length, shared: !!lg.shared, week: lg.week } : { n: reg.slots.length }; })());
+  await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const raw = reg.active && localStorage.getItem('gridiron-eras:slot:' + reg.active); return !!(raw && JSON.parse(__geDecode(raw)).league); }, null, { timeout: 5000 }).catch(() => errors.push('the league from the code never saved'));
+  const fromCode = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; return lg ? { n: reg.slots.length, shared: !!lg.shared, week: lg.week } : { n: reg.slots.length }; })());
   if (fromCode.n !== 3 || !fromCode.shared || fromCode.week !== 1) errors.push(`league from code: ${JSON.stringify(fromCode)}`);
 
   // The snake draft is still an option and must still work.
@@ -1288,6 +1330,7 @@ try {
     await page.setViewportSize({ width: 360, height: 800 });
     await page.goto(`http://localhost:${port}/`);
     await sleep(600); // let the debounced save flush, or it writes over ours
+    await settleSave();
     await page.evaluate((league) => {
       const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
       // Adopt a slot the app already made. Inventing a registry entry does not
@@ -1344,10 +1387,11 @@ try {
     // Fame membership ever read. Faked here rather than played for, because
     // twelve seasons of a 32-club league is not a smoke test.
     {
+      await settleSave();
       await page.evaluate(() => {
         const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
         const key = 'gridiron-eras:slot:' + reg.active;
-        const st = JSON.parse(localStorage.getItem(key));
+        const st = JSON.parse(__geDecode(localStorage.getItem(key)));
         const u = st.league.teams.findIndex((t) => t.isUser);
         const id = Object.values(st.league.teams[u].slots).find(Boolean);
         st.league.careers = { [id]: { seasons: 12, games: 174, pts: 4200, passYds: 58211, passTd: 402,
@@ -1358,7 +1402,7 @@ try {
       });
       const { u, id } = await page.evaluate(() => {
         const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
-        const st = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active));
+        const st = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active)));
         const i = st.league.teams.findIndex((t) => t.isUser);
         return { u: i, id: Object.values(st.league.teams[i].slots).find(Boolean) };
       });
@@ -1391,7 +1435,7 @@ try {
     {
       const { u, id } = await page.evaluate(() => {
         const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
-        const st = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active));
+        const st = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active)));
         const i = st.league.teams.findIndex((t) => t.isUser);
         const sl = st.league.teams[i].slots;
         return { u: i, id: sl.S1 || sl.S2 || sl.CB1 || sl.CB2 };
@@ -1426,6 +1470,7 @@ try {
       const faIdx = careerIndex(fa, leagueIndex(fa, PLAYERS_BY_ID));
       confirmKeepers(fa, aiKeepers(fa, userTeamIndex(fa), faPool, faIdx, new RNG(8)), faPool, faIdx);
       if (fa.offseason?.step !== 'freeagency') errors.push(`confirming keepers left the pro league at "${fa.offseason?.step}", not the market`);
+      await settleSave();
       await page.evaluate((league) => {
         const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
         localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
@@ -1469,10 +1514,11 @@ try {
         await checkOverflow('free agency with a five-year offer in');
       }
       // Careers off: one length, so no choice is drawn at all.
+      await settleSave();
       await page.evaluate(() => {
         const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
         const key = 'gridiron-eras:slot:' + reg.active;
-        const st = JSON.parse(localStorage.getItem(key));
+        const st = JSON.parse(__geDecode(localStorage.getItem(key)));
         st.league.settings.careers = false;
         localStorage.setItem(key, JSON.stringify(st));
       });
@@ -1503,6 +1549,7 @@ try {
       const gone = pc.teams[u].slots.CB2;
       pc.teams[u].slots.CB2 = null;
       if (gone) delete pc.contracts[gone];
+      await settleSave();
       await page.evaluate((league) => {
         const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
         localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
@@ -1512,7 +1559,7 @@ try {
       await sleep(600);
       const saved = () => page.evaluate(() => {
         const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
-        const st = JSON.parse(localStorage.getItem('gridiron-eras:slot:' + reg.active));
+        const st = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active)));
         const t = st.league.teams.find((x) => x.isUser);
         return { cb2: t.slots.CB2, moves: st.league.moves || {} };
       });
@@ -1556,6 +1603,7 @@ try {
       while (past.phase === 'season' || past.phase === 'playoffs') { simulateWeekAi(past, PLAYERS_BY_ID, { includeUser: true }); advanceWeek(past, PLAYERS_BY_ID); }
       newSeasonSameRosters(past, PLAYERS_BY_ID);
       for (let w = 0; w < 2; w++) { simulateWeekAi(past, PLAYERS_BY_ID, { includeUser: true }); advanceWeek(past, PLAYERS_BY_ID); }
+      await settleSave();
       await page.evaluate((league) => {
         const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
         localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
@@ -1603,6 +1651,7 @@ try {
       l.phase = 'complete';
       enterOffseason(l, leaguePool(l, PLAYERS), careerIndex(l, leagueIndex(l, PLAYERS_BY_ID)));
       l.draftType = 'auction';
+      await settleSave();
       await page.evaluate((league) => {
         const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
         localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
@@ -1632,6 +1681,7 @@ try {
         return l;
       };
       const put = async (league) => {
+        await settleSave();
         await page.evaluate((league) => {
           const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
           localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
