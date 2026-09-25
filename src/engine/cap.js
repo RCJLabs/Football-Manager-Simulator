@@ -68,13 +68,14 @@ export const ROOKIE_CURVE = 5;
  * back to 113% on the one set once the passer and the receivers were held to
  * real seasons, where the one set on the drive model leaves it, to 117% on
  * the one set once the lines were held to real absences, and to 115% on the
- * one set once the pocket read them (`npm run cap -- 1 4`). A star quarterback
- * at 87 costs 25, about an eighth of everything a club has, where the table
- * before made him 27, the one before that 21 and the one before the passer was
- * fixed 39; a back at 87 costs 12, where the morning before the run game was
- * fixed made him 34; a lineman at 87 costs 6, where he cost 9 before the lines
- * were held and 5 after; an 88-rated kicker costs 6, because leverage says he
- * is worth about that.
+ * one set once the pocket read them and again on the one set once the
+ * coverage made sacks (`npm run cap -- 1 4`). A star quarterback at 87 costs
+ * 23, about a ninth of everything a club has, where the table before made him
+ * 25, the one before that 27, the one before that 21 and the one before the
+ * passer was fixed 39; a corner at 87 costs 14; a back at 87 costs 11, where
+ * the morning before the run game was fixed made him 34; a lineman at 87 costs
+ * 6, where he cost 9 before the lines were held and 5 after; an 88-rated
+ * kicker costs 5, because leverage says he is worth about that.
  */
 export const MARKET_RATE = 0.09;
 export const REPLACEMENT_OVR = 60;

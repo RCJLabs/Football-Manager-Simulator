@@ -139,8 +139,8 @@ reshuffled random stream: an injury change that drew one extra number per
 injury took it to 9.1, while two 48-league samples either side of that change
 read 8.2 and 8.5. So the audit now holds the thing the auction produces before a
 ball is snapped, which no in-season randomness can move — the spread of roster
-quality, leverage-weighted: a standard deviation of 35.6 under the auction
-against 20.4 from the draft, over the default twelve leagues.
+quality, leverage-weighted: a standard deviation of 36.9 under the auction
+against 21.1 from the draft, over the default twelve leagues.
 
 "Leverage-weighted" meant a table of its own until 2026-09-24: `auction-sim`
 carried a literal copy of the very first measurement (tight end 9.3, back 5.0)
@@ -153,12 +153,13 @@ the receivers were held to real seasons 37.0 against 21.9, and the one set on
 the drive model 40.4 against 22.6, and 40.2 against 22.0 once the rating
 weights were re-measured on it, and 33.0 against 21.1 once the lines were held
 to real absences and the table and the weights re-set on them, and 35.6
-against 20.4 once the pocket read the lines: the auction now spreads rosters
-about three quarters again more than the draft does, where on the one before it
-was half again more, before that four fifths more, before that two-thirds more,
-before that a third more and on the oldest half again more. The fall to 33.0 was
-the table: weighed by it, the line that used to be the biggest spend had become
-the cheapest starter, so the rosters that differed most by how much line they
+against 20.4 once the pocket read the lines, and 36.9 against 21.1 once the
+coverage made sacks: the auction now spreads rosters about three quarters again
+more than the draft does, as on the one before, where before that it was half
+again more, before that four fifths more, before that two-thirds more, before
+that a third more and on the oldest half again more. The fall to 33.0 was the
+table: weighed by it, the line that used to be the biggest spend had become the
+cheapest starter, so the rosters that differed most by how much line they
 bought came to differ least. With the pocket the lines are worth a little more
 again, and so is the spread.
 
@@ -204,19 +205,19 @@ Two things the re-measurement exposed that were not about the tight end at all:
 
 **The absolute scale is not free.** The price guide normalises the table away, so only ratios were thought to matter. But `lineupStrength` in transactions.js sums `overall × leverage` raw and `aiGreed` compares the result against fixed thresholds of 2 to 8, so shrinking the table made AI clubs stop offering trades entirely. The offers test caught it. The corrected ratios are therefore scaled so the starter-weighted total is unchanged at 86.45, which leaves trade behaviour exactly as it was.
 
-**A value ratio is meaningless when the stake is trivial.** Re-measured, the punter came out at better value-for-money than the quarterback — arithmetically true, and it had the value board telling a new manager that punters are the best buy in the game. `positionValue()` now carries each position's whole-squad stake and calls anything under 7.5% "barely matters" however good its ratio, measured on the group so five cheap linemen are not mistaken for a specialist. The line was 5% until the table set on the drive model put the punter at 4.99%, where half a hundredth of a point on his table weight, a fortieth of its standard error, would have made him the best buy on the board; the specialists stood at 4.5% and 5.0% and the next position at 10.0%, so the line sits in the gap. On the table set once the lines were held to real absences they stood at 4.8% and 6.1% and the next, the tight end, at 9.2%, and on the one set once the pocket read them at 5.0%, 6.1% and 8.9%: still the gap.
+**A value ratio is meaningless when the stake is trivial.** Re-measured, the punter came out at better value-for-money than the quarterback — arithmetically true, and it had the value board telling a new manager that punters are the best buy in the game. `positionValue()` now carries each position's whole-squad stake and calls anything under 7.5% "barely matters" however good its ratio, measured on the group so five cheap linemen are not mistaken for a specialist. The line was 5% until the table set on the drive model put the punter at 4.99%, where half a hundredth of a point on his table weight, a fortieth of its standard error, would have made him the best buy on the board; the specialists stood at 4.5% and 5.0% and the next position at 10.0%, so the line sits in the gap. On the table set once the lines were held to real absences they stood at 4.8% and 6.1% and the next, the tight end, at 9.2%, on the one set once the pocket read them at 5.0%, 6.1% and 8.9%, and on the one set once the coverage made sacks at 4.8%, 5.9% and 8.5%: still the gap.
 
-**Which positions are actually the bargains**, on the table as it stands (set on 2026-09-25 once the pocket read the lines; see "The pocket, held to real absences"):
+**Which positions are actually the bargains**, on the table as it stands (set on 2026-09-25 once the coverage made sacks; see "Coverage sacks, held to real absences"):
 
-| | CB | OL | S | QB | TE | DL | LB | RB | WR |
+| | CB | OL | S | LB | QB | TE | DL | RB | WR |
 |---|---|---|---|---|---|---|---|---|---|
-| Wins share | 11.1% | 6.0% | 7.1% | 22.8% | 8.9% | 8.4% | 6.2% | 11.0% | 7.3% |
-| Price share | 6.9% | 4.9% | 5.9% | 22.5% | 9.3% | 9.3% | 7.3% | 15.7% | 14.7% |
-| Value | 1.63× | 1.22× | 1.21× | 1.01× | 0.96× | 0.90× | 0.85× | 0.70× | 0.50× |
+| Wins share | 12.8% | 5.6% | 6.6% | 7.4% | 21.4% | 8.5% | 7.9% | 10.6% | 8.5% |
+| Price share | 6.9% | 4.9% | 5.9% | 7.3% | 22.5% | 9.3% | 9.3% | 15.7% | 14.7% |
+| Value | 1.86× | 1.14× | 1.12× | 1.01× | 0.95× | 0.91× | 0.85× | 0.68× | 0.58× |
 
-Cheap is not the same as underpriced, and the table has changed its mind about which is which six times in two days. On this one the corner is the one bargain; the offensive line, the safety, the quarterback and the tight end are about right; the defensive line, the linebacker and the back are overpaid, the back right on the line at 0.70×; and the receiver is the trap. On the table before it the line read about right at 0.97× and the defensive line overpaid at 0.73×, on an engine whose lines reached the passing game only through pressure. On the one before that the offensive line was the first bargain at 1.72×, on an engine whose run game read the lines three to six times as far as the real one, and the defensive line and the quarterback were a little overpaid at 0.92. Until the passer was held to real seasons the quarterback was the first bargain at 1.48× and linemen came out overpaid at 0.96×: a point of a quarterback's rating moved his production 2.4 times the real game's, so his win share was inflated and every other position's was measured against it. For a few hours earlier the back was the one clear bargain at 1.69×, on a table that was right about an engine whose run game was wrong. The strategy table below is where each of these is tested against buyers who bid on something else.
+Cheap is not the same as underpriced, and the table has changed its mind about which is which seven times in two days. On this one the corner is the one bargain, nearly twice what the room pays for him now that he makes sacks; the offensive line, the safety, the linebacker and the quarterback are about right, the quarterback right on the line at 0.95×; the tight end and the defensive line are overpaid; and the back and the receiver are the traps, the back just under the line at 0.68×. On the table before it the corner was already the one bargain at 1.63×, the linebacker overpaid at 0.85×, the back right on the line at 0.70× and the receiver the one trap at 0.50×. On the one before that the line read about right at 0.97× and the defensive line overpaid at 0.73×, on an engine whose lines reached the passing game only through pressure. On the one before that the offensive line was the first bargain at 1.72×, on an engine whose run game read the lines three to six times as far as the real one, and the defensive line and the quarterback were a little overpaid at 0.92. Until the passer was held to real seasons the quarterback was the first bargain at 1.48× and linemen came out overpaid at 0.96×: a point of a quarterback's rating moved his production 2.4 times the real game's, so his win share was inflated and every other position's was measured against it. For a few hours earlier the back was the one clear bargain at 1.69×, on a table that was right about an engine whose run game was wrong. The strategy table below is where each of these is tested against buyers who bid on something else.
 
-One limitation to carry openly: this is an average across a position's starters, and where a position has several the first is worth more than the average. Measured solo over the same six rosters, a number one receiver is worth 1.01 against the positional average of 0.76, about a third more (1.00 against 0.77 on the table before, 1.01 against 0.75 before that and 0.91 against 0.69 before that). It was nearly twice (2.14 against 1.12) while a receiver nine points better drew 2.7 times the targets. The value panel says so.
+One limitation to carry openly: this is an average across a position's starters, and where a position has several the first is worth more than the average. Measured solo over the same six rosters, a number one receiver is worth 1.20 against the positional average of 0.94, about a quarter more (1.01 against 0.76 on the table before, 1.00 against 0.77 before that, 1.01 against 0.75 before that and 0.91 against 0.69 before that). It was nearly twice (2.14 against 1.12) while a receiver nine points better drew 2.7 times the targets. The value panel says so.
 
 Measured over twenty-four 8-team leagues with the human team following fixed
 strategies, on the current 1,500-player pool with the 27-slot roster, injuries
@@ -224,12 +225,14 @@ at the default setting and penalties on:
 
 | Strategy | Wins of 14 | Point differential | Average finish of 8 | Titles of 24 |
 |---|---|---|---|---|
-| Value shopper (bid 1.15× true worth) | 7.8 | +30 | 3.6 | 5 |
-| Trenches first (1.7× worth on the lines) | 7.3 | +13 | 4.5 | 1 |
-| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.0 | −15 | 5.0 | 4 |
-| Skill players first (1.5× asking at QB/RB/WR/TE) | 6.0 | −26 | 5.2 | 3 |
-| Market follower (pay the asking price) | 5.7 | −49 | 5.9 | 2 |
-| Spread it evenly | 5.3 | −71 | 6.3 | 0 |
+| Value shopper (bid 1.15× true worth) | 7.6 | +35 | 3.9 | 3 |
+| Stars and scrubs (2.4× asking for anyone rated 93+, $1 for the rest) | 7.0 | +4 | 4.7 | 4 |
+| Trenches first (1.7× worth on the lines) | 6.8 | −6 | 4.7 | 3 |
+| Skill players first (1.5× asking at QB/RB/WR/TE) | 6.3 | −28 | 5.3 | 3 |
+| Market follower (pay the asking price) | 4.5 | −80 | 6.9 | 1 |
+| Spread it evenly | 4.2 | −105 | 6.8 | 0 |
+
+Re-run once the coverage made sacks and the table and the weights were re-set on it (see "Coverage sacks, held to real absences"). Value shopping still wins most, 7.6 where it read 7.8, and the three strategies behind it are within about a standard error of where they were. The two that buy what the room buys lost about a win each: following the market 4.5 where it read 5.7, spreading it evenly 4.2 where it read 5.3. That is about two standard errors of a difference each. Most likely it is the corner, whom the room now underpays by more than it did and neither of them buys on worth; that is not isolated.
 
 Re-run once the pocket read the lines and the table and the line's weights were re-set on it (see "The pocket, held to real absences"). Value shopping still wins most, 7.8 again. Trenches first comes back to second, 7.3 where it read 6.8, with the lines worth about three tenths more than they were; following the market reads 5.7 against 5.2. Each figure carries about ±0.4, so the order at the top is the finding and the rest is inside a new draw's noise.
 
@@ -384,12 +387,13 @@ further over since: 120% at founding on the table before 2026-09-24, 122% on
 the one set that morning, 119% on the one set once the run game matched real
 carries, 113% on the one set once the passer and the receivers did too and
 113% again on the one set on the drive model, 117% on the one set once the
-lines were held to real absences, and 115% on the one set once the pocket read
-them (`npm run cap -- 1 4`), with the cap left where it was for the reasons
-under "Twenty-five seasons in". A star quarterback at 87 costs 25, where he cost
-27 on the table before, 21 before that and 39 before the passer was fixed; a
-lineman at 87 costs 6, where he cost 5 on the table before and 9 before the
-lines were held.
+lines were held to real absences, 115% on the one set once the pocket read
+them, and 115% again on the one set once the coverage made sacks (`npm run cap
+-- 1 4`), with the cap left where it was for the reasons under "Twenty-five
+seasons in". A star quarterback at 87 costs 23, where he cost 25 on the table
+before, 27 before that, 21 before that and 39 before the passer was fixed; a
+corner at 87 costs 14 (12 on the table before); a lineman at 87 costs 6, where
+he cost 5 two tables ago and 9 before the lines were held.
 
 **Three things were wrong before it worked, and all three are the same mistake
 in different clothes — the money kept being thrown away:**
@@ -1101,8 +1105,8 @@ were not true, and the 250/500 swing column is why.
 
 | position | `overall` vs point differential | games | swing, 250 vs 500 | differential, worst to best |
 | --- | --- | --- | --- | --- |
-| QB | **r = 0.978** | 500 | 0.005 | 9.5 |
-| CB | **r = 0.951** | 500 | 0.034 | 4.7 |
+| QB | **r = 0.979** | 500 | 0.005 | 9.4 |
+| CB | **r = 0.957** | 500 | 0.034 | 5.8 |
 | OL | r = 0.972 | 1500 | 0.065 | 3.6 |
 | S | r = 0.956 | 1500 | 0.064 | 3.4 |
 | DL | r = 0.952 | 1500 | 0.136 | 3.9 |
@@ -1124,7 +1128,12 @@ fall is the engine, not the weights, which did not change: the commit that
 held the lines took him there with the old table and weights, his range
 narrowing from 5.6 points, most of it in what his own side scores (0.914 over
 2.2 to 0.823 over 1.6), while against the opponent's points he still reads
--0.972. The other rows, and the swing column, were not re-run.*
+-0.972. Once the coverage made sacks and the corner's weights were re-set on
+it, the corner reads 0.957 over 5.8 points, where he read 0.954 over 4.5 once
+the pocket read the lines, and the quarterback 0.979 over 9.4: a corner who
+makes sacks is worth more to his side, and against the opponent's points he
+now reads -0.975 over 4.5. The other rows, and the swing column, were not
+re-run.*
 
 **`overall` is a better guide than this file has ever claimed, and the reason it
 looked otherwise was sampling.** Nine of eleven positions sit at 0.87 or above
@@ -1724,7 +1733,7 @@ sample size the yardstick table specifies for it:
 | position | games a man | shipped pool | generated rookies | pair correlation, shipped / generated |
 |---|---|---|---|---|
 | QB | 200 | 0.988 | **0.988** | 0.98 / 0.82 |
-| CB | 500 | 0.951 | **0.944** | 0.96 / 0.79 |
+| CB | 500 | 0.957 | **0.963** | 0.96 / 0.79 |
 | DL | 1500 | 0.952 | **0.964** | 0.95 / 0.79 |
 
 *The corner's generated figure was 0.991 until 2026-09-24, when the passer and
@@ -1742,8 +1751,10 @@ done. On the drive model the real corners read 0.966 and the generated ones
 0.958, and the weights were then re-measured on it (see "The rating weights,
 re-measured on the engine as it now is"): ball skills 0.19, coverage 0.51,
 tackling 0.05, and the two read 0.975 and 0.968. Once the lines were held to
-real absences they read 0.951 and 0.961, and once the pocket read them 0.954
-and 0.944, each step inside the swing a man carries at 500 games.*
+real absences they read 0.951 and 0.961, once the pocket read them 0.954
+and 0.944, and once the coverage made sacks and the corner's weights were
+re-set on it 0.957 and 0.963, each step inside the swing a man carries at 500
+games.*
 
 **The weights transfer, and that makes the original numbers worth more rather
 than less.** On the generated pool the weight vector is genuinely identified —
@@ -1907,9 +1918,9 @@ The dial is a league setting: Off, Low, Normal (default), High, as a multiplier 
 
 | setting | injuries per game (both clubs) | player-weeks lost per club per game | players out per club-week (8-team league) | QB1 missing |
 |---|---|---|---|---|
-| low | 0.66 | 0.55 | 0.17 | 1.3% of weeks |
-| normal | 1.30 | 1.07 | 0.38 | 4.5% of weeks |
-| high | 2.54 | 2.03 | 0.68 | 5.1% of weeks |
+| low | 0.67 | 0.60 | 0.17 | 0.7% of weeks |
+| normal | 1.31 | 1.12 | 0.34 | 2.8% of weeks |
+| high | 2.57 | 2.07 | 0.72 | 5.7% of weeks |
 
 *Re-run once the lines were held to real absences, and the two left-hand columns
 over a thousand games rather than three hundred. They had read 0.52, 1.15 and
@@ -1921,7 +1932,9 @@ side of the change). The QB1 column is ten seasons of one league and moves by a
 point or so with every set of drafts. Re-run again once the pocket read the
 lines, on the drafts of the table set on it: 0.67, 1.34 and 2.59 became 0.66,
 1.30 and 2.54, and the QB1 column went 3.0%, 2.6% and 5.3% to 1.3%, 4.5% and
-5.1%.*
+5.1%. And once the coverage made sacks, on the drafts of the table and the
+weights set on it: 0.67, 1.31 and 2.57, and the QB1 column 0.7%, 2.8% and
+5.7%.*
 
 The two right-hand columns used to read 0.3 / 0.7 / 1.2 and 4% / 6% / 10%, and
 they have roughly halved without the injury model moving at all — the two
@@ -1951,12 +1964,12 @@ per season rather than per club-week for a reason given below):
 
 | mode | setting | games a club | starter-weeks lost | QB1 misses | season-enders |
 |---|---|---|---|---|---|
-| fantasy | low | 14.0 | 2.4 | 0.19 | 0.11 |
-| pro | low | 17.0 | 2.7 | 0.21 | 0.13 |
-| fantasy | normal | 14.0 | 5.3 | 0.63 | 0.09 |
-| pro | normal | 17.0 | 5.2 | 0.41 | 0.21 |
-| fantasy | high | 14.0 | 9.5 | 0.71 | 0.41 |
-| pro | high | 17.0 | 12.0 | 1.06 | 0.37 |
+| fantasy | low | 14.0 | 2.4 | 0.10 | 0.09 |
+| pro | low | 17.0 | 2.5 | 0.21 | 0.09 |
+| fantasy | normal | 14.0 | 4.7 | 0.39 | 0.14 |
+| pro | normal | 17.0 | 5.4 | 0.54 | 0.20 |
+| fantasy | high | 14.0 | 10.0 | 0.80 | 0.38 |
+| pro | high | 17.0 | 11.6 | 1.12 | 0.38 |
 
 **The rate cannot differ between the modes, and does not.** Injury risk is
 `BASE_PER_PLAY` per snap, so a game is a game whichever league it is played in,
@@ -1981,7 +1994,9 @@ the table set once the pocket read the lines, the ratios read 1.13, 0.98 and
 1.26: this time the normal row, fantasy up from 4.5 to 5.3 and pro down from 5.7
 to 5.2 on the same draw. The risk is per snap in both modes by construction, so
 a ratio under one is the draw, and it is the thinnest evidence this table has
-given.*
+given. Re-drawn once the coverage made sacks, on the drafts of the table and
+the weights set on it: 1.04, 1.15 and 1.16, the normal row back above one
+(fantasy 4.7, pro 5.4) and low the thin one again.*
 
 **What actually bites is the bench.** Thirty-two clubs roster 64 of the pool's
 128 quarterbacks where eight clubs roster 16, so a pro club's QB2 is drawn from
@@ -1989,14 +2004,15 @@ very much further down:
 
 | mode | clubs | QB1 | QB2 | backup gap | sd |
 |---|---|---|---|---|---|
-| fantasy | 64 | 93.8 | 90.5 | 3.3 | 1.7 |
+| fantasy | 64 | 93.9 | 90.6 | 3.2 | 1.5 |
 | pro | 256 | 90.0 | 84.3 | **5.7** | **3.7** |
 
 Both ends are diluted and the backup end far more. The spread matters as much
-as the mean: at sd 1.7 a fantasy club is nearly always well covered at
+as the mean: at sd 1.5 a fantasy club is nearly always well covered at
 quarterback, while at sd 3.7 a pro club's cover is a lottery. (The fantasy
-spread has read 1.4, 2.7 and 1.7 on the drafts of three successive tables and
-weights; the drafts, not the pool, move it, and the pro row has not moved.) Measured over
+spread has read 1.4, 2.7, 1.7 and 1.5 on the drafts of four successive tables
+and weights; the drafts, not the pool, move it, and the pro row has not
+moved.) Measured over
 every club in eight leagues per mode, because the first attempt read one club's
 QB1/QB2 pair as a finding and a single pair is one draw from a wide
 distribution.
@@ -4058,7 +4074,8 @@ Holding the lines to real absences took them to 1.05 and 5.97, against a real
 5.89, and the pocket (see "The pocket, held to real absences") the second to
 5.80: drafted fronts out-rush drafted lines by five points, which the pocket
 now reads. On the drafts of the table and the weights set on it, 5.93, the
-tenth or so two leagues carry either way.
+tenth or so two leagues carry either way, and 5.93 again once the coverage
+made sacks, with the quarterbacks' slope at 1.02.
 
 ### Backs, receivers and tight ends, held to real seasons
 
@@ -4180,7 +4197,7 @@ men rather than assume them.
 
 **Held to it by the audit.** `npm run receiving` takes about seventy seconds;
 the audit reads the receivers' target-share slope (0.82, flagged outside ±0.2)
-and the backs' carries slope (0.96, ±0.25). From `npm run rushing` it reads the
+and the backs' carries slope (1.02, ±0.25). From `npm run rushing` it reads the
 backs' slope (0.93, flagged outside ±0.15) and a pro league's yards a carry
 (4.59, ±0.25). They read 0.80, 1.13, 0.88 and 4.57 when this was written; the
 drive model held to real play-by-play (next section) moved them, the last to
@@ -4190,7 +4207,9 @@ the two lines at a quarter of what it did, so a back's own terms carry more of
 his yards, and the play caller's lean on the run by the quarterback's rating
 less the back's comes true a little less. Once the pocket read the lines the
 carries slope read 0.96 on the new drafts, a draw's worth, and the others
-stayed where they were.
+stayed where they were; and once the coverage made sacks, 1.02 on the drafts
+of the table and the weights set on it, with the receivers at 0.82 and the
+backs at 0.95 and 4.61 yards a carry.
 
 ### The drive model, held to real play-by-play
 
@@ -5212,6 +5231,110 @@ drive model where it was. A drafted pro league throws for 5.99 adjusted net
 yards a dropback against a real 5.89, on the table and the weights before this
 section's.
 
+**The value table, a seventh time.** Six rosters at 10,000 games each. In raw
+margin per starter a corner rose from 1.16 to 1.41 (6.4 standard errors), an
+off-ball backer from 0.65 to 0.81 (4.4) and a receiver from 0.76 to 0.94 (7.5),
+and nothing else moved by more than 0.6 of its standard error. With the
+starter-weighted total pinned at 86.47, every other position gave back about
+7%:
+
+| | QB | CB | RB | WR | TE | DL | LB | S | P | OL | K |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| before | 10.14 | 4.96 | 4.90 | 3.25 | 3.97 | 3.74 | 2.77 | 3.17 | 2.73 | 2.65 | 2.21 |
+| now | 9.39 | 5.60 | 4.67 | 3.75 | 3.71 | 3.46 | 3.24 | 2.88 | 2.60 | 2.44 | 2.12 |
+
+The quarterback is 9.39 ± 0.50 between rosters, 1.68 corners. The value test
+held him at 1.8 times any other player; real absences put that ratio anywhere
+from about 1.1 to 5, so it now holds the claim at 1.5.
+
+The receiver's rise is the receivers' side of the term, all of it: a receiver
+eight points worse lets the coverage hold the ball, and his side is sacked 0.20
+points more, where his real absences say +0.03 (-0.18 to +0.28). That is inside
+the interval and a long way from its middle, and about a fifth of a receiver's
+worth in the table now rests on it. The first receiver alone is worth 1.20
+against the position's 0.94, about a quarter more (1.01 against 0.76 on the
+table before).
+
+**The rating weights on this engine.** `npm run attrs` at 40,000 games a
+reading on the positions the term reaches:
+
+| position | measured / shipped |
+| --- | --- |
+| CB | coverage .547 / .51, ball skills .147 / .19, speed .139 / .16, awareness .126 / .09, tackling .041 / .05 |
+| WR | routes .362 / .20, catching .311 / .38, speed .262 / .33, after the catch .065 / .09 |
+| LB, off the ball | coverage .380 / .28, awareness .192 / .16, tackling .163 / .23, run defence .131 / .16, pass rush .075 / .10, speed .060 / .07 |
+| LB, on the edge | pass rush .599 / .45, run defence .090 / .23, the rest within .03 |
+
+Generated players' production, five sets of 600 games a man, against the move:
+
+| position | half way | all the way |
+| --- | --- | --- |
+| CB | +0.0003 | +0.0005 (+0.0001 to +0.0010) |
+| WR | +0.0040 | +0.0055 (-0.0008 to +0.0122) |
+| LB, off the ball | +0.0003 | +0.0000 (-0.0015 to +0.0016) |
+
+**What moved.** The corner and the receiver the whole way: coverage .54, ball
+skills .15, speed .14, awareness .12, tackling .05; routes .37, catching .31,
+speed .26, after the catch .06. The record allows both and generated players
+ask for both. The off-ball backer five eighths: coverage .35, tackling .19,
+awareness .18, run defence .14, pass rush .08, speed .06, as far as the record
+lets his shortfall grow by a point; generated players neither ask for it nor
+object to it. Route running is the receiver's largest weight now, and all of
+that is the receivers' half of the term above: route runners up two (Davante
+Adams '20 91 to 93, Reggie Wayne '07, Michael Irvin '91, Steve Largent '85),
+returners playing receiver down three or four (Devin Hester '07 64 to 61,
+Cordarrelle Patterson '13 62 to 58). No corner and no backer moves more than a
+point: coverage backers up (Jack Ham '75 92 to 93, Derrick Brooks '02 90 to
+91), thumpers down (Bill George '56 89 to 88). The record still reads Csonka
+and Riggins.
+
+**What did not.** The edge rusher measured more pass rush again, .599 against
+.45, which generated players have objected to at every step before; the term
+leaves him out of coverage, so he holds. The safety, the defensive line and the
+tight end were not re-measured: their worth in the table did not move.
+
+**What moved with it.** Every club drafts and bids on the table and on
+`overall`, so everything read from a drafted league was re-drawn:
+
+| | before | after |
+| --- | --- | --- |
+| value board: underpaid / about right / overpaid / badly overpaid | CB / OL, S, QB, TE / DL, LB, RB / WR | CB / OL, S, LB, QB / TE, DL / RB, WR |
+| the corner's value / the quarterback's | 1.63× / 1.01× | 1.86× / 0.95× |
+| value shopper / trenches first / market follower / spread it evenly, wins of 14, 24 leagues | 7.8 / 7.3 / 5.7 / 5.3 | 7.6 / 6.8 / 4.5 / 4.2 |
+| roster spread, auction / draft | 35.6 / 20.4 | 36.9 / 21.1 |
+| a roster at market against the cap, founding | 115% | 115% |
+| a quarterback / corner / back at 87, a lineman at 87, a kicker at 88, of a 200 cap | 25 / 12 / 12, 6, 6 | 23 / 14 / 11, 6, 5 |
+| AI offers a league-season / helping the human | 10.4 / 37% | 9.7 / 40% |
+| MVPs in 40 seasons, as awarded / read straight | QB 33, RB 7 / QB 38, CB 2 | QB 33, RB 7 / QB 26, CB 14 |
+| the pass/run read at 0.70 against 0.55: 8, 10, 12 clubs, pro | +0.71, +0.65, +0.66, +0.58 | +0.31, +0.57, +0.71, +0.40 |
+| fourth-down aggression four-fifths up, eight clubs / pro | +0.36 / +0.22 | +0.02 / +0.25 |
+| blitzing least / the deepest shell, eight clubs / pro | +0.25 / +0.42, +0.33 / +0.08 | −0.07 / +0.33, +0.24 / +0.06 |
+| starter-weeks lost to injury, fantasy / pro, normal | 5.3 / 5.2 | 4.7 / 5.4 |
+| a pro league's adjusted net a dropback / yards a carry | 5.93 / 4.60 | 5.93 / 4.61 |
+| passers / receivers' targets / backs' carries against real seasons | 1.04 / 0.83 / 0.96 | 1.02 / 0.82 / 1.02 |
+| the corner's yardstick / generated corners' | 0.954 / 0.944 | 0.957 / 0.963 |
+
+The read's eight-club figure is the mean of four sets of drafts and the pro
+one of three; the first set read +0.12 and +0.19, and on the drafts before the
+table and the weights moved the coverage alone read +0.87 in the same
+eight-club leagues. So the gain from throwing is about half what it was in
+eight-club leagues, most likely through who the clubs draft; throwing is
+still the best setting on every draw. The two buyers who buy what the room buys
+lost about a win each, about two standard errors of a difference each, most
+likely because the corner the room underpays is worth more; neither is
+isolated. The eight-club dials are one set of drafts, the one whose read was
+lowest of the four, and aggression there has read anywhere from +0.02 to +0.39
+over five; the team page's note says up to a quarter of a point and that it
+moves. The MVP discount on every position but the quarterback and the back went
+from 0.6 to 0.45 (see "Awards, records and the hall of fame"), which keeps the awards at 33 and 7 and the
+nearest corner at 73% of a winner. The expected-points fit reads 0.0518 a yard
+against `EP_PER_YARD`'s 0.0525, inside the audit's band, and is not refitted.
+Of the lines' checks, the lineman's passing effect reads 0.165 at the audit's
+2,000 games and the defensive lineman's 0.145, against 0.130 and 0.164 when the
+pocket went in; both inside their bands, and at even sides the coverage term
+is one, so most likely that is the random stream the term re-drew rather than
+the term.
+
 **Held to it by the audit.** `npm run trenches` reports the corner's sacks and
 his passing effect per point of sack rate, on the real off-ball linebackers
 rather than the whole group, and the audit reads one more of its lines at 2,000
@@ -5806,6 +5929,17 @@ That later re-measure came the same day. With the passer and the receivers held 
 
 Measured again once the drive was held to real play-by-play, with the quarterback at 8.68 in the table: read straight it names 37 quarterbacks, 2 defensive linemen and a corner in the same forty seasons, and with both numbers as they are, 33 quarterbacks and 7 backs again, with no other position within 63% of a winner. Neither number moved. And once the lines were held to real absences, with the quarterback at 11.16 and a sack credited the way the real game spreads them: read straight, 39 quarterbacks and a corner, the two linemen gone with the credit that had given the best rusher two thirds of his side's sacks; as awarded, 35 quarterbacks and 5 backs, nobody else within 57%. Real voting's four in five and one in five is still the target, and neither number moved. And once the pocket read the lines, with the quarterback at 10.14: read straight, 38 quarterbacks and 2 corners; as awarded, 33 and 7 again, nobody else within 69%. Neither number moved.
 
+Once the coverage made sacks, with the corner at 5.60 against the quarterback's 9.39, the table read straight names 26 quarterbacks and 14 corners. As awarded the forty seasons still name 33 quarterbacks and 7 backs, but with a corner's season 97% of a winner's, and every earlier table had kept the nearest other position at 57% to 77%. So `MVP_OTHERS` moved for the first time:
+
+| every other position at | QB | RB | the best other season, of a winner's |
+| --- | --- | --- | --- |
+| 0.6 | 33 | 7 | 97% |
+| 0.55 | 33 | 7 | 89% |
+| 0.5 | 33 | 7 | 81% |
+| 0.45 | 33 | 7 | 73% |
+
+It is 0.45: the same 33 and 7, and the old margin back. `MVP_QB_OVER_RB` did not move.
+
 ## AI general managers (`gm.js`)
 
 Three things an AI club does that a preset never did.
@@ -6105,7 +6239,7 @@ Aggression helps every mix of offence and kicker in both (+0.50 to +0.80 in eigh
 | Deep coverage at its best | +0.36 ± 0.23 at 0.6 | nothing (+0.01 ± 0.15 at 0) |
 | Tempo at any setting | within ±0.22 | within ±0.24 |
 
-Aggression is worth half what it was in eight-club leagues and about a third in pro ones, and its best setting is no longer the top of the dial. Most likely that is the fourth-down call itself: the default is now fitted to real coaches' decisions, which go for it more than the old margin of 1.15 points did, so there is less left for the dial to find. That was not isolated. A weak offence with a poor kicker gains nothing measurable at any setting (+0.17 ± 0.21 and +0.16 ± 0.19 at 0.8, −0.08 at the top in both). Blitzing least reads higher in pro leagues (+0.50 from +0.23) and the deepest shell is flat in them (from +0.15 ± 0.15). Tempo is flat for every club taken together. One third of eight-club leagues, the middle one, read +1.26 ± 0.42 at the fastest setting; on eight fresh leagues the same third read −0.66 ± 0.44 there, so it was noise, and the sixteen leagues together keep every setting within about a quarter of a point of the default. The team page's notes say the new numbers, and no longer say that every dial leans one way for every kind of squad. The audit replayed aggression on four of the eight-club leagues, 100 games a club: +0.48 four-fifths of the way up the dial. Once the rating weights were re-measured on the drive model (see "The rating weights, re-measured on the engine as it now is") the drafts came out differently, and on the new drafts four-fifths of the way up reads +0.16 ± 0.14 in the eight eight-club leagues and +0.33 ± 0.10 in the pro ones, where it read +0.39 and +0.31; the four the audit replayed read −0.03. A difference between two sets of drafts that size is about one standard error, so the dial pays a sixth to a third of a point four-fifths of the way up, and going for it less costs a fifth to a quarter (−0.21 ± 0.09, −0.28 ± 0.07 at the bottom). Once the lines were held to real absences and the table and the weights re-set on them, four-fifths of the way up reads +0.24 ± 0.14 and +0.36 ± 0.10, and going for it less costs a sixth (−0.17 ± 0.10, −0.17 ± 0.07); a weak offence with a poor kicker still gains nothing measurable (+0.25 ± 0.27, +0.12 ± 0.17 at 0.8). Blitzing least reads +0.25 and +0.37, the deepest shell +0.41 and +0.27, and tempo stays within a quarter of a point. Once the pocket read the lines and the table and the line's weights were re-set on it, four-fifths of the way up reads +0.36 ± 0.14 and +0.22 ± 0.10, and going for it less costs a quarter to a third (−0.31 ± 0.10, −0.23 ± 0.07). A weak offence with a poor kicker reads +0.10 ± 0.27 and +0.46 ± 0.17 at 0.8, where it had read next to nothing on every set of drafts before; the kind of squad that gains most is a different one in the two kinds of league on the same drafts, so it is noise in the split, and the team page no longer names one. Blitzing least reads +0.25 and +0.42, the deepest shell +0.33 and +0.08, and tempo stays within a quarter of a point. The audit now replays the pro leagues, whose error is half the eight-club ones': +0.22 at 0.8, flagged if it leaves −0.08 to +0.52.
+Aggression is worth half what it was in eight-club leagues and about a third in pro ones, and its best setting is no longer the top of the dial. Most likely that is the fourth-down call itself: the default is now fitted to real coaches' decisions, which go for it more than the old margin of 1.15 points did, so there is less left for the dial to find. That was not isolated. A weak offence with a poor kicker gains nothing measurable at any setting (+0.17 ± 0.21 and +0.16 ± 0.19 at 0.8, −0.08 at the top in both). Blitzing least reads higher in pro leagues (+0.50 from +0.23) and the deepest shell is flat in them (from +0.15 ± 0.15). Tempo is flat for every club taken together. One third of eight-club leagues, the middle one, read +1.26 ± 0.42 at the fastest setting; on eight fresh leagues the same third read −0.66 ± 0.44 there, so it was noise, and the sixteen leagues together keep every setting within about a quarter of a point of the default. The team page's notes say the new numbers, and no longer say that every dial leans one way for every kind of squad. The audit replayed aggression on four of the eight-club leagues, 100 games a club: +0.48 four-fifths of the way up the dial. Once the rating weights were re-measured on the drive model (see "The rating weights, re-measured on the engine as it now is") the drafts came out differently, and on the new drafts four-fifths of the way up reads +0.16 ± 0.14 in the eight eight-club leagues and +0.33 ± 0.10 in the pro ones, where it read +0.39 and +0.31; the four the audit replayed read −0.03. A difference between two sets of drafts that size is about one standard error, so the dial pays a sixth to a third of a point four-fifths of the way up, and going for it less costs a fifth to a quarter (−0.21 ± 0.09, −0.28 ± 0.07 at the bottom). Once the lines were held to real absences and the table and the weights re-set on them, four-fifths of the way up reads +0.24 ± 0.14 and +0.36 ± 0.10, and going for it less costs a sixth (−0.17 ± 0.10, −0.17 ± 0.07); a weak offence with a poor kicker still gains nothing measurable (+0.25 ± 0.27, +0.12 ± 0.17 at 0.8). Blitzing least reads +0.25 and +0.37, the deepest shell +0.41 and +0.27, and tempo stays within a quarter of a point. Once the pocket read the lines and the table and the line's weights were re-set on it, four-fifths of the way up reads +0.36 ± 0.14 and +0.22 ± 0.10, and going for it less costs a quarter to a third (−0.31 ± 0.10, −0.23 ± 0.07). A weak offence with a poor kicker reads +0.10 ± 0.27 and +0.46 ± 0.17 at 0.8, where it had read next to nothing on every set of drafts before; the kind of squad that gains most is a different one in the two kinds of league on the same drafts, so it is noise in the split, and the team page no longer names one. Blitzing least reads +0.25 and +0.42, the deepest shell +0.33 and +0.08, and tempo stays within a quarter of a point. Once the coverage made sacks and the table and the weights were re-set on it, four-fifths of the way up reads +0.02 ± 0.14 and +0.25 ± 0.10, and going for it less costs a third (−0.36 ± 0.10, −0.34 ± 0.07). Over the five sets of eight-club drafts it has been measured on, four-fifths of the way up has read +0.39, +0.16, +0.24, +0.36 and now +0.02, so the team page says up to a quarter of a point and that it moves from one set of leagues to the next. Blitzing least reads −0.07 ± 0.20 and +0.33 ± 0.14, with 0.15 the best eight-club setting at +0.18 ± 0.16, and blitzing more costs a quarter to a half; the deepest shell reads +0.24 and +0.06, and tempo stays within a fifth of a point. The audit now replays the pro leagues, whose error is half the eight-club ones': +0.25 at 0.8, flagged if it leaves −0.05 to +0.55.
 
 Also measured and not built: the per-opponent game plan the audit proposed. `makeGameplan` already exists and every AI club gets one; it nudges the dials by ±0.06 to ±0.15 and fires in **16 of 1,500** even matchups because its thresholds need a composite gap over 5 or 8 points. Where it does fire it is worth +0.39 ± 0.41 points. The `planForUser` option that would extend it to the human has never been passed by anything, which is deliberate (see the game plan note above) and costs the player nothing measurable.
 
@@ -6183,9 +6317,9 @@ A cell carries ±0.34 to 0.38. Ten- and twelve-club leagues say the same: every 
 | twelve clubs | +1.10 ± 0.16 | +0.99 ± 0.15 | −0.98 ± 0.15 |
 | pro | +1.11 ± 0.17 | +0.98 ± 0.15 | +0.10 ± 0.16 |
 
-The last column was measured while that read was still in place, so the human's club was playing it as everybody's opponent too; the others with the new one. *Measured again the same day once the passer and the receivers were held to real seasons (see "The passing game, held to real quarterbacks"): +0.68 ± 0.17 in eight-club leagues, +1.00 in ten, +0.81 in twelve and +1.04 in pro ones; every fifth of every league still does best at 0.65 or 0.70, gaining +0.13 to +1.68 at 0.70. The most run-built fifth of eight-club leagues is the nearest to flat, +0.13 ± 0.38. Always 0.35 costs −1.04 to −1.23. And again once the drive was held to real play-by-play (see "The drive model, held to real play-by-play"): +0.71 ± 0.18 in eight-club leagues, +0.54 in ten, +0.56 in twelve and +0.70 in pro ones. Eighteen of the twenty fifths do best at 0.65 or 0.70, gaining −0.02 to +1.52 at 0.70, and the two that do not are within their noise of it; always 0.35 costs −0.23 to −0.93. And again once the lines were held to real absences (see "The trenches, held to real absences"): +0.70 ± 0.18 in eight-club leagues, +0.60 in ten, +0.40 in twelve and +0.52 in pro ones. Eighteen of the twenty fifths do best at 0.65 or 0.70; the two that do not, one at 0.55 and one at 0.45, are within their noise of it, ± 0.4 a fifth. The team page now says four-tenths to seven-tenths of a point. And again once the pocket read the lines (see "The pocket, held to real absences"): +0.71 ± 0.18 in eight-club leagues, +0.65 in ten, +0.66 in twelve and +0.58 in pro ones. Nineteen of the twenty fifths do best at 0.65 or 0.70, and the one that does not, a pro league's most run-built fifth, peaks at 0.45 within its noise. The team page's words stand.* The ramp fitted to these games puts the crossover at the right-hand end of the range it is searched over, and in-sample it beats always throwing by five hundredths at most. So there is no crossover: `CROSSOVER` is `null` in both kinds of league, and the read tells every squad to throw — a run-built squad in so many words, "Even so, squads built like yours win more by throwing, measured against the clubs you play" — and says moving the dial is worth four-tenths to seven-tenths of a point a game. The ramp stays in the code for the day a crossover comes back. The read of 19 September, fitted on synthetic rosters before the run game was broken, had the direction right all along.
+The last column was measured while that read was still in place, so the human's club was playing it as everybody's opponent too; the others with the new one. *Measured again the same day once the passer and the receivers were held to real seasons (see "The passing game, held to real quarterbacks"): +0.68 ± 0.17 in eight-club leagues, +1.00 in ten, +0.81 in twelve and +1.04 in pro ones; every fifth of every league still does best at 0.65 or 0.70, gaining +0.13 to +1.68 at 0.70. The most run-built fifth of eight-club leagues is the nearest to flat, +0.13 ± 0.38. Always 0.35 costs −1.04 to −1.23. And again once the drive was held to real play-by-play (see "The drive model, held to real play-by-play"): +0.71 ± 0.18 in eight-club leagues, +0.54 in ten, +0.56 in twelve and +0.70 in pro ones. Eighteen of the twenty fifths do best at 0.65 or 0.70, gaining −0.02 to +1.52 at 0.70, and the two that do not are within their noise of it; always 0.35 costs −0.23 to −0.93. And again once the lines were held to real absences (see "The trenches, held to real absences"): +0.70 ± 0.18 in eight-club leagues, +0.60 in ten, +0.40 in twelve and +0.52 in pro ones. Eighteen of the twenty fifths do best at 0.65 or 0.70; the two that do not, one at 0.55 and one at 0.45, are within their noise of it, ± 0.4 a fifth. The team page now says four-tenths to seven-tenths of a point. And again once the pocket read the lines (see "The pocket, held to real absences"): +0.71 ± 0.18 in eight-club leagues, +0.65 in ten, +0.66 in twelve and +0.58 in pro ones. Nineteen of the twenty fifths do best at 0.65 or 0.70, and the one that does not, a pro league's most run-built fifth, peaks at 0.45 within its noise. The team page's words stand. And again once the coverage made sacks (see "Coverage sacks, held to real absences"): +0.12 ± 0.18 in eight-club leagues on the first set of drafts, so three more were drawn, +0.30, +0.46 and +0.36, a mean of +0.31; +0.57 in ten and +0.71 in twelve; and in pro ones +0.19, +0.65 and +0.35 on three, a mean of +0.40. The gain in eight-club leagues is about half what it was. On the drafts before the table and the weights moved, the coverage alone read +0.87 in the same leagues, so it is the table and the weights, most likely through who the clubs draft, rather than the coverage; why is not isolated. Throwing is still the best setting in every kind of league on every draw, and always 0.35 costs −0.24 to −0.73. Eighteen of the twenty fifths on the first draws do best at 0.65 or 0.70; the two that do not, a ten-club league's second most pass-built fifth at 0.55 and again a pro league's most run-built at 0.45, are within their noise of it. The team page now says three-tenths to seven-tenths of a point.* The ramp fitted to these games puts the crossover at the right-hand end of the range it is searched over, and in-sample it beats always throwing by five hundredths at most. So there is no crossover: `CROSSOVER` is `null` in both kinds of league, and the read tells every squad to throw — a run-built squad in so many words, "Even so, squads built like yours win more by throwing, measured against the clubs you play" — and says moving the dial is worth three-tenths to seven-tenths of a point a game. The ramp stays in the code for the day a crossover comes back. The read of 19 September, fitted on synthetic rosters before the run game was broken, had the direction right all along.
 
-A dial that goes one way for every squad is a tax on anybody who does not max it. It is not in itself unrealistic: a real dropback was worth +0.007 expected points in 2022–23 and a designed run −0.062, and a dropback was worth more in 46 of 64 team-seasons. What keeps real teams running is defences that adjust to how often an offence throws, and the engine's never do, so throwing more has no price; that is recorded rather than done. The passing game's own heat, the other thing recorded here, is mostly gone: drafted leagues throw for 7.8 yards an attempt against a real 7.1, from 8.1. The audit re-measures it on eight of those leagues, 150 games a club at each setting: +0.71 against 0.55 once the pocket read the lines (+0.70 before), flagged outside +0.31 to +1.11.
+A dial that goes one way for every squad is a tax on anybody who does not max it. It is not in itself unrealistic: a real dropback was worth +0.007 expected points in 2022–23 and a designed run −0.062, and a dropback was worth more in 46 of 64 team-seasons. What keeps real teams running is defences that adjust to how often an offence throws, and the engine's never do, so throwing more has no price; that is recorded rather than done. The passing game's own heat, the other thing recorded here, is mostly gone: drafted leagues throw for 7.8 yards an attempt against a real 7.1, from 8.1. The audit re-measures it on eight of those leagues, 150 games a club at each setting: +0.12 against 0.55 once the coverage made sacks (+0.71 before), the lowest of the four sets of drafts above, flagged outside −0.28 to +0.52.
 
 **The AI clubs were fine, give or take the opening weeks** — on the engine before the run game was fixed, and not measured since. Every club in four pro leagues played its own league with its pass rate moved, paired by seed (`npm run passrate -- ai`). Moving every club the same way, anywhere from −0.20 to +0.10, was worth −0.13 to +0.29 — flat — and flat again at midseason. The weather finding did not replicate. What is left is fit: moved each to its own read at kickoff, AI clubs would gain +0.46 ± 0.14 a game, nearly all of it run-built clubs that open too pass-heavy (Ground & Pound +0.96, the most run-built third +1.02), and the weekly drift walks those down by midseason — Ground & Pound from 0.44 to 0.33, after which running still more earns nothing. Starting AI clubs on the read is a possible change, not made.
 

@@ -75,10 +75,14 @@ const ALL_LEAGUE_COUNTS = { QB: 1, RB: 1, WR: 3, TE: 1, DL: 4, LB: 3, CB: 2, S: 
  * used to name were the credit, which gave the best rusher two thirds of his
  * side's sacks. Once the pocket read the lines, with the quarterback at 10.14:
  * 33 and 7 again, nobody else within 69%, and read straight 38 quarterbacks
- * and 2 corners.
+ * and 2 corners. Once the coverage made sacks, with the corner at 5.60 against
+ * the quarterback's 9.39, the table read straight named 26 quarterbacks and 14
+ * corners, and at 0.6 the awards stayed 33 and 7 with a corner's season 97% of
+ * a winner's. At 0.45 they are the same 33 and 7 and nobody else comes within
+ * 73%, the margin the award has kept on every table before this one.
  */
 export const MVP_QB_OVER_RB = 1.25;
-export const MVP_OTHERS = 0.6;
+export const MVP_OTHERS = 0.45;
 const MVP_WEIGHT = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([pos, v]) => [pos,
   pos === 'QB' ? v : pos === 'RB' ? TRUE_LEVERAGE.QB / MVP_QB_OVER_RB : v * MVP_OTHERS]));
 /** What a season at this position is weighted by in the MVP race. */

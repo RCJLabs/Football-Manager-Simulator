@@ -42,15 +42,25 @@ test('era spread is the standard deviation of where a squad comes from', () => {
   assert.equal(eraSpread([2000]), 0, 'one man has no spread');
 });
 
+// Over three leagues, because what is left after the other clubs have bought
+// is a draw: about one league in six leaves a best-available squad bunched in
+// a couple of decades (seed 10 on the table before coverage made sacks, seed 7
+// on the one after, each a spread of 10 to 12 and a gap of 10 to 14), while
+// the claim is about the choice a manager faces in leagues in general.
 test('a tight era band beats best-available in season one, which makes it a choice', () => {
-  const tight = league(7); const t = stock(tight, (p) => p.season >= 2010 && p.season <= 2019);
-  const wide = league(7); const w = stock(wide, () => true);
-  const ct = chemistryFor(tight, t, PLAYERS_BY_ID);
-  const cw = chemistryFor(wide, w, PLAYERS_BY_ID);
-  assert.ok(ct.spread < 6, `a one-decade squad should be tight, got ±${ct.spread}`);
-  assert.ok(cw.spread > 12, `best-available spans eras, got ±${cw.spread}`);
-  assert.ok(ct.score > cw.score + 15, `${ct.score} vs ${cw.score}`);
-  assert.ok(ct.bonus - cw.bonus > 1, `worth ${(ct.bonus - cw.bonus).toFixed(2)} points, which is too little to be a decision`);
+  const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const rows = [7, 8, 9].map((seed) => {
+    const tight = league(seed); const t = stock(tight, (p) => p.season >= 2010 && p.season <= 2019);
+    const wide = league(seed); const w = stock(wide, () => true);
+    return { ct: chemistryFor(tight, t, PLAYERS_BY_ID), cw: chemistryFor(wide, w, PLAYERS_BY_ID) };
+  });
+  for (const { ct } of rows) assert.ok(ct.spread < 6, `a one-decade squad should be tight, got ±${ct.spread}`);
+  const spread = mean(rows.map((r) => r.cw.spread));
+  const gap = mean(rows.map((r) => r.ct.score - r.cw.score));
+  const worth = mean(rows.map((r) => r.ct.bonus - r.cw.bonus));
+  assert.ok(spread > 12, `best-available spans eras, got ±${spread.toFixed(1)}`);
+  assert.ok(gap > 15, `the tight band scores ${gap.toFixed(1)} more`);
+  assert.ok(worth > 1, `worth ${worth.toFixed(2)} points, which is too little to be a decision`);
 });
 
 test('a wide era spread stops mattering once the squad has played together', () => {

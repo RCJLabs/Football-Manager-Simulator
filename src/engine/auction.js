@@ -55,8 +55,11 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * defensive line, the linebacker and the tight end (DESIGN.md, "The trenches,
  * held to real absences"). A sixth once the pocket read the lines, which gave
  * back a lineman and a defensive lineman about three tenths of what the fifth
- * took (DESIGN.md, "The pocket, held to real absences"). The audit replays the
- * table now, and five scripts replay the run game, the passing game, the
+ * took (DESIGN.md, "The pocket, held to real absences"). A seventh once the
+ * coverage behind the rush made sacks, which put the corner at three fifths of
+ * a quarterback and the receiver and the off-ball linebacker about a sixth
+ * higher than they were (DESIGN.md, "Coverage sacks, held to real absences").
+ * The audit replays the table now, and five scripts replay the run game, the passing game, the
  * receivers, the drive and the lines against the real one.
  *
  * The absolute scale is not free, even though the price guide normalises it
@@ -80,10 +83,10 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * the lines were held to real absences the offensive line came out about
  * right rather than a bargain, and once the pocket read them it came out a
  * little better than that. Normalised against each other the one underpaid
- * position is the corner; the offensive line, the safety, the quarterback and
- * the tight end are about right; the defensive line, the linebacker and the
- * back are overpaid, the back right on the line below; and the trap is the
- * receiver.
+ * position is the corner, now nearly twice what the room pays for him; the
+ * offensive line, the safety, the linebacker and the quarterback are about
+ * right, the quarterback right on the line at 0.95; the tight end and the
+ * defensive line are overpaid; and the back and the receiver are the traps.
  * The strategy table in DESIGN.md is where that is tested against the buyers
  * who bid on something else.
  */
@@ -122,8 +125,8 @@ const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) =
  * the back, at 0.100, so the line sits in the gap between them rather than at
  * the edge of one side. On the table after the lines were held to real
  * absences they stood at 0.048 and 0.061 and the next, the tight end, at
- * 0.092, and once the pocket read the lines at 0.050, 0.061 and 0.089: still
- * the gap.
+ * 0.092, once the pocket read the lines at 0.050, 0.061 and 0.089, and once
+ * the coverage made sacks at 0.048, 0.059 and 0.085: still the gap.
  */
 export const MATTERS_AT = 0.075;
 
