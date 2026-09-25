@@ -26,6 +26,11 @@ const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eig
 /**
  * The panel. `compact` drops the explanation for the in-auction version, where
  * the screen is already busy and the reader has met the idea before.
+ *
+ * The first receiver's premium below is measured, not computed: the solo
+ * margin over the positional average in the value table's own runs (DESIGN.md,
+ * "One limitation to carry openly"). It moves when the table is re-set, so
+ * read it again then; it said a third for a table after it had become a quarter.
  */
 export function valuePanel({ compact = false } = {}) {
   const rows = positionValue();
@@ -48,7 +53,7 @@ export function valuePanel({ compact = false } = {}) {
       <thead><tr><th>Position</th><th>Wins</th><th>Price</th><th class="num">Value</th><th class="num hide-sm">Starters</th></tr></thead>
       <tbody>${raw(body)}</tbody>
     </table></div>
-    <small class="muted">Per player of equal rating, so it is the right unit when bidding on one man and the wrong one for a whole budget: a quarterback is worth about ${WORDS[Math.round(worth.QB / worth.OL)] ?? Math.round(worth.QB / worth.OL)} linemen and you have to buy five of them. Two caveats worth knowing. It is an average across a position's starters, and where there are several the first is worth appreciably more than the average — a number one receiver is worth about a third more than the figure here says. And a good ratio on a position worth almost nothing is still worth almost nothing, which is what <span class="verdict nil">barely matters</span> means. All measured against this simulation, not received football wisdom.</small>
+    <small class="muted">Per player of equal rating, so it is the right unit when bidding on one man and the wrong one for a whole budget: a quarterback is worth about ${WORDS[Math.round(worth.QB / worth.OL)] ?? Math.round(worth.QB / worth.OL)} linemen and you have to buy five of them. Two caveats worth knowing. It is an average across a position's starters, and where there are several the first is worth appreciably more than the average — a number one receiver is worth about a quarter more than the figure here says. And a good ratio on a position worth almost nothing is still worth almost nothing, which is what <span class="verdict nil">barely matters</span> means. All measured against this simulation, not received football wisdom.</small>
   </div>`;
 }
 
