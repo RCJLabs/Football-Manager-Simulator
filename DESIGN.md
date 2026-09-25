@@ -606,7 +606,7 @@ After the three fixes: forty-seven of forty-seven clean. A test for each fails o
 
 What it cannot see, stated so it is not over-read. The AI makes every decision, so a path only a human takes is covered only where it shares code with the AI's — the user's own uneven trades go through the same `backfillPlan`, the keeper screen through the same `validateKeepers`. It checks at kickoff and in the keeper round, not mid-season. One seed a combination, five seasons, and not every combination: one factor at a time plus six pairs, which is what a bug like the pro auction's needs and not what an interaction of three settings would.
 
-**A question it raised rather than a bug.** Unequal cap room is drawn once, for the founding auction. Every offseason after, `confirmKeepers` hands each club the same $200 less its keepers, so a $160 club and a $240 club are equal from the second season on. Nothing here says whether that was meant; the setup screen's "drawn at random, yours included" reads as though it lasts.
+**A question it raised rather than a bug.** Unequal cap room is drawn once, for the founding auction, and every offseason after hands each club the same $200 less its keepers; the setup screen's wording read as though it lasted. Measured, the head start is gone by the second season, so it stays a first-auction setting and the screen now says so — see *Unequal cap room*, which also records why it is no longer offered with a pro league.
 
 ## The free-agent market (`freeagency.js`)
 
@@ -6283,6 +6283,44 @@ A safety property worth stating because it is the auction's one promise: a club
 always keeps $1 per unfilled slot, so every roster completes however poor it
 started. A club on $160 with twenty-seven seats to fill is exactly where that
 would break, and a test drives one to make sure it does not.
+
+**How long it lasts.** The room is drawn once, for the founding auction. Every
+offseason after, `confirmKeepers` hands each club the same $200 less its
+keepers, so whatever the draw bought has to survive on six keepers alone. It
+does not, much. `npm run budgets -- fade` plays twenty ten-club leagues a
+setting through five seasons, every club run by the AI, and reads each kickoff
+(no one hurt yet, so its first row sits under the table above, which is read
+after a season of injuries):
+
+| season | power gap: even / mild / wide | corr(founding room, power): mild / wide | power per $10 of room: mild / wide |
+| --- | --- | --- | --- |
+| 1 | 1.28 / 1.80 / 2.53 | 0.68 / 0.84 | 0.28 / 0.26 |
+| 2 | 1.31 / 1.27 / 1.26 | 0.06 / 0.28 | 0.02 / 0.04 |
+| 3 | 1.29 / 1.26 / 1.38 | −0.01 / 0.10 | −0.01 / 0.02 |
+| 4 | 1.24 / 1.37 / 1.48 | 0.11 / 0.08 | 0.04 / 0.01 |
+| 5 | 1.37 / 1.23 / 1.36 | 0.15 / 0.13 | 0.05 / 0.02 |
+
+(Gaps ±0.05 to 0.11, correlations ±0.02 to 0.08.) By the second kickoff the
+best and worst rosters are as far apart as an even league's, and what the
+founding room still predicts at the wide setting — 0.04 of power per $10, so
+about a point a game between the $240 club and the $160 one, against seven in
+the first season — is gone by the third. So the setting is a one-season head
+start, and the setup screen says exactly that: *Cap room at the first
+auction*, and that from the second season every club has $200 again. Carrying
+the draw into every season, or redrawing it each year, were the alternatives;
+the first makes the draw the result for as long as the league runs, which is
+the reason the ladder stops at `wide`, and the second is a dice roll nobody can
+play around. Tying next season's room to this season's table is the version
+that would give the money a job, and it is not built.
+
+**Never in a pro league.** A pro league has one cap for every club, and it
+bites at kickoff. Offered there, uneven room was money the cap took straight
+back: in two 32-club leagues at `wide`, 15 and 16 clubs spent past $200 at the
+founding auction, and the first kickoff cut 30 and 39 men from them to get
+them under it — two to four from each of the richest — and left them $397 and
+$436 of dead money between them for the men they lost. The rich clubs came out
+behind. The setup screen no longer offers it with a pro league,
+and `createLeague` ignores it there.
 
 ### What a giveaway is actually worth
 

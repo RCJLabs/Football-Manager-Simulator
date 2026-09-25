@@ -9,7 +9,7 @@ import { PLAYERS, PLAYERS_BY_ID } from '../src/data/db.js';
 import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, registerPlayers, migrateLeague, LEAGUE_VERSION } from '../src/engine/season.js';
-import { autoCompleteAll, createAuction, availablePlayers, advanceToUser, slotsLeft, MIN_BID } from '../src/engine/auction.js';
+import { autoCompleteAll, createAuction, availablePlayers, advanceToUser, slotsLeft, MIN_BID, BUDGET_SPREADS, DEFAULT_BUDGET } from '../src/engine/auction.js';
 import { enterOffseason, confirmKeepers, validateKeepers, closeFreeAgency, aiKeepers } from '../src/engine/offseason.js';
 import { leaguePool, leagueIndex } from '../src/engine/rookies.js';
 import { careerIndex, applyCareers } from '../src/engine/careers.js';
@@ -141,4 +141,16 @@ test('a pro auction league saved without terms gets them on load', () => {
   migrateLeague(fantasy);
   assert.equal(JSON.stringify(fantasy.contracts), before);
   assert.equal(fantasy.migrationNote, undefined);
+});
+
+test('a pro league has one cap for every club, whatever cap room it is asked for', () => {
+  // Uneven room in a league with a hard cap was money the first kickoff took
+  // back: half the clubs spent past $200 and were cut to it, paying dead
+  // money for the men they lost.
+  const lg = createLeague({ name: 'PS', mode: 'pro', franchise: 3, seed: 3, draftType: 'auction', budgetSpread: BUDGET_SPREADS.wide });
+  assert.equal(lg.settings.budgetSpread, 0);
+  assert.deepEqual(new Set(lg.auction.startBudgets), new Set([DEFAULT_BUDGET]));
+  // A fantasy league still takes it.
+  const f = createLeague({ name: 'F', numTeams: 8, seed: 3, draftType: 'auction', budgetSpread: BUDGET_SPREADS.wide });
+  assert.ok(new Set(f.auction.startBudgets).size > 1, 'a fantasy league lost its cap room');
 });

@@ -57,13 +57,13 @@ export function view(root, params, ctx) {
           <label class="check"><input type="radio" name="type" value="snake"> <span><b>Draft</b> — take turns picking, ${ROSTER_SLOTS.length} rounds.</span></label>
           <small class="muted" id="typeNote" hidden>A 32-team auction is 832 lots. It works, but set the "only ask me about players rated" slider high or it is a long evening.</small>
           <div id="spreadRow" style="margin-top:.5rem">
-            <label for="spread">Cap room</label>
+            <label for="spread">Cap room at the first auction</label>
             <select name="spread" id="spread">
               <option value="even" selected>Same for everyone — $200</option>
               <option value="mild">A little uneven — $180–$220</option>
               <option value="wide">Uneven — $160–$240</option>
             </select>
-            <small class="muted">Drawn at random, yours included. The room holds the same money either way — it is just shared out unevenly. Uneven roughly doubles how far the best squad finishes ahead of the worst.</small>
+            <small class="muted">Drawn at random, yours included, from the same total. Uneven roughly doubles the gap between the best and worst squads in the first season. From the second, every club has $200 again less its keepers, and the rosters are as close as an even league's.</small>
           </div>
         </div>
         <div>
@@ -171,10 +171,12 @@ export function view(root, params, ctx) {
     if (pro) { form.name.value = form.name.value === 'Time Travelers' ? '' : form.name.value; form.abbr.value = form.abbr.value === 'TTV' ? '' : form.abbr.value; }
     else { if (!form.name.value) form.name.value = 'Time Travelers'; if (!form.abbr.value) form.abbr.value = 'TTV'; }
   };
-  // Cap room is an auction idea; a snake draft has no money in it. The row
-  // starts visible because auction is the default, which is the same way the
-  // rest of this form's conditional bits are set up.
-  const syncType = () => { form.querySelector('#spreadRow').hidden = form.type.value !== 'auction'; };
+  // Cap room is an auction idea, and a fantasy one: a snake draft has no money
+  // in it, and a pro league has one cap for every club — the first kickoff cut
+  // back whatever a richer club had spent past it. The row starts visible
+  // because a fantasy auction is the default, which is the same way the rest
+  // of this form's conditional bits are set up.
+  const syncType = () => { form.querySelector('#spreadRow').hidden = form.type.value !== 'auction' || form.mode.value === 'pro'; };
   modeInputs.forEach((i) => i.addEventListener('change', () => { syncMode(); syncType(); }));
   form.querySelectorAll('input[name="type"]').forEach((i) => i.addEventListener('change', () => { form.dataset.touchedType = '1'; syncType(); }));
 
@@ -209,7 +211,7 @@ export function view(root, params, ctx) {
       user,
       injuries: f.get('injuries') || DEFAULT_INJURY_LEVEL,
       keepers: Number(f.get('keepers')),
-      budgetSpread: draftType === 'auction' ? (BUDGET_SPREADS[f.get('spread')] ?? 0) : 0,
+      budgetSpread: draftType === 'auction' && mode !== 'pro' ? (BUDGET_SPREADS[f.get('spread')] ?? 0) : 0,
     });
     league.settings.coachMode = f.get('coach') === 'on';
     league.settings.coachDefense = f.get('coachDef') === 'on';

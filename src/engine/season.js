@@ -96,14 +96,17 @@ export function createLeague({ name, user = {}, numTeams = 8, seed, draftType = 
     injuries: {},
     contracts: {},
     offseason: null,
-    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, scouting: true, focus: true, positions: true, weather: true, jobs: true, difficulty: DEFAULT_DIFFICULTY, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode), budgetSpread: Number(budgetSpread) || 0 },
+    settings: { coachMode: false, coachDefense: false, careers: true, chemistry: true, scouting: true, focus: true, positions: true, weather: true, jobs: true, difficulty: DEFAULT_DIFFICULTY, injuries: INJURY_LEVELS[injuries] != null ? injuries : DEFAULT_INJURY_LEVEL, keepers: Number.isInteger(keepers) ? keepers : defaultKeepers(mode), budgetSpread: mode === 'pro' ? 0 : (Number(budgetSpread) || 0) },
   };
   assignGms(league, rng);
   if (draftType === 'auction') {
     // Unequal cap room is a setup choice rather than a default: it buys variety
     // by making some clubs richer than others, and the money in the room is
     // unchanged either way. Whose club is which is the shuffle's business, and
-    // yours is in the draw.
+    // yours is in the draw. Never in a pro league, which has one cap for every
+    // club: offered there, half the clubs spent past it at the founding
+    // auction, and the first kickoff cut them back under it and left them
+    // paying dead money for the men they lost, so the rich came out behind.
     const cap = budget || DEFAULT_BUDGET;
     const spread = league.settings.budgetSpread;
     league.auction = createAuction(league, rng, spread

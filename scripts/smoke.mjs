@@ -297,8 +297,14 @@ try {
   if (!/salary cap/.test(kinds[1] || '') || !/position changes/.test(kinds[1] || '')) errors.push(`the pro choice does not say what it adds: ${kinds[1]}`);
   await page.check('input[name="mode"][value="pro"]');
   const proFold = await page.$eval('#moreList', (e) => e.textContent);
+  // Uneven cap room is a fantasy auction's alone: a pro league has one cap, and
+  // the first kickoff cut back whatever a richer club had spent past it.
+  await page.check('input[name="type"][value="auction"]');
+  const proRoom = await page.$eval('#spreadRow', (e) => e.hidden);
   await page.check('input[name="mode"][value="fantasy"]');
   const fanFold = await page.$eval('#moreList', (e) => e.textContent);
+  const fanRoom = await page.$eval('#spreadRow', (e) => e.hidden);
+  if (!proRoom || fanRoom) errors.push(`cap room: ${proRoom ? 'hidden' : 'shown'} for a pro auction, ${fanRoom ? 'hidden' : 'shown'} for a fantasy one`);
   if (!/position changes/.test(proFold) || /position changes/.test(fanFold) || !/keepers/.test(fanFold)) errors.push(`the options fold lists "${fanFold}" for fantasy and "${proFold}" for pro`);
   await page.check('input[name="type"][value="auction"]');
   // Coach mode and the injury dial live behind the fold now, so open it first.
