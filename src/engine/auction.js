@@ -53,9 +53,11 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * play-by-play"). A fifth once the lines were held to real absences, which
  * halved the offensive line's worth and took a quarter to a third off the
  * defensive line, the linebacker and the tight end (DESIGN.md, "The trenches,
- * held to real absences"). The audit replays the table now, and five scripts
- * replay the run game, the passing game, the receivers, the drive and the
- * lines against the real one.
+ * held to real absences"). A sixth once the pocket read the lines, which gave
+ * back a lineman and a defensive lineman about three tenths of what the fifth
+ * took (DESIGN.md, "The pocket, held to real absences"). The audit replays the
+ * table now, and five scripts replay the run game, the passing game, the
+ * receivers, the drive and the lines against the real one.
  *
  * The absolute scale is not free, even though the price guide normalises it
  * away. `lineupStrength` in transactions.js sums overall × leverage raw, and
@@ -76,11 +78,12 @@ export const TOTAL_SLOTS = ROSTER_SLOTS.length;
  * below is the honest answer rather than the intuition. Cheap is not the same
  * as underpriced: linemen have low glamour and low leverage together. Once
  * the lines were held to real absences the offensive line came out about
- * right rather than a bargain, and the defensive line and the linebacker
- * overpaid. Normalised against each other the one underpaid position is the
- * corner; the quarterback, the tight end, the safety and the offensive line
- * are about right, and the trap is the receiver above all, with the back
- * and the defensive line level behind him.
+ * right rather than a bargain, and once the pocket read them it came out a
+ * little better than that. Normalised against each other the one underpaid
+ * position is the corner; the offensive line, the safety, the quarterback and
+ * the tight end are about right; the defensive line, the linebacker and the
+ * back are overpaid, the back right on the line below; and the trap is the
+ * receiver.
  * The strategy table in DESIGN.md is where that is tested against the buyers
  * who bid on something else.
  */
@@ -118,8 +121,9 @@ const LEVERAGE = Object.fromEntries(Object.entries(TRUE_LEVERAGE).map(([k, v]) =
  * The kicker and the punter stood at 0.045 and 0.050 and the next position,
  * the back, at 0.100, so the line sits in the gap between them rather than at
  * the edge of one side. On the table after the lines were held to real
- * absences they stand at 0.048 and 0.061 and the next, the tight end, at
- * 0.092: still the gap.
+ * absences they stood at 0.048 and 0.061 and the next, the tight end, at
+ * 0.092, and once the pocket read the lines at 0.050, 0.061 and 0.089: still
+ * the gap.
  */
 export const MATTERS_AT = 0.075;
 

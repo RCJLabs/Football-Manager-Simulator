@@ -73,7 +73,9 @@ const ALL_LEAGUE_COUNTS = { QB: 1, RB: 1, WR: 3, TE: 1, DL: 4, LB: 3, CB: 2, S: 
  * way the real game spreads them: 35 and 5, nobody else within 57%. Read
  * straight, that table names 39 quarterbacks and a corner; the two linemen it
  * used to name were the credit, which gave the best rusher two thirds of his
- * side's sacks.
+ * side's sacks. Once the pocket read the lines, with the quarterback at 10.14:
+ * 33 and 7 again, nobody else within 69%, and read straight 38 quarterbacks
+ * and 2 corners.
  */
 export const MVP_QB_OVER_RB = 1.25;
 export const MVP_OTHERS = 0.6;

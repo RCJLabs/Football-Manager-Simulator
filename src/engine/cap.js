@@ -66,14 +66,15 @@ export const ROOKIE_CURVE = 5;
  * bargain and part rookie deal, which is the whole point of having a cap. It
  * has drifted over since, to 119% at founding on the tables of 2026-09-24, and
  * back to 113% on the one set once the passer and the receivers were held to
- * real seasons, where the one set on the drive model leaves it, and to 117% on
- * the one set once the lines were held to real absences (`npm run cap -- 1 4`).
- * A star quarterback at 87 costs 27, about an eighth of everything a club has,
- * where the table before made him 21 and the one before the passer was fixed
- * 39; a back at 87 costs 13, where the morning before the run game was fixed
- * made him 34; a lineman at 87 costs 5, where he cost 9 before the lines were
- * held; an 88-rated kicker costs 6, because leverage says he is worth about
- * that.
+ * real seasons, where the one set on the drive model leaves it, to 117% on
+ * the one set once the lines were held to real absences, and to 115% on the
+ * one set once the pocket read them (`npm run cap -- 1 4`). A star quarterback
+ * at 87 costs 25, about an eighth of everything a club has, where the table
+ * before made him 27, the one before that 21 and the one before the passer was
+ * fixed 39; a back at 87 costs 12, where the morning before the run game was
+ * fixed made him 34; a lineman at 87 costs 6, where he cost 9 before the lines
+ * were held and 5 after; an 88-rated kicker costs 6, because leverage says he
+ * is worth about that.
  */
 export const MARKET_RATE = 0.09;
 export const REPLACEMENT_OVR = 60;
