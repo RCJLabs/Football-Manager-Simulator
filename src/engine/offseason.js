@@ -15,12 +15,12 @@ import { GM_PERSONALITIES } from '../data/teams.js';
 import { overall } from './ratings.js';
 import { RNG } from './rng.js';
 import { emptyTeamStats } from './stats.js';
-import { createAuction, priceGuide, DEFAULT_BUDGET, MIN_BID } from './auction.js';
-import { capOn, expireContracts, marketSalary, bookDead, tickDead, deadHit, teamContractIds, VET_YEARS, PRO_CAP, MIN_SALARY, SLOT_RESERVE } from './cap.js';
+import { createAuction, priceGuide, slotsLeft, DEFAULT_BUDGET, MIN_BID } from './auction.js';
+import { capOn, capSpace, expireContracts, marketSalary, bookDead, tickDead, deadHit, teamContractIds, VET_YEARS, PRO_CAP, MIN_SALARY, SLOT_RESERVE } from './cap.js';
 import { openFreeAgency, resolveFreeAgency } from './freeagency.js';
 import { createDraft } from './draft.js';
 import { standings, syncContracts, userTeamIndex, thinCompletedLogs } from './season.js';
-import { drainVeterans } from './proleague.js';
+import { drainVeterans, proPools, rookieClass } from './proleague.js';
 import { clearIr } from './injuries.js';
 import { addRookieClass } from './rookies.js';
 import { advanceCareers, releaseRetired, primeOf } from './careers.js';
@@ -542,11 +542,11 @@ export function confirmKeepers(league, userIds, pool, byId) {
     let committed = 0;
     for (const id of ids) {
       const c = league.contracts[id] || {};
-      if (league.draftType === 'auction') {
-        const cost = keeperCost(c);
-        committed += cost;
-        contracts[id] = { salary: cost, kept: (c.kept ?? 0) + 1, since: c.since ?? league.season };
-      } else if (capOn(league)) {
+      // The cap before the auction, for the reason `syncContracts` gives: a pro
+      // league that auctions took the fantasy branch here, so every man it kept
+      // was charged the keeper's raise and lost his term — $105 on the screen
+      // and $135 written, for ten men in one league — and never came due.
+      if (capOn(league)) {
         // Carry the deal forward, or write a new one at market for a man whose
         // old one is up. Rebuilding this table used to drop `salary` and
         // `years` on the floor, which quietly turned every contract into a
@@ -565,6 +565,10 @@ export function confirmKeepers(league, userIds, pool, byId) {
           kept: (c.kept ?? 0) + 1,
           since: c.since ?? league.season,
         };
+      } else if (league.draftType === 'auction') {
+        const cost = keeperCost(c);
+        committed += cost;
+        contracts[id] = { salary: cost, kept: (c.kept ?? 0) + 1, since: c.since ?? league.season };
       } else {
         contracts[id] = { round: c.round ?? ROSTER_SLOTS.length, kept: (c.kept ?? 0) + 1, since: c.since ?? league.season };
       }
@@ -627,7 +631,15 @@ export function closeFreeAgency(league, pool, byId, rng = null) {
 function openMarket(league, order, taken, budgets) {
   const rng = new RNG(league.rngState);
   if (league.draftType === 'auction') {
-    league.auction = createAuction(league, rng, { budget: league.auction?.budget ?? DEFAULT_BUDGET, budgets, order, taken });
+    // Under a cap a club bids what it has left under it, keepers, free agents
+    // and dead money all counted, not the fantasy pot less its keepers; and the
+    // lots are this year's rookies and nobody else, as the draft's are. Offered
+    // the whole pool, a pro auction bought back the all-time players the drain
+    // had shown out: 198 of 203 lots by the fifth season, measured on one league.
+    const capped = capOn(league);
+    const room = capped ? league.teams.map((t, i) => Math.max(slotsLeft(t) * MIN_BID, capSpace(league, i))) : budgets;
+    const eligible = proPools(league) ? rookieClass(league).map((p) => p.id) : null;
+    league.auction = createAuction(league, rng, { budget: league.auction?.budget ?? DEFAULT_BUDGET, budgets: room, order, taken, eligible });
     league.draft = null;
   } else {
     league.draft = createDraft(league, rng, { order, taken });

@@ -349,7 +349,7 @@ The standings carry clinch markers from the first week: **z** a first-round bye,
 
 The bracket engine works on pools of seeds, gives byes when a field is not a power of two, reseeds every round (the top seed always meets the lowest survivor), and when two pools each have one team left it schedules a final at a neutral site with no home edge. Rounds are named Wild Card, Divisional, Conference Championships, Championship.
 
-Home teams get a flat edge of 1.1 composite points to blocking, rush, coverage and tackling, which measures out to a 55/45 split between identical rosters. The setup screen defaults the pro league to the snake draft, since 832 auction lots is a long evening, but the auction works there too.
+Home teams get a flat edge of 1.1 composite points to blocking, rush, coverage and tackling, which measures out to a 55/45 split between identical rosters. The setup screen defaults the pro league to the snake draft, since 832 auction lots is a long evening, but the auction works there too — and since *A pro league that auctions* (under *Two pools*), so do its contracts.
 
 User games keep the full log and every player line. Playoff games keep player lines. AI regular-season games keep team totals only, since a 32-team season is 272 games and keeping every box score would outgrow localStorage; season totals accumulate for everyone regardless. That trade-off was re-measured rather than assumed, and the measurement changed the argument for it. Of 272 regular-season games in a 32-club season, 17 keep player lines and 255 drop them; one box score serialises to 14.9 KB, so storing the dropped ones would add about 3,800 KB. Not per season, though — the schedule is replaced at `startSeason`, so a save does not accumulate games. Measured over eight simulated seasons it is essentially flat: 2,290 KB after the first and 2,526 KB after the eighth, growing around 30 KB a season from careers, rookies and the history list. So the box scores would not pile up; they would raise the permanent floor, from about 2.4 MB to about 6.2 MB. That is past the 3.5 MB slot warning and past the roughly 5 MB per-origin ceiling most browsers put on localStorage, which means the save would stop being written at all rather than merely getting large. It stays. Game seeds derive from league seed, season, week and matchup, so re-simulating a week reproduces it.
 
@@ -561,6 +561,36 @@ Measured over twelve to fourteen seasons across four seeds, clubs settle carryin
 So dead money does not reduce it, and was never going to. Dropping a man on a dear deal for a claim at the minimum is *cap-profitable* even after the charge: the club sheds his salary, pays half of it, and replaces him for one. Measured before and after, waiver drops from one class went 36 to 47 — dead money is a real cost that correctly does not change a decision that is still worth making.
 
 What actually drives a drafted rookie off a roster is the twenty-seven slot roster where every slot is a starter, against a free-agent market of three to five hundred men. A late-round pick genuinely is the worst player at his position on the club and genuinely should be replaced; there is nowhere for him to sit and develop. That is the practice-squad problem, and it is the roster shape rather than the contracts. Dead money is worth having on its own terms — it makes a cut a decision with a bill, for the human as much as the AI — but it is not the answer to that.
+
+### A pro league that auctions
+
+Everything above was built and measured on a pro league that drafts. One that auctions took the fantasy branch at four places, because each tested `draftType === 'auction'` before `capOn`:
+
+- **`syncContracts`** wrote every purchase the fantasy deal: a price and no term. `expireContracts` reads a missing term as a fresh `VET_YEARS` every offseason, so nothing the league ever bought ran out.
+- **`confirmKeepers`** rebuilt every kept man's deal at last year's price plus the keeper's raise, and dropped his term, while `validateKeepers` — which prices what the screen shows — used the capped formula. Ten men kept in one league: $105 on the screen, $135 written.
+- **`openMarket`** gave the offseason auction the fantasy pot less the keepers, ignoring dead money and what free agency had just spent, and offered it the whole pool. The draft is this year's rookies and nothing else; the auction bought back the all-time players the drain had shown out.
+- **The keeper screen** showed the fantasy sentence (three-year limit included, which `keeperEligible` does not apply under a cap), the fantasy keeper prices, and the fantasy auction's advice.
+
+Measured before and after (`pro-auction-sim`, a scratch script: two 32-club leagues, seeds 7 and 8, every club run by the AI, read at each kickoff), against the same leagues drafting:
+
+| season | contracts with no term, before → after | deals that ran out, before → after (drafting) | market bought, before (all-time) → after (all-time) | cap hit after (drafting) |
+|---|---|---|---|---|
+| 2 | 683 → 0 | 0 → 223 (223) | 0 → 124 (0) | 198 (139) |
+| 3 | 548 → 0 | 181 → 206 (211) | 0 → 96 (0) | 195 (172) |
+| 4 | 607 → 0 | 316 → 254 (248) | 183 (180) → 119 (0) | 197 (186) |
+| 5 | 690 → 0 | 258 → 431 (421) | 189 (183) → 172 (0) | 197 (185) |
+
+Before, the only deals that ever ran out were free agents' — the one signing path that writes a term — and by the fifth season fourteen men the drain had shown out were back on rosters (the drafting league has seven by then too, for a reason not looked into here). After, a deal carried from one season to the next is the same deal to the dollar, deals run out as a drafting league's do, and the offseason auction is rookies only. The drafting league's figures are identical before and after: its branch never changed.
+
+The fix is the order, in each place, plus two things the auction needed to be the draft's equal:
+
+- **A purchase is signed as a pick is**: at what the room paid, for `ROOKIE_YEARS`, staggered in the founding season by the same hash, so a league founded at auction does not come due all at once.
+- **The room is the cap.** A club bids what `capSpace` says it has left once keepers, free agents and dead money are counted, never less than a dollar a slot. The auction runs hotter against the cap than the draft — 195 to 198 of 200 against 139 to 186 — because an auction spends its money and a rookie scale does not; that is what an auction is, and no club was over at any kickoff.
+- **A club with nothing to put up passes** (`passTurn`). An all-time pool always had somebody at every position; a rookie class can be out of kickers, and a club waiting on one would have held the room for ever. It stops nominating, the pool only shrinks so nothing turns up later, and the kickoff fill takes the slot, as it does a draft pick nobody could make.
+
+**Saved leagues.** `LEAGUE_VERSION` 5 gives every capped contract that has no term one to four years, spread by the same hash (`termlessContracts`), and says so on load. The keepers' raises cannot be told apart from real prices, so they stand until those deals run out. An auction already running when the new code loads finishes as it began, on the whole pool, and its purchases are signed on the new terms.
+
+Found on the way: the other clubs' keeper table in any league with money printed its cost and room headers as text, because they were a plain string in the template and so were escaped — in a drafting pro league the rows carried two cells the header did not. They are marked raw now, and the smoke test counts headers against cells.
 
 ## The free-agent market (`freeagency.js`)
 
@@ -7669,7 +7699,7 @@ Not done, on purpose. No line on a screen visited every week — the depth tab f
 
 The inventory corrected the list this started from. Clinch markers are not pro-only: a fantasy league gets them against its own field, as *League* says. How a future pick is valued does differ between the kinds (`futureDepth`, `madeOdds`), but that is arithmetic, not a feature anybody looks for.
 
-**Found, not fixed here.** A pro league that auctions takes the fantasy path when its keepers are confirmed. `confirmKeepers` tests `draftType === 'auction'` before `capOn`, so a kept man's contract is rebuilt at last year's price plus the fantasy raise and without `years` — the dropped-term bug the capped branch's own comment describes — while `validateKeepers`, which prices what the screen shows, uses the capped formula. Measured on one such league, keeping ten men under contract: the screen committed $105, the league wrote $135, and all ten contracts lost their term; the same ten in a pro league that drafts kept $34 and their years. The keeper paragraph for that league also reads the fantasy sentence, three-year limit included, which `keeperEligible` does not apply under a cap. Pro leagues default to the draft, so this reaches only a league that chose the 832-lot auction.
+**Found here, fixed since.** A pro league that auctions took the fantasy path when its keepers were confirmed: $105 on the screen against $135 written for ten men, and every kept contract lost its term. The same ordering was in three more places; see *A pro league that auctions*, under *Two pools in the pro league*.
 
 The smoke test asserts each line: the first screen's tile, the pro choice's list and the fold following the choice, a fantasy league's settings and its squad tab with both cards switched off, a pro league's settings without the fantasy line, and the kickoff line in a watched game.
 

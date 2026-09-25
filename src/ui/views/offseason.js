@@ -91,13 +91,15 @@ export function view(root, params, ctx) {
     const verdict = r && r.surplus != null && eligible
       ? ` <span class="badge ${r.surplus >= 3 ? 'bargain' : r.surplus > -3 ? '' : 'overpay'}" title="${esc(keeperAdvice(r))}">${r.surplus > 0 ? `saves $${r.surplus}` : r.surplus === 0 ? 'market price' : `$${-r.surplus} over`}</span>`
       : '';
-    const meta = auction
-      ? ` · last <b>$${c.salary ?? 1}</b>${eligible ? ` → keep at <b>$${cost}</b> <span class="muted">(market $${r?.market ?? '?'})</span>` : ''}${verdict}${c.kept ? ` · kept ${c.kept}×` : ''}`
-      : capped
-        // A deal that has run out is the whole decision on this screen: he is
-        // still yours, and he now costs what he is worth rather than what he
-        // was paid on a rookie contract.
-        ? ` · <b>$${c.salary ?? 1}</b>${c.expiring ? ` · <span class="badge out">deal up</span> ${isTagged(p.id) ? `<span class="badge">tagged</span> one year at <b>$${cost}</b>` : `re-sign at <b>$${cost}</b> for ${termSelect(p, c)}`}` : ` · ${c.years ?? '?'}y left`}`
+    // A capped league first, whichever way it fills its roster: a pro league
+    // that auctions keeps on its contracts, as one that drafts does.
+    const meta = capped
+      // A deal that has run out is the whole decision on this screen: he is
+      // still yours, and he now costs what he is worth rather than what he
+      // was paid on a rookie contract.
+      ? ` · <b>$${c.salary ?? 1}</b>${c.expiring ? ` · <span class="badge out">deal up</span> ${isTagged(p.id) ? `<span class="badge">tagged</span> one year at <b>$${cost}</b>` : `re-sign at <b>$${cost}</b> for ${termSelect(p, c)}`}` : ` · ${c.years ?? '?'}y left`}`
+      : auction
+        ? ` · last <b>$${c.salary ?? 1}</b>${eligible ? ` → keep at <b>$${cost}</b> <span class="muted">(market $${r?.market ?? '?'})</span>` : ''}${verdict}${c.kept ? ` · kept ${c.kept}×` : ''}`
         : ` · round ${c.round ?? '—'}${c.kept ? ` · kept ${c.kept}×` : ''}`;
     // The tag is only ever a choice about an expiring deal, and only one a year,
     // so every other row is left alone rather than carrying a dead button.
@@ -155,14 +157,15 @@ export function view(root, params, ctx) {
       ${league.offseason.rookies ? html`<p class="notice" style="margin:.5rem 0 0"><b>${league.offseason.rookies} rookies</b> entered the pool${league.offseason.washedOut ? `, and ${league.offseason.washedOut} unsigned from earlier classes washed out` : ''}. <a href="#/players">Look them over</a> before the ${auction ? 'auction' : 'draft'}.</p>` : ''}
       ${summary ? html`<p class="muted" style="margin:.3rem 0 0">${teamChip(summary.champion)} won the title. You finished <b>${ord(summary.user.rank)}</b> of ${summary.teams} at ${summary.user.record.w}-${summary.user.record.l}${summary.user.record.t ? `-${summary.user.record.t}` : ''}.</p>` : ''}
       <p class="muted" style="font-size:.9rem;margin:.5rem 0 0">
-        ${auction
-          ? html`Keep up to <b>${limit}</b> players. A keeper costs last year's price plus the greater of $3 or 15%, and a player can be kept three years running before he must go back to the pool. Everyone else returns to the pool and the remaining cap buys the rest at auction. The worst club nominates first.${capped ? '' : ' In a pro league there is no quota: contracts and a salary cap decide who stays.'}`
-          : capped
-            // Under a cap there is no quota and no three-year limit —
-            // `keeperEligible` lets a man be re-signed as often as he can be
-            // afforded — so the fantasy sentence this screen used to show a pro
-            // league was wrong on both counts.
-            ? html`A man under contract stays. One whose deal is up can be re-signed at his market price plus the re-signing premium, ${termsOpen(league) ? 'for two to five years' : `for ${VET_YEARS} years`}, as often as you can afford him — the cap is the only limit. Everyone else goes to free agency, and a draft fills what is left, worst club first.`
+        ${capped
+          // Under a cap there is no quota and no three-year limit —
+          // `keeperEligible` lets a man be re-signed as often as he can be
+          // afforded — so the fantasy sentence this screen used to show a pro
+          // league was wrong on both counts. A pro league that auctions got it
+          // anyway until the cap was tested first.
+          ? html`A man under contract stays. One whose deal is up can be re-signed at his market price plus the re-signing premium, ${termsOpen(league) ? 'for two to five years' : `for ${VET_YEARS} years`}, as often as you can afford him — the cap is the only limit. Everyone else goes to free agency, and ${auction ? 'an auction of this year\'s rookies fills what is left, bid from what each club has left under the cap; the worst club nominates first' : 'a draft fills what is left, worst club first'}.`
+          : auction
+            ? html`Keep up to <b>${limit}</b> players. A keeper costs last year's price plus the greater of $3 or 15%, and a player can be kept three years running before he must go back to the pool. Everyone else returns to the pool and the remaining cap buys the rest at auction. The worst club nominates first. In a pro league there is no quota: contracts and a salary cap decide who stays.`
             : html`Keep up to <b>${limit}</b> players; they hold their slots. Everyone else returns to the pool and a draft fills the rest, worst club first. A player can be kept three years running before he must go back to the pool. In a pro league there is no quota: contracts and a salary cap decide who stays.`}
       </p>
     </div>
@@ -171,7 +174,7 @@ export function view(root, params, ctx) {
     <div class="grid grid-2" style="margin-top:.75rem">
       <div class="card tight">
         <h3>Your keepers <small class="muted" style="text-transform:none;letter-spacing:0">· ${picked.length} of ${limit}</small></h3>
-        ${auction ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">A keeper is worth having when he costs less than the room would pay to buy him back. Green saves you money; red is an overpay you should let the auction settle.</p>` : ''}
+        ${auction && !capped ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">A keeper is worth having when he costs less than the room would pay to buy him back. Green saves you money; red is an overpay you should let the auction settle.</p>` : ''}
         ${capped ? html`<p class="muted" style="margin:0 0 .3rem;font-size:.8rem">Men still under contract cost what they are being paid. A deal that has run out is marked, and re-signing him now costs what he is worth plus a little over — that little is what certainty costs, because letting him reach free agency means bidding at his plain asking price against everybody else. Worth the gamble for a squad player; a man the league wants is taken about half the time. <b>The tag</b> is one man a year on a one-year deal at a steep price: you pay well over the odds, and in exchange you owe him nothing next winter. It is for the player you want one more season out of rather than ${VET_YEARS}.</p>` : ''}
         ${raw(groups.map((g) => `<div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;margin:.5rem 0 .2rem">${g.pos}</div><ul class="plist">${g.rows.map(rowFor).join('')}</ul>`).join(''))}
       </div>
@@ -197,7 +200,7 @@ export function view(root, params, ctx) {
         </div>
         <div class="card tight">
           <h3>What the other clubs kept</h3>
-          <div class="table-wrap"><table><thead><tr><th>Club</th><th class="num">Kept</th>${auction ? '<th class="num">Cost</th><th class="num">Cap left</th>' : ''}<th class="hide-sm">Who</th></tr></thead><tbody>${raw(aiTable)}</tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>Club</th><th class="num">Kept</th>${auction || capped ? raw('<th class="num">Cost</th><th class="num">Cap left</th>') : ''}<th class="hide-sm">Who</th></tr></thead><tbody>${raw(aiTable)}</tbody></table></div>
         </div>
         <div class="card tight">
           <h3>Final table · season ${league.offseason.season}</h3>

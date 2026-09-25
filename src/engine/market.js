@@ -36,6 +36,7 @@ import { freeAgents, waiverLimit } from './transactions.js';
 import { groupValue } from './tradeblock.js';
 import { availability, weeksLeft, SEASON_ENDING } from './injuries.js';
 import { keeperCost, keeperEligible, keeperLimit, freshGuide } from './offseason.js';
+import { capOn } from './cap.js';
 import {
   availablePlayers, openSlotsByPos, slotsLeft, canRoster, maxAffordable, MIN_BID,
 } from './auction.js';
@@ -169,7 +170,9 @@ export function faBoard(league, pool, byId, teamIdx, { q = '', pos = '', era = '
  */
 export function keeperBoard(league, pool, byId, teamIdx) {
   const team = league.teams[teamIdx];
-  const auction = league.draftType === 'auction';
+  // A fantasy auction's decision: keep at a raise, or buy him back. A pro
+  // league that auctions keeps on its contracts, as one that drafts does.
+  const auction = league.draftType === 'auction' && !capOn(league);
   const guide = auction ? freshGuide(league, pool) : null;
   const rows = [];
   for (const s of ROSTER_SLOTS) {
@@ -177,14 +180,14 @@ export function keeperBoard(league, pool, byId, teamIdx) {
     const p = id && byId.get(id);
     if (!p) continue;
     const c = league.contracts?.[id] || {};
-    const cost = keeperCost(c);
+    const cost = keeperCost(c, p, league);
     const market = guide ? Math.max(1, Math.round(guide.prices.get(id) ?? 1)) : null;
     rows.push({
       id,
       pos: p.pos,
       ovr: overall(p),
       slot: s.id,
-      eligible: keeperEligible(c),
+      eligible: keeperEligible(c, league),
       kept: c.kept || 0,
       salary: c.salary ?? 1,
       cost,

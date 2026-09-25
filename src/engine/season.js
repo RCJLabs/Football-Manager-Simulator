@@ -32,7 +32,7 @@ import { capOn, cutToCap, rookieSalary, draftSize, MIN_SALARY, ROOKIE_YEARS, VET
 import { strategyRead } from './strategy.js';
 import { conditionsFor } from './weather.js';
 
-export const LEAGUE_VERSION = 4;
+export const LEAGUE_VERSION = 5;
 export const FANTASY_SIZES = [8, 10, 12];
 export const PRO_SIZE = 32;
 
@@ -160,10 +160,32 @@ function spreadFoundingContracts(league) {
 }
 
 /**
+ * A pro league that auctions wrote its contracts without a term — every
+ * purchase, and every man it kept — so nothing in it ever expired (see
+ * `syncContracts` and `confirmKeepers`). Each such deal gets one to four years,
+ * spread by the same hash as a founding intake, so the league does not all come
+ * due in the same offseason. The fantasy raises it charged its keepers cannot
+ * be told apart from real prices, so they stand until the deals run out.
+ */
+function termlessContracts(league) {
+  if (!capOn(league)) return 0;
+  let n = 0;
+  for (const [id, c] of Object.entries(league.contracts || {})) {
+    if (!c || c.years != null) continue;
+    c.years = 1 + (hashSeed(`${league.seed}:${id}`) % ROOKIE_YEARS);
+    c.round ??= ROSTER_SLOTS.length;
+    n++;
+  }
+  return n;
+}
+
+/**
  * Bring a saved league up to the current shape. Version 3 added the QB2 bench
  * slot and the injury ledger; an older roster gets an empty slot, which the
  * waiver wire can fill. Version 4 fans out a founding intake that was signed
- * all on one day — see `spreadFoundingContracts`.
+ * all on one day — see `spreadFoundingContracts`. Version 5 gives a term to
+ * the contracts a pro league that auctions wrote without one — see
+ * `termlessContracts`.
  */
 export function migrateLeague(league) {
   if (!league || (league.version || 1) >= LEAGUE_VERSION) return league;
@@ -176,6 +198,8 @@ export function migrateLeague(league) {
   league.settings.keepers ??= defaultKeepers(league.mode);
   const spread = spreadFoundingContracts(league);
   if (spread) league.migrationNote = `${spread} founding contracts were signed on the same day and have been spread over four seasons, so the league does not turn over all at once.`;
+  const termed = termlessContracts(league);
+  if (termed) league.migrationNote = `${termed} contracts had no length, so none of them would ever have run out. Each now runs one to four more seasons.`;
   league.version = LEAGUE_VERSION;
   return league;
 }
@@ -283,33 +307,40 @@ export function syncContracts(league, byId = null) {
       if (!id) continue;
       owned.add(id);
       if (league.contracts[id]) continue;
-      if (league.draftType === 'auction') league.contracts[id] = { salary: soldPrice.get(id) ?? 1, kept: 0, since: league.season };
-      else if (capOn(league)) {
+      // The cap is tested before the auction. The other way round, a pro league
+      // that auctions wrote the fantasy deal — a price and no term — and
+      // `expireContracts` reads a missing term as a fresh VET_YEARS every
+      // offseason, so nothing it ever bought expired.
+      if (capOn(league)) {
         // A drafted man is cheap for four years; anyone signed off the street
         // costs the minimum, which is exactly what an undrafted free agent is
-        // worth and falls out of having no pick behind him.
+        // worth and falls out of having no pick behind him. A man bought at
+        // auction is signed as a pick would be, at what the room paid.
         const pick = draftPick.get(id);
+        const sold = soldPrice.get(id);
+        const market = !!pick || sold != null;
         league.contracts[id] = {
           // Drafted: cheap for four years, priced by where he went. Arrived
           // any other way — a waiver claim, a body signed to fill a hole — and
           // he is on the minimum. Market money is charged in exactly one
           // place, `keeperCost`, when a club re-signs a man whose deal is up,
           // and that is deliberate: it is the only moment a cap should hurt.
-          salary: pick ? rookieSalary(pick.overall, totalPicks) : MIN_SALARY,
+          salary: sold != null ? Math.max(MIN_SALARY, sold) : pick ? rookieSalary(pick.overall, totalPicks) : MIN_SALARY,
           // The founding intake is staggered, because a league whose every
           // contract was signed on the same day has every contract expire on
           // the same day. Unstaggered, the whole league turned over at once in
           // season five — 27 of 27 gone from every club — and then stood still
           // for another four years. After the first season a new rookie gets
           // the full term and the spread maintains itself.
-          years: pick
+          years: market
             ? (league.season <= 1 ? 1 + (hashSeed(`${league.seed}:${id}`) % ROOKIE_YEARS) : ROOKIE_YEARS)
             : VET_YEARS,
           round: pick?.round ?? ROSTER_SLOTS.length,
           kept: 0,
           since: league.season,
         };
-      } else league.contracts[id] = { round: draftRound.get(id) ?? ROSTER_SLOTS.length, kept: 0, since: league.season };
+      } else if (league.draftType === 'auction') league.contracts[id] = { salary: soldPrice.get(id) ?? 1, kept: 0, since: league.season };
+      else league.contracts[id] = { round: draftRound.get(id) ?? ROSTER_SLOTS.length, kept: 0, since: league.season };
     }
   }
   for (const id of Object.keys(league.contracts)) if (!owned.has(id)) delete league.contracts[id];

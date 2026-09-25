@@ -1301,6 +1301,11 @@ try {
     await page.reload();
     await sleep(600);
 
+    // The other clubs' keepers: a header for every column the rows carry. The
+    // cost and room headers were a plain string in the template, so they were
+    // escaped and printed their own markup as text.
+    const kept = await page.evaluate(() => { const h = [...document.querySelectorAll('h3')].find((x) => /What the other clubs kept/.test(x.textContent)); const t = h?.parentElement.querySelector('table'); return t ? { head: t.querySelectorAll('thead th').length, row: t.querySelector('tbody tr')?.querySelectorAll('td').length, raw: /<th/.test(t.textContent) } : null; });
+    if (!kept || kept.head !== kept.row || kept.raw) errors.push(`the other clubs' keeper table: ${JSON.stringify(kept)}`);
     if (!retiree) errors.push('the pro smoke league gave the user nobody under contract to retire');
     else {
       const owedLine = await page.evaluate(() => document.body.textContent.match(/you owe \$\d+ a year for (one more season|\d+ more seasons)/)?.[0] || null);
@@ -1578,6 +1583,33 @@ try {
       else if (!/^All-time: (you (lead|trail)|level at) \d+–\d+(–\d+)?\.$/.test(seriesText)) errors.push(`the matchup card's series reads "${seriesText}"`);
       await checkOverflow('matchup card with a series');
       if (await page.$('.wx')) errors.push('a fantasy league shows weather, and its clubs have no city');
+    }
+
+    // A pro league that auctions reads its keeper round as a pro league: its
+    // contracts, not the fantasy keeper's raise, and a market of this year's
+    // rookies. The screen tested the auction before the cap and showed it the
+    // fantasy sentence and prices. Only the screen's branch is under test here;
+    // the engine's is in tests/pro-auction.test.js.
+    {
+      const l = createLeague({ name: 'Smoke Pro Auction', mode: 'pro', numTeams: 32, franchise: 5, seed: 12, draftType: 'snake', user: { name: 'Me', abbr: 'ME', color: '#fff' } });
+      autoDraftAll(l, l.draft, PLAYERS, new RNG(12));
+      startSeason(l, PLAYERS_BY_ID);
+      l.phase = 'complete';
+      enterOffseason(l, leaguePool(l, PLAYERS), careerIndex(l, leagueIndex(l, PLAYERS_BY_ID)));
+      l.draftType = 'auction';
+      await page.evaluate((league) => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
+      }, JSON.parse(JSON.stringify(l)));
+      await page.reload();
+      await sleep(500);
+      await page.goto(`http://localhost:${port}/#/offseason`);
+      await page.reload();
+      await sleep(600);
+      const view = await page.evaluate(() => document.querySelector('#offseason-view')?.textContent.replace(/\s+/g, ' ') || '');
+      if (!/an auction of this year's rookies fills what is left/.test(view)) errors.push('a pro league that auctions is not told its market is the rookie class');
+      if (/keep at \$|kept three years running|A keeper is worth having/.test(view)) errors.push('a pro league that auctions is shown the fantasy keeper round');
+      await checkOverflow('pro auction keeper round');
     }
 
     // Weather: a pro league's matchup card gives the conditions its game will

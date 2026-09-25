@@ -206,7 +206,10 @@ export function canRoster(team, pos) {
 }
 
 export function availablePlayers(auction, pool) {
-  return pool.filter((p) => auction.taken[p.id] == null && !p.retired);
+  // A pro league's offseason auction is this year's rookies, as its draft is;
+  // held as ids for the same reason `createDraft` gives.
+  const only = auction.eligible ? new Set(auction.eligible) : null;
+  return pool.filter((p) => auction.taken[p.id] == null && !p.retired && (!only || only.has(p.id)));
 }
 
 /** League-wide unfilled slots per position. */
@@ -314,7 +317,7 @@ export function spreadBudgets(base, n, spread, rng) {
   return rng ? rng.shuffle(out) : out;
 }
 
-export function createAuction(league, rng, { budget = DEFAULT_BUDGET, budgets = null, order = null, taken = {} } = {}) {
+export function createAuction(league, rng, { budget = DEFAULT_BUDGET, budgets = null, order = null, taken = {}, eligible = null } = {}) {
   const start = budgets ? budgets.slice() : league.teams.map(() => budget);
   const a = {
     type: 'auction',
@@ -326,6 +329,11 @@ export function createAuction(league, rng, { budget = DEFAULT_BUDGET, budgets = 
     current: null,
     sold: [],
     taken: { ...taken },
+    eligible: eligible ? eligible.slice() : null,
+    // Clubs with an open slot and nobody left to put up for it. An all-time
+    // pool never runs out of anyone; a rookie class can be out of kickers, and
+    // a club waiting on one would hold the room for ever.
+    passed: {},
     complete: false,
   };
   if (currentNominator(a, league) == null) a.complete = true;
@@ -336,13 +344,25 @@ export function currentNominator(auction, league) {
   const n = auction.order.length;
   for (let i = 0; i < n; i++) {
     const t = auction.order[(auction.nomIndex + i) % n];
-    if (slotsLeft(league.teams[t]) > 0) return t;
+    if (slotsLeft(league.teams[t]) > 0 && !auction.passed?.[t]) return t;
   }
   return null;
 }
 
 function advanceNominator(auction) {
   auction.nomIndex = (auction.nomIndex + 1) % auction.order.length;
+}
+
+/**
+ * The nominating club has nothing it could put up: every open slot is at a
+ * position the pool has run out of. It stops nominating — the pool only
+ * shrinks, so nothing will turn up later — and the kickoff fill takes the
+ * slot, as it does for a draft pick nobody could make.
+ */
+export function passTurn(auction, league, teamIdx) {
+  (auction.passed ??= {})[teamIdx] = true;
+  advanceNominator(auction);
+  if (currentNominator(auction, league) == null) auction.complete = true;
 }
 
 /** Everyone the nominating team is allowed to put up: positions it still needs. */
@@ -411,6 +431,7 @@ export function nominate(auction, league, pool, playerId, byId) {
   if (auction.complete) throw new Error('The auction is over');
   if (auction.current) throw new Error('Bidding is already open');
   if (auction.taken[playerId] != null) throw new Error('That player is already sold');
+  if (auction.eligible && !auction.eligible.includes(playerId)) throw new Error('Only this year\'s rookies are in this auction');
   const teamIdx = currentNominator(auction, league);
   if (teamIdx == null) throw new Error('Every roster is full');
   const player = byId.get(playerId);
@@ -423,9 +444,9 @@ export function nominate(auction, league, pool, playerId, byId) {
 /** AI picks the best player it can afford at a position it still needs. */
 export function aiNominate(auction, league, pool, rng, byId) {
   const teamIdx = currentNominator(auction, league);
-  const guide = priceGuide(auction, league, pool);
   const cands = nominatable(auction, league, pool, teamIdx);
-  if (!cands.length) return null;
+  if (!cands.length) { passTurn(auction, league, teamIdx); return null; }
+  const guide = priceGuide(auction, league, pool);
   const cap = maxAffordable(auction, teamIdx, league);
   const gm = GM_PERSONALITIES.find((g) => g.id === league.teams[teamIdx].gm) || GM_PERSONALITIES[0];
   // Prefer players it can actually win, weighted by taste.
@@ -524,7 +545,11 @@ export function advanceToUser(auction, league, pool, rng, byId, { minOverall = 0
     }
     const nom = currentNominator(auction, league);
     if (nom == null) { auction.complete = true; break; }
-    if (nom === u && slotsLeft(league.teams[u]) > 0) return 'nominate';
+    if (nom === u && slotsLeft(league.teams[u]) > 0) {
+      if (nominatable(auction, league, pool, u).length) return 'nominate';
+      passTurn(auction, league, u);
+      continue;
+    }
     aiNominate(auction, league, pool, rng, byId);
   }
   return auction.complete ? 'complete' : 'stalled';
