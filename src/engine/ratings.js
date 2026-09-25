@@ -182,6 +182,9 @@ export function composites(lineup) {
     passBlock: 0.90 * mean(ol, 'pbk') + 0.10 * teBlk,
     runBlock: 0.88 * mean(ol, 'rbk') + 0.12 * teBlk,
     olAwr: mean(ol, 'awr'),
+    // How quickly somebody gets open: what the coverage behind a rush is read
+    // against (`covHold` below, `COVERAGE_HOLD` in plays.js).
+    routes: wr.length ? mean(wr, 'rte') : 60,
     // defense
     // A defence sends four. Two linemen always go; the other two seats are
     // contested between the rest of the line and any EDGE linebacker, ranked by
@@ -201,6 +204,10 @@ export function composites(lineup) {
     runStop: 0.45 * fitOf(dl) + 0.35 * fitOf(lb) + 0.1 * mean(s, 'rsd') + 0.1 * mean(lb, 'tck'),
     covShort: 0.4 * covOf(cb) + 0.35 * covOfLb() + 0.25 * covOf(s),
     covMed: 0.5 * covOf(cb) + 0.2 * covOfLb() + 0.3 * covOf(s),
+    // The coverage that holds the ball in the passer's hands: the corners and
+    // the off-ball backers, who take the first reads. Not the safeties, whose
+    // real absences move their defence's sacks not at all (`COVERAGE_HOLD`).
+    covHold: 0.5 * covOf(cb) + 0.5 * covOfLb(),
     // Deep coverage is partly a footrace, and none of the above says so.
     //
     // A corner's `spd` reached the simulation only through `defSpeed`, and every

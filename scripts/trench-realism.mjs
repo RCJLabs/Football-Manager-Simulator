@@ -21,7 +21,9 @@
 //             position's run effect against its pass effect, where the gap
 //             cancels. The passing game beyond the sacks is read the same two
 //             ways: yards a completion, and adjusted net a dropback per point
-//             of sack rate (DESIGN.md, "The pocket, held to real absences").
+//             of sack rate (DESIGN.md, "The pocket, held to real absences"),
+//             which also holds the corner's coverage sacks (DESIGN.md,
+//             "Coverage sacks, held to real absences").
 //   rushers   every lineman and linebacker in the pool with a real season from
 //             1999 on and ten or more games, in the average side, against the
 //             sacks he really had. The line to watch is the slope of real on
@@ -49,15 +51,19 @@ const REAL_ABSENCE = {
   TE1: { ypc: [-0.063, -0.193, 0.038], anya: [0.002, -0.256, 0.205], sack: [-0.25, -0.66, 0.18], pts: [-0.05, -0.92, 0.68], ypcm: [-0.09, -0.34, 0.13] },
   OL1: { ypc: [-0.062, -0.115, 0.002], anya: [-0.185, -0.279, -0.114], sack: [0.30, 0.09, 0.52], pts: [-0.81, -1.22, -0.48], ypcm: [-0.10, -0.20, -0.03] },
   DL1: { ypc: [0.014, -0.045, 0.077], anya: [0.102, -0.063, 0.255], sack: [-0.24, -0.46, 0.04], pts: [0.51, -0.18, 1.17], ypcm: [0.13, -0.01, 0.28] },
-  LB1: { ypc: [0.091, 0.010, 0.187], anya: [0.268, 0.145, 0.386], sack: [-0.44, -0.60, -0.14], pts: [0.94, 0.40, 1.47], ypcm: [0.05, -0.05, 0.15] },
+  LB1: { ypc: [0.098, -0.004, 0.216], anya: [0.245, 0.121, 0.422], sack: [-0.33, -0.54, 0.00], pts: [1.04, 0.49, 1.68], ypcm: [0.12, 0.02, 0.25] },
   CB1: { ypc: [0.007, -0.055, 0.087], anya: [0.281, 0.158, 0.397], sack: [-0.39, -0.57, -0.25], pts: [0.94, 0.65, 1.33], ypcm: [0.01, -0.13, 0.11] },
   S1: { ypc: [-0.009, -0.092, 0.076], anya: [0.060, -0.091, 0.235], sack: [0.10, -0.15, 0.38], pts: [-0.17, -0.66, 0.39], ypcm: [-0.06, -0.19, 0.08] },
 };
+// The linebackers are the off-ball ones, a season of under four sacks: the
+// engine's LB1 is an off-ball backer, and the whole real group mixed in 3-4
+// edge rushers, whose absences cost their defence 0.83 points of sack rate.
+//
 // Adjusted net a dropback per point of sack rate, the same absences, the same
 // bootstrap: what a position does to the passing game beyond the sacks, in a
 // form where the gap cancels. Too few defensive linemen missed games for the
 // ratio to mean anything there (its interval spans zero by miles).
-const REAL_PASS_PER_SACK = { OL1: [-0.61, -1.74, -0.35] };
+const REAL_PASS_PER_SACK = { OL1: [-0.61, -1.74, -0.35], CB1: [-0.72, -1.48, -0.41] };
 
 // That regular season: [games, sacks].
 const REAL_RUSHERS = {
@@ -322,6 +328,7 @@ for (const [slot, [b, lo, hi]] of Object.entries(REAL_PASS_PER_SACK)) {
 }
 console.log(`  a lineman eight worse costs his side ${(-eng.OL1.anya).toFixed(3)} adjusted net yards a dropback (real ${-REAL_ABSENCE.OL1.anya[0]})`);
 console.log(`  a defensive lineman eight worse gives up ${eng.DL1.anya.toFixed(3)} adjusted net yards a dropback (real ${REAL_ABSENCE.DL1.anya[0]})`);
+console.log(`  a corner eight worse takes ${(-eng.CB1.sack).toFixed(2)} points off his side's sack rate (real ${-REAL_ABSENCE.CB1.sack[0]})`);
 
 // ---- rushers -------------------------------------------------------------------
 const SIDE = syntheticTeam('side', 82, 2, 1), OPP = syntheticTeam('opp', 82, 2, 2);

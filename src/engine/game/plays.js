@@ -193,6 +193,29 @@ export const LINE_WEIGHT = 0.25;
  */
 export const POCKET_YAC = 0.045;
 const POCKET_MID = -0.45;
+/**
+ * How long the coverage behind the rush holds the ball in the passer's hands:
+ * the corners and the off-ball backers (`covHold`) against the receivers'
+ * routes (`routes`), a point of margin making pressure, and a sack once
+ * pressured, each this much likelier.
+ *
+ * Coverage had reached the passing game only through the throw, so it made no
+ * sacks (DESIGN.md, "Coverage sacks, held to real absences"). A real starting
+ * corner's absence, 2016-24, takes 0.39 points off his defence's sack rate
+ * (95% 0.24 to 0.56) and 0.46 off its pressure short of a sack; an off-ball
+ * linebacker's takes 0.33 (0 to 0.54); a safety's nothing (+0.10, -0.16 to
+ * +0.38). A corner and a backer eight points worse moved the engine's by 0.09
+ * and 0.17. Both the sacks and the pressure short of them fall with the
+ * corner, and in the proportion one factor on each gives: about 3% less of
+ * both. At 0.010 a point a corner eight worse moves the engine's sacks 0.38
+ * and a backer 0.35.
+ *
+ * Centred where even sides play (`HOLD_MID`), and drafted pro leagues play
+ * within a hundredth of it, so a league of great secondaries is sacked no
+ * more than the calibration sides.
+ */
+export const COVERAGE_HOLD = 0.010;
+const HOLD_MID = 1.51;
 export const BREAK_YDS_IN = 1.9;    // mean yards a broken tackle adds inside
 export const BREAK_YDS_OUT = 2.6;   // the same outside, where there is grass
 // The exponential body makes its own ten-yard carries, so the breakaway only
@@ -622,10 +645,13 @@ export function resolvePass(g, rng, call, defCall) {
   // A passing down gets the rush home more often (`passingDown`).
   const passDown = passingDown(g.down, g.toGo);
   const protection = comp.passBlock + (comp.olAwr - def.defAwr) * 0.2;
-  const pressureP = clamp(baseP * (0.3 + edge(rush, protection, 11) * 1.4) * (1 + PASSING_DOWN_PRESSURE * passDown) + (m.pressure || 0), 0.05, 0.7);
+  // The coverage behind the rush (`COVERAGE_HOLD`): the longer nobody is open,
+  // the more of the rush arrives, and the more of what arrives finishes.
+  const hold = 1 + COVERAGE_HOLD * (def.covHold - comp.routes - HOLD_MID);
+  const pressureP = clamp(baseP * hold * (0.3 + edge(rush, protection, 11) * 1.4) * (1 + PASSING_DOWN_PRESSURE * passDown) + (m.pressure || 0), 0.05, 0.7);
   const pressured = rng.chance(pressureP);
   if (pressured) {
-    const sackP = clamp((SACK_BASE - (qb.r.awr - def.defAwr) * 0.004 * POCKET_WEIGHT - comp.chem * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0)) * SACK_SCALE * (1 + PASSING_DOWN_SACK * passDown), 0.04, 0.6);
+    const sackP = clamp((SACK_BASE - (qb.r.awr - def.defAwr) * 0.004 * POCKET_WEIGHT - comp.chem * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0)) * SACK_SCALE * hold * (1 + PASSING_DOWN_SACK * passDown), 0.04, 0.6);
     if (rng.chance(sackP)) {
       const sacker = pickRusher(g, defT, blitz, rng);
       let yards = -rng.int(3, 10);

@@ -4893,6 +4893,7 @@ does not do, none of them in the run game:
 - Coverage makes sacks in the real game: a starting corner's absence takes
   0.39 points off his defence's sack rate (0.26 to 0.58), a linebacker's 0.44.
   The engine has no route from coverage to the rush and reads next to nothing.
+  *Fixed in "Coverage sacks, held to real absences".*
 - A back's absence costs his quarterback 0.50 points of sack rate (0.05 to
   0.98) and 0.84 of hits: pass protection, which the engine does not give a
   back.
@@ -5128,6 +5129,94 @@ and a defensive lineman eight points worse gives up 0.164 adjusted net yards a
 dropback. Without the pocket
 they read 0.116 and 0.043, so it is the second that would notice the pocket
 gone.
+
+### Coverage sacks, held to real absences
+
+The trenches section recorded that coverage makes sacks in the real game and
+not in the engine: a starting corner's absence takes 0.39 points off his
+defence's sack rate, and a corner eight points worse moved the engine's by
+0.09. This takes it the rest of the way.
+
+**The same absences, the secondary and the backers.** The regression of the two
+sections before, week, wind and cold held, with the linebackers split by what
+they did: a season of four or more sacks is an edge rusher, the rest are
+off-ball backers (three or six as the line say the same). What the offence
+gains with each starter missing:
+
+| | sacked, points | pressured short of a sack, points | completion over expected | interceptions, points | adjusted net a dropback | points a game |
+| --- | --- | --- | --- | --- | --- | --- |
+| corner | -0.39 (-0.56 to -0.24) | -0.46 (-0.84 to -0.10) | +0.71 | -0.23 | +0.280 (0.155 to 0.394) | +0.95 |
+| off-ball linebacker | -0.33 (-0.54 to 0.00) | -0.06 | +0.80 | -0.02 | +0.245 (0.121 to 0.422) | +1.04 |
+| edge rusher | -0.83 (-1.40 to -0.21) | -1.58 | +1.43 | -0.29 | +0.352 | +0.59 |
+| safety | +0.10 (-0.16 to +0.38) | +0.23 | +0.39 | -0.26 | +0.061 | -0.17 |
+
+Corners and off-ball backers make sacks; safeties do not, and a safety's
+absence moves nothing measurable but his defence's interceptions. A missing
+corner takes away both sacks and pressure short of them, and in the proportion
+one factor on each would: about 3% less pressure, and 3% less of what arrives
+finishing.
+
+**Whatever a backup is worth.** A real corner's absence costs his defence 0.72
+adjusted net yards a dropback per point of sack rate (0.41 to 1.48); the
+engine's cost 3.9. Against his own passing effect, the engine's corner made an
+eighth of the real sacks.
+
+**What the engine did instead.** Coverage reached the passing game only through
+the throw: one starter eight points worse, 6,000 games a position on a copy of
+the engine that reports each throw:
+
+| | sacked | completion | yards a completion | yards an attempt | adjusted net | points |
+| --- | --- | --- | --- | --- | --- | --- |
+| corner | -0.09 | +1.30 | +0.16 | +0.239 | +0.354 | +1.09 |
+| off-ball backer | -0.17 | +0.42 | +0.04 | +0.071 | +0.114 | +0.56 |
+| safety | -0.08 | +0.59 | +0.09 | +0.124 | +0.200 | +0.62 |
+
+**The fix is how long the coverage holds the ball.** `COVERAGE_HOLD` in plays.js
+multiplies both the chance of pressure and the chance a pressure ends in a sack
+by one plus 0.010 a point of the margin between the coverage that takes the
+first reads, `covHold` (the corners and the off-ball backers, half each), and
+the receivers' routes, `routes`. The safeties are left out because their real
+absences say so. The receivers are there so that the term reads one side
+against the other: read against a fixed number it would make every league of
+great secondaries a league of sacks. Their own side is not confirmed by the
+absences (a starting receiver's moves his side's sacks +0.03, -0.18 to +0.28),
+and it is the less certain half. Centred where even sides play (+1.51), and
+drafted pro leagues play at +1.50.
+
+| one starter eight worse, 4,000 games (`npm run trenches`) | sacked, engine | real |
+| --- | --- | --- |
+| corner | -0.37 | -0.39 (-0.56 to -0.24) |
+| off-ball backer | -0.32 | -0.33 (-0.54 to 0.00) |
+| safety | -0.02 | +0.10 (-0.16 to +0.38) |
+| receiver | +0.20 | +0.03 (-0.18 to +0.28) |
+| tight end | +0.10 | -0.25 (-0.66 to +0.18) |
+
+The corner's passing effect per point of sack rate is now -1.07 against the real
+-0.72 (-1.48 to -0.41), and the backer's adjusted net +0.134 is inside its
+interval where +0.114 was at the edge of it.
+
+**Not fixed, and recorded.** The corner's adjusted net a dropback is now +0.399,
+two thousandths over his real interval's top. That leans on the gap of eight in
+a way the rest does not: a corner eight points worse is eight points slower,
+and with his speed left alone his yards a completion fall from +0.16 to +0.07
+and his adjusted net from +0.354 to +0.304 before the coverage term, inside.
+Whether a real backup corner is slower than the man he replaces cannot be told
+from absences, so the speed mechanics are left as they are. His completion
+effect, +1.28 against +0.73 (0.26 to 1.19), is too large either way, and the
+safety's points a game (+0.53 against -0.17, -0.66 to +0.39) are still the
+engine's, half of them his speed on the same test.
+
+**The level.** At 82 nothing moves: none of the 44 realism rows outside the
+real range, the passers' slope 1.02, the level drift from 82 to 90 -0.04, the
+drive model where it was. A drafted pro league throws for 5.99 adjusted net
+yards a dropback against a real 5.89, on the table and the weights before this
+section's.
+
+**Held to it by the audit.** `npm run trenches` reports the corner's sacks and
+his passing effect per point of sack rate, on the real off-ball linebackers
+rather than the whole group, and the audit reads one more of its lines at 2,000
+games a position: a corner eight points worse takes 0.41 points off his side's
+sack rate. Without the term it reads about 0.1.
 
 ### A fingerprint that could not see the roster
 

@@ -361,6 +361,14 @@ const CHECKS = [
     why: 'the other side of the pocket: a real defensive lineman\'s absence gives the offence 0.102 adjusted net yards a dropback (95% -0.063 to 0.255) and 0.11 yards after each catch. Without POCKET_YAC it reads 0.043 at this size',
   },
   {
+    name: 'a corner\'s coverage makes sacks as a real one\'s does',
+    cost: 'slow',
+    script: 'trench-realism', args: ['2000', '100'], extract: /a corner eight worse takes ([\d.]+) points off his side's sack rate/,
+    doc: /a\s+corner\s+eight\s+points\s+worse\s+takes\s+([\d.]+)\s+points\s+off\s+his\s+side's\s+sack\s+rate/,
+    expect: 0.41, tol: 0.15,
+    why: 'a real starting corner\'s absence takes 0.39 points off his defence\'s sack rate (95% 0.24 to 0.56), and until 2026-09-25 the engine\'s coverage reached the passing game only through the throw, so one eight points worse moved it 0.09. The band sits inside the real interval and clear of that 0.09, which is what COVERAGE_HOLD would read without it',
+  },
+  {
     name: 'the game still looks like football',
     cost: 'slow',
     script: 'realism', extract: /(none|\d+) of 44 wholly outside/,
@@ -379,7 +387,7 @@ const CHECKS = [
     name: 'the simulation fingerprint',
     cost: 'slow',
     script: 'game-fingerprint', extract: /fingerprint: ([0-9a-f]+)/,
-    expect: 'd1dc3bcabd1d2859', text: true,
+    expect: '55935340b23ab255', text: true,
     why: 'changes whenever the game engine does, which is what makes a careers-only change provable',
   },
 ];
