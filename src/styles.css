@@ -140,6 +140,10 @@ label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 0
 @media (min-width: 600px) { .form-row { grid-template-columns: 1fr 1fr; } }
 .check { display: flex; align-items: center; gap: 0.5rem; color: var(--text); font-size: 0.95rem; cursor: pointer; padding: 0.25rem 0; }
 .check input { width: 1.15rem; height: 1.15rem; accent-color: var(--accent); flex: none; }
+/* A choice with a line under it: the box sits by the first line, not the middle. */
+.check.mode-choice { align-items: flex-start; }
+.check.mode-choice input { margin-top: .15rem; }
+.check.mode-choice small { display: block; margin-top: .1rem; font-size: .82rem; line-height: 1.35; }
 
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
@@ -282,6 +286,7 @@ details.fold[open] > summary { margin-bottom: .25rem; }
 .hero .btn { margin: 0.2rem; }
 .features { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
 @media (min-width: 700px) { .features { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 700px) { .features.four { grid-template-columns: repeat(2, 1fr); } }
 .feature { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.85rem; color: var(--text); }
 .feature:hover { text-decoration: none; }
 .feature b { display: block; margin-bottom: 0.25rem; }

@@ -304,7 +304,8 @@ export function view(root, params, ctx) {
           <button class="btn sm" id="quarter">End of quarter</button>
           <button class="btn sm" id="simEnd">Sim to end</button>
         </div>
-      </details>`;
+      </details>
+      ${!coach && g.phase === 'kickoff' && g.playCount === 0 ? html`<p class="muted" style="font-size:.82rem;margin:.4rem 0 0">Your staff calls the plays. <a href="#/settings">Coach mode</a> hands them to you.</p>` : ''}`;
     }
 
     // The clock decides games at the end of a half and nowhere else, and a row

@@ -156,14 +156,14 @@ export function view(root, params, ctx) {
       ${summary ? html`<p class="muted" style="margin:.3rem 0 0">${teamChip(summary.champion)} won the title. You finished <b>${ord(summary.user.rank)}</b> of ${summary.teams} at ${summary.user.record.w}-${summary.user.record.l}${summary.user.record.t ? `-${summary.user.record.t}` : ''}.</p>` : ''}
       <p class="muted" style="font-size:.9rem;margin:.5rem 0 0">
         ${auction
-          ? html`Keep up to <b>${limit}</b> players. A keeper costs last year's price plus the greater of $3 or 15%, and a player can be kept three years running before he must go back to the pool. Everyone else returns to the pool and the remaining cap buys the rest at auction. The worst club nominates first.`
+          ? html`Keep up to <b>${limit}</b> players. A keeper costs last year's price plus the greater of $3 or 15%, and a player can be kept three years running before he must go back to the pool. Everyone else returns to the pool and the remaining cap buys the rest at auction. The worst club nominates first.${capped ? '' : ' In a pro league there is no quota: contracts and a salary cap decide who stays.'}`
           : capped
             // Under a cap there is no quota and no three-year limit —
             // `keeperEligible` lets a man be re-signed as often as he can be
             // afforded — so the fantasy sentence this screen used to show a pro
             // league was wrong on both counts.
             ? html`A man under contract stays. One whose deal is up can be re-signed at his market price plus the re-signing premium, ${termsOpen(league) ? 'for two to five years' : `for ${VET_YEARS} years`}, as often as you can afford him — the cap is the only limit. Everyone else goes to free agency, and a draft fills what is left, worst club first.`
-            : html`Keep up to <b>${limit}</b> players; they hold their slots. Everyone else returns to the pool and a draft fills the rest, worst club first. A player can be kept three years running before he must go back to the pool.`}
+            : html`Keep up to <b>${limit}</b> players; they hold their slots. Everyone else returns to the pool and a draft fills the rest, worst club first. A player can be kept three years running before he must go back to the pool. In a pro league there is no quota: contracts and a salary cap decide who stays.`}
       </p>
     </div>
     ${yearOlder}

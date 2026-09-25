@@ -157,6 +157,9 @@ export function view(root, params, ctx) {
   // Development focus. Only your own club chooses, and only while a season's
   // development is still to come: it is applied when the offseason opens.
   const focusing = canEdit && focusOn(league) && ['season', 'playoffs', 'complete'].includes(league.phase);
+  // Where the card would be, a league without it says so: an empty space is
+  // indistinguishable from a feature that does not exist.
+  const focusOff = canEdit && !focusOn(league) && ['season', 'playoffs', 'complete'].includes(league.phase);
   let devCard = '';
   if (focusing) {
     const named = namedFocus(league, idx);
@@ -237,8 +240,8 @@ export function view(root, params, ctx) {
       ${raw(depthChart)}
     </div>${psCard}</div>`,
     squad: html`<div class="grid grid-2">
-      ${devCard}
-      ${chemCard || nothing('Chemistry is switched off for this league.')}
+      ${devCard || (focusOff ? nothing(html`Development focus ${league.settings?.careers ? 'is switched off' : 'needs careers, which are switched off'} for this league. <a href="#/settings">Settings</a> turns ${league.settings?.careers ? 'it' : 'them'} on.`) : '')}
+      ${chemCard || nothing(html`Chemistry is switched off for this league. <a href="#/settings">Settings</a> turns it on.`)}
       <div class="card tight"><h3>Unit ratings</h3>${raw(unitTable(lineup))}</div>
     </div>`,
     injuries: irCard || reportCard ? html`<div class="stack">${reportCard}${irCard}</div>` : nothing('Nobody is hurt and the injured reserve is empty.'),

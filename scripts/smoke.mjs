@@ -275,6 +275,10 @@ try {
   await page.waitForSelector('.hero');
   await checkOverflow('home');
   await shot('01-home');
+  // Fantasy is the default and hides the pro league's systems entirely, so the
+  // first screen is where a player learns there is another kind of league.
+  const tiles = await page.$eval('.features', (e) => e.textContent);
+  if (!/Fantasy or pro league/.test(tiles) || !/salary cap/.test(tiles)) errors.push('the first screen does not say what a pro league has');
 
   // The guide stands alone: readable from the home screen before a league exists.
   await page.click('a[href="#/guide"]');
@@ -288,6 +292,14 @@ try {
 
   await page.click('a[href="#/new"]');
   await page.waitForSelector('#setup');
+  // A league never changes kind, so the choice is where it is said what each has.
+  const kinds = await page.$$eval('.mode-choice', (ls) => ls.map((l) => l.textContent.replace(/\s+/g, ' ')));
+  if (!/salary cap/.test(kinds[1] || '') || !/position changes/.test(kinds[1] || '')) errors.push(`the pro choice does not say what it adds: ${kinds[1]}`);
+  await page.check('input[name="mode"][value="pro"]');
+  const proFold = await page.$eval('#moreList', (e) => e.textContent);
+  await page.check('input[name="mode"][value="fantasy"]');
+  const fanFold = await page.$eval('#moreList', (e) => e.textContent);
+  if (!/position changes/.test(proFold) || /position changes/.test(fanFold) || !/keepers/.test(fanFold)) errors.push(`the options fold lists "${fanFold}" for fantasy and "${proFold}" for pro`);
   await page.check('input[name="type"][value="auction"]');
   // Coach mode and the injury dial live behind the fold now, so open it first.
   await page.evaluate(() => { document.querySelector('#moreOpts').open = true; });
@@ -959,6 +971,22 @@ try {
   await page.check('input[name="draft"][value="auto"]');
   await page.click('button[type="submit"]');
   await page.waitForSelector('#season-view');
+  // What a fantasy league does not have is named where its settings are, and a
+  // card that is switched off says where to switch it on: an empty space reads
+  // as a feature that does not exist.
+  await page.goto(`http://localhost:${port}/#/settings`);
+  await page.waitForSelector('#chemistry');
+  const proOnly = await page.$eval('#proOnly', (e) => e.textContent).catch(() => '');
+  if (!/position changes/.test(proOnly) || !/cannot change kind/.test(proOnly)) errors.push('a fantasy league\'s settings do not name what only a pro league has');
+  await page.click('#chemistry');
+  await page.waitForSelector('#focus');
+  await page.click('#focus');
+  await sleep(300);
+  await page.goto(`http://localhost:${port}/#/team/0/squad`);
+  await page.waitForSelector('.tabs.sections');
+  const offCards = await page.$eval('#app', (e) => e.textContent.replace(/\s+/g, ' '));
+  for (const what of ['Development focus', 'Chemistry']) if (!new RegExp(`${what} is switched off for this league\\. Settings turns it on`).test(offCards)) errors.push(`the squad tab does not say ${what.toLowerCase()} is switched off and where`);
+  await checkOverflow('squad tab with features off');
   await page.goto(`http://localhost:${port}/#/`);
   await page.waitForSelector('[data-open]');
   await checkOverflow('home with two leagues');
@@ -1584,6 +1612,8 @@ try {
       await shot('23-weather-card');
       await page.click('#play');
       await page.waitForSelector('.scoreboard');
+      // Watching is the default; before the kickoff the game says who is calling the plays and how to take them.
+      if (!/Your staff calls the plays\. Coach mode hands them to you\./.test(await page.$eval('#app', (e) => e.textContent.replace(/\s+/g, ' ')))) errors.push('a watched game does not say coach mode exists');
       const live = await page.evaluate(() => document.querySelector('.wxline')?.textContent.trim() || null);
       if (live !== conditionsLine(w)) errors.push(`the live scoreboard reads "${live}", expected "${conditionsLine(w)}"`);
       await checkOverflow('live game with conditions');
@@ -1605,6 +1635,9 @@ try {
       }
       await put(mk(false));
       if (await page.$('.wx')) errors.push('a pro league with weather off still shows conditions');
+      await page.goto(`http://localhost:${port}/#/settings`);
+      await page.waitForSelector('#jobs');
+      if (await page.$('#proOnly')) errors.push('a pro league\'s settings say its own settings are pro-only');
     }
   }
 

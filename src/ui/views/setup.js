@@ -26,8 +26,12 @@ export function view(root, params, ctx) {
       <form id="setup" class="stack" style="margin-top:1rem">
         <div>
           <label>League</label>
-          <label class="check"><input type="radio" name="mode" value="fantasy" checked> <span><b>Fantasy league</b> — 8 to 12 clubs, a 14-game season.</span></label>
-          <label class="check"><input type="radio" name="mode" value="pro"> <span><b>Pro league</b> — all 32 teams, divisions, a 17-game season.</span></label>
+          <!-- What each kind includes, said here because nowhere else can: a
+               league never changes kind, and the pro league's systems are
+               hidden in a fantasy one, so a player who started the default had
+               no way to learn position changes or the cap existed. -->
+          <label class="check mode-choice"><input type="radio" name="mode" value="fantasy" checked> <span><b>Fantasy league</b> — 8 to 12 clubs, a 14-game season.<small class="muted">Each offseason a club keeps a few players and the rest go back into the auction or draft.</small></span></label>
+          <label class="check mode-choice"><input type="radio" name="mode" value="pro"> <span><b>Pro league</b> — all 32 teams, divisions, a 17-game season.<small class="muted">Adds a salary cap, contracts and free agency, a practice squad, weather, position changes and coaching jobs.</small></span></label>
         </div>
         <div><label>League name</label><input type="text" name="league" value="All-Time League" maxlength="40"></div>
         <div id="fantasyOpts" class="form-row">
@@ -74,7 +78,7 @@ export function view(root, params, ctx) {
           <small class="muted" style="display:block;margin-top:.3rem">It moves how the other clubs bid, scout and trade — never the simulation.</small>
         </div>
         <details id="moreOpts" class="fold">
-          <summary><b>More options</b> <span class="muted">— injuries, keepers, ageing, chemistry, scouting, coach mode. Every one has a sensible default.</span></summary>
+          <summary><b>More options</b> <span class="muted">— <span id="moreList">injuries, keepers, ageing, chemistry, scouting, coach mode</span>. Every one has a sensible default.</span></summary>
           <div class="stack" style="margin-top:.75rem">
             <div>
               <label>Injuries</label>
@@ -152,6 +156,9 @@ export function view(root, params, ctx) {
     form.querySelector('#jobsOpt').hidden = !pro;
     form.querySelector('#positionsOpt').hidden = !pro;
     form.querySelector('#weatherOpt').hidden = !pro;
+    form.querySelector('#moreList').textContent = pro
+      ? 'injuries, ageing, chemistry, scouting, weather, position changes, coaching jobs, coach mode'
+      : 'injuries, keepers, ageing, chemistry, scouting, coach mode';
     if (pro && !form.dataset.touchedType) form.querySelector('input[name="type"][value="snake"]').checked = true;
     // A pro league keeps whoever it can afford, so the quota is meaningless
     // there: `keeperLimit` returns the whole roster under a cap. The control

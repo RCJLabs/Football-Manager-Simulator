@@ -7638,6 +7638,41 @@ Setup had grown to fourteen sections, five of them added in one run of feature w
 
 Measured at 360×780, the Create league button moved from roughly four screens down to **1.6**. The smoke test prints that number every run and fails past 2.6, because this is the kind of thing that creeps back one paragraph at a time.
 
+### What a league does not have, said where you would look
+
+A league is fantasy or pro for good — nothing changes `mode` after `createLeague` — and fantasy is the setup screen's default. The pro league's own systems were invisible from inside a fantasy one: no screen mentioned them, and setup described the two kinds by size alone ("8 to 12 clubs" against "all 32 teams"). Position changes were reported missing by the person who built them, playing a fantasy league. The rule since: whatever one kind of league lacks, or a setting has switched off, says so once, where a player would go looking for it; and the choice between the two kinds says what each includes, because that is the only moment the choice can be made.
+
+The inventory came from crawling every screen of four leagues — fantasy and pro, each with every setting on and every setting off, in season and at the offseason — and setting the headings and text side by side (a scratch script, not shipped). What only a pro league has, and where a fantasy league now says so:
+
+| System | Where it lives in a pro league | Where a fantasy league says so |
+|---|---|---|
+| Salary cap, contracts, free agency | the offseason; the hub's cap card | setup; settings; the offseason's keeper paragraph |
+| Practice squad | the depth tab | setup; settings |
+| Weather | matchup card, scoreboard, box score | setup; settings |
+| Position changes | the player's card | setup; settings; the card itself |
+| Coaching jobs | the owner card; the career page | setup; settings; the career page (it already did) |
+
+And what a setting switches off:
+
+| Setting | Off, before | Off, now |
+|---|---|---|
+| Chemistry | "switched off for this league" on the squad tab | the same, with a link to Settings |
+| Development focus | nothing: the card vanished | a card saying it is off, or that it needs careers, with the link |
+| Coach mode | "(watch)" on the Play button | before the opening kickoff: "Your staff calls the plays. Coach mode hands them to you." |
+| Position changes (pro) | the card says it is off (Settings) | unchanged |
+| Weather, coaching jobs (pro) | their cards are absent, and the switch sits on the same settings card as every other | unchanged |
+| Careers, scouting, penalties | nothing a player goes looking for | unchanged |
+
+The first screen, before any league exists, gained a fourth tile, "Fantasy or pro league", in a two-by-two grid, and the first tile says auction or draft: it said "Snake draft", and the auction is setup's default. The More options fold's summary lists the options of the kind selected rather than always the fantasy set.
+
+Not done, on purpose. No line on a screen visited every week — the depth tab for a practice squad, the matchup card for weather: a note about something a league does not have, read seventeen times a season, is clutter, and the two places a player goes to find out what exists, the choice and the settings, carry it. The pro-only switches stay hidden in a fantasy setup form rather than shown greyed out, because the kind's own description sits above them and says the same without a checked box that does nothing. And the kickoff line goes at the first snap: it is for the player who has not found coach mode, not a banner for the one who chose to watch.
+
+The inventory corrected the list this started from. Clinch markers are not pro-only: a fantasy league gets them against its own field, as *League* says. How a future pick is valued does differ between the kinds (`futureDepth`, `madeOdds`), but that is arithmetic, not a feature anybody looks for.
+
+**Found, not fixed here.** A pro league that auctions takes the fantasy path when its keepers are confirmed. `confirmKeepers` tests `draftType === 'auction'` before `capOn`, so a kept man's contract is rebuilt at last year's price plus the fantasy raise and without `years` — the dropped-term bug the capped branch's own comment describes — while `validateKeepers`, which prices what the screen shows, uses the capped formula. Measured on one such league, keeping ten men under contract: the screen committed $105, the league wrote $135, and all ten contracts lost their term; the same ten in a pro league that drafts kept $34 and their years. The keeper paragraph for that league also reads the fantasy sentence, three-year limit included, which `keeperEligible` does not apply under a cap. Pro leagues default to the draft, so this reaches only a league that chose the 832-lot auction.
+
+The smoke test asserts each line: the first screen's tile, the pro choice's list and the fold following the choice, a fantasy league's settings and its squad tab with both cards switched off, a pro league's settings without the fantasy line, and the kickoff line in a watched game.
+
 ## Keeping this document honest
 
 Every number in this file was measured once. Nothing re-measured them, and the

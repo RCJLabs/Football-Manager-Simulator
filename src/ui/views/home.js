@@ -49,8 +49,9 @@ export function view(root, params, ctx) {
         <a class="btn lg" href="#/guide">How it is won</a>
       </section>
       ${slotsCard()}
-      <div class="features">
-        <div class="feature"><b>Snake draft vs. AI GMs</b><span class="muted">Each rival general manager has a personality: Air Raid, Ground &amp; Pound, Old School, Analytics…</span></div>
+      <div class="features four" style="margin-top:1rem">
+        <div class="feature"><b>Auction or draft vs. AI GMs</b><span class="muted">Each rival general manager has a personality: Air Raid, Ground &amp; Pound, Old School, Analytics…</span></div>
+        <div class="feature"><b>Fantasy or pro league</b><span class="muted">Eight to twelve clubs that keep a few players and re-draft the rest each year, or all 32 franchises with a salary cap, contracts, free agency and coaching jobs.</span></div>
         <div class="feature"><b>Play-by-play simulation</b><span class="muted">Ratings drive every snap: pass rush vs. protection, coverage vs. separation, tackling vs. YAC.</span></div>
         <div class="feature"><b>Manager or coach</b><span class="muted">Set strategy and watch, or call every play yourself, 4th-down decisions included.</span></div>
       </div>
