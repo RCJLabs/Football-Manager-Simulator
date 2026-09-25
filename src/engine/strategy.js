@@ -73,9 +73,13 @@
 // The AI clubs do not use it. On the engine before the run game was fixed,
 // moving every AI club's pass rate the same way, anywhere from -0.20 to
 // +0.10, was worth nothing on average (`npm run passrate -- ai`), and their own
-// plans adjust the dial by matchup. It has not been measured on this engine,
-// where a club throwing 0.44 may well leave points on the field; starting the
-// AI on the read is a possible change to the AI, not made here.
+// plans adjust the dial by matchup. Measured again on this engine (four pro
+// leagues, every club 100 games paired by seed): moved to the read at kickoff,
+// the AI clubs gain +0.22 ± 0.15 a game, the most run-built third +0.55 and
+// Ground & Pound itself +0.09 ± 0.43, since their plans and their drift already
+// take some of it. A tenth of a win a season is too small to be what a harder
+// setting means, and it would turn every personality into Air Raid, so the AI
+// still does not use it.
 //
 // The other four dials are measured the same way against real leagues' clubs
 // (`npm run dials`), and none of them depends on the roster the way the
