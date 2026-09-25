@@ -19,7 +19,9 @@
 //             quarterback's passing and a missing back's carries; for every
 //             other position it is an assumption. What does not lean on it is a
 //             position's run effect against its pass effect, where the gap
-//             cancels.
+//             cancels. The passing game beyond the sacks is read the same two
+//             ways: yards a completion, and adjusted net a dropback per point
+//             of sack rate (DESIGN.md, "The pocket, held to real absences").
 //   rushers   every lineman and linebacker in the pool with a real season from
 //             1999 on and ten or more games, in the average side, against the
 //             sacks he really had. The line to watch is the slope of real on
@@ -34,21 +36,28 @@ import { edgeness } from '../src/data/positions.js';
 const GAMES = Number(process.argv[2] || 4000);
 const RUSHER_GAMES = Number(process.argv[3] || 150);
 
-// One starter missing: estimate and 95% interval (bootstrap over team-seasons).
-// Offence: what his side loses. Defence: what the offence against it gains.
-// Yards a carry, adjusted net yards a dropback (sacks and scrambles in, 20 a
-// touchdown, -45 an interception), sack rate in points, points a game.
+// One starter missing: estimate and 95% interval (bootstrap over team-seasons),
+// with the week, the wind and the cold outdoors held (injuries pile up late in
+// a season, when throwing is harder). Offence: what his side loses. Defence:
+// what the offence against it gains. Yards a carry, adjusted net yards a
+// dropback (sacks and scrambles in, 20 a touchdown, -45 an interception), sack
+// rate in points, points a game, yards a completion.
 const REAL_ABSENCE = {
-  QB1: { ypc: [-0.006, -0.125, 0.098], anya: [-0.612, -0.823, -0.302], sack: [-0.24, -0.79, 0.41], pts: [-2.47, -3.24, -1.37] },
-  RB1: { ypc: [-0.256, -0.422, -0.093], anya: [-0.179, -0.385, 0.201], sack: [0.50, 0.05, 0.98], pts: [-0.53, -1.41, 0.58] },
-  WR1: { ypc: [0.035, -0.043, 0.103], anya: [-0.148, -0.282, 0.019], sack: [0.02, -0.21, 0.27], pts: [-0.52, -0.90, -0.08] },
-  TE1: { ypc: [-0.045, -0.172, 0.064], anya: [-0.032, -0.296, 0.190], sack: [-0.26, -0.71, 0.17], pts: [-0.06, -0.86, 0.69] },
-  OL1: { ypc: [-0.053, -0.109, 0.015], anya: [-0.195, -0.290, -0.119], sack: [0.30, 0.08, 0.50], pts: [-0.80, -1.21, -0.47] },
-  DL1: { ypc: [0.023, -0.035, 0.089], anya: [0.053, -0.111, 0.217], sack: [-0.23, -0.46, 0.06], pts: [0.41, -0.23, 1.05] },
-  LB1: { ypc: [0.097, 0.013, 0.199], anya: [0.233, 0.120, 0.375], sack: [-0.44, -0.59, -0.15], pts: [0.86, 0.36, 1.43] },
-  CB1: { ypc: [0.013, -0.051, 0.092], anya: [0.259, 0.143, 0.379], sack: [-0.39, -0.58, -0.26], pts: [0.91, 0.59, 1.35] },
-  S1: { ypc: [-0.002, -0.081, 0.081], anya: [0.015, -0.153, 0.182], sack: [0.11, -0.13, 0.39], pts: [-0.26, -0.77, 0.32] },
+  QB1: { ypc: [-0.023, -0.146, 0.082], anya: [-0.595, -0.812, -0.297], sack: [-0.21, -0.76, 0.42], pts: [-2.50, -3.30, -1.42], ypcm: [-0.39, -0.62, -0.19] },
+  RB1: { ypc: [-0.278, -0.434, -0.111], anya: [-0.165, -0.368, 0.229], sack: [0.53, 0.08, 1.01], pts: [-0.63, -1.52, 0.51], ypcm: [-0.05, -0.28, 0.30] },
+  WR1: { ypc: [0.026, -0.055, 0.096], anya: [-0.140, -0.283, 0.031], sack: [0.03, -0.18, 0.28], pts: [-0.54, -0.92, -0.07], ypcm: [-0.13, -0.27, 0.04] },
+  TE1: { ypc: [-0.063, -0.193, 0.038], anya: [0.002, -0.256, 0.205], sack: [-0.25, -0.66, 0.18], pts: [-0.05, -0.92, 0.68], ypcm: [-0.09, -0.34, 0.13] },
+  OL1: { ypc: [-0.062, -0.115, 0.002], anya: [-0.185, -0.279, -0.114], sack: [0.30, 0.09, 0.52], pts: [-0.81, -1.22, -0.48], ypcm: [-0.10, -0.20, -0.03] },
+  DL1: { ypc: [0.014, -0.045, 0.077], anya: [0.102, -0.063, 0.255], sack: [-0.24, -0.46, 0.04], pts: [0.51, -0.18, 1.17], ypcm: [0.13, -0.01, 0.28] },
+  LB1: { ypc: [0.091, 0.010, 0.187], anya: [0.268, 0.145, 0.386], sack: [-0.44, -0.60, -0.14], pts: [0.94, 0.40, 1.47], ypcm: [0.05, -0.05, 0.15] },
+  CB1: { ypc: [0.007, -0.055, 0.087], anya: [0.281, 0.158, 0.397], sack: [-0.39, -0.57, -0.25], pts: [0.94, 0.65, 1.33], ypcm: [0.01, -0.13, 0.11] },
+  S1: { ypc: [-0.009, -0.092, 0.076], anya: [0.060, -0.091, 0.235], sack: [0.10, -0.15, 0.38], pts: [-0.17, -0.66, 0.39], ypcm: [-0.06, -0.19, 0.08] },
 };
+// Adjusted net a dropback per point of sack rate, the same absences, the same
+// bootstrap: what a position does to the passing game beyond the sacks, in a
+// form where the gap cancels. Too few defensive linemen missed games for the
+// ratio to mean anything there (its interval spans zero by miles).
+const REAL_PASS_PER_SACK = { OL1: [-0.61, -1.74, -0.35] };
 
 // That regular season: [games, sacks].
 const REAL_RUSHERS = {
@@ -241,8 +250,8 @@ const OFFENCE = new Set(['QB1', 'RB1', 'WR1', 'TE1', 'OL1']);
 const tf = (t) => ({ id: t.id, name: t.name, abbr: t.abbr, color: t.color, strategy: t.strategy, lineup: buildLineup(t.slots, t.byId) });
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const slope = (x, y) => { const mx = mean(x), my = mean(y); let s = 0, a = 0; for (let i = 0; i < x.length; i++) { s += (x[i] - mx) * (y[i] - my); a += (x[i] - mx) ** 2; } return s / a; };
-const blank = () => ({ db: 0, sk: 0, nety: 0, td: 0, int: 0, run: 0, ryd: 0 });
-const rate = { ypc: (a) => a.ryd / a.run, anya: (a) => (a.nety + 20 * a.td - 45 * a.int) / a.db, sack: (a) => 100 * a.sk / a.db };
+const blank = () => ({ db: 0, sk: 0, nety: 0, td: 0, int: 0, run: 0, ryd: 0, cmp: 0, cyd: 0 });
+const rate = { ypc: (a) => a.ryd / a.run, anya: (a) => (a.nety + 20 * a.td - 45 * a.int) / a.db, sack: (a) => 100 * a.sk / a.db, ypcm: (a) => a.cyd / a.cmp };
 
 // Tally a side's snaps from the log: `mine` is the side whose offence is `o`.
 function tally(g, mine, acc) {
@@ -252,6 +261,7 @@ function tally(g, mine, acc) {
     if (PASSES.has(e.call) && ['pass', 'incomplete', 'int', 'sack', 'fumble', 'run'].includes(e.type)) {
       v.db++; if (e.type === 'sack' || (e.type === 'fumble' && /sacked/.test(text))) v.sk++;
       v.nety += e.yards ?? 0; if (/TOUCHDOWN/.test(text)) v.td++; if (e.type === 'int') v.int++;
+      if (e.type === 'pass' || (e.type === 'fumble' && / complete /.test(text))) { v.cmp++; v.cyd += e.yards ?? 0; }
     } else if (RUNS.has(e.call) && (e.type === 'run' || e.type === 'fumble')) { v.run++; v.ryd += e.yards ?? 0; }
   }
 }
@@ -299,6 +309,19 @@ for (const slot of ['OL1', 'DL1']) {
 }
 console.log(`  a lineman eight worse costs his side ${(-eng.OL1.ypc).toFixed(3)} yards a carry (real ${-REAL_ABSENCE.OL1.ypc[0]})`);
 console.log(`  a defensive lineman eight worse gives up ${eng.DL1.ypc.toFixed(3)} yards a carry (real ${REAL_ABSENCE.DL1.ypc[0]})`);
+// The passing game beyond the sacks: yards a completion, and adjusted net a
+// dropback per point of sack rate, which does not lean on the gap of eight.
+console.log('\nThe passing game, the same games; a real starter missing in brackets:');
+for (const slot of Object.keys(REAL_ABSENCE)) {
+  const [b, lo, hi] = REAL_ABSENCE[slot].ypcm, v = eng[slot].ypcm;
+  console.log(`  ${slot.slice(0, -1).padEnd(9)}yards a completion ${v < lo || v > hi ? '!' : ' '}${v >= 0 ? '+' : ''}${v.toFixed(2)} (${b >= 0 ? '+' : ''}${b.toFixed(2)} [${lo.toFixed(2)}, ${hi.toFixed(2)}])`);
+}
+for (const [slot, [b, lo, hi]] of Object.entries(REAL_PASS_PER_SACK)) {
+  const v = eng[slot].anya / eng[slot].sack;
+  console.log(`  ${slot.slice(0, -1)}, adjusted net a dropback per point of sack rate: engine ${v < lo || v > hi ? '!' : ''}${v.toFixed(2)}, real ${b} [${lo}, ${hi}]`);
+}
+console.log(`  a lineman eight worse costs his side ${(-eng.OL1.anya).toFixed(3)} adjusted net yards a dropback (real ${-REAL_ABSENCE.OL1.anya[0]})`);
+console.log(`  a defensive lineman eight worse gives up ${eng.DL1.anya.toFixed(3)} adjusted net yards a dropback (real ${REAL_ABSENCE.DL1.anya[0]})`);
 
 // ---- rushers -------------------------------------------------------------------
 const SIDE = syntheticTeam('side', 82, 2, 1), OPP = syntheticTeam('opp', 82, 2, 2);

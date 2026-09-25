@@ -269,8 +269,8 @@ const CHECKS = [
     cost: 'slow',
     script: 'pass-realism', extract: /pro league adjusted net yards a dropback: ([\d.]+)/,
     doc: /a\s+pro\s+league's\s+adjusted\s+net\s+yards\s+a\s+dropback\s+\(([\d.]+)/,
-    expect: 5.97, tol: 0.3,
-    why: 'the realism check plays sides rated 82 and cannot see a term that grows with the level of play. Drafted pro leagues threw for 7.18 adjusted net yards a dropback against a real 5.84 to 6.18 (2019-2023) while it read clean, because the sack, the line and the arm read the quarterback against fixed numbers. 6.81 once they read the defence, 6.63 once each passer term was weighted to real quarterbacks, and 6.03, inside the real range, once yards a completion came to real length with the drive model held to real play-by-play',
+    expect: 5.80, tol: 0.3,
+    why: 'the realism check plays sides rated 82 and cannot see a term that grows with the level of play. Drafted pro leagues threw for 7.18 adjusted net yards a dropback against a real 5.84 to 6.18 (2019-2023) while it read clean, because the sack, the line and the arm read the quarterback against fixed numbers. 6.81 once they read the defence, 6.63 once each passer term was weighted to real quarterbacks, and 6.03, inside the real range, once yards a completion came to real length with the drive model held to real play-by-play. 5.80 once the pocket read the lines (DESIGN.md, "The pocket, held to real absences"): drafted fronts rush at 90.6 against lines that protect at 85.7, so a league of greats catches 0.2 yards less after the catch than the calibration sides',
   },
   {
     name: 'a receiver\'s rating moves his share of the targets as far as the real game\'s',
@@ -345,6 +345,22 @@ const CHECKS = [
     why: 'the 101 linemen in the pool with a real season from 1999 on, each in the same average side, against the sacks he really had: the slope of real on engine. Credit for a sack went by the pass rush over 7, which spread linemen twice as far as the real game (0.52) and gave J.J. Watt\'s 2014 thirty-three a season. It decides no play, only the box score, the awards and the records',
   },
   {
+    name: 'a lineman moves the passing game as far as a real one',
+    cost: 'slow',
+    script: 'trench-realism', args: ['2000', '100'], extract: /a lineman eight worse costs his side ([\d.]+) adjusted net yards a dropback/,
+    doc: /a\s+lineman\s+eight\s+points\s+worse\s+costs\s+his\s+side\s+([\d.]+)\s+adjusted\s+net\s+yards\s+a\s+dropback/,
+    expect: 0.130, tol: 0.05,
+    why: 'a real starting lineman\'s absence costs his side 0.185 adjusted net yards a dropback (95% 0.114 to 0.279), and the engine\'s lines reached the passing game only through pressure until 2026-09-25, when one eight points worse cost 0.106. Most of what was missing is yards after the catch (POCKET_YAC). At this size the pocket moves it only from 0.116 to 0.130, so the check below is the one that would see it go',
+  },
+  {
+    name: 'a defensive lineman moves the passing game as far as a real one',
+    cost: 'slow',
+    script: 'trench-realism', args: ['2000', '100'], extract: /a defensive lineman eight worse gives up ([\d.]+) adjusted net yards a dropback/,
+    doc: /a\s+defensive\s+lineman\s+eight\s+points\s+worse\s+gives\s+up\s+([\d.]+)\s+adjusted\s+net\s+yards\s+a\s+dropback/,
+    expect: 0.164, tol: 0.06,
+    why: 'the other side of the pocket: a real defensive lineman\'s absence gives the offence 0.102 adjusted net yards a dropback (95% -0.063 to 0.255) and 0.11 yards after each catch. Without POCKET_YAC it reads 0.043 at this size',
+  },
+  {
     name: 'the game still looks like football',
     cost: 'slow',
     script: 'realism', extract: /(none|\d+) of 44 wholly outside/,
@@ -363,7 +379,7 @@ const CHECKS = [
     name: 'the simulation fingerprint',
     cost: 'slow',
     script: 'game-fingerprint', extract: /fingerprint: ([0-9a-f]+)/,
-    expect: 'f550a04f1de48aa4', text: true,
+    expect: 'be0b07fa8e442376', text: true,
     why: 'changes whenever the game engine does, which is what makes a careers-only change provable',
   },
 ];

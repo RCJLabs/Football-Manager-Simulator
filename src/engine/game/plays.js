@@ -169,6 +169,30 @@ export const CARRIER_WEIGHT = 0.20;
  * held.
  */
 export const LINE_WEIGHT = 0.25;
+/**
+ * How far the pocket moves what a catch gains after it: the line's protection
+ * against the four rushing, as the pressure in `resolvePass` reads it, a point
+ * of margin worth this many yards a catch.
+ *
+ * The lines had reached the passing game only through pressure, and a weak
+ * line cost its passer about half what a real one does (DESIGN.md, "The
+ * pocket, held to real absences"). A real starting lineman's absence, 2016-24,
+ * costs his side 0.185 adjusted net yards a dropback (95% 0.114 to 0.279), and
+ * one eight points worse cost the engine's 0.10; against the sacks each
+ * absence adds, which does not lean on how much worse a backup is, the real
+ * game lost twice what the engine did. None of it is how deep the ball goes,
+ * how often a side throws, who is on the field or how many come after the
+ * passer. What moves is the catch: yards after it, against nflfastR's
+ * expectation for that throw, fall 0.07 a catch without a lineman and rise
+ * 0.11 without a defensive lineman, and the engine's read neither line. One
+ * weight fits both: a lineman eight worse moves the margin 1.76 and a
+ * defensive lineman 1.63.
+ *
+ * Centred where even sides play (`POCKET_MID`): the rush takes the best four
+ * men of the front and the protection all five, so equal sides read -0.45.
+ */
+export const POCKET_YAC = 0.045;
+const POCKET_MID = -0.45;
 export const BREAK_YDS_IN = 1.9;    // mean yards a broken tackle adds inside
 export const BREAK_YDS_OUT = 2.6;   // the same outside, where there is grass
 // The exponential body makes its own ten-yard carries, so the breakaway only
@@ -597,7 +621,8 @@ export function resolvePass(g, rng, call, defCall) {
   // The line's awareness against the front's: picking up the stunt and the blitz.
   // A passing down gets the rush home more often (`passingDown`).
   const passDown = passingDown(g.down, g.toGo);
-  const pressureP = clamp(baseP * (0.3 + edge(rush, comp.passBlock + (comp.olAwr - def.defAwr) * 0.2, 11) * 1.4) * (1 + PASSING_DOWN_PRESSURE * passDown) + (m.pressure || 0), 0.05, 0.7);
+  const protection = comp.passBlock + (comp.olAwr - def.defAwr) * 0.2;
+  const pressureP = clamp(baseP * (0.3 + edge(rush, protection, 11) * 1.4) * (1 + PASSING_DOWN_PRESSURE * passDown) + (m.pressure || 0), 0.05, 0.7);
   const pressured = rng.chance(pressureP);
   if (pressured) {
     const sackP = clamp((SACK_BASE - (qb.r.awr - def.defAwr) * 0.004 * POCKET_WEIGHT - comp.chem * 0.004 + (call === 'pass_deep' ? 0.05 : 0) + (blitz ? 0.04 : 0)) * SACK_SCALE * (1 + PASSING_DOWN_SACK * passDown), 0.04, 0.6);
@@ -750,7 +775,10 @@ export function resolvePass(g, rng, call, defCall) {
   // (`yacAt`), not by the call.
   const yacMean = yacAt(air) + (m.yac || 0);
   const rac = target.r.rac ?? (target.r.elu ? (target.r.elu * 0.6 + target.r.pow * 0.4) : 70);
-  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09 * AFTER_CATCH_WEIGHT)) * (1 - squeeze(g.ballOn) * SQUEEZE_YAC);
+  // The pocket: a clean one lets the ball arrive where he can run with it
+  // (`POCKET_YAC`). Against the base rush; what a blitz does is the MATRIX's.
+  const pocket = POCKET_YAC * (protection - def.passRush - POCKET_MID);
+  let yac = rng.exp(Math.max(1, yacMean + (rac - def.tackling) * 0.09 * AFTER_CATCH_WEIGHT + pocket)) * (1 - squeeze(g.ballOn) * SQUEEZE_YAC);
   const baP = clamp(PASS_BREAKAWAY + Math.max(0, (target.r.spd ?? 80) - def.defSpeed) / 300 * AFTER_CATCH_WEIGHT + (call === 'screen' ? 0.015 : 0), 0.004, 0.15);
   let gone = false;
   if (rng.chance(baP)) { if (rng.chance(BREAKAWAY_SCORES)) gone = true; else yac += rng.int(12, 35); }

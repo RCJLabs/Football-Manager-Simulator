@@ -4035,11 +4035,13 @@ seasons (next section).
 
 **Held to it by the audit.** The audit now reads the quarterbacks' slope (1.05
 at 200 games, flagged outside ±0.15) and a pro league's adjusted net yards a
-dropback (5.97, ±0.3). They read 1.02 and 6.63 when this was written; the drive
+dropback (5.80, ±0.3). They read 1.02 and 6.63 when this was written; the drive
 model held to real play-by-play (below) moved them, the second to 6.04, and the
 rating weights re-measured on it moved that to 6.13 by changing who clubs draft.
 Holding the lines to real absences took them to 1.05 and 5.97, against a real
-5.89.
+5.89, and the pocket (see "The pocket, held to real absences") the second to
+5.80: drafted fronts out-rush drafted lines by five points, which the pocket
+now reads.
 
 ### Backs, receivers and tight ends, held to real seasons
 
@@ -4864,7 +4866,10 @@ does not do, none of them in the run game:
   within noise, where a missing defensive lineman takes 0.75 off. That reads
   like offences shortening their throws behind a weak line, which the engine's
   play caller does not do. Not modelled; a pressure term fitted to the lineman's
-  would carry a defensive lineman's effect past its real interval.
+  would carry a defensive lineman's effect past its real interval. *Tested in
+  the next section, and wrong: real offences throw exactly as deep behind a
+  weak line and exactly as often. What moves is yards after the catch, which
+  the engine's lines did not reach; they do now.*
 - Coverage makes sacks in the real game: a starting corner's absence takes
   0.39 points off his defence's sack rate (0.26 to 0.58), a linebacker's 0.44.
   The engine has no route from coverage to the rush and reads next to nothing.
@@ -4882,6 +4887,141 @@ minutes at its defaults. The audit reads it at 2,000 games a position and
 100 a rusher: a lineman eight points worse costs his side 0.073 yards a carry, a
 defensive lineman eight points worse gives up 0.032 yards a carry, and the
 linemen's sack slope (0.87 at 100 games a rusher).
+
+### The pocket, held to real absences
+
+The previous section left one of its findings in the wrong column. A real
+starting lineman's absence costs his side far more of its passing game than an
+engine lineman eight points worse, and it was recorded, not fixed, with a guess
+attached: that offences shorten their throws behind a weak line. The guess was
+testable, so it was tested, and it was wrong.
+
+**The same absences, taken further.** The regression of the section before, on
+every real starter of 2016-24 who missed games, now also holds the week, the
+wind and the cold in outdoor games: injuries pile up late in a season, when
+throwing is harder. That moved nothing that matters (a lineman's absence costs
+0.185 adjusted net yards a dropback with the controls, 0.195 without), and
+`npm run trenches` uses the controlled figures from here on. The nflverse
+play-by-play gives each throw's depth and nflfastR's expectation for it; the
+participation data, NGS's pressure and time to throw and who was on the field.
+What a missing lineman does to his side, and a missing defensive lineman to
+the offence facing him (95% intervals, bootstrap over team-seasons):
+
+| | lineman out | defensive lineman out |
+| --- | --- | --- |
+| air yards a throw | -0.05 (-0.12 to +0.03) | +0.06 (-0.03 to +0.23) |
+| pass rate over expected, points | +0.20 (-0.14 to +0.53) | -0.38 (-0.92 to +0.16) |
+| throws at nobody, points | -0.05 (-0.20 to +0.12) | -0.17 (-0.44 to +0.07) |
+| scrambles, points | -0.05 (-0.24 to +0.10) | +0.01 (-0.18 to +0.22) |
+| receivers on the field | -0.005 (-0.014 to +0.002) | -0.006 (-0.017 to +0.001) |
+| men rushing | -0.001 (-0.011 to +0.008) | +0.001 (-0.020 to +0.015) |
+| pressured without a sack, points | +0.23 (-0.23 to +0.58) | -0.44 (-1.00 to +0.17) |
+| time to throw, seconds | -0.011 (-0.024 to 0.000) | +0.019 (+0.006 to +0.040) |
+| sacked, points | +0.30 (+0.09 to +0.52) | -0.24 (-0.46 to +0.04) |
+| completion over expected, points | -0.21 (-0.48 to +0.09) | +0.05 (-0.49 to +0.48) |
+| yards after the catch over expected | -0.07 (-0.11 to -0.01) | +0.11 (+0.02 to +0.20) |
+| yards a completion | -0.10 (-0.20 to -0.03) | +0.13 (-0.01 to +0.28) |
+| adjusted net yards a dropback | -0.185 (-0.279 to -0.114) | +0.102 (-0.063 to +0.255) |
+
+Behind a weak line a real offence throws as deep and as often as it did, with
+the same men on the field, and nobody sends more rushers at it; its passer is
+hurried barely more and gets rid of it a hundredth of a second sooner. What it
+loses, beyond the sacks, is at the catch: yards after it fall by 0.07 against
+what nflfastR expects of the same throw, and by 0.16 (0.03 to 0.28) on throws
+of ten yards or more. A missing defensive lineman gives the same thing back the
+other way, 0.11 a catch, but on the short throws (0.22 on screens, 0.12 short
+of ten yards, nothing downfield). What that is on the field is a reading, not
+a measurement: a ball arriving a beat late downfield, a front chasing the short
+catch down.
+
+**Whatever a backup is worth.** Every absolute comparison here leans on eight
+points being what a missing starter costs, which was only ever established for
+the quarterback and the back. What does not lean on it is the passing effect
+against the sacks the same absence adds. A real lineman's absence costs 0.61
+adjusted net yards a dropback per point of sack rate (0.35 to 1.74); the
+engine's cost 0.30. So the engine's line was short in the passing game
+whatever a backup is worth.
+
+**What the engine did instead.** One starter eight points worse, the passing
+game taken apart on the same games (6,000 a position, on a copy of the engine
+that reports each throw's length):
+
+| | engine lineman | real | engine defensive lineman | real |
+| --- | --- | --- | --- | --- |
+| pressured, points | +1.32 | | -1.12 | |
+| sacked, points | +0.29 | +0.30 | -0.27 | -0.24 |
+| scrambles, points | +0.22 | -0.05 (-0.24 to +0.10) | -0.17 | +0.01 |
+| completion, points | -0.22 | -0.21 over expected | +0.27 | +0.05 over expected |
+| air yards a throw | -0.01 | -0.04 | 0.00 | +0.06 |
+| yards after the catch | -0.01 | -0.07 | 0.00 | +0.11 |
+| adjusted net yards a dropback | -0.101 | -0.185 | +0.081 | +0.102 |
+
+The engine's lines reached the passing game only through pressure, and pressure
+is the one thing the real absences barely move. Yards after the catch read the
+receiver against the tackling and nothing else, so neither line touched them.
+
+**The fix is the pocket.** `POCKET_YAC` in plays.js adds the line's protection
+less the four rushing, the same margin the pressure reads, to what a catch
+gains after it: 0.045 yards a catch a point. One weight fits both lines,
+because a lineman eight points worse moves that margin 1.76 and a defensive
+lineman 1.63: weighting the two real effects by their intervals gives 0.045,
+the lineman's alone 0.040 and the defensive lineman's 0.067. It reads the base
+rush, not a blitz's, whose yards after the catch the MATRIX already sets. It
+is one weight across every depth, where the real effects are downfield for the
+line and short for the front; each band's real interval takes it. And it is
+centred where even sides play (`POCKET_MID`, -0.45): the rush takes the best
+four men of a front and the protection all five, so equal sides already read
+a little below zero.
+
+| one starter eight worse, 4,000 games | before | after | real |
+| --- | --- | --- | --- |
+| lineman: adjusted net a dropback | -0.106 | -0.136 | -0.185 (-0.279 to -0.114) |
+| lineman: yards a completion | -0.04 | -0.11 | -0.10 (-0.20 to -0.03) |
+| lineman: points a game | -0.48 | -0.54 | -0.81 (-1.22 to -0.48) |
+| lineman: adjusted net per point of sack rate | -0.34 | -0.54 | -0.61 (-1.74 to -0.35) |
+| defensive lineman: adjusted net a dropback | +0.071 | +0.155 | +0.102 (-0.063 to +0.255) |
+| defensive lineman: yards a completion | -0.01 | +0.09 | +0.13 (-0.01 to +0.28) |
+| defensive lineman: points a game | +0.56 | +0.77 | +0.51 (-0.18 to +1.17) |
+
+Four of the lines' figures sat outside the real intervals before and none does
+now. The lineman is still a little light and the defensive lineman now a little
+heavy, each inside, and neither line's sacks moved. The corner's yards a
+completion (+0.14 against +0.01, -0.13 to +0.11) is outside too, before and
+after: the new column found it, and the pocket does not reach him.
+
+**Tried and not taken: less pressure, more of it home.** The engine's weak
+line still lets the rush through more often, where the real one only lets it
+finish more often: 1.3 points more pressure, a fifth of a point more scrambles
+and a seventh of a point more throws at nobody, against real figures within
+noise of nothing. Making pressure a quarter as sensitive to the margin, and a
+pressure about half a point likelier to end in a sack for every point the line
+is beaten by, so that the sacks stayed where they were, brought all three into
+line.
+It also took away the completion the engine's lineman costs, which the real
+one does too, and left his points a game at -0.47 against an interval that
+stops at -0.48. So the engine keeps a mechanism that is wrong in the details
+and right in what it costs, and it is recorded here.
+
+**The level.** At 82 nothing moves: none of the 44 realism rows outside the
+real range, the passers' slope 1.04 (1.05), the level drift from 82 to 90
++0.02, yards a completion 10.86 against a real 10.92, the backs 0.95. Drafted
+pro leagues are another matter. Their fronts rush at 90.6 against lines that
+protect at 85.7, a margin of -5.0 where the calibration sides play at -0.45:
+the rush takes the best four of fronts far less even than synthetic ones, and
+the pool's rushers out-rate its blockers. So a league of all-time greats
+catches about 0.2 yards less after the catch than the calibration sides do,
+and throws for 5.80 adjusted net yards a dropback where it threw for 5.97,
+against a real 5.89. Pressure has read the same margin all along, which is
+likely why such a league is sacked 7.3% of the time against a real 7.0.
+
+**Held to it by the audit.** `npm run trenches` now reports yards a completion
+and the lineman's passing effect per point of sack rate, on the controlled real
+figures, and the audit reads two more of its lines at 2,000 games a position: a
+lineman eight points worse costs his side 0.130 adjusted net yards a dropback,
+and a defensive lineman eight points worse gives up 0.164 adjusted net yards a
+dropback. Without the pocket
+they read 0.116 and 0.043, so it is the second that would notice the pocket
+gone.
 
 ### A fingerprint that could not see the roster
 
