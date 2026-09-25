@@ -68,13 +68,23 @@
 // The tight end measured blocking at 0.39 and generated players agree, but
 // the record will not have it: an eighth puts Brock Bowers '24 three points
 // under his floor, the receiving tight end the real game pays for.
+//
+// And once coverage made sacks (DESIGN.md, "Coverage sacks, held to real
+// absences"): the coverage behind the rush against the receivers' routes. The
+// corner and the receiver went the whole way, which the record allows and
+// generated players' production asks for (+0.0005 and +0.0055), and the
+// off-ball backer five eighths, as far as the record lets his shortfall grow
+// by a point, which generated players neither ask for nor object to. Route
+// running is now the receiver's largest weight, and all of that rise is the
+// receivers' side of the coverage term, the half the real absences can
+// neither confirm nor rule out.
 export const POSITIONS = {
   QB: { name: 'Quarterback',   attrs: ['thp', 'tha', 'awr', 'mob'],
         weights: { tha: 0.40, awr: 0.35, thp: 0.17, mob: 0.08 } },
   RB: { name: 'Running Back',  attrs: ['spd', 'elu', 'pow', 'awr', 'rec', 'car'],
         weights: { spd: 0.30, elu: 0.19, awr: 0.19, pow: 0.14, car: 0.08, rec: 0.10 } },
   WR: { name: 'Wide Receiver', attrs: ['spd', 'cth', 'rte', 'rac'],
-        weights: { cth: 0.38, spd: 0.33, rte: 0.20, rac: 0.09 } },
+        weights: { rte: 0.37, cth: 0.31, spd: 0.26, rac: 0.06 } },
   TE: { name: 'Tight End',     attrs: ['spd', 'cth', 'rte', 'rac', 'blk'],
         weights: { cth: 0.25, blk: 0.25, rte: 0.20, rac: 0.20, spd: 0.10 } },
   OL: { name: 'Offensive Line', attrs: ['pbk', 'rbk', 'awr'],
@@ -86,10 +96,10 @@ export const POSITIONS = {
   // he is, so the pool does not have to be hand-tagged and a man who grows into
   // a rusher is re-priced as one without anybody editing a file.
   LB: { name: 'Linebacker',    attrs: ['spd', 'tck', 'rsd', 'cov', 'prs', 'awr'],
-        weights:     { cov: 0.28, tck: 0.23, rsd: 0.16, awr: 0.16, prs: 0.10, spd: 0.07 },
+        weights:     { cov: 0.35, tck: 0.19, awr: 0.18, rsd: 0.14, prs: 0.08, spd: 0.06 },
         edgeWeights: { prs: 0.45, rsd: 0.23, tck: 0.17, awr: 0.09, spd: 0.06, cov: 0.00 } },
   CB: { name: 'Cornerback',    attrs: ['spd', 'cov', 'bal', 'tck', 'awr'],
-        weights: { cov: 0.51, bal: 0.19, spd: 0.16, awr: 0.09, tck: 0.05 } },
+        weights: { cov: 0.54, bal: 0.15, spd: 0.14, awr: 0.12, tck: 0.05 } },
   S:  { name: 'Safety',        attrs: ['spd', 'cov', 'bal', 'tck', 'rsd', 'awr'],
         weights: { cov: 0.36, tck: 0.17, bal: 0.16, spd: 0.14, awr: 0.09, rsd: 0.08 } },
   K:  { name: 'Kicker',        attrs: ['kpw', 'kac'],

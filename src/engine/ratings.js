@@ -285,8 +285,15 @@ export function composites(lineup) {
  * table keeps its total, so every other position fell about a tenth with the
  * room they took. The quarterback is 10.14 (± 0.57 between rosters), 2.1
  * backs; the offensive line 2.65, above the kicker again.
+ *
+ * Set a seventh time once coverage made sacks (DESIGN.md, "Coverage sacks,
+ * held to real absences"): in raw margin a corner rose from 1.16 to 1.41, an
+ * off-ball backer from 0.65 to 0.81 and a receiver from 0.76 to 0.94, the last
+ * all of it through the receivers' side of the coverage term, and nothing else
+ * moved outside its noise. The quarterback is 9.39 (± 0.50 between rosters),
+ * 2.0 backs; the corner 5.60, the most after him.
  */
-export const TRUE_LEVERAGE = { QB: 10.14, CB: 4.96, RB: 4.90, TE: 3.97, DL: 3.74, WR: 3.25, S: 3.17, LB: 2.77, P: 2.73, OL: 2.65, K: 2.21 };
+export const TRUE_LEVERAGE = { QB: 9.39, CB: 5.60, RB: 4.67, WR: 3.75, TE: 3.71, DL: 3.46, LB: 3.24, S: 2.88, P: 2.60, OL: 2.44, K: 2.12 };
 
 /**
  * How strong a lineup is, on the 40..99 rating scale.

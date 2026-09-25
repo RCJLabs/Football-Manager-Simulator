@@ -93,10 +93,14 @@ test('the mispricing the whole auction rests on is actually there', () => {
   // point of a passer's rating moved his production 2.4 times the real game's
   // (DESIGN.md, "The passing game, held to real quarterbacks"). What has to
   // hold is the board's own line for mattering, and that no other single
-  // player comes near him.
+  // player comes near him. The bar was 1.8 until coverage made sacks and the
+  // corner rose to 5.60 against the quarterback's 9.39 (DESIGN.md, "Coverage
+  // sacks, held to real absences"); real starters' absences put the ratio
+  // anywhere from about one and a tenth to five, so this holds the claim and
+  // not a particular table.
   assert.ok(by.K.stake < MATTERS_AT && by.P.stake < MATTERS_AT, 'kickers and punters cannot decide a season');
   const nextBest = Math.max(...rows.filter((r) => r.pos !== 'QB').map((r) => r.wins));
-  assert.ok(by.QB.wins > nextBest * 1.8, `and a quarterback plainly can: ${(by.QB.wins / nextBest).toFixed(2)} times any other single player`);
+  assert.ok(by.QB.wins > nextBest * 1.5, `and a quarterback plainly can: ${(by.QB.wins / nextBest).toFixed(2)} times any other single player`);
   // There is a real spread to exploit among the positions that matter, or the
   // panel is teaching nothing.
   const real = rows.filter((r) => r.verdict !== 'barely matters');
