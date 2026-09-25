@@ -269,8 +269,17 @@ export function composites(lineup) {
  * moved outside its noise; the table keeps its total, so every other position
  * rose with the room they left. The offensive line is 2.21, the lowest of any
  * starter; the quarterback 11.16 (± 0.64 between rosters), 2.1 backs.
+ *
+ * Set a sixth time once the pocket read the lines (DESIGN.md, "The pocket,
+ * held to real absences"): what a catch gains after it reads the protection
+ * against the rush, where the lines had reached the passing game only through
+ * pressure. In raw margin a lineman rose from 0.48 to 0.62 and a defensive
+ * lineman from 0.68 to 0.88, and nothing else moved outside its noise; the
+ * table keeps its total, so every other position fell about a tenth with the
+ * room they took. The quarterback is 10.14 (± 0.57 between rosters), 2.1
+ * backs; the offensive line 2.65, above the kicker again.
  */
-export const TRUE_LEVERAGE = { QB: 11.16, RB: 5.37, CB: 5.32, TE: 4.28, WR: 3.55, S: 3.48, DL: 3.16, LB: 2.90, P: 2.84, K: 2.23, OL: 2.21 };
+export const TRUE_LEVERAGE = { QB: 10.14, CB: 4.96, RB: 4.90, TE: 3.97, DL: 3.74, WR: 3.25, S: 3.17, LB: 2.77, P: 2.73, OL: 2.65, K: 2.21 };
 
 /**
  * How strong a lineup is, on the 40..99 rating scale.
