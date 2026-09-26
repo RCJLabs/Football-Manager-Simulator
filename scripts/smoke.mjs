@@ -1738,6 +1738,31 @@ try {
       await checkOverflow(`${label} ${route}`);
     }
   }
+
+  // With no network the app launches from the copy of its page the service
+  // worker keeps, and every page opened inside its scope used to replace that
+  // copy: a mistyped address, or DESIGN.md, since the whole repository is
+  // published. The next launch offline showed that instead of the game. Last,
+  // because going offline here means stopping the server, and in a context of
+  // its own, whose console is not watched: a 404 and a refused connection are
+  // what this check is made of.
+  {
+    const ctx = await browser.newContext();
+    const off = await ctx.newPage();
+    const thrown = [];
+    off.on('pageerror', (e) => thrown.push(e.message));
+    await off.goto(`http://localhost:${port}/`);
+    await off.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
+    const opened = [];
+    for (const path of ['no-such-page', 'DESIGN.md']) opened.push(`${path} (${(await off.goto(`http://localhost:${port}/${path}`))?.status()})`);
+    server.kill();
+    await sleep(300);
+    await off.goto(`http://localhost:${port}/`).catch(() => {});
+    const launched = await off.waitForFunction(() => document.title === 'Gridiron Eras' && document.querySelector('#app') && !document.querySelector('#app .loading'), null, { timeout: 10000 }).then(() => true, () => false);
+    if (!launched) errors.push(`offline, after opening ${opened.join(' and ')}, the app did not launch: it showed ${JSON.stringify((await off.evaluate(() => document.body?.innerText || '')).slice(0, 60))}`);
+    for (const m of thrown) errors.push(`offline launch: pageerror: ${m}`);
+    await ctx.close();
+  }
 } catch (e) {
   errors.push(`script: ${e.message}`);
   await shot('99-error').catch(() => {});

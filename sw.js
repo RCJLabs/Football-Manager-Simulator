@@ -1,6 +1,6 @@
 // Service worker: precache the app shell, network-first for HTML so deploys
 // show up, cache-first for everything else. Bump CACHE on each release.
-const CACHE = 'gridiron-eras-v130';
+const CACHE = 'gridiron-eras-v131';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './src/styles.css', './src/main.js',
   './src/router.js', './src/store.js', './src/util.js',
@@ -22,12 +22,28 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
+// The app is one page, and the copy of it kept here is what launches with no
+// network, so only that page, fetched whole, may become the copy. Every page
+// opened inside the scope used to: a mistyped address kept its 404, and
+// opening DESIGN.md (the whole repository is published) kept that, and the
+// next launch offline showed an error page or a markdown file instead of the
+// game.
+const APP_PAGES = new Set([new URL('./', location).href, new URL('./index.html', location).href]);
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   const isHtml = req.mode === 'navigate' || req.headers.get('accept')?.includes('text/html');
   if (isHtml) {
-    e.respondWith(fetch(req).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put('./index.html', copy)); return res; }).catch(() => caches.match('./index.html')));
+    e.respondWith(fetch(req).then((res) => {
+      const url = new URL(req.url);
+      const whole = res.ok && !res.redirected && (res.headers.get('content-type') || '').includes('text/html');
+      if (whole && APP_PAGES.has(url.origin + url.pathname)) {
+        const copy = res.clone();
+        e.waitUntil(caches.open(CACHE).then((c) => c.put('./index.html', copy)));
+      }
+      return res;
+    }).catch(() => caches.match('./index.html')));
     return;
   }
   e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); } return res; })));
