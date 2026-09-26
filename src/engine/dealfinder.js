@@ -33,7 +33,7 @@
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall, TRUE_LEVERAGE } from './ratings.js';
 import {
-  validateTrade, evaluateTrade, lineupStrength, slotsAfterTrade, tradesOpen, slotOf, aiGreed,
+  validateTrade, evaluateTrade, lineupStrength, slotsAfterTrade, tradesOpen, slotOf, aiGreed, tradeSearch,
 } from './transactions.js';
 import {
   futureHand, futurePicksOpen, futurePickValue, projectedSlots, futureOwner, pickTradeDelta,
@@ -177,14 +177,17 @@ export function scanClub(league, byId, pool, plan, index) {
   const found = [];
   const greedOf = aiGreed(league.teams[entry.club], league);
   const picks = pickTable(league, byId, entry.club, u, plan.slots);
+  // One club's scan runs without a break, so nothing can move a roster in the
+  // middle of it; the screen can between clubs, so each scan asks afresh.
+  const search = tradeSearch(league, pool);
   for (const c of entry.candidates) {
-    const v = validateTrade(league, entry.club, u, c.gives, c.wants, byId, pool);
+    const v = validateTrade(league, entry.club, u, c.gives, c.wants, byId, pool, { search });
     if (!v.ok) continue;
-    const ev = evaluateTrade(league, entry.club, c.gives, c.wants, byId, pool);
+    const ev = evaluateTrade(league, entry.club, c.gives, c.wants, byId, pool, { search });
     // A club that says no and cannot be talked round is not worth costing out
     // the human's side for — `slotsAfterTrade` is the dear half of this loop.
     if (!ev.accept && !(picks && ev.delta + best(picks.human) >= greedOf + (ev.premium || 0))) continue;
-    const out = slotsAfterTrade(league, u, c.wants, c.gives, pool, byId);
+    const out = slotsAfterTrade(league, u, c.wants, c.gives, pool, byId, search);
     if (!out) continue;
     let delta = Math.round((lineupStrength(out.slots, byId, league) - plan.base) * 10) / 10;
     let aiGain = ev.delta;
@@ -204,7 +207,7 @@ export function scanClub(league, byId, pool, plan, index) {
       // The player half was validated without the picks. Picks cannot unbalance
       // a roster, so this should always hold — but a finder that offers a deal
       // the builder then refuses is the one failure it must not have.
-      if (!validateTrade(league, entry.club, u, c.gives, c.wants, byId, pool, { aPicks: aiPicks, bPicks: userPicks }).ok) continue;
+      if (!validateTrade(league, entry.club, u, c.gives, c.wants, byId, pool, { aPicks: aiPicks, bPicks: userPicks, search }).ok) continue;
     }
     const abbr = league.teams[entry.club].abbr;
     found.push({

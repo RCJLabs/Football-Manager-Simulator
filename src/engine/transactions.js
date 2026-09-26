@@ -340,6 +340,49 @@ function imbalanceSize(delta) {
 }
 
 /**
+ * What a search over many candidate deals would otherwise rebuild for every
+ * one of them.
+ *
+ * An AI club weighing its week asks the same questions hundreds of times: who
+ * owns whom, and who is out there to sign at a position, best first. Asked
+ * afresh each time, that was most of a week before the trade deadline — every
+ * uneven candidate cost six `backfillPlan` calls, and each rebuilt the map of
+ * every rostered man in the league and filtered and sorted the whole pool
+ * again. With the CPU slowed four times to stand in for a phone, a pro week
+ * took up to 3.6 seconds, and that was the Advance button's cost as well as
+ * simulating ahead's.
+ *
+ * The answers only change when a roster does, so a search holds one of these
+ * for as long as none has, and starts a new one after executing a deal. It
+ * answers exactly as the uncached path does — the same filter, the same stable
+ * sort from the same order — and remembers each club's plan and the roster it
+ * leaves by the deal's exact shape, order included, because the order of the
+ * men arriving breaks ties in who is released.
+ */
+export function tradeSearch(league, pool) {
+  let owned = null, market = null;
+  const byPos = new Map();
+  return {
+    plans: new Map(),
+    after: new Map(),
+    owned() { return (owned ??= ownerMap(league)); },
+    available(pos) {
+      let list = byPos.get(pos);
+      if (!list) {
+        market ??= signablePool(league, pool);
+        const own = this.owned();
+        list = market.filter((p) => p.pos === pos && !p.retired && !own.has(p.id))
+          .sort((a, b) => overall(b) - overall(a));
+        byPos.set(pos, list);
+      }
+      return list;
+    },
+  };
+}
+
+const dealKey = (teamIdx, gives, gets) => `${teamIdx}|${gives.join(',')}|${gets.join(',')}`;
+
+/**
  * The moves that make an uneven trade legal, for one club.
  *
  * Short a position: sign the best free agent there. The pool is deep — the
@@ -353,7 +396,18 @@ function imbalanceSize(delta) {
  * arriving. A club that trades for a better receiver drops its fourth, not the
  * one it just acquired.
  */
-export function backfillPlan(league, teamIdx, gives, gets, pool, byId) {
+export function backfillPlan(league, teamIdx, gives, gets, pool, byId, search = null) {
+  if (!search) return planBackfill(league, teamIdx, gives, gets, pool, byId, null);
+  const key = dealKey(teamIdx, gives, gets);
+  let plan = search.plans.get(key);
+  if (!plan) {
+    plan = planBackfill(league, teamIdx, gives, gets, pool, byId, search);
+    search.plans.set(key, plan);
+  }
+  return plan;
+}
+
+function planBackfill(league, teamIdx, gives, gets, pool, byId, search) {
   const delta = positionDelta(gives, gets, byId);
   if (!Object.keys(delta.short).length && !Object.keys(delta.long).length) return { ok: true, signs: [], releases: [] };
   if (imbalanceSize(delta) > MAX_TRADE_IMBALANCE) return { ok: false, reason: `At most ${MAX_TRADE_IMBALANCE} unmatched positions a side` };
@@ -377,15 +431,15 @@ export function backfillPlan(league, teamIdx, gives, gets, pool, byId) {
     }
   }
 
-  const owned = ownerMap(league);
   // Signable men only: free agency, the wire and the kickoff fill all sign
   // from `signablePool`, and this was the one route that did not. In a pro
   // league it signed men the drain had shown out of the league, and it was the
   // only way one ever reached a roster (DESIGN.md, "What the invariant sweep
-  // found").
-  const market = signablePool(league, pool);
+  // found"). A search has the same list to hand already sorted.
+  const owned = search ? null : ownerMap(league);
+  const market = search ? null : signablePool(league, pool);
   for (const [pos, n] of Object.entries(delta.short)) {
-    const avail = market.filter((p) => p.pos === pos && !p.retired && !owned.has(p.id))
+    const avail = search ? search.available(pos) : market.filter((p) => p.pos === pos && !p.retired && !owned.has(p.id))
       .sort((a, b) => overall(b) - overall(a));
     for (let i = 0; i < n; i++) {
       if (!avail[i]) return { ok: false, reason: `No free agent ${pos} left to fill ${team.abbr}'s hole` };
@@ -417,18 +471,27 @@ function slotsAfterMoves(team, outgoing, incoming, byId) {
   return { slots, leftover: left, empty: ROSTER_SLOTS.filter((s) => !slots[s.id]).map((s) => s.id) };
 }
 
-/** One club's roster after an uneven deal and the moves that square it. */
-export function slotsAfterTrade(league, teamIdx, gives, gets, pool, byId) {
-  const plan = backfillPlan(league, teamIdx, gives, gets, pool, byId);
-  if (!plan.ok) return null;
-  const team = league.teams[teamIdx];
-  const { slots, leftover, empty } = slotsAfterMoves(team, [...gives, ...plan.releases], [...gets, ...plan.signs], byId);
-  if (leftover.length || empty.length) return null;
-  return { slots, plan };
+/**
+ * One club's roster after an uneven deal and the moves that square it. Within
+ * a search the answer is remembered, and callers only read it: a deal that is
+ * executed builds its rosters afresh.
+ */
+export function slotsAfterTrade(league, teamIdx, gives, gets, pool, byId, search = null) {
+  const key = search && dealKey(teamIdx, gives, gets);
+  if (search && search.after.has(key)) return search.after.get(key);
+  const plan = backfillPlan(league, teamIdx, gives, gets, pool, byId, search);
+  let out = null;
+  if (plan.ok) {
+    const team = league.teams[teamIdx];
+    const { slots, leftover, empty } = slotsAfterMoves(team, [...gives, ...plan.releases], [...gets, ...plan.signs], byId);
+    if (!leftover.length && !empty.length) out = { slots, plan };
+  }
+  if (search) search.after.set(key, out);
+  return out;
 }
 
 /** Structural checks only. Returns { ok, reason }. */
-export function validateTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = null, { aPicks = [], bPicks = [] } = {}) {
+export function validateTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = null, { aPicks = [], bPicks = [], search = null } = {}) {
   if (!tradesOpen(league)) return { ok: false, reason: league.phase === 'season' ? `The trade deadline passed after week ${tradeDeadlineWeek(league)}` : 'Trades are open during the regular season only' };
   if (aIdx === bIdx) return { ok: false, reason: 'Pick another club' };
   // A pick counts as something given, which is the point of having them here:
@@ -456,16 +519,16 @@ export function validateTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = n
   // Uneven. Legal only if both clubs can square their own roster afterwards,
   // which is a question about the free-agent pool, so it needs one.
   if (!pool) return { ok: false, reason: `Positions must match: ${a.abbr} offers ${fmtCounts(ca)}, ${b.abbr} offers ${fmtCounts(cb)}` };
-  const fa = backfillPlan(league, aIdx, aGives, bGives, pool, byId);
+  const fa = backfillPlan(league, aIdx, aGives, bGives, pool, byId, search);
   if (!fa.ok) return { ok: false, reason: fa.reason };
-  const fb = backfillPlan(league, bIdx, bGives, aGives, pool, byId);
+  const fb = backfillPlan(league, bIdx, bGives, aGives, pool, byId, search);
   if (!fb.ok) return { ok: false, reason: fb.reason };
   // Both clubs fish from the same pool, so the two plans must not name the
   // same free agent.
   const clash = fa.signs.find((id) => fb.signs.includes(id));
   if (clash) return { ok: false, reason: `Both clubs would need to sign ${byId.get(clash)?.name || clash}` };
-  if (!slotsAfterTrade(league, aIdx, aGives, bGives, pool, byId)) return { ok: false, reason: `${a.abbr} cannot field a roster after that` };
-  if (!slotsAfterTrade(league, bIdx, bGives, aGives, pool, byId)) return { ok: false, reason: `${b.abbr} cannot field a roster after that` };
+  if (!slotsAfterTrade(league, aIdx, aGives, bGives, pool, byId, search)) return { ok: false, reason: `${a.abbr} cannot field a roster after that` };
+  if (!slotsAfterTrade(league, bIdx, bGives, aGives, pool, byId, search)) return { ok: false, reason: `${b.abbr} cannot field a roster after that` };
   return { ok: true, uneven: true, picks: !!(aPicks.length || bPicks.length), fills: { a: fa, b: fb } };
 }
 
@@ -492,7 +555,7 @@ function slotsAfter(team, gives, gets, byId) {
  * famous name at a position it is already strong at is worth less to it than
  * a plain starter where it is thin. Sharper GMs want more out of a deal.
  */
-export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null, { pickDelta = 0 } = {}) {
+export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null, { pickDelta = 0, search = null } = {}) {
   const team = league.teams[aiIdx];
   const before = lineupStrength(team.slots, byId, league);
   // On an uneven deal the club judges the roster it would actually field —
@@ -500,7 +563,7 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null,
   // make every uneven trade look like a loss, and no club would ever take one.
   const shaped = posCounts(aiGives, byId), got = posCounts(aiGets, byId);
   const uneven = [...new Set([...Object.keys(shaped), ...Object.keys(got)])].some((k) => (shaped[k] || 0) !== (got[k] || 0));
-  const outcome = uneven ? slotsAfterTrade(league, aiIdx, aiGives, aiGets, pool, byId) : { slots: slotsAfter(team, aiGives, aiGets, byId) };
+  const outcome = uneven ? slotsAfterTrade(league, aiIdx, aiGives, aiGets, pool, byId, search) : { slots: slotsAfter(team, aiGives, aiGets, byId) };
   if (!outcome) return { accept: false, delta: 0, before, after: before, reason: `${team.abbr} could not field a roster after that.` };
   const after = lineupStrength(outcome.slots, byId, league);
   // `pickDelta` arrives already valued, in the same lineup points the rest of
@@ -573,6 +636,8 @@ export function aiTrades(league, byId, rng, { pairs = 4, pool = null } = {}) {
   const group = (team, pos) => ROSTER_SLOTS.filter((s) => s.pos === pos).map((s) => ({ slot: s, id: team.slots[s.id], p: byId.get(team.slots[s.id]) })).filter((x) => x.p);
   const bestBench = (team, pos) => group(team, pos).filter((x) => !x.slot.starter).sort((a, b) => overall(b.p) - overall(a.p))[0] || null;
   const worstStarter = (team, pos) => group(team, pos).filter((x) => x.slot.starter).sort((a, b) => overall(a.p) - overall(b.p))[0] || null;
+  // Good until a deal changes two rosters; a fresh one after each.
+  let search = tradeSearch(league, pool);
   for (let n = 0; n < pairs; n++) {
     const a = ai[rng.int(0, ai.length - 1)];
     const b = ai[rng.int(0, ai.length - 1)];
@@ -591,17 +656,20 @@ export function aiTrades(league, byId, rng, { pairs = 4, pool = null } = {}) {
       const shapes = [[[aP.id, aQ.id], [bP.id, bQ.id]]];
       if (pool) shapes.push([[aP.id], [bQ.id]]);
       for (const [aGives, bGives] of shapes) {
-        const v = validateTrade(league, a, b, aGives, bGives, byId, pool);
+        const v = validateTrade(league, a, b, aGives, bGives, byId, pool, { search });
         if (!v.ok) continue;
-        const outA = v.uneven ? slotsAfterTrade(league, a, aGives, bGives, pool, byId) : { slots: slotsAfter(A, aGives, bGives, byId) };
-        const outB = v.uneven ? slotsAfterTrade(league, b, bGives, aGives, pool, byId) : { slots: slotsAfter(B, bGives, aGives, byId) };
+        const outA = v.uneven ? slotsAfterTrade(league, a, aGives, bGives, pool, byId, search) : { slots: slotsAfter(A, aGives, bGives, byId) };
+        const outB = v.uneven ? slotsAfterTrade(league, b, bGives, aGives, pool, byId, search) : { slots: slotsAfter(B, bGives, aGives, byId) };
         if (!outA || !outB) continue;
         const gainA = lineupStrength(outA.slots, byId, league) - baseA - leveragePremium(aGives, bGives, byId);
         const gainB = lineupStrength(outB.slots, byId, league) - baseB - leveragePremium(bGives, aGives, byId);
         if (gainA >= aiGreed(A, league) && gainB >= aiGreed(B, league) && (!best || gainA + gainB > best.total)) best = { aGives, bGives, total: gainA + gainB };
       }
     }
-    if (best) done.push(executeTrade(league, a, b, best.aGives, best.bGives, byId, pool));
+    if (best) {
+      done.push(executeTrade(league, a, b, best.aGives, best.bGives, byId, pool));
+      search = tradeSearch(league, pool);
+    }
   }
   return done;
 }
@@ -723,6 +791,9 @@ export function makeAiOffers(league, byId, rng, { max = 2, pool = null, picks = 
   const bestBench = (team, pos) => group(team, pos).filter((x) => !x.slot.starter).sort((a, b) => overall(b.p) - overall(a.p))[0] || null;
   const worstStarter = (team, pos) => group(team, pos).filter((x) => x.slot.starter).sort((a, b) => overall(a.p) - overall(b.p))[0] || null;
   const made = [];
+  // Nothing here changes a roster — offers are made, not done — so one search
+  // serves every club.
+  const search = tradeSearch(league, pool);
   const order = league.teams.map((_, i) => i).filter((i) => i !== u);
   if (rng) for (let i = order.length - 1; i > 0; i--) { const j = rng.int(0, i); [order[i], order[j]] = [order[j], order[i]]; }
   for (const a of order) {
@@ -740,11 +811,11 @@ export function makeAiOffers(league, byId, rng, { max = 2, pool = null, picks = 
       const shapes = [[[aP.id, aQ.id], [uP.id, uQ.id]]];
       if (pool) shapes.push([[aP.id], [uQ.id]]);
       for (const [gives, wants] of shapes) {
-        const v = validateTrade(league, a, u, gives, wants, byId, pool);
+        const v = validateTrade(league, a, u, gives, wants, byId, pool, { search });
         if (!v.ok) continue;
         if (refused.has(offerSignature(a, gives, wants))) continue;
-        const outA = v.uneven ? slotsAfterTrade(league, a, gives, wants, pool, byId) : { slots: slotsAfter(A, gives, wants, byId) };
-        const outU = v.uneven ? slotsAfterTrade(league, u, wants, gives, pool, byId) : { slots: slotsAfter(U, wants, gives, byId) };
+        const outA = v.uneven ? slotsAfterTrade(league, a, gives, wants, pool, byId, search) : { slots: slotsAfter(A, gives, wants, byId) };
+        const outU = v.uneven ? slotsAfterTrade(league, u, wants, gives, pool, byId, search) : { slots: slotsAfter(U, wants, gives, byId) };
         if (!outA || !outU) continue;
         const gainA = lineupStrength(outA.slots, byId, league) - baseA - leveragePremium(gives, wants, byId);
         const gainU = lineupStrength(outU.slots, byId, league) - baseU;
