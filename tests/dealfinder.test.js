@@ -7,7 +7,7 @@ import {
 } from '../src/engine/season.js';
 import { autoDraftAll } from '../src/engine/draft.js';
 import {
-  proposeTrade, validateTrade, evaluateTrade, lineupStrength, slotsAfterTrade, tradeDeadlineWeek,
+  proposeTrade, validateTrade, evaluateTrade, lineupStrength, slotsAfterTrade, tradeDeadlineWeek, tradeMoney, CAP_WORTH,
 } from '../src/engine/transactions.js';
 import { dealPlan, scanClub, findDeals, dealStillValid, DEAL_FLOOR } from '../src/engine/dealfinder.js';
 import { enterOffseason, confirmKeepers, aiKeepers, takeJob, closeFreeAgency } from '../src/engine/offseason.js';
@@ -70,12 +70,22 @@ test('every found deal clears both bars, not just the club’s', () => {
     assert.equal(evaluateTrade(lg, d.club, d.gives, d.wants, byId, PLAYERS, { pickDelta: clubPicks }).accept, true, 'a club would not take its own deal');
     const out = slotsAfterTrade(lg, u, d.wants, d.gives, PLAYERS, byId);
     assert.ok(out, 'the human could not field a roster');
+    // The human's bar is the club's: the lineup, and next season's pay at
+    // what it would buy. Shown apart on the deal, weighed together.
+    const money = tradeMoney(lg, u, d.wants, d.gives, out.plan);
+    assert.equal(d.userMoney, money);
     const gain = Math.round((lineupStrength(out.slots, byId, lg) - base) * 10) / 10 + userPicks;
-    assert.ok(Math.round(gain * 10) / 10 >= DEAL_FLOOR, `a deal that does not help the human was offered: ${gain}`);
+    const value = Math.round((lineupStrength(out.slots, byId, lg) - base + money * CAP_WORTH) * 10) / 10 + userPicks;
+    assert.ok(Math.round(value * 10) / 10 >= DEAL_FLOOR, `a deal that does not help the human was offered: ${value}`);
     // A pick's worth is not in tenths, and the finder rounds before adding it
     // and again after, so there the two can differ by a rounding.
-    if (picked) assert.ok(Math.abs(gain - d.userDelta) <= 0.05 + 1e-9, `the finder says ${d.userDelta}, the books say ${gain}`);
-    else assert.equal(Math.round(gain * 10) / 10, d.userDelta);
+    if (picked) {
+      assert.ok(Math.abs(gain - d.userDelta) <= 0.05 + 1e-9, `the finder says ${d.userDelta}, the books say ${gain}`);
+      assert.ok(Math.abs(value - d.userValue) <= 0.05 + 1e-9, `the finder values it at ${d.userValue}, the books at ${value}`);
+    } else {
+      assert.equal(Math.round(gain * 10) / 10, d.userDelta);
+      assert.equal(Math.round(value * 10) / 10, d.userValue);
+    }
   }
 });
 
@@ -83,7 +93,7 @@ test('one deal a club, best first', () => {
   const lg = midSeason(15);
   const deals = findDeals(lg, byId, PLAYERS);
   assert.equal(new Set(deals.map((d) => d.club)).size, deals.length, 'the same club appeared twice');
-  for (let i = 1; i < deals.length; i++) assert.ok(deals[i - 1].userDelta >= deals[i].userDelta);
+  for (let i = 1; i < deals.length; i++) assert.ok(deals[i - 1].userValue >= deals[i].userValue);
 });
 
 test('the search splits into chunks small enough to keep a phone alive', () => {
@@ -142,9 +152,10 @@ test('the finder agrees with a brute-force count of what exists', () => {
       if (!validateTrade(lg, entry.club, u, c.gives, c.wants, byId, PLAYERS).ok) continue;
       if (!evaluateTrade(lg, entry.club, c.gives, c.wants, byId, PLAYERS).accept) continue;
       const out = slotsAfterTrade(lg, u, c.wants, c.gives, PLAYERS, byId);
-      // Rounded the way the finder rounds it. The number it shows is the number
-      // it promises, so a gain of 0.05 that displays as +0.1 is at the floor.
-      if (out && Math.round((lineupStrength(out.slots, byId, lg) - base) * 10) / 10 >= DEAL_FLOOR) {
+      // Rounded the way the finder rounds it, and weighed as it weighs it:
+      // the lineup and next season's pay together.
+      const money = out ? tradeMoney(lg, u, c.wants, c.gives, out.plan) : 0;
+      if (out && Math.round((lineupStrength(out.slots, byId, lg) - base + money * CAP_WORTH) * 10) / 10 >= DEAL_FLOOR) {
         plain.add(`${entry.club}|${c.gives.join(',')}|${c.wants.join(',')}`);
       }
     }

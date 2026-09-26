@@ -1300,6 +1300,35 @@ try {
   await checkOverflow('pro moves trades');
   const partners = await page.$$eval('#partner option', (o) => o.length);
   if (partners !== 31) errors.push(`pro trade partner list has ${partners} clubs, expected 31`);
+  // In a capped league a club weighs next season's pay with the lineup, so the
+  // builder says what a deal does to yours: a like-for-like pair whose deals
+  // differ next season, and the line that has to name the difference.
+  const payPair = await page.evaluate(() => {
+    const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+    const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league;
+    const next = (id) => { const c = lg.contracts?.[id]; return c ? ((c.years ?? 1) > 1 && !c.expiring ? c.salary : 0) : 1; };
+    const posOf = (el) => el.closest('li')?.querySelector('.badge.pos')?.textContent.trim();
+    for (const get of document.querySelectorAll('[data-get]')) {
+      const pos = posOf(get);
+      const give = [...document.querySelectorAll('[data-give]')].find((g) => posOf(g) === pos && next(g.dataset.give) !== next(get.dataset.get));
+      if (!give) continue;
+      const diff = next(give.dataset.give) - next(get.dataset.get);
+      const want = get.dataset.get;
+      give.click();
+      document.querySelector(`[data-get="${CSS.escape(want)}"]`).click();
+      return diff;
+    }
+    return null;
+  });
+  if (payPair == null) errors.push('no like-for-like pair with different pay on the pro trade screen');
+  else {
+    await page.waitForSelector('#propose:not([disabled])');
+    const line = await page.evaluate(() => document.querySelector('#propose').closest('.card').textContent.replace(/\s+/g, ' '));
+    const want = payPair > 0 ? `sheds $${payPair} of next season's pay` : `adds $${-payPair} to next season's pay`;
+    if (!line.includes(want)) errors.push(`the pro trade builder does not say "${want}": ${line.slice(0, 160)}`);
+    await checkOverflow('pro trade builder with pay');
+    await page.click('#clearTrade');
+  }
   // A finished AI game shows team totals without player lines.
   await page.goto(`http://localhost:${port}/#/box/w/1/0`);
   await page.waitForSelector('.stat-compare');

@@ -16,7 +16,8 @@ import {
 import { dealPlan, scanClub, dealStillValid, counterOffer } from '../../engine/dealfinder.js';
 import { faBoard, keeperAdvice } from '../../engine/market.js';
 import { playerItem, playerModal, teamChip, toast, modal, esc, ovrBadge, posBadge, outBadge } from '../components.js';
-import { emptySlotAt } from '../../engine/transactions.js';
+import { emptySlotAt, tradeMoney } from '../../engine/transactions.js';
+import { capOn, deadCharge } from '../../engine/cap.js';
 import { shownOverall } from '../../engine/scouting.js';
 
 /** What a set of found deals belongs to. A different league, season or week retires them. */
@@ -49,6 +50,15 @@ export function view(root, params, ctx) {
   if (params && params.tab) { if (['fa', 'claims', 'offers', 'trade', 'log'].includes(params.tab)) ui.tab = params.tab; delete params.tab; }
   const u = userTeamIndex(league);
   const me = league.teams[u];
+  // Next season's pay a deal moves for you, said the way the club weighs it.
+  // Nothing to say outside a capped league, or when the pay does not move.
+  const payLine = (money) => (!capOn(league) || !money ? ''
+    : money > 0 ? `sheds $${money} of next season's pay` : `adds $${-money} to next season's pay`);
+  // A man let go to square a deal is charged as a cut is: half of what is left.
+  const owedLine = (id) => {
+    const d = capOn(league) ? deadCharge(league.contracts?.[id]) : null;
+    return d ? ` <span class="muted">(leaves $${d.amount} a year owed)</span>` : '';
+  };
   const open = movesOpen(league);
   const fa = freeAgents(league, ctx.players);
   const injuries = league.injuries || {};
@@ -108,6 +118,7 @@ export function view(root, params, ctx) {
   } else if (ui.tab === 'offers') {
     const card = (o) => {
       const them = league.teams[o.from];
+      const pay = payLine(o.userMoney);
       // An offer can carry next year's picks on either side, so each column
       // lists the players and then whatever picks come with them.
       const side = (ids, picks, label) => `<div><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${label}</div><ul class="plist">${ids.map((id) => playerItem(ctx.byId.get(id), { attrs: false, meta: inj(ctx.byId.get(id)) })).join('')}${(picks || []).map((p) => `<li class="prow pick-row"><div class="who"><div class="nm">${esc(futureLabel(league, p))}</div><div class="meta"><span class="muted">${esc(slotBand(league, ctx.byId, p.from, null))}</span></div></div></li>`).join('')}</ul></div>`;
@@ -118,10 +129,10 @@ export function view(root, params, ctx) {
         <div class="grid grid-2">${side(o.gives, o.givesNext, 'You get')}${side(o.wants, o.wantsNext, 'You give')}</div>
         ${o.fills && (o.fills.signs.length || o.fills.releases.length) ? `<p class="notice" style="margin:.4rem 0 0;font-size:.8rem"><b>Uneven.</b> Taking it means you ${[
           o.fills.signs.length ? `sign ${o.fills.signs.map((id) => `<b>${esc(ctx.byId.get(id)?.name)}</b>`).join(' and ')}` : '',
-          o.fills.releases.length ? `release ${o.fills.releases.map((id) => `<b>${esc(ctx.byId.get(id)?.name)}</b>`).join(' and ')}` : '',
+          o.fills.releases.length ? `release ${o.fills.releases.map((id) => `<b>${esc(ctx.byId.get(id)?.name)}</b>${owedLine(id)}`).join(' and ')}` : '',
         ].filter(Boolean).join(', and ')}.</p>` : ''}
         <div class="row between" style="margin-top:.5rem">
-          <small style="color:${verdict[1]}">${verdict[0]} <span class="muted">(${o.userDelta > 0 ? '+' : ''}${o.userDelta} lineup strength by the same yardstick the AI uses)</span></small>
+          <small style="color:${verdict[1]}">${verdict[0]} <span class="muted">(${o.userDelta > 0 ? '+' : ''}${o.userDelta} lineup strength by the same yardstick the AI uses)${pay ? ` · ${pay}` : ''}</span></small>
           <span class="btn-group"><button class="btn primary sm" data-accept="${esc(o.id)}">Accept</button><button class="btn sm" data-decline="${esc(o.id)}">Decline</button></span>
         </div>
       </div>`;
@@ -143,7 +154,7 @@ export function view(root, params, ctx) {
       return `<li class="prow">
         <div class="who">
           <div class="nm">${teamChip(them, { abbr: true }).__raw} <b style="color:var(--good)">+${d.userDelta}</b> <span class="muted">to your lineup</span></div>
-          <div class="meta"><span class="muted">you get ${names(d.gives, d.aiPicks)} · you give ${names(d.wants, d.userPicks)}${d.uneven ? ' · uneven' : ''}</span></div>
+          <div class="meta"><span class="muted">you get ${names(d.gives, d.aiPicks)} · you give ${names(d.wants, d.userPicks)}${d.uneven ? ' · uneven' : ''}${payLine(d.userMoney) ? ` · ${payLine(d.userMoney)}` : ''}</span></div>
         </div>
         <div class="act"><button class="btn sm primary" data-loaddeal="${i}">Load</button></div>
       </li>`;
@@ -237,12 +248,13 @@ export function view(root, params, ctx) {
     const myDelta = mineAfter
       ? Math.round((lineupStrength(mineAfter.slots, ctx.byId, league) - strengthNow + myPickDelta) * 10) / 10
       : null;
+    const myPay = mineAfter ? payLine(tradeMoney(league, u, give, get, mineAfter.plan)) : '';
     const nameOf = (id) => esc(ctx.byId.get(id)?.name || id);
     const paperwork = (fill, who) => {
       if (!fill || (!fill.signs.length && !fill.releases.length)) return '';
       const bits = [];
       if (fill.signs.length) bits.push(`sign ${fill.signs.map((id) => `<b>${nameOf(id)}</b> (${ctx.byId.get(id).pos})`).join(' and ')}`);
-      if (fill.releases.length) bits.push(`release ${fill.releases.map((id) => `<b>${nameOf(id)}</b> (${ctx.byId.get(id).pos})`).join(' and ')}`);
+      if (fill.releases.length) bits.push(`release ${fill.releases.map((id) => `<b>${nameOf(id)}</b> (${ctx.byId.get(id).pos})${owedLine(id)}`).join(' and ')}`);
       return `<li>${who} ${bits.join(', and ')}</li>`;
     };
     const squaring = v && v.ok && v.uneven
@@ -295,7 +307,7 @@ export function view(root, params, ctx) {
         <div class="row between">
           <div class="muted" style="font-size:.85rem">${hasSomething
             ? (v.ok
-              ? html`<b style="color:${myDelta > 0 ? 'var(--good)' : myDelta < 0 ? 'var(--bad)' : 'var(--muted)'}">${myDelta > 0 ? '+' : ''}${myDelta}</b> to your lineup${myPickDelta ? html` <span class="muted">(${myPickDelta > 0 ? '+' : ''}${Math.round(myPickDelta * 10) / 10} of it picks)</span>` : ''} · ${give.length + givePicks.length} for ${get.length + getPicks.length}${v.uneven ? ' · uneven' : ''}`
+              ? html`<b style="color:${myDelta > 0 ? 'var(--good)' : myDelta < 0 ? 'var(--bad)' : 'var(--muted)'}">${myDelta > 0 ? '+' : ''}${myDelta}</b> to your lineup${myPickDelta ? html` <span class="muted">(${myPickDelta > 0 ? '+' : ''}${Math.round(myPickDelta * 10) / 10} of it picks)</span>` : ''}${myPay ? ` · ${myPay}` : ''} · ${give.length + givePicks.length} for ${get.length + getPicks.length}${v.uneven ? ' · uneven' : ''}`
               : html`<span style="color:var(--bad)">${v.reason}</span>`)
             : 'Select something on both sides.'}</div>
           <div class="btn-group"><button class="btn ghost sm" id="clearTrade">Clear</button><button class="btn primary" id="propose" ${v && v.ok && tradesOpen(league) ? '' : 'disabled'}>Propose</button></div>
@@ -396,7 +408,7 @@ export function view(root, params, ctx) {
         if (i >= plan.clubs.length) {
           // One per club: five variations on the same swap is a list nobody
           // reads, and the best of them is the only one worth offering.
-          found.sort((a, b) => b.userDelta - a.userDelta);
+          found.sort((a, b) => b.userValue - a.userValue);
           const seen = new Set();
           const best = [];
           for (const d of found) {
@@ -445,13 +457,16 @@ export function view(root, params, ctx) {
       ? counterOffer(league, ctx.byId, ctx.players, u, ui.partner, give, get, { userPicks: mine, aiPicks: theirs })
       : null;
     const pn = (id) => ctx.byId.get(id)?.name ?? '?';
+    // In a capped league the club weighs next season's pay with the lineup,
+    // and the counter is priced the same way.
+    const pointsWord = capOn(league) ? 'points, counting next season\'s pay,' : 'lineup points';
     const counterLine = !counter ? '' : counter.none
-      ? html`<p class="muted">No single change closes this one. The gap is about ${Math.max(1, Math.ceil(counter.gap))} lineup points on their side, and adding or removing any one piece does not cover it.</p>`
+      ? html`<p class="muted">No single change closes this one. The gap is about ${Math.max(1, Math.ceil(counter.gap))} ${capOn(league) ? 'points on their side, counting what the deal does to their pay next season' : 'lineup points on their side'}, and adding or removing any one piece does not cover it.</p>`
       : html`<div class="card tight" style="margin:.4rem 0">
           <p style="margin:0"><b>They would take it</b> if you ${counter.kind === 'add' ? html`add <b>${pn(counter.what)}</b>` : counter.kind === 'drop' ? html`leave <b>${pn(counter.what)}</b> out of it` : html`add your <b>${futureLabel(league, counter.what)}</b> pick`}.</p>
           <p class="muted" style="margin:.2rem 0 0;font-size:.88rem">${counter.net >= 0
-            ? `You would still come out ${counter.net.toFixed(1)} lineup points ahead of standing pat.`
-            : `That would leave you ${Math.abs(counter.net).toFixed(1)} lineup points worse off than standing pat — the price of their answer, not a recommendation.`}${counter.alternatives ? ` ${counter.alternatives} other single change${counter.alternatives === 1 ? '' : 's'} would also do it; this is the one that costs you least.` : ''}</p>
+            ? `You would still come out ${counter.net.toFixed(1)} ${pointsWord} ahead of standing pat.`
+            : `That would leave you ${Math.abs(counter.net).toFixed(1)} ${pointsWord} worse off than standing pat — the price of their answer, not a recommendation.`}${payLine(counter.money) ? ` It ${payLine(counter.money)}.` : ''}${counter.alternatives ? ` ${counter.alternatives} other single change${counter.alternatives === 1 ? '' : 's'} would also do it; this is the one that costs you least.` : ''}</p>
         </div>`;
     const m = modal(html`<h2>${r.accepted ? 'Deal' : 'No deal'}</h2>
       <p>${r.reason}</p>

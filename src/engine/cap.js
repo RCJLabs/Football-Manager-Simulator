@@ -165,8 +165,8 @@ export function deadCharge(contract) {
  *
  * Called wherever a roster loses somebody it is still paying: every release,
  * through `letGo`, and the keeper round and retirement directly. A trade is
- * not one of them, because the contract goes with him, and nor is the spare
- * man an uneven one lets go — see `letGo`. Retirement once was not either — "a man who stops playing stops being
+ * not one of them, because the contract goes with him; the spare man an
+ * uneven one lets go is. Retirement once was not either — "a man who stops playing stops being
  * owed" — and that was the rule that made a five-year deal right at every age:
  * the years a long deal should cost are the years men retire into, and they
  * were never paid. See `bookRetirements` in offseason.js.
@@ -197,17 +197,15 @@ export function endContract(league, id) {
 
 /**
  * Let a man go for good: what his deal still owes is booked against the club
- * (`bookDead`), and the deal ends (`endContract`). Every release but one comes
- * through here — a cut, a waiver claim's drop, a release from reserve or the
- * practice squad, a man let go to activate or promote another, and reserve
- * emptying at the season's end. Only the cut and the claim's drop used to
- * charge anything, so the same man could be let go for nothing by any of the
- * others: an overpaid starter hurt, parked on reserve and replaced, was released
- * when the season ended with his deal written off.
- *
- * The one exception is the spare man an uneven trade lets go, whose deal ends
- * with no charge. The AI weighs a trade on the lineup alone and never on money,
- * so a charge there would land on its clubs without their knowing it was coming.
+ * (`bookDead`), and the deal ends (`endContract`). Every release comes through
+ * here — a cut, a waiver claim's drop, a release from reserve or the practice
+ * squad, a man let go to activate or promote another, reserve emptying at the
+ * season's end, and the spare man an uneven trade lets go. Only the cut and the
+ * claim's drop used to charge anything, so the same man could be let go for
+ * nothing by any of the others: an overpaid starter hurt, parked on reserve and
+ * replaced, was released when the season ended with his deal written off. The
+ * trade's spare man was the last to be charged, once the AI weighed a trade's
+ * money (`tradeMoney` in transactions.js) and could see the bill coming.
  */
 export function letGo(league, teamIdx, id) {
   bookDead(league, teamIdx, id, league.contracts?.[id]);

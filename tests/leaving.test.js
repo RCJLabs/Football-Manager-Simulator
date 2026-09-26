@@ -69,7 +69,7 @@ test('a man dropped for a claim leaves his deal behind, and the next club to cla
   assert.equal(lg.contracts[gone].years, VET_YEARS);
 });
 
-test('every other way a man leaves a roster for good ends his deal, and all but a trade charge for it as a cut does', () => {
+test('every other way a man leaves a roster for good ends his deal, and charges for it as a cut does', () => {
   const lg = pro(82);
   const u = userTeamIndex(lg);
   const me = lg.teams[u];
@@ -118,9 +118,9 @@ test('every other way a man leaves a roster for good ends his deal, and all but 
   const spare = v.fills.b.releases;
   assert.equal(spare.length, 1);
   onDeal(spare[0]);
-  // No charge: the AI weighs a trade on the lineup and never on money, so a
-  // bill here would land on its clubs unseen.
-  assert.equal(owedFor(() => executeTrade(lg, x, y, ...deal, byId, PLAYERS), y), 0);
+  // Charged like any release, now that the AI prices a trade's money
+  // (`tradeMoney`) and so sees the bill coming.
+  assert.equal(owedFor(() => executeTrade(lg, x, y, ...deal, byId, PLAYERS), y), 5, 'the man a trade let go cost nothing');
   assert.equal(slotOf(Y, spare[0]), undefined);
   assert.equal(lg.contracts[spare[0]], undefined, 'the man a trade let go kept his deal');
   // The men traded keep theirs: a trade moves the deal with the man.

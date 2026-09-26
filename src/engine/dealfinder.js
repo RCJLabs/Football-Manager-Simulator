@@ -34,6 +34,7 @@ import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall, TRUE_LEVERAGE } from './ratings.js';
 import {
   validateTrade, evaluateTrade, lineupStrength, slotsAfterTrade, tradesOpen, slotOf, aiGreed, tradeSearch,
+  tradeMoney, CAP_WORTH,
 } from './transactions.js';
 import {
   futureHand, futurePicksOpen, futurePickValue, projectedSlots, futureOwner, pickTradeDelta,
@@ -189,7 +190,12 @@ export function scanClub(league, byId, pool, plan, index) {
     if (!ev.accept && !(picks && ev.delta + best(picks.human) >= greedOf + (ev.premium || 0))) continue;
     const out = slotsAfterTrade(league, u, c.wants, c.gives, pool, byId, search);
     if (!out) continue;
-    let delta = Math.round((lineupStrength(out.slots, byId, league) - plan.base) * 10) / 10;
+    // The human's side is weighed as the club's is, money and all, so a deal
+    // that adds to the lineup by loading the human with pay is not offered as
+    // a good one. Shown apart: `userDelta` is the lineup, `userMoney` the pay.
+    const userMoney = tradeMoney(league, u, c.wants, c.gives, out.plan);
+    let lineup = lineupStrength(out.slots, byId, league) - plan.base;
+    let delta = Math.round((lineup + userMoney * CAP_WORTH) * 10) / 10;
     let aiGain = ev.delta;
     let userPicks = [], aiPicks = [];
     if (!ev.accept || delta < DEAL_FLOOR) {
@@ -200,8 +206,8 @@ export function scanClub(league, byId, pool, plan, index) {
       );
       if (!close) continue;
       const { toClub, toHuman, pick } = close.pick;
-      if (close.from === 'human') { userPicks = [pick]; aiGain += toClub; delta -= toHuman; }
-      else { aiPicks = [pick]; aiGain -= toClub; delta += toHuman; }
+      if (close.from === 'human') { userPicks = [pick]; aiGain += toClub; delta -= toHuman; lineup -= toHuman; }
+      else { aiPicks = [pick]; aiGain -= toClub; delta += toHuman; lineup += toHuman; }
       delta = Math.round(delta * 10) / 10;
       aiGain = Math.round(aiGain * 10) / 10;
       // The player half was validated without the picks. Picks cannot unbalance
@@ -212,7 +218,7 @@ export function scanClub(league, byId, pool, plan, index) {
     const abbr = league.teams[entry.club].abbr;
     found.push({
       club: entry.club, gives: c.gives, wants: c.wants, userPicks, aiPicks,
-      userDelta: delta, aiGain, uneven: !!v.uneven,
+      userDelta: Math.round(lineup * 10) / 10, userMoney, userValue: delta, aiGain, uneven: !!v.uneven,
       fills: v.uneven ? { signs: v.fills.b.signs.slice(), releases: v.fills.b.releases.slice() } : null,
       note: `${abbr} are thin at ${c.need} and deep at ${c.surplus}.`
         + (userPicks.length ? ' They want next year to go with it.' : '')
@@ -221,7 +227,7 @@ export function scanClub(league, byId, pool, plan, index) {
   }
   // A deal that needs no pick beats one that does at the same lineup gain: the
   // pick is a real cost the number does not show twice.
-  found.sort((a, b) => b.userDelta - a.userDelta
+  found.sort((a, b) => b.userValue - a.userValue
     || (a.userPicks.length + a.aiPicks.length) - (b.userPicks.length + b.aiPicks.length));
   return found;
 }
@@ -236,7 +242,7 @@ export function findDeals(league, byId, pool, { max = 12 } = {}) {
   if (!plan) return [];
   const all = [];
   for (let i = 0; i < plan.clubs.length; i++) all.push(...scanClub(league, byId, pool, plan, i));
-  all.sort((a, b) => b.userDelta - a.userDelta);
+  all.sort((a, b) => b.userValue - a.userValue);
   // One per club: five variations on the same swap is a list nobody reads.
   const seen = new Set();
   const out = [];
@@ -307,9 +313,11 @@ export function counterOffer(league, byId, pool, userIdx, aiIdx, userGives, aiGi
   if (!base || base.accept) return null;
 
   const myBefore = lineupStrength(me.slots, byId, league);
+  // Your side as the club weighs its own: the lineup, and next season's pay at
+  // what it would buy (`CAP_WORTH`), so the cheapest answer is cheapest in both.
   const myAfter = (gives, gets) => {
     const out = slotsAfterTrade(league, userIdx, gives, gets, pool, byId);
-    return out ? lineupStrength(out.slots, byId, league) : null;
+    return out ? lineupStrength(out.slots, byId, league) + tradeMoney(league, userIdx, gives, gets, out.plan) * CAP_WORTH : null;
   };
   const baseMine = myAfter(userGives, aiGives);
   const found = [];
@@ -323,7 +331,8 @@ export function counterOffer(league, byId, pool, userIdx, aiIdx, userGives, aiGi
     // asked of you.
     const net = Math.round((after - myBefore - extraCost) * 10) / 10;
     const cost = Math.round(((baseMine ?? after) - after + extraCost) * 10) / 10;
-    found.push({ kind, gives, gets, userPicks: mine, aiPicks: theirs, net, cost, what, reason: ev.reason, club: aiIdx });
+    const money = tradeMoney(league, userIdx, gives, gets, slotsAfterTrade(league, userIdx, gives, gets, pool, byId)?.plan);
+    found.push({ kind, gives, gets, userPicks: mine, aiPicks: theirs, net, cost, money, what, reason: ev.reason, club: aiIdx });
   };
 
   // One more of yours.

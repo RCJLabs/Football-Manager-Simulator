@@ -27,7 +27,7 @@ import {
   futureOwner, applyFutureTrade, validateFuturePicks, futureLabel,
 } from './owedpicks.js';
 import { signablePool } from './proleague.js';
-import { endContract, letGo } from './cap.js';
+import { letGo, capOn, deadCharge, MARKET_RATE, MIN_SALARY } from './cap.js';
 import { squadList, canStash, stash, aiManageSquad } from './squad.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
@@ -567,10 +567,13 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null,
   const outcome = uneven ? slotsAfterTrade(league, aiIdx, aiGives, aiGets, pool, byId, search) : { slots: slotsAfter(team, aiGives, aiGets, byId) };
   if (!outcome) return { accept: false, delta: 0, before, after: before, reason: `${team.abbr} could not field a roster after that.` };
   const after = lineupStrength(outcome.slots, byId, league);
+  // Next season's pay, shed or taken on, in the same points: see `CAP_WORTH`.
+  const money = tradeMoney(league, aiIdx, aiGives, aiGets, outcome.plan);
   // `pickDelta` arrives already valued, in the same lineup points the rest of
   // this is in, because working it out needs the finish estimator and that
   // needs `lineupStrength` from this file. See owedpicks.js on the cycle.
-  const delta = Math.round((after - before + pickDelta) * 10) / 10;
+  const delta = Math.round((after - before + pickDelta + money * CAP_WORTH) * 10) / 10;
+  const lineup = Math.round((after - before + pickDelta) * 10) / 10;
   const premium = Math.round(leveragePremium(aiGives, aiGets, byId) * 10) / 10;
   const greed = aiGreed(team, league) + premium;
   // Nobody turns a receiver into a kicker. The premium alone does not make
@@ -584,10 +587,11 @@ export function evaluateTrade(league, aiIdx, aiGives, aiGets, byId, pool = null,
   let reason;
   if (forSpecialists && delta >= 0) reason = `${team.abbr} will not trade down in position for that. They want more back where it counts.`;
   else if (accept) reason = delta >= greed * 3 ? 'They jump at it.' : 'They think about it, then agree.';
+  else if (money < 0 && lineup >= greed) reason = `It would help ${team.abbr}'s lineup, but not by enough to carry $${-money} more in pay next season.`;
   else if (delta < 0) reason = `${team.abbr} would be worse off. They pass.`;
   else if (premium > 0 && delta >= greed - premium) reason = `${team.abbr} will not trade down in position for that. They want more back where it counts.`;
   else reason = `Not enough in it for ${team.abbr}. They want roughly ${Math.ceil((greed - delta) / 2)} more points of lineup value.`;
-  return { accept, delta, before, after, reason, premium, uneven };
+  return { accept, delta, before, after, reason, premium, uneven, money, lineup };
 }
 
 /**
@@ -607,6 +611,53 @@ const SPECIALISTS = new Set(['K', 'P']);
 function leveragePremium(gives, gets, byId) {
   const lev = (ids) => ids.reduce((t, id) => t + (TRUE_LEVERAGE[byId.get(id)?.pos] ?? 1), 0);
   return Math.max(0, lev(gives) - lev(gets)) * LEVERAGE_PREMIUM;
+}
+
+/**
+ * What a deal does to a club's money, priced in the lineup points the rest of
+ * a trade is judged in.
+ *
+ * The AI weighed a trade on the lineup and never on money, so a man was worth
+ * the same to a club on the minimum as on $20 a year. Measured on the release
+ * before this, 86 of the 90 men on the human's roster owed $6 or more for the
+ * next season could be handed to some AI club for a man at least $3 cheaper,
+ * and the club said yes: about $11 a year off the human's books for about 24
+ * points of lineup, when $11 a year buys about 125 at market.
+ *
+ * A dollar is priced at what it buys in free agency: `marketSalary` charges
+ * `MARKET_RATE` a point of leverage-weighted rating over replacement, which is
+ * the unit `lineupStrength` adds up, so a dollar a year is worth
+ * 1 / MARKET_RATE of them. Only next season is counted. The cap binds at
+ * kickoff and nowhere else, so what a man costs for the rest of this one is
+ * spent already, and a deal that ends with the season commits nothing.
+ */
+export const CAP_WORTH = 1 / MARKET_RATE;
+
+/** What a man will cost next season: nothing if his deal ends with this one. */
+function nextSeasonPay(league, id) {
+  const c = league.contracts?.[id];
+  // No deal yet: he came off the street this season and is signed on the
+  // minimum when it ends (`syncContracts`).
+  if (!c) return MIN_SALARY;
+  return (c.years ?? 1) > 1 && !c.expiring ? (c.salary ?? MIN_SALARY) : 0;
+}
+
+/**
+ * Next season's pay a club sheds by a deal (positive) or takes on (negative),
+ * in dollars: the men it gives and gets, a free agent signed to square it, and
+ * a spare man let go, who saves his pay less the dead money he leaves.
+ */
+export function tradeMoney(league, teamIdx, gives, gets, plan = null) {
+  if (!capOn(league)) return 0;
+  let money = 0;
+  for (const id of gives) money += nextSeasonPay(league, id);
+  for (const id of gets) money -= nextSeasonPay(league, id);
+  money -= (plan?.signs?.length || 0) * MIN_SALARY;
+  for (const id of plan?.releases || []) {
+    const owed = deadCharge(league.contracts?.[id]);
+    money += nextSeasonPay(league, id) - (owed && owed.years > 1 ? owed.amount : 0);
+  }
+  return money;
 }
 
 /** How much a club must gain, in lineup strength, to agree to a deal. */
@@ -662,8 +713,10 @@ export function aiTrades(league, byId, rng, { pairs = 4, pool = null } = {}) {
         const outA = v.uneven ? slotsAfterTrade(league, a, aGives, bGives, pool, byId, search) : { slots: slotsAfter(A, aGives, bGives, byId) };
         const outB = v.uneven ? slotsAfterTrade(league, b, bGives, aGives, pool, byId, search) : { slots: slotsAfter(B, bGives, aGives, byId) };
         if (!outA || !outB) continue;
-        const gainA = lineupStrength(outA.slots, byId, league) - baseA - leveragePremium(aGives, bGives, byId);
-        const gainB = lineupStrength(outB.slots, byId, league) - baseB - leveragePremium(bGives, aGives, byId);
+        const gainA = lineupStrength(outA.slots, byId, league) - baseA - leveragePremium(aGives, bGives, byId)
+          + tradeMoney(league, a, aGives, bGives, outA.plan) * CAP_WORTH;
+        const gainB = lineupStrength(outB.slots, byId, league) - baseB - leveragePremium(bGives, aGives, byId)
+          + tradeMoney(league, b, bGives, aGives, outB.plan) * CAP_WORTH;
         if (gainA >= aiGreed(A, league) && gainB >= aiGreed(B, league) && (!best || gainA + gainB > best.total)) best = { aGives, bGives, total: gainA + gainB };
       }
     }
@@ -685,9 +738,11 @@ export function executeTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = nu
   if (!outA || !outB) throw new Error('That deal cannot be squared on both rosters');
   a.slots = outA.slots;
   b.slots = outB.slots;
-  // The spare men an uneven deal lets go take no deal with them, and leave
-  // nothing owed: see `letGo` for why a trade is the one release not charged.
-  for (const id of [...fa.releases, ...fb.releases]) endContract(league, id);
+  // The spare men an uneven deal lets go leave what they are owed behind, as
+  // any release does. It was the one release left uncharged while the AI
+  // weighed a trade without money; `tradeMoney` counts it now.
+  for (const id of fa.releases) letGo(league, aIdx, id);
+  for (const id of fb.releases) letGo(league, bIdx, id);
   initWaivers(league);
   applyFutureTrade(league, aIdx, bIdx, aPicks, bPicks);
   const tx = { week: league.week, season: league.season, type: 'trade', team: aIdx, other: bIdx, gives: aGives.slice(), gets: bGives.slice() };
@@ -821,17 +876,22 @@ export function makeAiOffers(league, byId, rng, { max = 2, pool = null, picks = 
         const outA = v.uneven ? slotsAfterTrade(league, a, gives, wants, pool, byId, search) : { slots: slotsAfter(A, gives, wants, byId) };
         const outU = v.uneven ? slotsAfterTrade(league, u, wants, gives, pool, byId, search) : { slots: slotsAfter(U, wants, gives, byId) };
         if (!outA || !outU) continue;
-        const gainA = lineupStrength(outA.slots, byId, league) - baseA - leveragePremium(gives, wants, byId);
-        const gainU = lineupStrength(outU.slots, byId, league) - baseU;
+        // Money on both sides: the club's own, and the human's, because an
+        // offer that saddles the human with pay is not the fair one it means
+        // to make. The card shows the lineup and the money apart.
+        const moneyA = tradeMoney(league, a, gives, wants, outA.plan), moneyU = tradeMoney(league, u, wants, gives, outU.plan);
+        const lineupU = lineupStrength(outU.slots, byId, league) - baseU;
+        const gainA = lineupStrength(outA.slots, byId, league) - baseA - leveragePremium(gives, wants, byId) + moneyA * CAP_WORTH;
+        const gainU = lineupU + moneyU * CAP_WORTH;
         const greed = aiGreed(A, league);
         if (gainA < greed || gainU < -OFFER_FAIR_MARGIN || gainU - gainA > OFFER_LOPSIDED) {
           // Keep the closest thing to a deal, for the pick pass below.
           if (picks && gainA + gainU > (nearMiss?.total ?? -Infinity)) {
-            nearMiss = { gives, wants, gainA, gainU, need: Q, surplus: P, uneven: !!v.uneven, fills: v.fills, total: gainA + gainU };
+            nearMiss = { gives, wants, gainA, gainU, lineupU, moneyU, need: Q, surplus: P, uneven: !!v.uneven, fills: v.fills, total: gainA + gainU };
           }
           continue;
         }
-        if (!best || gainA > best.aiGain) best = { gives, wants, aiGain: Math.round(gainA * 10) / 10, userDelta: Math.round(gainU * 10) / 10, need: Q, surplus: P, uneven: !!v.uneven, fills: v.fills };
+        if (!best || gainA > best.aiGain) best = { gives, wants, aiGain: Math.round(gainA * 10) / 10, userDelta: Math.round(lineupU * 10) / 10, userMoney: moneyU, need: Q, surplus: P, uneven: !!v.uneven, fills: v.fills };
       }
     }
     if (!best && picks && nearMiss) best = sweetenWithPick(league, a, u, nearMiss, picks, aiGreed(A, league));
@@ -839,7 +899,7 @@ export function makeAiOffers(league, byId, rng, { max = 2, pool = null, picks = 
     made.push({
       id: `${league.season}-${league.week}-${a}-${league.offers.length + made.length}`,
       season: league.season, week: league.week, from: a,
-      gives: best.gives, wants: best.wants, aiGain: best.aiGain, userDelta: best.userDelta, uneven: best.uneven,
+      gives: best.gives, wants: best.wants, aiGain: best.aiGain, userDelta: best.userDelta, userMoney: best.userMoney || 0, uneven: best.uneven,
       givesNext: best.givesNext || [], wantsNext: best.wantsNext || [],
       // What accepting would cost the human in paperwork, so the card can say so.
       fills: best.uneven ? { signs: best.fills.b.signs.slice(), releases: best.fills.b.releases.slice() } : null,
@@ -862,11 +922,13 @@ function sweetenWithPick(league, a, u, near, picks, greed) {
     const gainA = from === a ? near.gainA - worth.a : near.gainA + worth.a;
     const gainU = from === a ? near.gainU + worth.u : near.gainU - worth.u;
     if (gainA < greed || gainU < -OFFER_FAIR_MARGIN) return null;
+    // The pick is lineup to come, so it is counted on the lineup side.
+    const lineupU = from === a ? near.lineupU + worth.u : near.lineupU - worth.u;
     return {
       gives: near.gives, wants: near.wants, need: near.need, surplus: near.surplus,
       uneven: near.uneven, fills: near.fills,
       givesNext: from === a ? [pick] : [], wantsNext: from === a ? [] : [pick],
-      aiGain: Math.round(gainA * 10) / 10, userDelta: Math.round(gainU * 10) / 10,
+      aiGain: Math.round(gainA * 10) / 10, userDelta: Math.round(lineupU * 10) / 10, userMoney: near.moneyU,
     };
   };
   for (const pick of picks.hand(a)) { const r = tryOne(pick, a); if (r) return r; }
