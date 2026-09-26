@@ -46,6 +46,48 @@ const shot = async (name) => page.screenshot({ path: `${process.env.SHOT_DIR || 
 const settleSave = () => page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
 
 /**
+ * Simulating ahead goes a step at a time behind a progress panel. Watch one:
+ * count the frames the page draws while it runs, and note each line the panel shows and
+ * whether the page under it was inert at the time. Then press the button and
+ * call `checkSimulation`.
+ */
+const watchSimulation = () => page.evaluate(() => {
+  const w = { frames: 0, lines: [], usable: 0 };
+  window.__sim = w;
+  // Only frames drawn while the run is under way count: the page draws plenty
+  // before a press and after a run however long it froze in between.
+  const tick = () => { if (document.querySelector('.modal.busy')) w.frames++; w.raf = requestAnimationFrame(tick); };
+  w.raf = requestAnimationFrame(tick);
+  w.obs = new MutationObserver(() => {
+    const el = document.querySelector('.modal.busy [data-busy-line]');
+    if (!el || !el.textContent || w.lines[w.lines.length - 1] === el.textContent) return;
+    w.lines.push(el.textContent);
+    if (!document.getElementById('app').inert) w.usable++;
+  });
+  w.obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+  document.getElementById('toast').textContent = '';
+});
+async function checkSimulation(label) {
+  const done = await page.waitForFunction(() => /simulated/.test(document.getElementById('toast').textContent), null, { timeout: 60000 }).then(() => true, () => false);
+  const w = await page.evaluate(() => {
+    const x = window.__sim;
+    cancelAnimationFrame(x.raf);
+    x.obs.disconnect();
+    const weeks = Number((document.getElementById('toast').textContent.match(/(\d+) weeks? simulated/) || [])[1]);
+    return { frames: x.frames, lines: x.lines, usable: x.usable, weeks, left: !!document.querySelector('.modal.busy'), inert: document.getElementById('app').inert };
+  });
+  if (!done) { errors.push(`simulating ${label} never finished`); return w; }
+  if (!w.lines.length) errors.push(`simulating ${label} showed no progress`);
+  if (w.weeks > 1 && !w.lines.some((l) => /week \d+ of \d+|playoff round|the offseason/.test(l))) errors.push(`simulating ${label} never said where it had got to: ${JSON.stringify(w.lines)}`);
+  if (w.usable) errors.push(`the page under the progress panel could be used ${w.usable} time(s)`);
+  if (w.left || w.inert) errors.push(`the progress panel outlived the run (panel ${w.left}, page inert ${w.inert})`);
+  // A frame at least every step. Straight through, there were none between the
+  // press and the end.
+  if (w.weeks > 1 && !(w.frames >= w.weeks)) errors.push(`the page drew ${w.frames} frame(s) while simulating ${w.weeks} weeks ${label}`);
+  return w;
+}
+
+/**
  * Everything in the nav has to be reachable: on the bar, or in the menu that
  * holds whatever does not fit. The bar is a sideways scroller, so before this
  * it could silently strand Settings off the end of a strip nothing marked as
@@ -816,7 +858,13 @@ try {
   await page.waitForSelector('[data-sim="playoffs"]');
   await checkOverflow('simulate ahead');
   await shot('09z-simahead');
+  // It goes a step at a time behind a panel, and the page keeps drawing. Played
+  // straight through it held the page from the press to the end; here there is
+  // a frame after every week, a line on the panel saying which, and nothing
+  // under the panel that can be used meanwhile.
+  await watchSimulation();
   await page.click('[data-sim="playoffs"]');
+  await checkSimulation('to the playoffs');
   const inPlayoffs = await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; return lg.phase === 'playoffs' || lg.phase === 'complete'; }, null, { timeout: 20000 }).then(() => true).catch(() => false);
   if (!inPlayoffs) errors.push('simulating to the playoffs did not get there');
   await checkOverflow('after simulating to the playoffs');
@@ -1737,6 +1785,40 @@ try {
       await sleep(150);
       await checkOverflow(`${label} ${route}`);
     }
+  }
+
+  // Skipping the offseason is the same run, from the keeper screen, and it
+  // ends on the new season's page.
+  {
+    const { PLAYERS, PLAYERS_BY_ID } = await import(`${R}/src/data/db.js`);
+    const { RNG } = await import(`${R}/src/engine/rng.js`);
+    const { createLeague, startSeason, registerPlayers } = await import(`${R}/src/engine/season.js`);
+    const { autoCompleteAll } = await import(`${R}/src/engine/auction.js`);
+    const { enterOffseason } = await import(`${R}/src/engine/offseason.js`);
+    const { leaguePool, leagueIndex } = await import(`${R}/src/engine/rookies.js`);
+    const { careerIndex } = await import(`${R}/src/engine/careers.js`);
+    const { simulateAhead } = await import(`${R}/src/engine/autosim.js`);
+    registerPlayers(PLAYERS_BY_ID);
+    const lg = createLeague({ name: 'Smoke Skip', numTeams: 8, seed: 44, draftType: 'auction', user: { name: 'Me', abbr: 'ME', color: '#fff' } });
+    autoCompleteAll(lg.auction, lg, PLAYERS, new RNG(44), PLAYERS_BY_ID);
+    startSeason(lg, PLAYERS_BY_ID);
+    simulateAhead(lg, careerIndex(lg, leagueIndex(lg, PLAYERS_BY_ID)), leaguePool(lg, PLAYERS), new RNG(45), 'offseason');
+    enterOffseason(lg, leaguePool(lg, PLAYERS), careerIndex(lg, leagueIndex(lg, PLAYERS_BY_ID)));
+    await page.setViewportSize({ width: 360, height: 800 });
+    await settleSave();
+    await page.evaluate((league) => {
+      const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+      localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
+    }, JSON.parse(JSON.stringify(lg)));
+    await page.goto(`http://localhost:${port}/#/offseason`);
+    await page.reload();
+    await page.waitForSelector('#skipOff');
+    await watchSimulation();
+    await page.click('#skipOff');
+    await checkSimulation('through the offseason');
+    await page.waitForFunction(() => location.hash === '#/season', null, { timeout: 10000 }).catch(() => errors.push(`skipping the offseason left the page at ${page.url()}`));
+    const season = await page.waitForFunction(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; return lg.phase === 'season' && lg.season; }, null, { timeout: 10000 }).then((h) => h.jsonValue(), () => null);
+    if (season !== 2) errors.push(`skipping the offseason saved a league in season ${season}, not 2`);
   }
 
   // With no network the app launches from the copy of its page the service

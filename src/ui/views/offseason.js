@@ -9,11 +9,11 @@ import {
 } from '../../engine/offseason.js';
 import { marketSalary, VET_YEARS } from '../../engine/cap.js';
 import { playerItem, playerModal, teamChip, toast, esc, modal } from '../components.js';
-import { simulateAhead, describeRun } from '../../engine/autosim.js';
+import { describeRun } from '../../engine/autosim.js';
+import { simulateWithProgress } from '../simulate.js';
 import { scoutingHits, scoutingOn } from '../../engine/scouting.js';
 import { takeJob } from '../../engine/offseason.js';
 import { jobsOn, yourCoach, careerSummary, coachOf } from '../../engine/jobs.js';
-import { RNG } from '../../engine/rng.js';
 import { capOn, capHit, deadHit, PRO_CAP } from '../../engine/cap.js';
 import { keeperBoard, keeperAdvice } from '../../engine/market.js';
 import {
@@ -254,15 +254,9 @@ export function view(root, params, ctx) {
     } catch (err) { toast(err.message); }
   });
   el.querySelector('#skipOff').addEventListener('click', () => {
-    let result;
-    ctx.update((s) => {
-      const rng = new RNG(s.league.rngState);
-      result = simulateAhead(s.league, ctx.byId, ctx.players, rng, 'nextSeason');
-      s.league.rngState = rng.state;
-      s.game = null;
-    }, { silent: true });
-    toast(describeRun(result));
-    ctx.navigate('#/season');
+    simulateWithProgress(ctx, 'nextSeason', { silent: true })
+      .then((result) => { if (!result) return; toast(describeRun(result)); ctx.navigate('#/season'); })
+      .catch((err) => { console.error(err); toast(`The simulation stopped: ${err.message}`); });
   });
   el.querySelector('#runBack').addEventListener('click', () => {
     const m = modal(html`<h2>Skip the offseason?</h2><p class="muted">Same rosters, no contracts, season ${league.season + 1} starts now.</p><div class="row"><button class="btn primary" id="yes">Run it back</button><button class="btn" data-close>Cancel</button></div>`);

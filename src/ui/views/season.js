@@ -4,7 +4,8 @@ import { ROSTER_SLOTS } from '../../data/positions.js';
 import { fmtWeeks, IR_MIN_WEEKS, irList } from '../../engine/injuries.js';
 import { clinchMarkers, markerLetter, MARKER_LEGEND } from '../../engine/clinch.js';
 import { makeGameplan } from '../../engine/gm.js';
-import { simulateAhead, targetAvailable, describeRun, TARGET_LABELS, TARGETS } from '../../engine/autosim.js';
+import { targetAvailable, describeRun, TARGET_LABELS, TARGETS } from '../../engine/autosim.js';
+import { simulateWithProgress } from '../simulate.js';
 import { jobsOn, seatWarmth, goalFor, yourCoach, coachOf } from '../../engine/jobs.js';
 import { weekPulse, quietWeek } from '../../engine/pulse.js';
 import { composites, buildLineup } from '../../engine/ratings.js';
@@ -348,16 +349,9 @@ export function view(root, params, ctx) {
   });
   el.querySelectorAll('[data-sim]').forEach((b) => b.addEventListener('click', () => {
     const target = b.dataset.sim;
-    const run = () => {
-      let result;
-      ctx.update((s) => {
-        const rng = new RNG(s.league.rngState);
-        result = simulateAhead(s.league, ctx.byId, ctx.players, rng, target);
-        s.league.rngState = rng.state;
-        s.game = null;
-      });
-      toast(describeRun(result));
-    };
+    const run = () => simulateWithProgress(ctx, target)
+      .then((result) => { if (result) toast(describeRun(result)); })
+      .catch((err) => { console.error(err); toast(`The simulation stopped: ${err.message}`); });
     const warnings = [];
     if (target === 'nextSeason') warnings.push('Your keepers will be picked on value and the market run for you.');
     if (state.game && !state.game.g.final) warnings.push('The game you have in progress will be given up and simulated instead.');

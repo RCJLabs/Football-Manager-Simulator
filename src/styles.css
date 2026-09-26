@@ -564,6 +564,13 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; }
 .bar { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--accent); }
+/* Work with no count to show: a slide, by transform, so it keeps moving while
+   a long step holds the page. With reduced motion, a slow fade instead. */
+.busy-bar { margin-top: 0.6rem; }
+.busy-bar > i { width: 35%; animation: busy-slide 1.2s ease-in-out infinite; will-change: transform; }
+@keyframes busy-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@keyframes busy-fade { from { opacity: 0.35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .busy-bar > i { width: 100%; animation: busy-fade 1.6s ease-in-out infinite alternate; } }
 .slider-row { display: grid; grid-template-columns: 1fr; gap: 0.15rem; margin-bottom: 0.6rem; }
 .slider-row .lbl { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.82rem; color: var(--muted); }
 .notice { background: #2b2a1a; border: 1px solid #5a5220; color: #efe6b0; border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.88rem; }

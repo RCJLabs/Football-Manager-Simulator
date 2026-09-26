@@ -217,6 +217,32 @@ export function modal(contentHtml, { onClose, label = 'Dialog' } = {}) {
 }
 
 /**
+ * A panel over everything, for work that must not be interrupted and is long
+ * enough to need saying so. Nothing underneath can be tapped, reached with Tab
+ * or read out while it is up: every other part of the page is made inert, and
+ * given back as it was when the panel closes. The bar is moved by a CSS
+ * transform, which the browser animates off the page's own thread, so it keeps
+ * moving through a step long enough to hold the page itself.
+ */
+export function busyOverlay(title) {
+  const back = document.createElement('div');
+  back.className = 'modal-back';
+  back.innerHTML = `<div class="modal busy" role="dialog" aria-modal="true" aria-busy="true" aria-label="${esc(title)}" tabindex="-1"><h2>${esc(title)}</h2><p class="muted" data-busy-line></p><div class="bar busy-bar" aria-hidden="true"><i></i></div></div>`;
+  const line = back.querySelector('[data-busy-line]');
+  const others = [...document.body.children].filter((el) => !el.inert);
+  for (const el of others) el.inert = true;
+  document.body.appendChild(back);
+  back.firstElementChild.focus();
+  return {
+    set(text) { line.textContent = text; },
+    close() {
+      back.remove();
+      for (const el of others) el.inert = false;
+    },
+  };
+}
+
+/**
  * Why a linebacker who cannot cover is rated highly anyway.
  *
  * `edgeness` blends his rating between the off-ball and edge weight vectors,

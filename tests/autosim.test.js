@@ -6,7 +6,9 @@ import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, registerPlayers, userTeamIndex } from '../src/engine/season.js';
 import { autoCompleteAll } from '../src/engine/auction.js';
 import { autoDraftAll } from '../src/engine/draft.js';
-import { simulateAhead, targetAvailable, halfwayWeek, describeRun, TARGETS } from '../src/engine/autosim.js';
+import { simulateAhead, simulateAheadAsync, simulateSteps, describeStep, targetAvailable, halfwayWeek, describeRun, TARGETS } from '../src/engine/autosim.js';
+import { applyCareers, careerIndex } from '../src/engine/careers.js';
+import { leaguePool } from '../src/engine/rookies.js';
 import { rostersValid } from '../src/engine/transactions.js';
 import { leagueIndex } from '../src/engine/rookies.js';
 import { enterOffseason } from '../src/engine/offseason.js';
@@ -106,4 +108,73 @@ test('a pro league simulates a whole season and into the next', () => {
   assert.ok(rostersValid(lg, r.byId).ok, rostersValid(lg, r.byId).reason);
   assert.ok(ms < 20000, `a 32-club season plus offseason took ${ms}ms`);
   void userTeamIndex;
+});
+
+// Stepped, for a page that has to keep drawing. The engine does the same work
+// in the same order either way; these hold it to that.
+
+/** Indexes built for each call, as the app hands them over. */
+const idx = (lg) => careerIndex(lg, leagueIndex(lg, byId));
+const poolOf = (lg) => applyCareers(lg, leaguePool(lg, PLAYERS));
+const outcome = (r) => JSON.stringify({ weeks: r.weeks, decided: r.decided, from: r.from, to: r.to });
+
+test('a run taken a step at a time ends exactly where one run straight through does', async () => {
+  for (const opts of [{}, { draftType: 'snake' }]) {
+    const base = opts.draftType === 'snake' ? (() => {
+      const lg = createLeague({ name: 'S', user: { name: 'Me', abbr: 'ME', color: '#fff' }, numTeams: 8, seed: 91, draftType: 'snake', injuries: 'normal' });
+      autoDraftAll(lg, lg.draft, PLAYERS, new RNG(91));
+      startSeason(lg, byId);
+      return lg;
+    })() : league(91);
+    const straight = JSON.parse(JSON.stringify(base));
+    const stepped = JSON.parse(JSON.stringify(base));
+    const r1 = new RNG(12), r2 = new RNG(12);
+    for (const target of ['halfway', 'playoffs', 'offseason', 'nextSeason', 'nextSeason']) {
+      const a = simulateAhead(straight, idx(straight), poolOf(straight), r1, target);
+      let pauses = 0;
+      const b = await simulateAheadAsync(stepped, idx(stepped), poolOf(stepped), r2, target, { pause: async () => { pauses++; } });
+      assert.equal(JSON.stringify(stepped), JSON.stringify(straight), `${opts.draftType || 'auction'}: the leagues came apart at ${target}`);
+      assert.equal(outcome(b), outcome(a), `${target}: a different account of the run`);
+      assert.equal(r2.state, r1.state, `${target}: the random state moved differently`);
+      assert.ok(pauses >= a.weeks, `${target}: ${a.weeks} weeks played in ${pauses} steps`);
+    }
+  }
+});
+
+test('a step is at most a week, and the offseason goes in stages', () => {
+  const lg = league(92);
+  const stages = [];
+  let lastWeek = lg.week, lastRound = null, lastPhase = lg.phase;
+  const run = simulateSteps(lg, idx(lg), poolOf(lg), new RNG(13), 'nextSeason');
+  let step = run.next();
+  for (; !step.done; step = run.next()) {
+    const at = step.value;
+    assert.deepEqual(Object.keys(at).sort(), ['phase', 'round', 'season', 'stage', 'week']);
+    if (at.stage === 'week') {
+      // Exactly one week or playoff round further on, or over a phase boundary.
+      const next = at.phase !== lastPhase
+        || (at.phase === 'season' && at.week === lastWeek + 1)
+        || (at.phase === 'playoffs' && at.round === lastRound + 1);
+      assert.ok(next, `from ${lastPhase} ${lastWeek}/${lastRound} to ${at.phase} ${at.week}/${at.round}`);
+      lastWeek = at.week; lastRound = at.round; lastPhase = at.phase;
+    } else stages.push(at.stage);
+  }
+  assert.equal(step.value.to.season, 2);
+  // An auction league with no cap and no coaching jobs: no free agency, no carousel.
+  assert.deepEqual(stages, ['offseason', 'keepers', 'market']);
+  assert.equal(lg.phase, 'season');
+});
+
+test('each step says where the run has got to', () => {
+  const lg = league(93);
+  const n = lg.schedule.length;
+  assert.equal(describeStep(lg, { stage: 'week', season: 1, week: 5, phase: 'season' }), `Season 1, week 5 of ${n}`);
+  assert.equal(describeStep(lg, { stage: 'week', season: 1, week: 14, round: 2, phase: 'playoffs' }), 'Season 1, playoff round 2');
+  assert.equal(describeStep(lg, { stage: 'week', season: 1, week: 1, phase: 'complete' }), 'Season 1 is over');
+  assert.equal(describeStep(lg, { stage: 'offseason', season: 1, week: 1, phase: 'offseason' }), 'Season 1 is over; the offseason opens');
+  assert.equal(describeStep(lg, { stage: 'jobs', season: 1, week: 1, phase: 'offseason' }), 'A new job taken');
+  assert.equal(describeStep(lg, { stage: 'keepers', season: 2, week: 1, phase: 'offseason' }), 'Keepers chosen');
+  assert.equal(describeStep(lg, { stage: 'freeagency', season: 2, week: 1, phase: 'offseason' }), 'Free agency closed');
+  assert.equal(describeStep(lg, { stage: 'market', season: 2, week: 1, phase: 'draft' }), 'The auction is done');
+  assert.equal(describeStep({ ...lg, draftType: 'snake' }, { stage: 'market', season: 2, week: 1, phase: 'draft' }), 'The draft is done');
 });

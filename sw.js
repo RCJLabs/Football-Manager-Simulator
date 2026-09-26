@@ -1,6 +1,6 @@
 // Service worker: precache the app shell, network-first for HTML so deploys
 // show up, cache-first for everything else. Bump CACHE on each release.
-const CACHE = 'gridiron-eras-v131';
+const CACHE = 'gridiron-eras-v132';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './src/styles.css', './src/main.js',
   './src/router.js', './src/store.js', './src/util.js',
@@ -8,7 +8,7 @@ const SHELL = [
   './src/engine/rng.js', './src/engine/ratings.js', './src/engine/playcall.js', './src/engine/game.js',
   './src/engine/game/picks.js', './src/engine/game/plays.js', './src/engine/stats.js', './src/engine/draft.js', './src/engine/season.js', './src/engine/auction.js', './src/engine/transactions.js', './src/engine/tradeblock.js', './src/engine/draftpicks.js', './src/engine/market.js', './src/ui/pick-trade.js', './src/engine/injuries.js', './src/engine/offseason.js', './src/engine/penalties.js', './src/engine/winprob.js', './src/engine/clinch.js', './src/ui/charts.js', './src/engine/awards.js', './src/ui/views/awards.js', './src/engine/gm.js', './src/engine/result.js', './src/engine/rookies.js', './src/engine/autosim.js', './src/engine/careers.js', './src/engine/focus.js', './src/engine/translate.js', './src/engine/convert.js', './src/engine/weather.js', './src/engine/chemistry.js', './src/engine/scouting.js', './src/engine/jobs.js', './src/engine/difficulty.js', './src/engine/pulse.js', './src/engine/strategy.js', './src/engine/cap.js', './src/engine/terms.js', './src/engine/freeagency.js', './src/engine/teamstats.js', './src/engine/archive.js', './src/ui/compare.js',
   './src/engine/pickvalue.js', './src/engine/futurepicks.js', './src/engine/owedpicks.js', './src/engine/dealfinder.js', './src/engine/proleague.js', './src/engine/squad.js', './src/ui/draft-board.js', './src/data/rookie-names.js', './src/slots.js', './src/savecodec.js', './src/save-worker.js', './src/vendor/fflate.js', './src/engine/share.js', './src/ui/share-card.js', './src/data/names.js', './src/data/tuning.js',
-  './src/ui/components.js', './src/ui/views/home.js', './src/ui/views/setup.js', './src/ui/views/draft.js',
+  './src/ui/components.js', './src/ui/simulate.js', './src/ui/views/home.js', './src/ui/views/setup.js', './src/ui/views/draft.js',
   './src/ui/views/team.js', './src/ui/views/season.js', './src/ui/views/game.js', './src/ui/views/boxscore.js',
   './src/ui/views/players.js', './src/ui/views/settings.js', './src/ui/views/career.js', './src/ui/views/guide.js', './src/ui/value-panel.js', './src/ui/views/auction.js', './src/ui/views/moves.js', './src/ui/views/offseason.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png',
