@@ -27,7 +27,7 @@ import {
   futureOwner, applyFutureTrade, validateFuturePicks, futureLabel,
 } from './owedpicks.js';
 import { signablePool } from './proleague.js';
-import { bookDead } from './cap.js';
+import { bookDead, endContract } from './cap.js';
 import { squadList, canStash, stash, aiManageSquad } from './squad.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
@@ -283,8 +283,10 @@ export function processWaivers(league, byId) {
       if (c.drop && canStash(league, c.team, c.drop, byId)) {
         stash(league, c.team, c.drop, byId);
       } else if (c.drop) {
-        // Out for good, and still owed what he is owed.
+        // Out for good, and still owed what he is owed — by this club. The
+        // deal itself ends here, or whoever claimed him next took it over.
         bookDead(league, c.team, c.drop, league.contracts?.[c.drop]);
+        endContract(league, c.drop);
         owned.delete(c.drop);
       }
       team.slots[slotId] = c.add;
@@ -684,6 +686,8 @@ export function executeTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = nu
   if (!outA || !outB) throw new Error('That deal cannot be squared on both rosters');
   a.slots = outA.slots;
   b.slots = outB.slots;
+  // The spare men an uneven deal lets go take no deal with them.
+  for (const id of [...fa.releases, ...fb.releases]) endContract(league, id);
   initWaivers(league);
   applyFutureTrade(league, aIdx, bIdx, aPicks, bPicks);
   const tx = { week: league.week, season: league.season, type: 'trade', team: aIdx, other: bIdx, gives: aGives.slice(), gets: bGives.slice() };

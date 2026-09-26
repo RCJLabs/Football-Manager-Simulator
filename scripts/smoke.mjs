@@ -1505,6 +1505,73 @@ try {
       }
     }
 
+    // The keeper round's money and its way out. What the other clubs have left
+    // under the cap is what they can spend, after what each still owes men it
+    // has let go — the column used to leave that out — and in a capped league
+    // the round closes into free agency, drawn on this screen. The button named
+    // the draft, and the page went there, was sent on to the season hub and
+    // came back.
+    {
+      const kr = JSON.parse(JSON.stringify(lg));
+      const u = kr.teams.findIndex((t) => t.isUser);
+      const ai = kr.teams.findIndex((t) => !t.isUser);
+      const owned = new Set(kr.teams.flatMap((t) => Object.values(t.slots)));
+      const [goneA, goneB] = PLAYERS.filter((p) => !owned.has(p.id)).map((p) => p.id);
+      // Owed by one of them and by the user at least, so there is something to count.
+      kr.dead = { ...(kr.dead || {}) };
+      kr.dead[ai] = [...(kr.dead[ai] || []), { id: goneA, amount: 9, years: 2 }];
+      kr.dead[u] = [...(kr.dead[u] || []), { id: goneB, amount: 6, years: 1 }];
+      const owed = kr.teams.map((_, i) => (kr.dead[i] || []).reduce((sum, d) => sum + d.amount, 0));
+      const cap = kr.cap ?? 200;
+      await settleSave();
+      await page.evaluate((league) => {
+        const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+        localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
+      }, kr);
+      await page.goto(`http://localhost:${port}/#/offseason`);
+      await page.reload();
+      await sleep(600);
+      const read = await page.evaluate(() => {
+        const h = [...document.querySelectorAll('h3')].find((x) => /What the other clubs kept/.test(x.textContent));
+        const rows = [...h.parentElement.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent.trim()));
+        const txt = document.body.textContent;
+        return {
+          rows,
+          note: /Cap left is after what each club still owes/.test(h.parentElement.textContent),
+          owedLine: Number((txt.match(/Still owed to men who have left\s*\$(\d+)/) || [])[1]),
+          left: Number((txt.match(/Left under the cap\s*\$(-?\d+)/) || [])[1]),
+          button: document.querySelector('#confirm')?.textContent.trim(),
+        };
+      });
+      const others = kr.teams.map((_, i) => i).filter((i) => i !== u);
+      const off = read.rows.filter((cells, k) => Number(cells[2].replace('$', '')) + Number(cells[3].replace('$', '')) + owed[others[k]] !== cap);
+      if (read.rows.length !== others.length || off.length) errors.push(`the other clubs' cap left does not take off what they still owe: ${off.length} of ${read.rows.length} rows do not come to the $${cap} cap`);
+      if (!read.note) errors.push('the other clubs\' table does not say its cap left is after money still owed');
+      if (read.owedLine !== owed[u]) errors.push(`the user's cap panel shows $${read.owedLine} still owed, not $${owed[u]}`);
+      if (read.left !== cap - owed[u]) errors.push(`the user's cap panel leaves $${read.left} under the cap with nobody kept, not $${cap - owed[u]}`);
+      if (!/^Confirm keepers and open free agency$/.test(read.button || '')) errors.push(`a capped league's keeper button reads "${read.button}"; free agency comes next`);
+      await checkOverflow('pro keeper round with money owed');
+      // Confirmed from partway down the page, as it is on a phone.
+      await page.evaluate(() => { window.__hashes = []; addEventListener('hashchange', () => window.__hashes.push(location.hash)); window.scrollTo(0, 600); });
+      await page.click('#autoKeep');
+      await sleep(250);
+      await page.click('#confirm');
+      await sleep(600);
+      const landed = await page.evaluate(() => ({
+        hashes: window.__hashes, hash: location.hash, y: Math.round(window.scrollY),
+        fa: !!document.querySelector('#fa-view'),
+        done: document.querySelector('#faDone')?.textContent.trim(),
+        txt: document.querySelector('#fa-view details')?.textContent || '',
+      }));
+      if (!landed.fa) errors.push(`confirming the keepers did not open free agency (at ${landed.hash})`);
+      if (landed.hashes.length) errors.push(`confirming the keepers went by way of ${landed.hashes.join(' → ')} to reach free agency`);
+      if (landed.y !== 0) errors.push(`free agency opened ${landed.y}px down the page`);
+      if (landed.done !== 'Close the market and open the draft') errors.push(`free agency's close button reads "${landed.done}"`);
+      if (!/These are veterans/.test(landed.txt) || /goes into the draft/.test(landed.txt)) errors.push('free agency still says its men go into the draft');
+      await checkOverflow('free agency opened from the keeper round');
+      await shot('16c-fa-from-keepers');
+    }
+
     // The free-agent market with contract lengths: the bid dialog offers a
     // length, moving it moves the asking price and the amount with it, and the
     // offer that goes in is the length chosen. Built from the same league,

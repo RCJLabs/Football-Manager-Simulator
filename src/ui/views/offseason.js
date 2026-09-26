@@ -21,6 +21,7 @@ import {
   offerSalary, offerYears, askAt, FA_YEARS,
 } from '../../engine/freeagency.js';
 import { termsFor } from '../../engine/terms.js';
+import { proDraftRounds } from '../../engine/proleague.js';
 
 const ui = { picked: null, leagueId: null, season: null };
 const faUi = { pos: 'ALL', limit: 40 };
@@ -36,7 +37,7 @@ export function view(root, params, ctx) {
   // Sacked: the owners have moved, and nothing else in the offseason happens
   // until you have somewhere to work.
   if (league.phase === 'offseason' && league.offseason.step === 'jobs') { jobMarket(root, league, ctx); return; }
-  // The market before the draft: the same men, but certainty costs money.
+  // A capped league shops for veterans between the keepers and the draft.
   if (league.phase === 'offseason' && league.offseason.step === 'freeagency') { freeAgency(root, league, ctx); return; }
   if (jobsOn(league) && league.jobs.status === 'retired') { careerOver(root, league, ctx); return; }
 
@@ -50,6 +51,9 @@ export function view(root, params, ctx) {
   const picked = [...ui.picked].filter((id) => ROSTER_SLOTS.some((s) => me.slots[s.id] === id));
   ui.picked = new Set(picked);
   const v = validateKeepers(league, u, picked, ctx.byId);
+  // Owed to men already gone, and counted against the cap by `validateKeepers`.
+  // Nought outside a capped league.
+  const dead = deadHit(league, u);
   const summary = seasonSummary(league);
   const table = standings(league);
   const ord = (n) => { const s = ['th', 'st', 'nd', 'rd'], k = n % 100; return n + (s[(k - 20) % 10] || s[k] || s[0]); };
@@ -117,7 +121,11 @@ export function view(root, params, ctx) {
     if (t.isUser) return '';
     const ids = league.offseason.keepers[i] || [];
     const cost = (auction || capped) ? ids.reduce((s, id) => s + keeperCost(league.contracts[id], ctx.byId.get(id), league), 0) : 0;
-    return `<tr><td>${teamChip(t, { responsive: true }).__raw}</td><td class="num">${ids.length}</td>${auction || capped ? `<td class="num">$${cost}</td><td class="num muted">$${money - cost}</td>` : ''}<td class="hide-sm muted" style="font-size:.8rem">${ids.map((id) => esc(ctx.byId.get(id)?.name)).join(', ') || '—'}</td></tr>`;
+    // Money still owed to men a club has let go is not there to spend, which
+    // is how `validateKeepers` counts it; this column used to leave it out and
+    // showed a club with dead money that much richer than it was.
+    const left = money - cost - deadHit(league, i);
+    return `<tr><td>${teamChip(t, { responsive: true }).__raw}</td><td class="num">${ids.length}</td>${auction || capped ? `<td class="num">$${cost}</td><td class="num muted">$${left}</td>` : ''}<td class="hide-sm muted" style="font-size:.8rem">${ids.map((id) => esc(ctx.byId.get(id)?.name)).join(', ') || '—'}</td></tr>`;
   }).join('');
 
   // A year passed: who grew into something, who is going, who is gone.
@@ -185,12 +193,13 @@ export function view(root, params, ctx) {
             <div class="kv">
               <dt>${capped ? 'On the books' : 'Keepers'}</dt><dd><b>$${v.committed ?? 0}</b> for ${picked.length}</dd>
               ${capped && tagHeld ? html`<dt>Tagged</dt><dd>${ctx.byId.get(tagHeld)?.name ?? '—'} <span class="muted">· 1 year</span></dd>` : ''}
-              <dt>${capped ? 'Left under the cap' : 'For the auction'}</dt><dd><b>$${v.ok ? v.budget : Math.max(0, money - (v.committed ?? 0))}</b> across ${ROSTER_SLOTS.length - picked.length} slots</dd>
+              ${dead ? html`<dt>Still owed to men who have left</dt><dd><b>$${dead}</b></dd>` : ''}
+              <dt>${capped ? 'Left under the cap' : 'For the auction'}</dt><dd><b>$${v.ok ? v.budget : Math.max(0, money - dead - (v.committed ?? 0))}</b> across ${ROSTER_SLOTS.length - picked.length} slots</dd>
             </div>
-            <div class="bar" style="margin:.4rem 0"><i style="width:${Math.min(100, ((v.committed ?? 0) / money) * 100)}%"></i></div>` : html`<p class="muted" style="margin:0">${picked.length} kept, ${ROSTER_SLOTS.length - picked.length} to draft.</p>`}
+            <div class="bar" style="margin:.4rem 0"><i style="width:${Math.min(100, (((v.committed ?? 0) + dead) / money) * 100)}%"></i></div>` : html`<p class="muted" style="margin:0">${picked.length} kept, ${ROSTER_SLOTS.length - picked.length} to draft.</p>`}
           ${v.ok ? '' : html`<p class="notice" style="margin:.4rem 0">${v.reason}</p>`}
           <div class="btn-group" style="margin-top:.5rem">
-            <button class="btn primary lg" id="confirm" ${v.ok ? '' : 'disabled'}>Confirm keepers and open the ${auction ? 'auction' : 'draft'}</button>
+            <button class="btn primary lg" id="confirm" ${v.ok ? '' : 'disabled'}>Confirm keepers and open ${capped ? 'free agency' : `the ${auction ? 'auction' : 'draft'}`}</button>
             <button class="btn" id="autoKeep">Pick my keepers for me</button>
             <button class="btn ghost" id="clear">Clear</button>
           </div>
@@ -201,6 +210,7 @@ export function view(root, params, ctx) {
         <div class="card tight">
           <h3>What the other clubs kept</h3>
           <div class="table-wrap"><table><thead><tr><th>Club</th><th class="num">Kept</th>${auction || capped ? raw('<th class="num">Cost</th><th class="num">Cap left</th>') : ''}<th class="hide-sm">Who</th></tr></thead><tbody>${raw(aiTable)}</tbody></table></div>
+          ${league.teams.some((t, i) => !t.isUser && deadHit(league, i)) ? html`<small class="muted">Cap left is after what each club still owes men it has let go.</small>` : ''}
         </div>
         <div class="card tight">
           <h3>Final table · season ${league.offseason.season}</h3>
@@ -250,7 +260,15 @@ export function view(root, params, ctx) {
     try {
       ctx.update((s) => { confirmKeepers(s.league, [...ui.picked], ctx.players, ctx.byId); }, { silent: true });
       ui.picked = new Set();
-      ctx.navigate(auction ? '#/auction' : '#/draft');
+      // A capped league shops before it drafts, and free agency is drawn on
+      // this screen. Sent to the draft, the round bounced off it to the season
+      // hub and back here.
+      if (ctx.getState().league.phase === 'draft') ctx.navigate(auction ? '#/auction' : '#/draft');
+      else {
+        // A new screen starts at the top; a redraw of this one would not.
+        window.scrollTo(0, 0);
+        ctx.notify();
+      }
     } catch (err) { toast(err.message); }
   });
   el.querySelector('#skipOff').addEventListener('click', () => {
@@ -271,17 +289,22 @@ export function view(root, params, ctx) {
 
 /** The offer screen: who wants you, what they expect, and how long you get. */
 /**
- * Free agency: sealed bids, then the draft.
+ * Free agency: sealed bids, then the draft or the auction.
  *
  * The screen has one job beyond taking offers, which is to make the trade-off
- * legible. Every man here will also be in the draft, so a bid buys certainty
- * rather than a player — and because a club's picks are its open slots, each
- * signing quietly costs a pick. Both of those are said out loud, because
- * neither is guessable from a list of names and prices.
+ * legible. The men here are veterans and the rookies are not among them, so a
+ * bid buys a player the market will not otherwise hand you — whoever nobody
+ * signs goes to fill empty slots at kickoff, and you get who is left. What it
+ * costs is a pick, because a club drafts once a round only while it has a
+ * slot open, or in an auction league the money and the slot the rookies would
+ * have had. Both are said out loud, because neither is guessable from a list
+ * of names and prices. It used to say every man here would be in the draft,
+ * which stopped being true when the draft became the rookie class.
  */
 function freeAgency(root, league, ctx) {
   const u = userTeamIndex(league);
   const me = league.teams[u];
+  const auction = league.draftType === 'auction';
   const cap = league.cap ?? PRO_CAP;
   const offers = league.freeAgency?.offers?.[u] || {};
   const mine = Object.entries(offers);
@@ -305,9 +328,12 @@ function freeAgency(root, league, ctx) {
     <div class="card tight">
       <h2 style="margin:.1rem 0">Free agency</h2>
       <details class="tight" style="margin:.2rem 0 .5rem">
-        <summary style="cursor:pointer;font-size:.85rem" class="muted"><b>What bidding actually buys</b> · certainty, and it costs a pick</summary>
+        <summary style="cursor:pointer;font-size:.85rem" class="muted"><b>What a bid buys</b> · the man you choose, and what it costs you</summary>
         <p class="muted" style="margin:.3rem 0 0;font-size:.85rem">
-          Everybody here goes into the draft if nobody signs them, so a bid does not win you a player you could not otherwise have — it wins you the <b>certainty</b> of him, at market price instead of rookie money. And it costs a pick: a club drafts as many times as it has slots left, so sign four and you draft four times fewer.
+          These are veterans — men cut, or let go when their deal ran out. This year's rookies are not here; they go to the ${auction ? 'auction' : 'draft'}. A bid wins you the man you want, at no less than his asking price, for the length you choose. A man nobody signs stays on the market: a slot still empty after the ${auction ? 'auction' : 'draft'} is filled at kickoff from whoever is left, on the minimum for a year — cheap, but you get who is left rather than who you wanted.
+          ${auction
+            ? 'And it comes out of the auction: the rookies are bid for from what is left under the cap, so every dollar spent here is one you cannot bid there, and every slot filled here is one fewer to buy.'
+            : html`And it usually costs a pick: a club drafts once a round while it has a slot open, so once your open slots are no more than the draft's <b>${proDraftRounds(league)}</b> rounds, every man you sign here is a pick you do not make.`}
         </p>
       </details>
       <div class="kv">
@@ -317,7 +343,7 @@ function freeAgency(root, league, ctx) {
         <dt>Slots open</dt><dd><b>${open}</b> · ${mine.length} bid on</dd>
       </div>
       <div class="bar" style="margin:.4rem 0"><i style="width:${Math.min(100, Math.max(0, (1 - room / cap) * 100))}%"></i></div>
-      <button class="btn primary block" id="faDone">Close the market and draft</button>
+      <button class="btn primary block" id="faDone">Close the market and open the ${auction ? 'auction' : 'draft'}</button>
     </div>
 
     ${mine.length ? html`<div class="card tight" style="margin-top:.5rem">
@@ -400,8 +426,8 @@ function freeAgency(root, league, ctx) {
     modal(`<h3 style="margin:.1rem 0">The market has closed</h3>
       ${rep.won.length ? `<p style="margin:.3rem 0"><b>Signed:</b> ${rep.won.map((w) => `${name(w.id)} <span class="muted">$${w.salary} × ${w.years ?? FA_YEARS}y</span>`).join(', ')}</p>` : '<p class="muted" style="margin:.3rem 0">You signed nobody.</p>'}
       ${rep.lost.length ? `<p style="margin:.3rem 0"><b>Missed out on:</b> ${rep.lost.map((l) => `${name(l.id)} <span class="muted">${lostLine(l)}</span>`).join(', ')}</p>` : ''}
-      <p class="muted" style="margin:.4rem 0 0;font-size:.85rem">${(after.offseason.signed || []).length} signings across the league. Whoever is left is in the draft.</p>
-      <div class="row" style="gap:.4rem;margin-top:.6rem"><button class="btn primary" data-close>To the draft</button></div>`, {
+      <p class="muted" style="margin:.4rem 0 0;font-size:.85rem">${(after.offseason.signed || []).length} signings across the league. Whoever is left stays on the market, for any slot the ${after.draftType === 'auction' ? 'auction' : 'draft'} leaves open.</p>
+      <div class="row" style="gap:.4rem;margin-top:.6rem"><button class="btn primary" data-close>To the ${after.draftType === 'auction' ? 'auction' : 'draft'}</button></div>`, {
       onClose: () => ctx.navigate(after.draftType === 'auction' ? '#/auction' : '#/draft'),
     });
   });

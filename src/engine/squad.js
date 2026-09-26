@@ -118,6 +118,9 @@ export function promote(league, teamIdx, id, dropId, byId) {
   }
   team.squad = squadList(team).filter((x) => x !== id);
   team.slots[slotId] = id;
+  // The man making way is let go, and his deal goes with him (`endContract`
+  // in cap.js, which imports this file).
+  if (dropId && league.contracts) delete league.contracts[dropId];
   (league.transactions ??= []).push({ week: league.week, season: league.season, type: 'promote', team: teamIdx, add: id, drop: dropId || null });
   return slotId;
 }
@@ -127,6 +130,7 @@ export function releaseFromSquad(league, teamIdx, id) {
   const team = league.teams[teamIdx];
   if (!squadList(team).includes(id)) return false;
   team.squad = squadList(team).filter((x) => x !== id);
+  if (league.contracts) delete league.contracts[id];
   (league.transactions ??= []).push({ week: league.week, season: league.season, type: 'release', team: teamIdx, add: null, drop: id });
   return true;
 }

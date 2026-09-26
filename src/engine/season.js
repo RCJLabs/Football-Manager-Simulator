@@ -297,11 +297,22 @@ export function fillOpenSlots(league, pool, byId, { log = true } = {}) {
   return signed;
 }
 
-export function syncContracts(league, byId = null) {
+/**
+ * Give every man a club is paying a deal, and take it off anyone nobody is.
+ *
+ * `market` is for the kickoff a draft or an auction has just filled, and it is
+ * the only time a man is signed at its terms — the pick's rookie deal, or what
+ * the room paid. A man without a deal at any other moment arrived off the
+ * street: a claim, a fill, a man signed to square a trade. The draft's and the
+ * auction's records stay in the league all season, and read again when it
+ * ended they signed a man who had been let go and claimed since on the terms
+ * of the club that drafted or bought him.
+ */
+export function syncContracts(league, byId = null, { market = false } = {}) {
   league.contracts ??= {};
-  const soldPrice = new Map((league.auction?.sold || []).map((s) => [s.playerId, s.price]));
-  const draftRound = new Map((league.draft?.picks || []).map((p) => [p.playerId, p.round]));
-  const draftPick = new Map((league.draft?.picks || []).map((p) => [p.playerId, p]));
+  const soldPrice = new Map(market ? (league.auction?.sold || []).map((s) => [s.playerId, s.price]) : []);
+  const draftRound = new Map(market ? (league.draft?.picks || []).map((p) => [p.playerId, p.round]) : []);
+  const draftPick = new Map(market ? (league.draft?.picks || []).map((p) => [p.playerId, p]) : []);
   const totalPicks = draftSize(league);
   const owned = new Set();
   for (const t of league.teams) {
@@ -321,7 +332,7 @@ export function syncContracts(league, byId = null) {
         // auction is signed as a pick would be, at what the room paid.
         const pick = draftPick.get(id);
         const sold = soldPrice.get(id);
-        const market = !!pick || sold != null;
+        const bought = !!pick || sold != null;
         league.contracts[id] = {
           // Drafted: cheap for four years, priced by where he went. Arrived
           // any other way — a waiver claim, a body signed to fill a hole — and
@@ -335,7 +346,7 @@ export function syncContracts(league, byId = null) {
           // season five — 27 of 27 gone from every club — and then stood still
           // for another four years. After the first season a new rookie gets
           // the full term and the spread maintains itself.
-          years: market
+          years: bought
             ? (league.season <= 1 ? 1 + (hashSeed(`${league.seed}:${id}`) % ROOKIE_YEARS) : ROOKIE_YEARS)
             : VET_YEARS,
           round: pick?.round ?? ROSTER_SLOTS.length,
@@ -669,6 +680,10 @@ export function sortDepthCharts(league, byId) {
 
 /** Called when the draft or auction completes, and at the start of each later season. */
 export function startSeason(league, byId, pool = null) {
+  // A season starts from the draft or the auction that filled it, or — run
+  // back on the same rosters — from the end of the last one, with no market
+  // behind it to sign anybody at its terms.
+  const market = league.phase === 'draft';
   // Nobody starts a season a man short. Uneven pick trades let a club draft
   // fewer times than it has slots, so whatever is still on the board fills the
   // rest — see `fillOpenSlots`. Doing it here rather than at the end of the
@@ -692,7 +707,7 @@ export function startSeason(league, byId, pool = null) {
   // lineup, and the slot that opens is filled off the board at the minimum —
   // which is what makes shedding converge.
   if (capOn(league)) {
-    syncContracts(league, byId);
+    syncContracts(league, byId, { market });
     for (let i = 0; i < league.teams.length; i++) cutToCap(league, i, byId);
     if (board) fillOpenSlots(league, board, byId);
   }
@@ -704,7 +719,7 @@ export function startSeason(league, byId, pool = null) {
   league.phase = 'season';
   league.offseason = null;
   league.rngState = rng.state;
-  syncContracts(league, byId);
+  syncContracts(league, byId, { market });
   syncTenure(league);
   // The carousel stands itself up the first time a season starts, so a league
   // opened from a code gets one too without the code having to carry it.

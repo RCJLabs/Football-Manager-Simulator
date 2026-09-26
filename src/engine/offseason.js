@@ -288,6 +288,7 @@ export function enterOffseason(league, pool, byId) {
   );
   // Injured reserve empties: anyone whose slot was filled behind him is let go.
   const released = clearIr(league, byId);
+  // Whoever joined a club during the season is signed off the street here.
   syncContracts(league, byId);
   // Contracts run down a year and whoever's deal is up leaves. In a capped
   // league this *is* the attrition — see `keeperLimit`.
@@ -605,10 +606,11 @@ export function confirmKeepers(league, userIds, pool, byId) {
 
   // Worst club nominates or picks first.
   const order = table.slice().reverse();
-  // A capped league shops before it drafts, because that is the decision: the
-  // men in free agency are the same men who will be in the draft, so paying
-  // market for one now is buying certainty — and it costs a pick, since a club
-  // that has no open slot left never makes one.
+  // A capped league shops before it drafts. Free agency is the veterans and the
+  // draft is this year's rookies, so what a signing costs besides his price is
+  // a pick: a club drafts once a round only while it has a slot open. (This
+  // said the two held the same men, which stopped being true when the draft
+  // became the rookie class.)
   if (capOn(league)) {
     league.offseason = { ...league.offseason, step: 'freeagency', order, taken, budgets };
     const rngFa = new RNG(league.rngState);

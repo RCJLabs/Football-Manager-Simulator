@@ -182,6 +182,21 @@ export function bookDead(league, teamIdx, id, contract) {
   return charge;
 }
 
+/**
+ * A man off a roster for good takes no deal with him. His contract ends where
+ * he leaves — after `bookDead` has charged whatever the club still owes — on
+ * every path that lets a man go: a cut, a waiver claim's drop, a release from
+ * reserve or the practice squad, a man displaced to activate or promote
+ * another, the spare man in an uneven trade. Only the kickoff cut used to end
+ * it; everywhere else the deal stayed behind until the next offseason, and a
+ * club that claimed him in the meantime took over the old salary and term
+ * while the club that let him go was still paying it. A claim is meant to be
+ * on the minimum, which is what a man with no contract costs.
+ */
+export function endContract(league, id) {
+  if (league.contracts) delete league.contracts[id];
+}
+
 /** What a club is still paying men who are no longer on it. */
 export function deadHit(league, teamIdx) {
   if (!capOn(league)) return 0;
@@ -335,7 +350,7 @@ export function cutToCap(league, teamIdx, byId) {
     // Book what is still owed before the contract goes, or the bill is lost
     // with it. A cut at half pay still frees half, so the loop converges.
     bookDead(league, teamIdx, cut.id, league.contracts?.[cut.id]);
-    delete league.contracts?.[cut.id];
+    endContract(league, cut.id);
     released.push({ team: teamIdx, id: cut.id, slot: cut.slot, salary: cut.salary });
     league.transactions ??= [];
     league.transactions.push({ week: 0, season: league.season, type: 'cut', team: teamIdx, add: null, drop: cut.id });

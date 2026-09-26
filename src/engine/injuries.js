@@ -294,6 +294,9 @@ export function activateFromIr(league, teamIdx, id, dropId, byId) {
   }
   team.slots[slotId] = id;
   team.ir = irList(team).filter((x) => x !== id);
+  // The man making way is let go, and his deal goes with him (`endContract`
+  // in cap.js, which imports this file).
+  if (dropId && league.contracts) delete league.contracts[dropId];
   (league.transactions ??= []).push({ week: league.week, season: league.season, type: 'activate', team: teamIdx, add: id, drop: dropId || null });
   return slotId;
 }
@@ -303,6 +306,7 @@ export function releaseFromIr(league, teamIdx, id) {
   const team = league.teams[teamIdx];
   if (!irList(team).includes(id)) return false;
   team.ir = irList(team).filter((x) => x !== id);
+  if (league.contracts) delete league.contracts[id];
   (league.transactions ??= []).push({ week: league.week, season: league.season, type: 'release', team: teamIdx, drop: id });
   return true;
 }

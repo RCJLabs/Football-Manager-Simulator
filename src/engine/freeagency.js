@@ -1,16 +1,20 @@
 // The free-agent market, between the keeper round and the draft.
 //
-// What makes this a decision rather than a shopping list is that the men on
-// offer here are the *same* men who will be in the draft an hour later. Signing
-// one costs market money now; letting him go and taking him with a pick costs
-// rookie-scale money, which is a fraction of it — if he lasts that long, and
-// the good ones do not. So the question every club is asked is not "can I
-// afford him" but "will he still be there, and what is certainty worth".
+// The men on offer are veterans: cut, let go when a deal ran out, never
+// re-signed. This year's rookies are not among them — `signablePool` keeps
+// them for the draft, or for a pro league's auction. This used to say they were
+// the same men who would be in the draft an hour later, so that a bid bought
+// only the certainty of a man a pick could have had for rookie money; that
+// stopped being true when the draft became the rookie class, and the question
+// is plainer now: is this man worth his price, and a pick.
 //
-// It costs a pick, too, and nothing had to be written to make that true. A
-// club's picks equal its open slots, and `settlePointer` skips anybody already
-// full, so a club that signs four free agents simply never makes four of its
-// picks. Buy now, draft less.
+// A pick, because nothing had to be written to make signing cost one.
+// `settlePointer` skips a club that is already full, so a club drafts once a
+// round only while it has a slot open, and once its open slots are no more
+// than the draft's rounds — measured, about three clubs in four when the
+// market opens — every man it signs here is a pick it does not make. Buy now,
+// draft less. A man nobody signs is not lost to the league: a slot still empty
+// after the draft is filled from whoever is left at kickoff, on the minimum.
 //
 // Bids are sealed. Everyone puts in an offer, the market settles in one step,
 // and the best players settle first — which matters, because a club that wins
