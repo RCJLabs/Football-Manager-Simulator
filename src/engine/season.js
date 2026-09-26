@@ -367,21 +367,26 @@ export function gameOptions(league, entry, byId) {
     homeAdvantage: !entry.neutral,
     injuryLevel: injuryLevel(league),
     penalties: league.settings?.penalties !== false,
-    chem: byId ? bonusesFor(league, byId, entry) : [0, 0],
+    chem: byId ? chemistryPair(league, byId, entry) : [0, 0],
     weather: conditionsFor(league, entry, weekNumber(league)),
   };
 }
 
 /**
- * Both sides' chemistry bonus. Cached per league object and season because it
- * is a league-wide calculation and every game in a week asks for it.
+ * Both sides' chemistry bonus, read from the rosters as they stand.
+ *
+ * It used to be cached, keyed by the league object, its tenure object and the
+ * player index — and none of those is replaced by a trade, a waiver claim or a
+ * new depth chart, which are exactly what chemistry reads. So a game was played
+ * with the chemistry of whenever the cache last filled: in the app, the first
+ * game after the page loaded, for the rest of the season, while the team
+ * screen, which reads it fresh, showed something else. Results depended on
+ * what else the page had computed, not only on the league. Reading the whole
+ * league costs 76 µs, a millisecond or so a week, so nothing is kept.
  */
-let chemCache = null;
-function bonusesFor(league, byId, entry) {
-  if (!chemCache || chemCache.league !== league || chemCache.tenure !== league.tenure || chemCache.byId !== byId) {
-    chemCache = { league, tenure: league.tenure, byId, all: chemistryBonuses(league, byId) };
-  }
-  return [chemCache.all[entry.home] || 0, chemCache.all[entry.away] || 0];
+function chemistryPair(league, byId, entry) {
+  const all = chemistryBonuses(league, byId);
+  return [all[entry.home] || 0, all[entry.away] || 0];
 }
 
 export function isPro(league) {

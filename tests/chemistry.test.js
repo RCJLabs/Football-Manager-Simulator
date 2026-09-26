@@ -6,7 +6,7 @@ import { RNG } from '../src/engine/rng.js';
 import { overall } from '../src/engine/ratings.js';
 import { createLeague, startSeason, registerPlayers, syncTenure, gameOptions } from '../src/engine/season.js';
 import { autoCompleteAll } from '../src/engine/auction.js';
-import { simulateAhead } from '../src/engine/autosim.js';
+import { simulateAhead, simulateAheadAsync } from '../src/engine/autosim.js';
 import { leaguePool, leagueIndex } from '../src/engine/rookies.js';
 import { applyCareers, careerIndex } from '../src/engine/careers.js';
 import {
@@ -139,4 +139,39 @@ test('an empty roster reads as neutral rather than throwing', () => {
   const c = chemistry(lg, 0, PLAYERS_BY_ID);
   assert.equal(c.starters, 0);
   assert.equal(c.score, 50);
+});
+
+test('a game is played with the chemistry the rosters have now', () => {
+  // The bonus was cached by the league object, its tenure object and the
+  // player index, and a roster change replaces none of them, so games went on
+  // being played with the chemistry of whenever the cache last filled — while
+  // the team screen, which reads it fresh, showed something else.
+  const lg = league(14);
+  // Held, as the app holds its index through a season.
+  const byId = index(lg);
+  const u = lg.teams.findIndex((t) => t.isUser);
+  const other = u === 0 ? 1 : 0;
+  const entry = { home: u, away: other };
+  const before = gameOptions(lg, entry, byId).chem;
+  // A new starting lineup from one decade: the club's chemistry moves.
+  stock(lg, (p) => p.season >= 1990 && p.season <= 1999);
+  const now = chemistryBonuses(lg, byId);
+  assert.notDeepEqual([now[u], now[other]], before, 'the fixture did not move the chemistry');
+  assert.deepEqual(gameOptions(lg, entry, byId).chem, [now[u], now[other]]);
+});
+
+test('what a stretch of games comes to does not depend on what else was simulated', async () => {
+  // Found proving simulate-ahead's steps: two copies of one league simulated
+  // in turn came out differently from the same league simulated on its own —
+  // a club had six wins by the playoffs one way and seven the other.
+  const base = league(15);
+  const [alone, b, c] = [0, 1, 2].map(() => JSON.parse(JSON.stringify(base)));
+  const ra = new RNG(21), rb = new RNG(21), rc = new RNG(21);
+  for (const target of ['halfway', 'playoffs']) simulateAhead(alone, index(alone), pool(alone), ra, target);
+  for (const target of ['halfway', 'playoffs']) {
+    simulateAhead(b, index(b), pool(b), rb, target);
+    await simulateAheadAsync(c, index(c), pool(c), rc, target);
+  }
+  assert.equal(JSON.stringify(b), JSON.stringify(alone), 'interleaved, the league came out differently');
+  assert.equal(JSON.stringify(c), JSON.stringify(alone));
 });
