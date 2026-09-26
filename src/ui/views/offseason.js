@@ -130,6 +130,18 @@ export function view(root, params, ctx) {
 
   // A year passed: who grew into something, who is going, who is gone.
   const off = league.offseason;
+  // Reserve emptied when the season ended, and a man who came back cost
+  // somebody his place. That used to be the man on reserve, gone without a
+  // word; now it can be a man off the active roster, so it is said.
+  const owedTo = (id) => (league.dead?.[u] || []).find((d) => d.id === id);
+  const reserveNote = (off.releasedFromIr || []).filter((r) => r.team === u).map((r) => {
+    const gone = ctx.byId.get(r.id)?.name ?? r.id;
+    const d = owedTo(r.id);
+    const owed = d ? `, and is still owed $${d.amount} a year for ${d.years === 1 ? 'one more season' : `${d.years} more seasons`}` : '';
+    return r.back
+      ? `${esc(ctx.byId.get(r.back)?.name ?? r.back)} came back, and ${esc(gone)} was let go to make room${owed}.`
+      : `${esc(gone)} had no place to come back to and was let go${owed}.`;
+  });
   const movers = (list, dir) => list.map((m) => `${esc(m.name)} <span class="muted">${m.pos} ${m.age}</span> ${m.from}<b>${dir}</b>${m.to}`).join(' · ');
   const yearOlder = off.aged ? html`<div class="card tight" style="margin-top:.5rem">
     <h3>A year older <small class="muted" style="text-transform:none;letter-spacing:0">· ${off.aged} careers running</small></h3>
@@ -164,6 +176,7 @@ export function view(root, params, ctx) {
       <h1 style="margin:0">Offseason · after season ${league.offseason.season}</h1>
       ${league.offseason.rookies ? html`<p class="notice" style="margin:.5rem 0 0"><b>${league.offseason.rookies} rookies</b> entered the pool${league.offseason.washedOut ? `, and ${league.offseason.washedOut} unsigned from earlier classes washed out` : ''}. <a href="#/players">Look them over</a> before the ${auction ? 'auction' : 'draft'}.</p>` : ''}
       ${summary ? html`<p class="muted" style="margin:.3rem 0 0">${teamChip(summary.champion)} won the title. You finished <b>${ord(summary.user.rank)}</b> of ${summary.teams} at ${summary.user.record.w}-${summary.user.record.l}${summary.user.record.t ? `-${summary.user.record.t}` : ''}.</p>` : ''}
+      ${reserveNote.length ? html`<p style="font-size:.9rem;margin:.4rem 0 0"><b>Injured reserve emptied.</b> ${raw(reserveNote.join(' '))} <span class="muted">The weakest man at the position makes way${capped ? ', and a man let go with years left on his deal is owed half of what was left, as a cut is' : ''}.</span></p>` : ''}
       <p class="muted" style="font-size:.9rem;margin:.5rem 0 0">
         ${capped
           // Under a cap there is no quota and no three-year limit —

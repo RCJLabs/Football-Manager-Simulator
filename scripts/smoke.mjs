@@ -1373,6 +1373,18 @@ try {
       const career = startCareer(lg, PLAYERS_BY_ID.get(retiree));
       lg.dev = { ...(lg.dev || {}), [retiree]: { ...career, from: lg.season, retireAt: career.age + 1 } };
     }
+    // A lineman on reserve when the season ends, his slot filled behind him by
+    // a lesser one on a two-year deal: reserve empties, the better man comes
+    // back, and the cover goes with a year of his deal still owed. The screen
+    // has to say so, because the man who goes is off the active roster.
+    const { overall } = await import(`${R}/src/engine/ratings.js`);
+    const irSlot = ['OL5', 'OL4'].find((sl) => lg.teams[me].slots[sl] !== retiree);
+    const parked = lg.teams[me].slots[irSlot];
+    const onRosters = new Set(lg.teams.flatMap((t) => Object.values(t.slots)));
+    const cover = PLAYERS.filter((p) => p.pos === 'OL' && !onRosters.has(p.id)).sort((x, y) => overall(x) - overall(y))[0];
+    lg.teams[me].ir = [...(lg.teams[me].ir || []), parked];
+    lg.teams[me].slots[irSlot] = cover.id;
+    lg.contracts[cover.id] = { salary: 4, years: 2, round: ROSTER_SLOTS.length, kept: 0, since: lg.season };
     enterOffseason(lg, leaguePool(lg, PLAYERS), careerIndex(lg, leagueIndex(lg, PLAYERS_BY_ID)));
 
     await page.setViewportSize({ width: 360, height: 800 });
@@ -1407,6 +1419,11 @@ try {
     else {
       const owedLine = await page.evaluate(() => document.body.textContent.match(/you owe \$\d+ a year for (one more season|\d+ more seasons)/)?.[0] || null);
       if (!owedLine) errors.push('a retirement under contract does not tell the user what is still owed');
+    }
+    {
+      const want = `${PLAYERS_BY_ID.get(parked).name} came back, and ${cover.name} was let go to make room, and is still owed $2 a year for one more season.`;
+      const said = await page.evaluate(() => [...document.querySelectorAll('p')].find((x) => /Injured reserve emptied/.test(x.textContent))?.textContent.replace(/\s+/g, ' ').trim() || null);
+      if (!said || !said.includes(want)) errors.push(`the offseason screen does not say who reserve let go: ${JSON.stringify(said)}`);
     }
     const tagBtns = await page.$$('[data-tag]');
     if (!tagBtns.length) errors.push('the pro keeper round offers no tag on any expiring man');

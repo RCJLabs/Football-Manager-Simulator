@@ -376,8 +376,10 @@ above a second currency — moving up costs cap space as well as picks.
 
 **Market money is charged in exactly one place.** `keeperCost` for a man whose
 deal has run out. Everything else is cheap: a drafted player is on his slot
-price for four years, and anyone arriving by waiver claim or signed to fill a
-hole is on the minimum for one. That is deliberate, and it is the whole
+price for four years, a man signed to fill a hole at kickoff is on the minimum
+for one, and a man claimed during a season is on it for `VET_YEARS` (this said
+one for him too; a one-year claim was measured and held back — see *What
+letting a man go costs*). That is deliberate, and it is the whole
 mechanism — a cheap rookie deal runs out and the bill arrives at what the player
 is now worth. `marketSalary` is leverage times rating over a replacement level,
 calibrated so a roster priced entirely at market costs 104% to 114% of the cap.
@@ -620,9 +622,33 @@ Ending the deal where he leaves exposed the second half. A man with no deal is g
 
 Left alone, and worth deciding rather than fixing in passing:
 
-- **Only a waiver drop and a cut charge dead money.** A release from reserve or the squad, a man let go to activate or promote another, and a trade's spare man leave nothing owed. The deal now ends on all of them, but no new charge was added: that would change what those moves cost, which is a design choice rather than this bug.
-- **How long a claim's deal runs.** The cap section above says a man arriving by waiver claim is on the minimum for one year. The kickoff fill signs for one; `syncContracts` signs a claim for `VET_YEARS`, three, which `expireContracts` runs down to two the same offseason. Unchanged here; which of the two is meant is a question.
+- **Only a waiver drop and a cut charged dead money.** A release from reserve or the squad, a man let go to activate or promote another, and a trade's spare man leave nothing owed. The deal now ends on all of them, but no new charge was added: that would change what those moves cost, which is a design choice rather than this bug. (Since changed: every release but a trade's is charged; see the next section.)
+- **How long a claim's deal runs.** The cap section above says a man arriving by waiver claim is on the minimum for one year. The kickoff fill signs for one; `syncContracts` signs a claim for `VET_YEARS`, three, which `expireContracts` runs down to two the same offseason. Unchanged here; which of the two is meant is a question. (Since measured: a one-year claim empties free agency; see the next section.)
 - **Deals already inherited in a save stay until they run out.** An inherited deal cannot be told from one a trade carried, so nothing is rewritten on load.
+
+### What letting a man go costs, and who goes when reserve empties
+
+**Every release but a trade's is charged.** `letGo` in `cap.js` is the one way off a roster for good: what the deal still owes is booked (`bookDead`, half of what is left) and the deal ends. Only the kickoff cut and a waiver claim's drop used to charge anything. A release from reserve or the practice squad, a man let go to activate or promote another, and reserve emptying at the season's end all let a man go for nothing, and between them they are most of the releases in a pro league. Counted on the release before this (two leagues of each kind, three seasons each), per club-season, over the years the deals had left: the season-end reserve release would have owed $3.41 in drafted leagues and $3.84 in auctioned ones, the spare man in an uneven trade $3.26 and $5.52, a man let go to activate someone $0.19 and $0.48, to promote someone $0.21 and $0.35 — against $1.17 and $2.04 actually charged on waiver drops.
+
+The trade's spare man is the one release left uncharged, on purpose. The AI weighs a trade on the lineup and never on money — nothing in `evaluateTrade`, the deal finder or the trade block reads a salary — so a charge there would land on its clubs without their seeing it coming. That is a larger gap than the charge: a club can take salary on in a trade without the AI ever pricing it. Not measured, and not changed here.
+
+**Reserve emptying let the wrong man go.** `clearIr` released the man on reserve whenever his slot had been filled behind him, whoever filled it. Over the same leagues that was 248 men, and 205 of them rated above the weakest man at their position — by 6.8 on average — and 212 were at least as good as the club's weakest starter there. A club lost the starter it had parked on reserve and kept the body it had claimed to cover for him, and since nothing was charged, the same rule was a way to be rid of an overpaid man for free: hurt, parked and replaced, he was gone at the season's end with his deal written off. Now a man coming back takes an open slot if there is one; if not, the weakest man in the room goes, counting the one coming back — the rule an uneven trade squares a roster by — and he goes through `letGo`. In `enterOffseason` it runs before the season's deals lose a year, so what it books still counts the season just played, and `tickDead` takes that year off with everything else owed. The offseason screen says who came back and who made way, and what is still owed, because the man who goes can now be one off the active roster.
+
+**What it does to the money.** Eight seeds of each kind, kickoffs of seasons two to six, the release before this against this one:
+
+| | drafted | auctioned |
+|---|---|---|
+| dead money a club carries | $3.46 → $5.10 | $1.95 → $3.57 |
+| cap used, of 200 | 175.6 → 177.9 | 196.3 → 197.3 |
+| free-agency signings a market | 33.6 → 29.4 | 24.8 → 19.6 |
+| kickoff cuts a league | 5.3 → 6.1 | 0.1 → 0.0 |
+| best-to-worst lineup at kickoff | 469 → 506 | 728 → 740 |
+
+The reading, which is inference rather than measurement: the old release was quietly levelling the league, taking injured stars off good clubs for nothing and handing their cap room to free agency. Keeping them costs some free-agency signings and widens the gap between the best and worst rosters in a drafted league by about a twelfth. That is what it costs for a club to keep its own players. None of the audit's 41 figures moved, and the sweep is clean.
+
+`tests/leaving.test.js` holds each charge, the trade's exception and the reserve rule, and fails on the release before this; taking out any one of the nine pieces — the four new charges, the reserve rule and its charge, the trade's exception, and the claim's drop and the cap cut, which now go through `letGo` too — fails a test. `scripts/smoke.mjs` checks the offseason screen's line on the injected pro league, and fails on the old code.
+
+**A one-year deal for a man claimed during a season was tried and held back.** The cap section says a man arriving by claim is on the minimum for one season; `syncContracts` has always signed him for `VET_YEARS`, which runs down to two in the same offseason, and three in four such men are starters: on the release before this, three a club each season stayed on the minimum for two more years, worth $46 to $55 a club above it at market prices over those years. Written as one year and nothing else changed (four seeds of each kind), deals up at the offseason went from 238 to 418 in drafted leagues and from 234 to 448 in auctioned ones, and the AI re-signed hardly more of them (83 to 88, 81 to 88). A club reached the market with ten slots open instead of five, and what is held back for each open slot left $14 to bid instead of $27 in the drafted leagues and $3.50 instead of $11 in the auctioned ones. Free-agency signings fell from 33 to 20 a market and from 24 to 3; in the auctioned leagues the keeper round let men go with years still to run, so dead money went from $1.95 to $7.92 a club, and the best-to-worst spread went from 733 to 897. That is a market to retune — the slot reserve, how much of a roster the AI buys, how it re-signs — not a constant to change, so claims stay on `VET_YEARS`, and the cap section now says what the code does.
 
 ### The keeper round's money and its way out
 

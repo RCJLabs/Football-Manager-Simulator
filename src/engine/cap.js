@@ -21,8 +21,6 @@
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall } from './ratings.js';
 import { TRUE_LEVERAGE } from './auction.js';
-import { irList } from './injuries.js';
-import { squadList } from './squad.js';
 
 /** The cap, in the same dollars the auction's price guide speaks. */
 export const PRO_CAP = 200;
@@ -165,10 +163,10 @@ export function deadCharge(contract) {
 /**
  * Book what a club owes a man it is letting go.
  *
- * Called at the four places a roster actually loses somebody it was still
- * paying: the cap shed at kickoff, a drop on the waiver wire, the keeper round,
- * and retirement. A trade is not one of them, because the contract goes with
- * him. Retirement once was not either — "a man who stops playing stops being
+ * Called wherever a roster loses somebody it is still paying: every release,
+ * through `letGo`, and the keeper round and retirement directly. A trade is
+ * not one of them, because the contract goes with him, and nor is the spare
+ * man an uneven one lets go — see `letGo`. Retirement once was not either — "a man who stops playing stops being
  * owed" — and that was the rule that made a five-year deal right at every age:
  * the years a long deal should cost are the years men retire into, and they
  * were never paid. See `bookRetirements` in offseason.js.
@@ -195,6 +193,25 @@ export function bookDead(league, teamIdx, id, contract) {
  */
 export function endContract(league, id) {
   if (league.contracts) delete league.contracts[id];
+}
+
+/**
+ * Let a man go for good: what his deal still owes is booked against the club
+ * (`bookDead`), and the deal ends (`endContract`). Every release but one comes
+ * through here — a cut, a waiver claim's drop, a release from reserve or the
+ * practice squad, a man let go to activate or promote another, and reserve
+ * emptying at the season's end. Only the cut and the claim's drop used to
+ * charge anything, so the same man could be let go for nothing by any of the
+ * others: an overpaid starter hurt, parked on reserve and replaced, was released
+ * when the season ended with his deal written off.
+ *
+ * The one exception is the spare man an uneven trade lets go, whose deal ends
+ * with no charge. The AI weighs a trade on the lineup alone and never on money,
+ * so a charge there would land on its clubs without their knowing it was coming.
+ */
+export function letGo(league, teamIdx, id) {
+  bookDead(league, teamIdx, id, league.contracts?.[id]);
+  endContract(league, id);
 }
 
 /** What a club is still paying men who are no longer on it. */
@@ -227,7 +244,10 @@ export function tickDead(league) {
 export function teamContractIds(league, teamIdx) {
   const t = league.teams[teamIdx];
   if (!t) return [];
-  return [...ROSTER_SLOTS.map((s) => t.slots[s.id]), ...irList(t), ...squadList(t)].filter(Boolean);
+  // Reserve and the practice squad read directly, not through `irList` and
+  // `squadList`: those two files let men go through `letGo` below, and a cycle
+  // is not worth two one-line accessors.
+  return [...ROSTER_SLOTS.map((s) => t.slots[s.id]), ...(t.ir || []), ...(t.squad || [])].filter(Boolean);
 }
 
 /** What a club is spending. A man on IR is still on the books. */
@@ -239,7 +259,7 @@ export function capHit(league, teamIdx) {
   // whatever his deal says. That is what makes stashing a first-round pick
   // affordable rather than a second way of paying him not to play — and his
   // contract is untouched, so it costs what it says again the day he comes up.
-  const down = new Set(squadList(league.teams?.[teamIdx]));
+  const down = new Set(league.teams?.[teamIdx]?.squad || []);
   for (const id of teamContractIds(league, teamIdx)) {
     total += down.has(id) ? MIN_SALARY : (c[id]?.salary ?? MIN_SALARY);
   }
@@ -349,8 +369,7 @@ export function cutToCap(league, teamIdx, byId) {
     league.teams[teamIdx].slots[cut.slot] = null;
     // Book what is still owed before the contract goes, or the bill is lost
     // with it. A cut at half pay still frees half, so the loop converges.
-    bookDead(league, teamIdx, cut.id, league.contracts?.[cut.id]);
-    endContract(league, cut.id);
+    letGo(league, teamIdx, cut.id);
     released.push({ team: teamIdx, id: cut.id, slot: cut.slot, salary: cut.salary });
     league.transactions ??= [];
     league.transactions.push({ week: 0, season: league.season, type: 'cut', team: teamIdx, add: null, drop: cut.id });

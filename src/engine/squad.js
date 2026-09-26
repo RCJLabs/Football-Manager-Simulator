@@ -26,6 +26,7 @@
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall } from './ratings.js';
 import { classYear } from './proleague.js';
+import { letGo } from './cap.js';
 
 /** Places on the squad, per club. */
 export const SQUAD_SLOTS = 6;
@@ -118,9 +119,8 @@ export function promote(league, teamIdx, id, dropId, byId) {
   }
   team.squad = squadList(team).filter((x) => x !== id);
   team.slots[slotId] = id;
-  // The man making way is let go, and his deal goes with him (`endContract`
-  // in cap.js, which imports this file).
-  if (dropId && league.contracts) delete league.contracts[dropId];
+  // The man making way is let go, as a cut is.
+  if (dropId) letGo(league, teamIdx, dropId);
   (league.transactions ??= []).push({ week: league.week, season: league.season, type: 'promote', team: teamIdx, add: id, drop: dropId || null });
   return slotId;
 }
@@ -130,7 +130,7 @@ export function releaseFromSquad(league, teamIdx, id) {
   const team = league.teams[teamIdx];
   if (!squadList(team).includes(id)) return false;
   team.squad = squadList(team).filter((x) => x !== id);
-  if (league.contracts) delete league.contracts[id];
+  letGo(league, teamIdx, id);
   (league.transactions ??= []).push({ week: league.week, season: league.season, type: 'release', team: teamIdx, add: null, drop: id });
   return true;
 }

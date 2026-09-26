@@ -27,7 +27,7 @@ import {
   futureOwner, applyFutureTrade, validateFuturePicks, futureLabel,
 } from './owedpicks.js';
 import { signablePool } from './proleague.js';
-import { bookDead, endContract } from './cap.js';
+import { endContract, letGo } from './cap.js';
 import { squadList, canStash, stash, aiManageSquad } from './squad.js';
 
 export const DEFAULT_WAIVER_LIMIT = 2;
@@ -285,8 +285,7 @@ export function processWaivers(league, byId) {
       } else if (c.drop) {
         // Out for good, and still owed what he is owed — by this club. The
         // deal itself ends here, or whoever claimed him next took it over.
-        bookDead(league, c.team, c.drop, league.contracts?.[c.drop]);
-        endContract(league, c.drop);
+        letGo(league, c.team, c.drop);
         owned.delete(c.drop);
       }
       team.slots[slotId] = c.add;
@@ -686,7 +685,8 @@ export function executeTrade(league, aIdx, bIdx, aGives, bGives, byId, pool = nu
   if (!outA || !outB) throw new Error('That deal cannot be squared on both rosters');
   a.slots = outA.slots;
   b.slots = outB.slots;
-  // The spare men an uneven deal lets go take no deal with them.
+  // The spare men an uneven deal lets go take no deal with them, and leave
+  // nothing owed: see `letGo` for why a trade is the one release not charged.
   for (const id of [...fa.releases, ...fb.releases]) endContract(league, id);
   initWaivers(league);
   applyFutureTrade(league, aIdx, bIdx, aPicks, bPicks);

@@ -8,6 +8,11 @@
 // exposed the second half: a man with no deal was signed at the season's end
 // on the draft's or the auction's terms, whichever club had drafted or bought
 // him.
+//
+// Then what leaving costs. Only a cut and a claim's drop charged dead money;
+// every other way off a roster but a trade does now. And reserve emptying at
+// the season's end lets the weakest man at the position go, not the man coming
+// back.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PLAYERS, PLAYERS_BY_ID as byId } from '../src/data/db.js';
@@ -18,7 +23,7 @@ import { autoDraftAll } from '../src/engine/draft.js';
 import { autoCompleteAll } from '../src/engine/auction.js';
 import { overall } from '../src/engine/ratings.js';
 import { freeAgents, fileClaim, processWaivers, validateTrade, executeTrade } from '../src/engine/transactions.js';
-import { placeOnIr, activateFromIr, releaseFromIr } from '../src/engine/injuries.js';
+import { placeOnIr, activateFromIr, releaseFromIr, clearIr } from '../src/engine/injuries.js';
 import { promote, releaseFromSquad } from '../src/engine/squad.js';
 import { deadHit, rookieSalary, draftSize, MIN_SALARY, VET_YEARS } from '../src/engine/cap.js';
 
@@ -64,26 +69,29 @@ test('a man dropped for a claim leaves his deal behind, and the next club to cla
   assert.equal(lg.contracts[gone].years, VET_YEARS);
 });
 
-test('every other way a man leaves a roster for good ends his deal too', () => {
+test('every other way a man leaves a roster for good ends his deal, and all but a trade charge for it as a cut does', () => {
   const lg = pro(82);
   const u = userTeamIndex(lg);
   const me = lg.teams[u];
   const hurt = (id) => { lg.injuries[id] = { weeks: 6, kind: 'knee sprain', since: null, season: lg.season, team: u }; };
+  // Three years left at 10: letting him go owes half of that, 5 a year.
+  const onDeal = (id) => { lg.contracts[id] = { ...lg.contracts[id], salary: 10, years: 3, expiring: false }; return id; };
+  const owedFor = (fn, team = u) => { const before = deadHit(lg, team); fn(); return deadHit(lg, team) - before; };
 
   // Released from injured reserve.
-  const qb = me.slots.QB2;
+  const qb = onDeal(me.slots.QB2);
   hurt(qb);
   placeOnIr(lg, u, qb);
   assert.ok(lg.contracts[qb], 'reserve keeps him on the books');
-  releaseFromIr(lg, u, qb);
+  assert.equal(owedFor(() => releaseFromIr(lg, u, qb)), 5, 'released from reserve, he was let go for nothing');
   assert.equal(lg.contracts[qb], undefined, 'released from reserve, he kept his deal');
 
   // Let go to make room for a man back from it.
-  const back = me.slots.RB1, makesWay = me.slots.RB2;
+  const back = me.slots.RB1, makesWay = onDeal(me.slots.RB2);
   hurt(back);
   placeOnIr(lg, u, back);
   delete lg.injuries[back];
-  activateFromIr(lg, u, back, makesWay, byId);
+  assert.equal(owedFor(() => activateFromIr(lg, u, back, makesWay, byId)), 5, 'the man let go for him cost nothing');
   assert.ok(lg.contracts[back], 'the man activated lost his deal');
   assert.equal(lg.contracts[makesWay], undefined, 'the man let go for him kept his');
 
@@ -91,12 +99,12 @@ test('every other way a man leaves a roster for good ends his deal too', () => {
   // business; these two are put there by hand, since what is asked here is
   // only what leaving it costs.
   const down = (slot) => { const id = me.slots[slot]; me.slots[slot] = null; (me.squad ??= []).push(id); return id; };
-  const cut = down('LB3');
-  releaseFromSquad(lg, u, cut);
+  const cut = onDeal(down('LB3'));
+  assert.equal(owedFor(() => releaseFromSquad(lg, u, cut)), 5, 'released from the squad, he cost nothing');
   assert.equal(lg.contracts[cut], undefined, 'released from the squad, he kept his deal');
   const up = down('DL4');
-  const dropped = me.slots.DL3;
-  promote(lg, u, up, dropped, byId);
+  const dropped = onDeal(me.slots.DL3);
+  assert.equal(owedFor(() => promote(lg, u, up, dropped, byId)), 5, 'the man let go for a promotion cost nothing');
   assert.ok(lg.contracts[up], 'the man brought up lost his deal');
   assert.equal(lg.contracts[dropped], undefined, 'the man let go for him kept his');
 
@@ -109,8 +117,10 @@ test('every other way a man leaves a roster for good ends his deal too', () => {
   assert.ok(v.ok && v.uneven, v.reason);
   const spare = v.fills.b.releases;
   assert.equal(spare.length, 1);
-  assert.ok(lg.contracts[spare[0]]);
-  executeTrade(lg, x, y, ...deal, byId, PLAYERS);
+  onDeal(spare[0]);
+  // No charge: the AI weighs a trade on the lineup and never on money, so a
+  // bill here would land on its clubs unseen.
+  assert.equal(owedFor(() => executeTrade(lg, x, y, ...deal, byId, PLAYERS), y), 0);
   assert.equal(slotOf(Y, spare[0]), undefined);
   assert.equal(lg.contracts[spare[0]], undefined, 'the man a trade let go kept his deal');
   // The men traded keep theirs: a trade moves the deal with the man.
@@ -177,4 +187,48 @@ test('in a fantasy auction a claimed man is on $1, not the price his old club pa
   assert.equal(lg.teams[a].slots.WR4, gone, 'the claim did not go through');
   syncContracts(lg, byId);
   assert.equal(lg.contracts[gone].salary, 1, `claimed, he is kept at the $${paid} his old club paid`);
+});
+
+test('when reserve empties at the season\'s end, the weakest man at the position goes, and is charged as a cut', () => {
+  const lg = pro(87);
+  const u = userTeamIndex(lg);
+  const me = lg.teams[u];
+  const hurt = (id) => { lg.injuries[id] = { weeks: 20, kind: 'torn ACL', since: null, season: lg.season, team: u }; };
+  const onRoster = (id) => Object.values(me.slots).includes(id);
+  const free = (pos) => freeAgents(lg, PLAYERS).filter((p) => p.pos === pos).sort((a, b) => overall(a) - overall(b));
+
+  // The starting quarterback hurt and parked, and the worst quarterback on the
+  // market put in his slot to cover, as a claim would.
+  const star = me.slots.QB1, backup = me.slots.QB2;
+  hurt(star);
+  placeOnIr(lg, u, star);
+  const cover = free('QB')[0];
+  me.slots.QB1 = cover.id;
+
+  // The fourth receiver hurt and parked, and covered by a better one from
+  // another club, as a trade would bring him: the man on reserve is now the
+  // weakest in his room, so he is the one who goes — and he still had three
+  // years at 10 to run.
+  const weak = me.slots.WR4;
+  lg.contracts[weak] = { ...lg.contracts[weak], salary: 10, years: 3, expiring: false };
+  hurt(weak);
+  placeOnIr(lg, u, weak);
+  const donor = lg.teams.find((t) => !t.isUser && overall(byId.get(t.slots.WR1)) > overall(byId.get(weak)));
+  const better = byId.get(donor.slots.WR1);
+  donor.slots.WR1 = null;
+  me.slots.WR4 = better.id;
+
+  const owed = deadHit(lg, u);
+  const mine = clearIr(lg, byId).filter((r) => r.team === u);
+  const released = mine.map((r) => r.id);
+  assert.ok(onRoster(star), 'the starter parked on reserve was let go and his cover kept');
+  assert.ok(onRoster(backup));
+  assert.ok(!onRoster(cover.id) && released.includes(cover.id), 'the weakest quarterback stayed');
+  assert.ok(!onRoster(weak) && released.includes(weak), 'the weakest man in his room was the one on reserve, and he stayed');
+  // Said as it happened: who went, and who came back in his place.
+  assert.equal(mine.find((r) => r.id === cover.id).back, star);
+  assert.equal(mine.find((r) => r.id === weak).back, null);
+  assert.ok(onRoster(better.id));
+  assert.equal(deadHit(lg, u) - owed, 5, 'let go from reserve, he was written off for nothing');
+  assert.equal(lg.contracts[weak], undefined);
 });
