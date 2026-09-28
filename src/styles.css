@@ -369,6 +369,36 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .rdot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
 .rdot.on { background: var(--accent); }
 @media (min-width: 700px) { .tp { grid-template-columns: 220px 1fr; } }
+
+/* The week played back: every game on one clock, a score flashing as it lands. */
+.ticker-card { margin-bottom: 0.75rem; }
+.tk-head h3 { margin: 0; }
+.tk-clock { font-size: 0.85rem; color: var(--accent); font-weight: 700; }
+.tk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin: 0.55rem 0; }
+@media (min-width: 700px) { .tk-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.tk-game { border: 1px solid var(--line); border-radius: 8px; padding: 0.35rem 0.5rem; background: var(--bg); font-size: 0.85rem; }
+.tk-game.mine { border-color: var(--accent); }
+.tk-row { display: flex; justify-content: space-between; align-items: center; gap: 0.3rem; padding: 0.05rem 0.2rem; border-radius: 4px; }
+.tk-row .tk-s { font-variant-numeric: tabular-nums; min-width: 1.6em; text-align: right; color: var(--muted); }
+.tk-row.lead .tk-s { color: var(--text); }
+.tk-game.final .tk-row.lead { font-weight: 700; }
+.tk-row.hit { animation: tkhit 1.2s ease-out; }
+@keyframes tkhit { from { background: rgba(233, 196, 106, 0.45); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .tk-row.hit { animation: none; } }
+.tk-st { font-size: 0.72rem; margin-top: 0.15rem; min-height: 1.2em; display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.35rem; }
+.badge.upset { background: #5a2d0c; color: #ffd7a8; }
+.tk-bar { margin-top: 0.4rem; }
+/* Held at its full height from kickoff so the boards below never move. */
+.ticker-card .tk-feed { font-size: 0.82rem; margin: 0.45rem 0 0; height: calc(3 * 1.6em); overflow: hidden; }
+.tk-feed li { padding: 0.12rem 0; line-height: 1.36em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-feed li:nth-child(n+4) { display: none; }
+/* On a phone the clock at the top dates a score well enough; the line needs
+   the room for who scored and what it did to the game. */
+@media (max-width: 419px) { .tk-feed li small { display: none; } }
+@media (min-width: 700px) { .ticker-card .tk-feed { height: calc(5 * 1.6em); } .tk-feed li:nth-child(n+4) { display: block; } }
+.tk-feed li:first-child { animation: tkin 0.4s ease-out; }
+@keyframes tkin { from { opacity: 0; transform: translateY(-0.5em); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tk-feed li:first-child { animation: none; } }
 .wxline { font-size: 0.78rem; text-align: center; margin: 0.35rem 0 0.5rem; }
 
 /* Watching is one action. Skipping ahead is three you want occasionally and

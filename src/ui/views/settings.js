@@ -58,6 +58,8 @@ export function view(root, params, ctx) {
           <input type="range" id="speed" min="200" max="3000" step="100" value="${s.prefs.autoplayMs}">
           <small class="muted">An average: a big swing is held on, a kneel-down goes by.</small>
         </div>
+        <label class="row" style="margin-top:.9rem;gap:.5rem;align-items:center"><input type="checkbox" id="tickerPref" ${s.prefs.ticker !== false ? 'checked' : ''}> Play each week back after it is simulated</label>
+        <small class="muted">Every game of the week on one clock, twenty seconds from kickoff to the last final. Skip or close it any time; a finished week can be replayed from its games.</small>
       </div>
       <div class="card">
         <h2>Save data</h2>
@@ -152,6 +154,7 @@ export function view(root, params, ctx) {
   const speed = root.querySelector('#speed');
   speed.addEventListener('input', () => { root.querySelector('#speedLbl').textContent = `${(speed.value / 1000).toFixed(1)}s per play`; });
   speed.addEventListener('change', () => ctx.update((st) => { st.prefs.autoplayMs = Number(speed.value); }, { silent: true }));
+  root.querySelector('#tickerPref')?.addEventListener('change', (e) => ctx.update((st) => { st.prefs.ticker = e.target.checked; }, { silent: true }));
   root.querySelector('#export').addEventListener('click', () => {
     download(`gridiron-eras-${(league.name || 'league').replace(/\W+/g, '-').toLowerCase()}.json`, exportJSON());
   });

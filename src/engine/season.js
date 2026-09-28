@@ -780,6 +780,40 @@ export function userGameThisWeek(league) {
  * A 32-team season is 272 games, and keeping every box score would outgrow
  * localStorage.
  */
+/**
+ * A game's scoring as the league ticker replays it: flat triples of
+ * [elapsed game seconds, side, points], a touchdown and its try as one score,
+ * read off the score every logged event carries. Every game is played with
+ * its log in hand whether or not the log is kept, so the AI's games have this
+ * too, at about sixty characters a game.
+ */
+export function scoringTimeline(g) {
+  const otLen = g.playoff ? 900 : 600;
+  const at = (q, clock) => (q <= 4 ? (q - 1) * 900 + (900 - clock) : 3600 + (q - 5) * otLen + (otLen - clock));
+  const out = [];
+  let last = [0, 0];
+  for (const e of g.log || []) {
+    if (!Array.isArray(e.score)) continue;
+    for (const side of [0, 1]) {
+      const pts = e.score[side] - last[side];
+      if (pts <= 0) continue;
+      const t = Math.round(at(e.q, e.clock));
+      const n = out.length;
+      if ((e.type === 'xp' || e.type === '2pt') && n && out[n - 2] === side && out[n - 3] === t) out[n - 1] += pts;
+      else out.push(t, side, pts);
+    }
+    last = e.score;
+  }
+  return out;
+}
+
+/** Elapsed game seconds at the final whistle: 3600 unless it went to overtime. */
+export function gameLength(g) {
+  if (g.quarter <= 4) return 3600;
+  const otLen = g.playoff ? 900 : 600;
+  return Math.round(3600 + (g.quarter - 5) * otLen + (otLen - g.clock));
+}
+
 export function recordResult(league, week, gameEntry, g, { keepLog = false, keepPlayers = keepLog } = {}) {
   const [hs, as] = g.score;
   const home = league.teams[gameEntry.home], away = league.teams[gameEntry.away];
@@ -791,6 +825,10 @@ export function recordResult(league, week, gameEntry, g, { keepLog = false, keep
     drives: keepLog ? g.drives : null,
     injuries: g.teams.map((t) => (t.injuries || []).map((x) => ({ id: x.id, kind: x.kind, weeks: x.weeks }))),
     ...(g.weather ? { weather: g.weather } : {}),
+    // For the league ticker: when each score came, and how long an overtime
+    // game ran.
+    sc: scoringTimeline(g),
+    ...(g.quarter >= 5 ? { end: gameLength(g) } : {}),
   };
   gameEntry.result = result;
   recordGameInjuries(league, g, [gameEntry.home, gameEntry.away], week);

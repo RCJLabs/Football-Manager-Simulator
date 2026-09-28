@@ -6,7 +6,7 @@ import {
   firstEmptySlot, slotIsEmpty, MAX_SLOTS, PREFS_KEY, serializeSlot, slotMeta, commitSlot,
 } from './slots.js';
 
-const DEFAULT_PREFS = { autoplayMs: 900, showAttrs: true };
+const DEFAULT_PREFS = { autoplayMs: 900, showAttrs: true, ticker: true };
 const listeners = new Set();
 let state = { league: null, game: null, prefs: { ...DEFAULT_PREFS } };
 let registry = null;

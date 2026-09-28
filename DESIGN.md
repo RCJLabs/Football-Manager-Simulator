@@ -3581,6 +3581,33 @@ On the live final screen the reel takes the field's place, and the result, the s
 
 Its limits. A season's thinned logs keep their turning points' words but not always their spots — a play that swung the game without scoring, turning the ball over or drawing a flag keeps five fields — so once a season is over a quarter of those cards show text only (47 of 180 over sixty games), and its reels are drawn from the scores and turnovers that were kept whole. A game the AI played without you kept no log and no player lines, and has none of this.
 
+### The rest of the week, as it happened
+
+Simulating a week resolved every game in it at once and the hub listed the finals: the results without the afternoon. The ticker (`ui/ticker.js`) plays the week back on one clock above the matchup card, every game of it as a board of scores, twenty seconds from kickoff to the last final. It plays after Sim week, after Sim my game, and after a game you watched once the rest of the week has been simulated. The finished week can be played again from a button beside Advance. A setting turns the automatic playback off, and Skip or Close end it at any point.
+
+- **What it plays back.** Each result records when its scores came (`scoringTimeline`, season.js), stored as flat triples of elapsed game seconds, side and points, with a try folded into the touchdown before it, so a lone two is always a safety. Overtime games also record how long they ran. The ticker decides nothing, because the results are already in the books. Two seasons of a 32-club pro league with injuries and an 8-club fantasy league, with the new fields taken off every result, hash the same as the previous release. Every timeline adds up to its final: 1,853 of 1,853 league games, and a test holds it over 240 more, overtime and playoffs among them.
+- **What it costs.** About 85 bytes a game before packing and 23 to 27 after: +6,350 bytes (3.2%) on a packed 32-club save and +1,498 (1.5%) on an 8-club one. The cost does not grow with a dynasty, because no past season keeps its week-by-week results.
+- **The clock.** Overtime runs on at the same rate, so a game that went long finishes last. A score on a period's boundary belongs to the period that is ending: a field goal as regulation expires reads "4th 0:00", not "OT 10:00".
+- **The feed.** The latest scores sit above the boards, three on a phone and five on a wider screen, at a fixed height so the boards never move. They are written as a ticker writes them ("SEA TD, takes the lead · SEA 10–6 BAL") because a line has to fit across a phone. At 360 pixels the longer labels ("touchdown", "field goal") cut 23 lines in the first eight seconds of a sixteen-game week. On a phone the score's clock time is dropped from the line, since the clock at the top dates it well enough. The worst possible line (double overtime, four-letter abbreviations, a lead-taking safety) still ends in an ellipsis below 412 pixels. What a score did is called only when it moved the game: it ties it, takes the lead from behind, or goes ahead from a tie other than 0–0. The first score of a game puts a side ahead of nobody.
+- **Upsets, by the standings.** A final is marked an upset when both sides are four games in and the winner's record going into the week was at least 0.35 below the loser's. The badge states the records ("Upset · 3–6 over 7–2") and claims no odds. In the playoffs a record is the regular season's.
+- **Where it sits.** On a phone, sixteen boards run 1,300 pixels down, so the clock, the buttons and the feed come first, above the boards. A device that asks for reduced motion is shown the finals at once.
+
+**Why upsets are not judged by odds.** The first version judged upsets against the engine's own chance at kickoff, marking a winner given under 40%. Measured over 1,853 league games (six pro seasons of 32 clubs and three fantasy leagues), that chance predicts the winner worse than a coin: a log-loss of 0.6954 against 0.6931 for a flat 50%. When it gave the home side 0.61 on average (605 games), the home side won 0.53 of them.
+
+There are two causes, and only the first can be fixed.
+
+- **A stale home edge.** `winprob.js` adds 2.2 points of home edge, but 3,000 paired games (same seeds, home advantage on and off) measure the engine's at 1.24 ± 0.27. The 2.2 was fitted before the line's weight fell to 0.25, and the home edge is applied to line and coverage composites.
+- **Level leagues.** Drafted leagues are close to level. The spread of kickoff margins is about 2 points against a game-to-game spread of about 14.4, so even a refitted model barely beats the coin (best 0.6906).
+
+Records carry little more. Where the records differ by 0.35 or more after four games, the better record wins 57% of 211 pro games and 56% of 32 fantasy games. At that rule the badge fires 0.84 times a week in pro (108 weeks) and 0.26 in fantasy (53). So the badge marks a surprise by the table, not a long shot, and it says no more than that.
+
+Its limits:
+
+- Only the current week can be played back, and only a week simulated with this release. Earlier weeks recorded no timeline, and the records-going-in rule is only correct for the week in progress.
+- Weeks passed by Simulate ahead are not played back.
+- The kickoff probability is still wrong where it shows: the live game's chart opens with the home side overrated by about a point of margin. That is recorded here, not fixed.
+- The engine kicks the try after a touchdown that wins in overtime. In real football the touchdown ends the game (a Pittsburgh win went 41–37 where the rules make it 40–37). That is also recorded here, not fixed, because fixing it moves results.
+
 ### The running back was underpriced, and what it took to fix it
 
 `TRUE_LEVERAGE` was re-measured at the same 10,000 games a reading the last

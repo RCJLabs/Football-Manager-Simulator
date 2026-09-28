@@ -8,6 +8,7 @@ import { wpChart, wpLabel, driveChart, statLeaders } from '../charts.js';
 import { conditionsLine } from '../../engine/weather.js';
 import { fieldSvg, latestPlay, naturalSeconds } from '../field.js';
 import { buildRecap, recapTop, reelCard, turnsCard, mountRecap } from '../recap.js';
+import { queueTicker } from '../ticker.js';
 
 export const selfRendering = true;
 
@@ -420,6 +421,8 @@ export function view(root, params, ctx) {
         const wk = currentWeek(lg);
         const entry = wk.games[gm.entryIdx];
         if (entry && !entry.result) recordResult(lg, weekNumber(lg), entry, g, { keepLog: true });
+        // The rest of the week is played now; the hub plays it back.
+        if (s.prefs.ticker !== false) queueTicker(`${lg.season}:${lg.phase}:${weekNumber(lg)}`);
         simulateWeekAi(lg, ctx.byId);
       }
       s.game = null;

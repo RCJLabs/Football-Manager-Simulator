@@ -602,6 +602,47 @@ try {
   await page.waitForSelector('#play');
   await page.click('#simWeek');
   await page.waitForSelector('#advance');
+  // The week just simulated, played back on one clock: a board for every
+  // game, finals that are the results in the books, and out of the way when
+  // closed. With less motion asked for it opens on the finals.
+  const savedWeek = () => page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1') || '{"active":null}'); const raw = reg.active ? localStorage.getItem('gridiron-eras:slot:' + reg.active) : null; const lg = JSON.parse(__geDecode(raw)).league; return lg.schedule[lg.week - 1].games.filter((g) => !g.bye).map((g) => g.result.score); });
+  const boards = () => page.evaluate(() => ({
+    clock: document.querySelector('.tk-clock')?.textContent,
+    scores: [...document.querySelectorAll('.tk-game')].map((g) => [...g.querySelectorAll('.tk-s')].map((x) => Number(x.textContent))),
+    finals: document.querySelectorAll('.tk-game.final').length,
+    skip: !!document.querySelector('[data-tk="skip"]'),
+  }));
+  if (!(await page.$('[data-ticker]'))) errors.push('Sim week did not play the week back');
+  else {
+    await sleep(1500);
+    const mid = await boards();
+    if (/^(Kickoff|All final)$/.test(mid.clock || '')) errors.push(`the ticker clock reads "${mid.clock}" a second and a half in`);
+    await checkOverflow('the league ticker');
+    await shot('09a-ticker');
+    await page.click('[data-tk="skip"]');
+    await sleep(400);
+    const fin = await boards();
+    const booked = await savedWeek();
+    if (fin.clock !== 'All final') errors.push(`skipping the ticker left its clock at "${fin.clock}"`);
+    if (JSON.stringify(fin.scores) !== JSON.stringify(booked)) errors.push(`the ticker's finals ${JSON.stringify(fin.scores)} are not the results ${JSON.stringify(booked)}`);
+    if (fin.finals !== booked.length) errors.push(`${fin.finals} of ${booked.length} boards read final after a skip`);
+    await checkContrast('the league ticker');
+    await page.click('[data-tk="close"]');
+    await sleep(300);
+    if (await page.$('[data-ticker]')) errors.push('closing the ticker left it on the page');
+    const replay = await page.$('#replayWeek');
+    if (!replay) errors.push('a finished week has no way to play it back');
+    else {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await replay.click();
+      await page.waitForSelector('[data-ticker]');
+      const calm = await boards();
+      if (calm.clock !== 'All final' || calm.finals !== booked.length || calm.skip) errors.push(`with less motion asked for, the ticker did not open on the finals: ${JSON.stringify(calm)}`);
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      await page.click('[data-tk="close"]');
+      await sleep(300);
+    }
+  }
   await checkOverflow('season after week 1');
   await shot('09-week2');
 

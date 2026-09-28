@@ -21,6 +21,7 @@ import { RNG } from '../../engine/rng.js';
 import { scoutingReport, fmtCategory, ordinal } from '../../engine/teamstats.js';
 import { series, seriesLine } from '../../engine/archive.js';
 import { conditionsFor, describeWeather, weatherNote } from '../../engine/weather.js';
+import { tickerGames, tickerCard, mountTicker, queueTicker, tickerFor } from '../ticker.js';
 
 export function fmtPhase(league) {
   if (league.phase === 'draft') return league.draftType === 'auction' ? 'Auction in progress' : 'Draft in progress';
@@ -55,6 +56,16 @@ export function view(root, params, ctx) {
 
   const injuries = league.injuries || {};
   const hurtList = (ti) => ROSTER_SLOTS.map((s) => league.teams[ti].slots[s.id]).filter((id) => id && injuries[id]).map((id) => ({ p: ctx.byId.get(id), inj: injuries[id] }));
+
+  // The week just simulated, played back on one clock (ticker.js): queued by
+  // the buttons that play the week, and replayable beside Advance once every
+  // game in it has what the ticker plays back (a week from before it has not).
+  const tickKey = wk ? `${league.season}:${league.phase}:${weekNumber(league)}` : null;
+  const tickGames = wk ? tickerGames(league, wk.games, u) : [];
+  const ticking = tickKey && tickerFor(tickKey) && tickGames.length;
+  const tickerHtml = ticking ? tickerCard(`${roundName || `Week ${league.week}`}, as it happened`, tickGames) : '';
+  const canReplay = !ticking && complete && tickGames.length > 0 && tickGames.length === wk.games.filter((g) => !g.bye).length;
+  const replayBtn = canReplay ? html`<button type="button" class="btn" id="replayWeek">▶ Replay the ${playoffs ? 'round' : 'week'}</button>` : '';
 
   // ----- matchup card -----
   let matchupCard = '';
@@ -130,6 +141,7 @@ export function view(root, params, ctx) {
             ? html`<a class="btn primary lg" href="#/game">Resume game</a><button class="btn danger" id="abandon">Abandon game</button>`
             : html`<button class="btn primary lg" id="play">Play ${league.settings.coachMode ? '(coach mode)' : '(watch)'}</button><button class="btn" id="simMine">Sim my game</button>`}
         ${!complete ? html`<button class="btn" id="simWeek">Sim ${playoffs ? 'round' : 'week'}</button>` : ''}
+        ${replayBtn}
         ${complete ? html`<button class="btn primary lg" id="advance">${playoffs ? 'Next round' : league.week >= league.schedule.length ? 'Start playoffs' : `Advance to week ${league.week + 1}`}</button>` : ''}
       </div>
     </div>`;
@@ -140,6 +152,7 @@ export function view(root, params, ctx) {
       <p class="muted">${bye ? (playoffs ? 'You have a bye this round. Rest up.' : 'Your bye week. Injuries heal a week, the wire stays open, and the rest of the league plays on.') : playoffs ? 'You have been eliminated from the playoffs. Sim the remaining rounds to crown a champion.' : 'You are idle this week.'}</p>
       <div class="btn-group">
         ${!complete ? html`<button class="btn primary" id="simWeek">Sim ${playoffs ? 'round' : 'week'}</button>` : ''}
+        ${replayBtn}
         ${complete ? html`<button class="btn primary lg" id="advance">${playoffs ? 'Next round' : 'Advance'}</button>` : ''}
       </div>
     </div>`;
@@ -278,6 +291,7 @@ export function view(root, params, ctx) {
       <div><h1 style="margin:0">${league.name}</h1><span class="muted">${fmtPhase(league)}${pro ? ` · ${league.teams.length} teams` : ''}</span></div>
       <div class="row">${teamChip(me)} <b>${rec(me)}</b></div>
     </div>
+    ${raw(tickerHtml)}
     ${matchupCard}
     <div class="grid grid-2" style="margin-top:1rem">
       <div class="stack">
@@ -318,7 +332,10 @@ export function view(root, params, ctx) {
     ctx.update((s) => { s.game = { weekNo: weekNumber(league), phase: league.phase, entryIdx: myGameIdx, g }; }, { silent: true });
     ctx.navigate('#/game');
   });
+  const wantTicker = () => { if (ctx.getState().prefs.ticker !== false && tickKey) queueTicker(tickKey); };
+  el.querySelector('#replayWeek')?.addEventListener('click', () => { queueTicker(tickKey); ctx.notify(); });
   el.querySelector('#simMine')?.addEventListener('click', () => {
+    wantTicker();
     ctx.update((s) => {
       const lg = s.league;
       const w = currentWeek(lg);
@@ -330,6 +347,7 @@ export function view(root, params, ctx) {
     });
   });
   el.querySelector('#simWeek')?.addEventListener('click', () => {
+    wantTicker();
     ctx.update((s) => { simulateWeekAi(s.league, ctx.byId, { includeUser: true }); s.game = null; });
   });
   el.querySelector('#advance')?.addEventListener('click', () => {
@@ -368,6 +386,8 @@ export function view(root, params, ctx) {
     ctx.update((s) => { newSeasonSameRosters(s.league, ctx.byId); s.game = null; });
     toast(`Season ${league.season + 1} begins`);
   });
+  const stopTicker = ticking ? mountTicker(root, tickGames, { key: tickKey, playoff: playoffs, onClose: () => ctx.notify() }) : null;
+  return () => stopTicker?.();
 }
 
 function seasonLeaders(league, byId) {
