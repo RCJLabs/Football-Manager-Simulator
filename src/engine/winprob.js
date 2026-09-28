@@ -4,8 +4,13 @@
 // roster still expects to add, with a spread that shrinks with the time left.
 //
 // Fit on synthetic games with penalties on: final margins spread about 12.5
-// points (standard deviation) between equal rosters, a point of team power is
-// worth about 3.3 points of margin, and the home edge is about a point.
+// points (standard deviation) between equal rosters, and the home edge is
+// about a point. A point of team power was worth 3.3 points of margin there,
+// between synthetic sides whose power is their whole difference; between
+// league rosters, where power is a leverage-weighted average that misses
+// some of what separates two clubs, it is worth 2.57 ± 0.11 over 6,870
+// league games, and 3.3 made the chance at kickoff overconfident (a 74%
+// favourite won 69%, a 16% underdog 24%). `npm run game-odds` measures it.
 // The edge was fitted at 2.2 and went stale when the line's weight fell (the
 // engine's home edge sits on line and coverage composites); re-measured at
 // 1.04 ± 0.14 over 12,000 paired games (`npm run home-edge`, which the audit
@@ -17,8 +22,16 @@
 import { teamPower } from './ratings.js';
 
 export const MARGIN_SD = 12.5;
-export const POINTS_PER_POWER = 3.3;
+export const POINTS_PER_POWER = 2.6;
 export const HOME_EDGE_POINTS = 1.1;
+/**
+ * How far a league game's final margin lands from what power and home say,
+ * as a standard deviation: 13.35 over the same 6,870 games. Wider than
+ * `MARGIN_SD`, which is the spread between identical rosters, because power
+ * does not see everything that separates two real ones. The playoff odds
+ * draw every game they play forward from it (odds.js).
+ */
+export const GAME_SD = 13.4;
 const Q_LEN = 900;
 
 /** Standard normal CDF (Abramowitz-Stegun, good to 1e-7). */

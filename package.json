@@ -14,6 +14,7 @@
     "auction": "node scripts/auction-sim.mjs",
     "parity": "node scripts/parity.mjs",
     "home-edge": "node scripts/home-edge.mjs",
+    "game-odds": "node scripts/game-odds.mjs",
     "strategy": "node scripts/strategy-sim.mjs",
     "moves": "node scripts/moves-sim.mjs",
     "injuries": "node scripts/injury-sim.mjs",

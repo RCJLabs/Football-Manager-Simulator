@@ -3,6 +3,8 @@ import { currentWeek, userTeamIndex, userGameThisWeek, simulateWeekAi, weekCompl
 import { ROSTER_SLOTS } from '../../data/positions.js';
 import { fmtWeeks, IR_MIN_WEEKS, irList } from '../../engine/injuries.js';
 import { clinchMarkers, markerLetter, MARKER_LEGEND } from '../../engine/clinch.js';
+import { refreshOdds, oddsKey, oddsPoints, ODDS_RUNS } from '../../engine/odds.js';
+import { oddsLine, raceChart, raceMetrics, fmtShare } from '../race.js';
 import { makeGameplan } from '../../engine/gm.js';
 import { targetAvailable, describeRun, TARGET_LABELS, TARGETS } from '../../engine/autosim.js';
 import { simulateWithProgress } from '../simulate.js';
@@ -33,6 +35,9 @@ export function fmtPhase(league) {
 const rec = (t) => `${t.record.w}-${t.record.l}${t.record.t ? `-${t.record.t}` : ''}`;
 const recOf = (r) => `${r.w}-${r.l}${r.t ? `-${r.t}` : ''}`;
 
+// Which chance the race chart is showing, kept while the app is open.
+const raceUi = { metric: null };
+
 export function view(root, params, ctx) {
   const state = ctx.getState();
   const league = state.league;
@@ -48,6 +53,13 @@ export function view(root, params, ctx) {
   const liveGame = state.game && state.game.phase === league.phase && state.game.weekNo === weekNumber(league) ? state.game : null;
   if (state.game && !liveGame) ctx.update((s) => { s.game = null; }, { silent: true });
   const complete = weekComplete(league);
+  // The odds entering this week or round, read once and kept for the race
+  // (odds.js). A week already under way keeps the reading taken before it;
+  // a finished one is never read, because it would count its own results.
+  if (!complete && (league.phase === 'season' || league.phase === 'playoffs')) {
+    const have = oddsPoints(league).find((pt) => pt.key === oddsKey(league));
+    if (!have || have.runs < ODDS_RUNS) ctx.update((s) => { refreshOdds(s.league, ctx.byId); }, { silent: true });
+  }
   const power = powerRankings(league, ctx.byId);
   const playoffs = league.phase === 'playoffs';
   const roundName = playoffs ? wk.name : null;
@@ -174,6 +186,27 @@ export function view(root, params, ctx) {
   const mark = (idx) => { const m = markerLetter(marks[idx]); return m ? `<span class="clinch ${m}" title="${MARKER_LEGEND[m]}">${m}</span>` : ''; };
   const usedMarks = [...new Set(Object.values(marks).map(markerLetter).filter(Boolean))].sort();
   const legend = usedMarks.length ? `<small class="muted" style="display:block;margin-top:.4rem">${usedMarks.map((m) => `<b>${m}</b> ${MARKER_LEGEND[m]}`).join(' · ')}</small>` : '';
+  // The chances beside the table: of making the playoffs during the season,
+  // of the title once they have started. Gone when the season is over.
+  const oddsNow = league.phase === 'season' || league.phase === 'playoffs' ? oddsPoints(league).find((pt) => pt.key === oddsKey(league)) : null;
+  const inPlayoffs = oddsNow && oddsNow.key.startsWith('p');
+  const oddsHead = oddsNow ? `<th class="num" title="${inPlayoffs ? 'Chance of winning the title' : 'Chance of making the playoffs'}">${inPlayoffs ? 'Title' : 'PO%'}</th>` : '';
+  const oddsCell = (idx) => {
+    if (!oddsNow) return '';
+    if (inPlayoffs) return `<td class="num odds">${league.playoffs.pools.some((p) => p.alive.includes(idx)) ? fmtShare(oddsNow.title[idx]) : '—'}</td>`;
+    return `<td class="num odds">${fmtShare(oddsNow.playoff[idx], { sure: marks[idx]?.playoff, gone: marks[idx]?.eliminated })}</td>`;
+  };
+  // The race: the human's chances, and how they and the rivals' have moved.
+  const metrics = raceMetrics(league);
+  const metric = metrics.includes(raceUi.metric) ? raceUi.metric : inPlayoffs && metrics.includes('title') ? 'title' : metrics[0];
+  const line = oddsLine(league, u, marks);
+  const raceCard = line || metrics.length ? html`<div class="card tight" id="race-card">
+    <h3>The race</h3>
+    ${line ? html`<p class="odds-line">${raw(line)}</p>` : ''}
+    ${metrics.length > 1 ? html`<div class="tabs" role="group" aria-label="Chart">${raw(metrics.map((mm) => `<button type="button" class="tab${mm === metric ? ' active' : ''}" data-race="${mm}" aria-pressed="${mm === metric}">${mm === 'title' ? 'Title' : 'Playoffs'}</button>`).join(''))}</div>` : ''}
+    <div id="race-chart">${raw(metric ? raceChart(league, u, metric) : '')}</div>
+    <small class="muted" style="display:block;margin-top:.3rem">The rest of the season played ${ODDS_RUNS.toLocaleString('en-US')} times, through the tiebreakers and the bracket, with every club as strong as it is now. Trades and injuries still to come are not in it.</small>
+  </div>` : '';
   if (pro) {
     const table = proStandings(league);
     standingsCard = table.map((conf, ci) => {
@@ -181,8 +214,8 @@ export function view(root, params, ctx) {
         <div class="division">
           <div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;margin:.5rem 0 .2rem">${conf.name} ${d.name}</div>
           <div class="table-wrap"><table class="standings">
-            <thead><tr><th>Team</th><th class="num">W-L</th><th class="num hide-sm">Div</th><th class="num hide-sm">Conf</th><th class="num">Diff</th></tr></thead>
-            <tbody>${d.rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${mark(r.idx)}${teamChip(r.team, { responsive: true }).__raw}${i === 0 && r.gp && !marks[r.idx]?.division ? ' <span class="badge" title="leads the division">1st</span>' : ''}</td><td class="num">${recOf(r)}</td><td class="num hide-sm">${recOf(r.divRec)}</td><td class="num hide-sm">${recOf(r.confRec)}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join('')}</tbody>
+            <thead><tr><th>Team</th><th class="num">W-L</th><th class="num hide-sm">Div</th><th class="num hide-sm">Conf</th><th class="num">Diff</th>${oddsHead}</tr></thead>
+            <tbody>${d.rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${mark(r.idx)}${teamChip(r.team, { responsive: true }).__raw}${i === 0 && r.gp && !marks[r.idx]?.division ? ' <span class="badge" title="leads the division">1st</span>' : ''}</td><td class="num">${recOf(r)}</td><td class="num hide-sm">${recOf(r.divRec)}</td><td class="num hide-sm">${recOf(r.confRec)}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td>${oddsCell(r.idx)}</tr>`).join('')}</tbody>
           </table></div>
         </div>`).join('');
       const seeds = conf.seeds.map((idx, i) => `<span class="need ${idx === u ? 'open' : ''}">${i + 1}. ${league.teams[idx].abbr}${i < 4 ? '' : ' <small>wc</small>'}</span>`).join('');
@@ -197,8 +230,8 @@ export function view(root, params, ctx) {
     standingsCard = html`<div class="card tight">
       <h3>Standings</h3>
       <div class="table-wrap"><table class="standings">
-        <thead><tr><th>#</th><th>Team</th><th class="num">W</th><th class="num">L</th><th class="num hide-sm">T</th><th class="num hide-sm">PCT</th><th class="num hide-sm">PF</th><th class="num hide-sm">PA</th><th class="num">Diff</th></tr></thead>
-        <tbody>${raw(rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${i + 1}</td><td>${mark(r.idx)}${teamChip(r.team).__raw}</td><td class="num">${r.w}</td><td class="num">${r.l}</td><td class="num hide-sm">${r.t}</td><td class="num hide-sm">${r.gp ? r.pct.toFixed(3).replace(/^0/, '') : '—'}</td><td class="num hide-sm">${r.pf}</td><td class="num hide-sm">${r.pa}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join(''))}</tbody>
+        <thead><tr><th>#</th><th>Team</th><th class="num">W</th><th class="num">L</th><th class="num hide-sm">T</th><th class="num hide-sm">PCT</th><th class="num hide-sm">PF</th><th class="num hide-sm">PA</th><th class="num">Diff</th>${raw(oddsHead)}</tr></thead>
+        <tbody>${raw(rows.map((r, i) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${i + 1}</td><td>${mark(r.idx)}${teamChip(r.team).__raw}</td><td class="num">${r.w}</td><td class="num">${r.l}</td><td class="num hide-sm">${r.t}</td><td class="num hide-sm">${r.gp ? r.pct.toFixed(3).replace(/^0/, '') : '—'}</td><td class="num hide-sm">${r.pf}</td><td class="num hide-sm">${r.pa}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td>${oddsCell(r.idx)}</tr>`).join(''))}</tbody>
       </table></div>
       ${raw(legend)}
     </div>`;
@@ -295,6 +328,7 @@ export function view(root, params, ctx) {
     ${matchupCard}
     <div class="grid grid-2" style="margin-top:1rem">
       <div class="stack">
+        ${raceCard}
         ${bracketCard}
         ${movesCard}
         ${injuryCard}
@@ -326,6 +360,12 @@ export function view(root, params, ctx) {
   el.addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-team]');
     if (tr) ctx.navigate(`#/team/${tr.dataset.team}`);
+    const tab = e.target.closest('[data-race]');
+    if (tab) {
+      raceUi.metric = tab.dataset.race;
+      el.querySelector('#race-chart').innerHTML = raceChart(league, u, raceUi.metric);
+      el.querySelectorAll('[data-race]').forEach((b) => { const on = b.dataset.race === raceUi.metric; b.classList.toggle('active', on); b.setAttribute('aria-pressed', on); });
+    }
   });
   el.querySelector('#play')?.addEventListener('click', () => {
     const g = createGame(teamForGame(league, myGame.home, ctx.byId), teamForGame(league, myGame.away, ctx.byId), gameOptions(league, myGame, ctx.byId));

@@ -355,6 +355,44 @@ User games keep the full log and every player line. Playoff games keep player li
 
 At season start every position group is ordered by overall. Slots fill in the order players were bought, so an auction could otherwise leave a 92 back at RB2 behind a 75. AI clubs are re-sorted each season; the user's club only the first time.
 
+### Playoff odds (`odds.js`, `ui/race.js`)
+
+The hub leads with a club's chances: "Playoffs 64% ▲6 · Division 22% · Title 5%", a race chart of how they and the rivals' have moved week by week, and a chance column in the standings. The rest of the season is played 1,000 times from where the league stands. Each run goes through the league's own tiebreakers and seeding, then the bracket, byes, reseeding and a neutral-site final.
+
+**A game's result.** Each remaining game's margin is drawn around its prior: the power gap times `POINTS_PER_POWER`, plus the home edge. The spread about the prior is `GAME_SD`. Both were fitted on league games, before each of which both sides' power was read as they took the field, injured men out (`npm run game-odds`; 6,870 games from pro and fantasy leagues in the first fit):
+
+- A power point is worth 2.57 ± 0.11 points of margin between league rosters, against 3.3 between synthetic ones. The live chart's prior now uses it too (see **Live game presentation**).
+- A league game lands 13.4 points from its prior, as a standard deviation (13.35 over those games). That is wider than the 12.5 between identical rosters, because power does not see everything.
+- 0.45% of games end level, and a run ties one at that rate.
+- A club's power for each remaining week leaves out the men the injury ledger has out that week. Nothing else about the future is modelled: trades, claims, new injuries, a benched starter.
+
+**Honest, measured.** Readings at five points of 20 pro seasons and 40 fantasy seasons, set against what then happened:
+
+| predicted (pro, playoffs) | 6% | 18% | 33% | 50% | 68% | 83% | 94% |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| happened | 7% | 20% | 35% | 47% | 67% | 83% | 90% |
+
+- Division and title odds are as close wherever a band holds more than a few dozen readings.
+- Against the flat rate (44% of pro clubs make the playoffs), the Brier skill of the playoff odds is 0.11 before a game is played, 0.44 at halfway and 0.81 entering the last week.
+- The low preseason figure is the league being even, not the model being blind: a season's table is about half dice (see **How even is the league, really**).
+- Fantasy leagues read the same way: 0.04, 0.37 and 0.77.
+
+**The tiebreakers are a copy, and a test holds it to the real ones.** `makeComparator` reads `league.results` afresh for every tied comparison, and a thousand finishes through it took a third of a second at midseason on a desktop. `odds.js` keeps the season as head-to-head tables and runs the same tests in the same order with the same arithmetic. The member lists start in club order before sorting, as the real ones do, because a sort only agrees with another sort from the same starting order. `tests/odds.test.js` seeds 300 random finishes both ways (a quarter of them full of tied records, to reach the deep tiebreakers), and 1,600 more agreed while it was built. A reading then takes about 45 ms at week 1 and 30 ms at midseason on the same desktop.
+
+**Common random numbers.** Every game's draw in every run is keyed by the run and the game, not taken in turn from a stream. Run 417 plays week 12's game between two clubs off the same number whichever week the odds are read in. So from one week to the next the race moves because of results and injuries, not because the dice were rolled again: read fresh each week, 1,000 runs wobble about a point and a half on their own. Draws come from a table of 4,096 normal quantiles, so a draw is a lookup rather than a logarithm, a root and a cosine.
+
+**When it is read.** A reading is taken entering each week and each playoff round, and kept on the league for the season (`league.odds.points`, shares in thousandths, about 8 KB of JSON for a pro season and its playoffs).
+
+- The hub takes it the first time it opens on a week that has not finished. A finished week is never read, because the reading would count its own results.
+- Simulating ahead takes a quick reading (250 runs) before each week it plays, for the chart. The hub reads the week the run stops on again in full. A pro season simulated with its readings takes 2.67 s on a desktop against 2.36 s without.
+- The draws never touch the league's own random stream, so no result moves.
+
+**Limits.**
+
+- Every club is taken to stay as strong as it is now. A club that trades for a quarterback, or loses one, moves when it happens and not before.
+- A chance is never printed as 0% or 100% unless the clinch markers say so: a thousand runs can miss a small chance without it being none.
+- The title odds carry little skill before the playoffs (0.03 to 0.11 against the flat rate). A 3% club is a 3% club.
+
 ## Money in the pro league (`cap.js`)
 
 The fantasy league has had an economy since the auction shipped. The pro league
@@ -3581,7 +3619,9 @@ The results did not move. The released engine against this one, each in a module
 
 ## Live game presentation (`winprob.js`, `ui/charts.js`)
 
-Every step of a game leaves a win probability on the event it produced, computed once the state has settled (possession changes included), so a saved log carries the whole curve. The model is a normal one fitted to this simulation rather than the real league: the final margin is the current margin, plus what the possession in hand is worth (expected points from field position, down and distance), plus what the stronger roster and the home crowd still expect to add over the time left, with a spread that shrinks with the clock. Fitted on synthetic games with penalties on: final margins spread about 12.5 points between equal rosters, a point of team power is worth about 3.3 points of margin (measured by moving a synthetic roster's mean rating, and confirmed at 3.25 by regressing differential on power across six drafted leagues), and the home edge is about a point (1.1: it was fitted at 2.2 and went stale when the line's weight fell, and was re-measured at 1.04 ± 0.14 over 12,000 paired games; see **The rest of the week**). The prior is only as good as `teamPower`, which is why that was reweighted — see below. A calibration test bins predictions and checks the home side really won about that often in each bin.
+Every step of a game leaves a win probability on the event it produced, computed once the state has settled (possession changes included), so a saved log carries the whole curve. The model is a normal one fitted to this simulation rather than the real league: the final margin is the current margin, plus what the possession in hand is worth (expected points from field position, down and distance), plus what the stronger roster and the home crowd still expect to add over the time left, with a spread that shrinks with the clock. Fitted on synthetic games with penalties on: final margins spread about 12.5 points between equal rosters, a point of team power was worth 3.3 points of margin between synthetic rosters, whose power is their whole difference (measured by moving a synthetic roster's mean rating, and once confirmed at 3.25 by regressing differential on power across six drafted leagues), and the home edge is about a point (1.1: it was fitted at 2.2 and went stale when the line's weight fell, and was re-measured at 1.04 ± 0.14 over 12,000 paired games; see **The rest of the week**). The prior is only as good as `teamPower`, which is why that was reweighted — see below. A calibration test bins predictions and checks the home side really won about that often in each bin.
+
+Between league rosters a power point is worth less than between synthetic ones, because there it is a leverage-weighted average that misses some of what separates two clubs. Measured for the playoff odds (see **Playoff odds**, under League), league games put it at 2.57 ± 0.11 points, and the prior uses 2.6 points a power point. At 3.3 the chance at kickoff was overconfident in league play: a 74% favourite won 69% of the time and a 16% underdog 24%. With 2.6 the same games come out 74→76 and 17→21. Only the chart moves with it. The prior feeds nothing but the win probability stamped on the log, so no play and no score changed, and the simulation fingerprint moved for that reason alone (with 3.3 put back it reads as before).
 
 The live screen shows the current probability in the scoreboard and a filled band over the game with quarter markers, the home side's colour above the 50% line and the away side's below; a drive chart (one row per drive on a 100-yard field, scoring drives in full colour) folds out beneath it. When the game ends a story card gives the result, the three plays that moved the probability most, each side's stars from the box score, and the injuries. Box scores of games that kept their log (your games) show the same charts and story. Charts are inline SVG scaled to the card, so they are as legible on a phone as on a desktop. The story card has since become the recap, with a highlight reel (see *The recap after the final whistle*).
 

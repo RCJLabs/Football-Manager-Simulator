@@ -1283,7 +1283,10 @@ try {
   const fromCode = await page.evaluate(() => (() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; return lg ? { n: reg.slots.length, shared: !!lg.shared, week: lg.week } : { n: reg.slots.length }; })());
   if (fromCode.n !== 3 || !fromCode.shared || fromCode.week !== 1) errors.push(`league from code: ${JSON.stringify(fromCode)}`);
 
-  // The snake draft is still an option and must still work.
+  // The snake draft is still an option and must still work. The hub keeps a
+  // reading of the playoff odds for the week it opens on, so opening one
+  // leaves a save pending; cleared under it, the reload writes it all back.
+  await settleSave();
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.goto(`http://localhost:${port}/#/new`);
@@ -1359,6 +1362,7 @@ try {
   await checkOverflow('snake season');
 
   // Pro league: 32 teams, divisions, a 17-game slate.
+  await settleSave();
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.goto(`http://localhost:${port}/#/new`);
@@ -2188,6 +2192,56 @@ try {
         if (after.marks) errors.push('the kickoff marks outlived the kickoff');
       }
     }
+  }
+
+  // The race: the hub's playoff odds in the middle of a pro season, the chart
+  // of how they moved, and a chance beside every club in the standings. The
+  // league is simulated to halfway in Node, which leaves a quick reading for
+  // every week; the hub has to read the week it opens on again in full.
+  {
+    const { PLAYERS, PLAYERS_BY_ID } = await import(`${R}/src/data/db.js`);
+    const { RNG } = await import(`${R}/src/engine/rng.js`);
+    const { createLeague, startSeason, registerPlayers } = await import(`${R}/src/engine/season.js`);
+    const { autoDraftAll } = await import(`${R}/src/engine/draft.js`);
+    const { simulateAhead } = await import(`${R}/src/engine/autosim.js`);
+    const { leaguePool, leagueIndex } = await import(`${R}/src/engine/rookies.js`);
+    const { applyCareers, careerIndex } = await import(`${R}/src/engine/careers.js`);
+    registerPlayers(PLAYERS_BY_ID);
+    const lg = createLeague({ name: 'Smoke Race', mode: 'pro', numTeams: 32, franchise: 3, seed: 77, draftType: 'snake', user: { name: 'Me', abbr: 'ME', color: '#fff' } });
+    autoDraftAll(lg, lg.draft, PLAYERS, new RNG(77));
+    startSeason(lg, PLAYERS_BY_ID);
+    simulateAhead(lg, careerIndex(lg, leagueIndex(lg, PLAYERS_BY_ID)), applyCareers(lg, leaguePool(lg, PLAYERS)), new RNG(78), 'halfway');
+    if ((lg.odds?.points || []).length < 5) errors.push(`simulating to halfway kept ${(lg.odds?.points || []).length} readings`);
+    await page.setViewportSize({ width: 360, height: 800 });
+    await settleSave();
+    await page.evaluate((league) => {
+      const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+      localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
+    }, JSON.parse(JSON.stringify(lg)));
+    await page.goto(`http://localhost:${port}/#/season`);
+    await page.reload();
+    const race = await page.waitForSelector('#race-card', { timeout: 8000 }).then(() => page.evaluate(() => {
+      const c = document.querySelector('#race-card');
+      return { line: c.querySelector('.odds-line')?.textContent.replace(/\s+/g, ' ').trim(), svg: c.querySelector('svg.race')?.getAttribute('aria-label'), tabs: [...c.querySelectorAll('[data-race]')].map((b) => b.textContent) };
+    }), () => null);
+    if (!race) errors.push('the hub has no race card in the middle of a pro season');
+    else {
+      if (!/^Playoffs (\d+%|<1%|>99%|In|Out)/.test(race.line || '')) errors.push(`the race card's line reads "${race.line}"`);
+      if (!/^Playoff chances by week: /.test(race.svg || '')) errors.push(`the race chart reads "${race.svg}"`);
+      if (race.tabs.join(',') !== 'Playoffs,Title') errors.push(`the race chart offers ${race.tabs.join(',')}`);
+      await checkOverflow('race card');
+      await page.evaluate(() => document.querySelector('#race-card').scrollIntoView());
+      await shot('18-race');
+      await page.click('#race-card [data-race="title"]');
+      await sleep(150);
+      const now = await page.$eval('#race-card svg.race', (s) => s.getAttribute('aria-label')).catch(() => null);
+      if (!/^Title chances by week: /.test(now || '')) errors.push(`switching the race chart to the title left it reading "${now}"`);
+    }
+    const table = await page.evaluate(() => ({ heads: [...document.querySelectorAll('table.standings th')].filter((t) => t.textContent === 'PO%').length, cells: document.querySelectorAll('table.standings td.odds').length }));
+    if (table.heads !== 8 || table.cells !== 32) errors.push(`the standings show ${table.heads} odds columns and ${table.cells} odds cells, expected 8 and 32`);
+    await settleSave();
+    const saved = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const l = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; const pts = l.odds?.points || []; return { n: pts.length, last: pts[pts.length - 1]?.runs, key: pts[pts.length - 1]?.key, week: l.week }; });
+    if (saved.last !== 1000 || saved.key !== `w${saved.week}`) errors.push(`the hub did not keep a full reading for the week it opened on: ${JSON.stringify(saved)}`);
   }
 
   // With no network the app launches from the copy of its page the service

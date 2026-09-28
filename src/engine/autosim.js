@@ -15,6 +15,7 @@ import { enterOffseason, aiKeepers, confirmKeepers, takeJob, closeFreeAgency } f
 import { makeOffers } from './jobs.js';
 import { autoCompleteAll } from './auction.js';
 import { autoDraftAll } from './draft.js';
+import { refreshOdds, QUICK_RUNS } from './odds.js';
 import { leaguePool, leagueIndex } from './rookies.js';
 import { applyCareers, careerIndex } from './careers.js';
 
@@ -106,7 +107,12 @@ export function* simulateSteps(league, byId, pool, rng, target, { maxWeeks = 200
     let guard = 0;
     while (!stop() && guard++ < maxWeeks) {
       if (league.phase !== 'season' && league.phase !== 'playoffs') break;
-      if (!weekComplete(league)) simulateWeekAi(league, byId, { includeUser: true });
+      if (!weekComplete(league)) {
+        // The odds entering the week, for the race chart: a quick reading,
+        // which the hub reads again in full for the week the run stops on.
+        refreshOdds(league, byId, { runs: QUICK_RUNS });
+        simulateWeekAi(league, byId, { includeUser: true });
+      }
       const moved = advanceWeekWithMoves(league, byId, pool, rng, advanceWeek, { picks: pickBroker(league, byId) });
       if (!moved) break;
       weeks++;
