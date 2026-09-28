@@ -783,7 +783,7 @@ export function resolvePass(g, rng, call, defCall) {
     const defSpot = 100 - intSpot; // from defense perspective after catch
     const endSpot = defSpot + ret;
     return { type: 'int', yards: 0, elapsed: rng.int(6, 10), clockStops: true, turnover: true, interceptor: picker, target,
-      intSpot, returnYds: ret, defTd: endSpot >= 100,
+      intSpot, returnYds: ret, defTd: endSpot >= 100, air: Math.round(air),
       text: `${shortName(qb)} ${callVerb(call)} intended for ${shortName(target)} is INTERCEPTED by ${shortName(picker)}${endSpot >= 100 ? ' and returned for a TOUCHDOWN!' : ret >= 15 ? ` and returned ${ret} yards.` : '.'}` };
   }
 
@@ -794,7 +794,7 @@ export function resolvePass(g, rng, call, defCall) {
     const txt = drop ? `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} — DROPPED.`
       : pd ? `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} broken up by ${shortName(prim)}.`
       : `${shortName(qb)} ${callVerb(call)} to ${shortName(target)} — incomplete${pressured ? ' under pressure' : defenceNote(defCall, call === 'pass_deep' ? 'deep' : 'pass', {})}.`;
-    return { type: 'incomplete', yards: 0, elapsed: rng.int(4, 7), clockStops: true, text: txt, target, pressured, defender: prim };
+    return { type: 'incomplete', yards: 0, elapsed: rng.int(4, 7), clockStops: true, text: txt, target, pressured, defender: prim, air: Math.round(air) };
   }
 
   // Completion. What it gains after the catch goes by where it was caught
@@ -832,13 +832,13 @@ export function resolvePass(g, rng, call, defCall) {
     if (rng.chance(CATCH_FUMBLE_LOST)) {
       const rec = pickTackler(g, defT, 'run', rng);
       if (rec) statFor(g.stats[defT], rec.id).def.fr++;
-      return { type: 'fumble', yards, elapsed: 7, clockStops: true, turnover: true, returnYds: fumbleReturn(rng, clamp(g.ballOn + yards, 1, 99)), target, tackler, pressured,
+      return { type: 'fumble', yards, elapsed: 7, clockStops: true, turnover: true, returnYds: fumbleReturn(rng, clamp(g.ballOn + yards, 1, 99)), target, tackler, pressured, air: Math.round(air),
         text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}. FUMBLE, recovered by ${rec ? shortName(rec) : g.teams[defT].abbr}!` };
     }
-    return { type: 'pass', yards, elapsed: 7, clockStops: false, target, tackler, pressured, defender: prim,
+    return { type: 'pass', yards, elapsed: 7, clockStops: false, target, tackler, pressured, defender: prim, air: Math.round(air),
       text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}. Fumble recovered by ${g.teams[off].abbr}.` };
   }
-  return { type: 'pass', yards, td, oob, elapsed: rng.int(6, 9), clockStops: td || oob, target, tackler, pressured, defender: prim,
+  return { type: 'pass', yards, td, oob, elapsed: rng.int(6, 9), clockStops: td || oob, target, tackler, pressured, defender: prim, air: Math.round(air),
     text: `${shortName(qb)} ${callVerb(call)} complete to ${shortName(target)} for ${yardsText(yards)}${defenceNote(defCall, call === 'screen' ? 'screen' : 'pass', { pressured, big: yards >= 15 })}${td ? ' — TOUCHDOWN!' : tackler ? ` (${shortName(tackler)}).` : '.'}` };
 }
 
@@ -853,8 +853,11 @@ export function resolveFieldGoal(g, rng) {
   if (k) { const s = statFor(g.stats[off], k.id); s.k.fga++; if (good) { s.k.fgm++; s.k.lng = Math.max(s.k.lng, dist); } }
   const name = k ? shortName(k) : 'Kicker';
   if (good) return { type: 'fg', yards: 0, elapsed: 5, clockStops: true, fgGood: true, text: `${name} ${dist}-yard field goal is GOOD.` };
-  return { type: 'fg', yards: 0, elapsed: 5, clockStops: true, fgGood: false, missDist: dist,
-    text: blocked ? `${name} ${dist}-yard field goal is BLOCKED!` : `${name} ${dist}-yard field goal is NO GOOD (${rng.chance(0.5) ? 'wide right' : dist > 50 ? 'short' : 'wide left'}).` };
+  // How it missed is named on the outcome as well as in the text, for the
+  // field view to draw. The one draw it takes is taken where it always was.
+  const miss = blocked ? 'blocked' : rng.chance(0.5) ? 'wide right' : dist > 50 ? 'short' : 'wide left';
+  return { type: 'fg', yards: 0, elapsed: 5, clockStops: true, fgGood: false, missDist: dist, miss,
+    text: blocked ? `${name} ${dist}-yard field goal is BLOCKED!` : `${name} ${dist}-yard field goal is NO GOOD (${miss}).` };
 }
 
 export function resolvePunt(g, rng) {
@@ -887,7 +890,7 @@ export function resolvePunt(g, rng) {
   if (pooch && landing < 100 && landing > 95 && rng.chance(0.3)) landing = 100;
   if (pooch && landing >= 100) {
     if (ps) { ps.p.yds += rem; ps.p.lng = Math.max(ps.p.lng, rem); }
-    return { type: 'punt', yards: 0, elapsed: 7, clockStops: true, puntTo: 20, text: `${name} punts ${rem} yards into the end zone. Touchback.` };
+    return { type: 'punt', yards: 0, elapsed: 7, clockStops: true, puntTo: 20, land: landing, text: `${name} punts ${rem} yards into the end zone. Touchback.` };
   }
   if (landing >= 100) {
     // Touchback unless placement skill pins it.
@@ -895,7 +898,7 @@ export function resolvePunt(g, rng) {
       landing = 100 - rng.int(1, 8);
     } else {
       if (ps) { ps.p.yds += rem; ps.p.lng = Math.max(ps.p.lng, rem); }
-      return { type: 'punt', yards: 0, elapsed: 7, clockStops: true, puntTo: 20, text: `${name} punts ${rem} yards into the end zone. Touchback.` };
+      return { type: 'punt', yards: 0, elapsed: 7, clockStops: true, puntTo: 20, land: landing, text: `${name} punts ${rem} yards into the end zone. Touchback.` };
     }
   }
   let netTo = 100 - landing; // from receiving team's perspective (their own yard line)
@@ -926,10 +929,12 @@ export function resolvePunt(g, rng) {
   if (ps) { ps.p.yds += dist; ps.p.lng = Math.max(ps.p.lng, dist); if (netTo <= 20) ps.p.in20++; }
   if (finalTo >= 100) {
     if (returner) statFor(g.stats[defT], returner.id).ret.td++;
-    return { type: 'punt', yards: 0, elapsed: 10, clockStops: true, puntReturnTd: true, returner, text: `${name} punts ${dist} yards. ${returner ? shortName(returner) : 'Returner'} takes it back for a TOUCHDOWN!` };
+    return { type: 'punt', yards: 0, elapsed: 10, clockStops: true, puntReturnTd: true, returner, land: landing, text: `${name} punts ${dist} yards. ${returner ? shortName(returner) : 'Returner'} takes it back for a TOUCHDOWN!` };
   }
   finalTo = clamp(finalTo, 1, 99);
   const text = `${name} punts ${dist} yards${fairCatch ? ', fair catch' : ret ? `, returned ${ret} yards` : ''}${netTo <= 20 && !ret ? ' — inside the 20' : ''}.${retFlag}`;
   // A punt takes 9.4 seconds of the real clock, the flight and the return.
-  return { type: 'punt', yards: 0, elapsed: fairCatch ? 7 : rng.int(9, 14), clockStops: true, puntTo: finalTo, returner: ret ? returner : null, flag: !!retFlag, text };
+  // `ran` is where a flagged return was stopped before the walk-back, in the
+  // kicking club's frame as `land` is.
+  return { type: 'punt', yards: 0, elapsed: fairCatch ? 7 : rng.int(9, 14), clockStops: true, puntTo: finalTo, returner: ret ? returner : null, flag: !!retFlag, land: landing, ...(retFlag ? { ran: 100 - (netTo + ret) } : {}), text };
 }

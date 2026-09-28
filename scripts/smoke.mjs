@@ -491,11 +491,65 @@ try {
     await sleep(20);
   }
   await checkOverflow('live game mid-drive');
+  // The field: both end zones, the play just run drawn on it with the ball
+  // where it finished and what it came to, in a field's proportions and inside
+  // the screen at 360px.
+  const field = await page.evaluate(() => {
+    const svg = document.querySelector('.field2d svg');
+    if (!svg) return null;
+    const b = svg.getBoundingClientRect();
+    return {
+      w: b.width, h: b.height, right: b.right, vw: document.documentElement.clientWidth,
+      zones: [...svg.querySelectorAll('text')].filter((t) => /^rotate/.test(t.getAttribute('transform') || '')).map((t) => t.textContent),
+      label: svg.querySelector('.plabel')?.textContent || null,
+      ball: !!svg.querySelector('.ballg'),
+    };
+  });
+  if (!field) errors.push('the live game has no field');
+  else {
+    if (Math.abs(field.h - (field.w * 53.33) / 120) > 2) errors.push(`the field is ${field.w}x${field.h}px, not a field's proportions`);
+    if (field.right > field.vw + 1) errors.push('the field runs off the screen at 360px');
+    if (field.zones.length !== 2) errors.push(`the field labels ${field.zones.length} end zones, not 2`);
+    if (!field.label || !field.ball) errors.push(`the field does not draw the play just run (label ${field.label}, ball ${field.ball})`);
+  }
   await shot('06-game');
   // `Sim to end` moved behind a disclosure on the watching controls — three
   // buttons you want occasionally and never by accident. It still stands on its
   // own in the coach-mode panels, so advance until the other club has the ball,
   // which is when the watching controls are up, and open it as a player would.
+  for (let i = 0; i < 60 && !(await page.$('.skipahead')); i++) {
+    const pat = await page.$('[data-pat="xp"]');
+    const off = await page.$('[data-off="pass_med"]');
+    const def = await page.$('[data-def="ai"]');
+    if (pat) await pat.click(); else if (off) await off.click(); else if (def) await def.click(); else break;
+    await sleep(20);
+  }
+  // A redraw that adds no play shows the last one as it finished rather than
+  // running it again: autoplay runs a play the moment it starts, and pausing
+  // it only redraws.
+  let redrawn = false;
+  if (await page.$('#auto')) {
+    await page.click('#auto');
+    const pause = await page.$('#auto');
+    if (pause && /Pause/.test(await pause.textContent())) {
+      const ran = await page.evaluate(() => document.querySelectorAll('.field2d animateMotion').length);
+      await pause.click();
+      const replayed = await page.evaluate(() => document.querySelectorAll('.field2d animateMotion').length);
+      if (!ran) errors.push('autoplay ran a play without drawing it in motion');
+      if (replayed) errors.push(`pausing autoplay ran the last play's drawing again (${replayed} moving parts)`);
+      redrawn = true;
+    }
+  }
+  if (!redrawn) console.log('note: autoplay stopped on its first play; the redraw check did not run');
+  // A device that asks for less motion is shown every play as it finished.
+  if (await page.$('#next')) {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.click('#next');
+    await sleep(50);
+    const moving = await page.evaluate(() => document.querySelectorAll('.field2d animate, .field2d animateMotion, .field2d set, .field2d animateTransform').length);
+    if (moving) errors.push(`with reduced motion asked for, the field still animates (${moving} animations)`);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+  } else console.log('note: no play to step with reduced motion; that check did not run');
   for (let i = 0; i < 60 && !(await page.$('.skipahead')); i++) {
     const pat = await page.$('[data-pat="xp"]');
     const off = await page.$('[data-off="pass_med"]');

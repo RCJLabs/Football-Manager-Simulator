@@ -1,4 +1,4 @@
-import { html, render, raw, textOn } from '../../util.js';
+import { html, render, raw } from '../../util.js';
 import { step, stepDrive, stepQuarter, simulateGame, decisionNeeded, spot, downText, callTimeout, timeoutLegal, takeClock, setTempo } from '../../engine/game.js';
 import { OFFENSE_CALLS, DEFENSE_CALLS, fgDistance, fgProbability, halfSecondsLeft, matchup } from '../../engine/playcall.js';
 import { fmtClock, fmtQuarter } from '../../engine/stats.js';
@@ -6,6 +6,7 @@ import { currentWeek, simulateWeekAi, recordResult, weekNumber, userTeamIndex } 
 import { teamChip, announce} from '../components.js';
 import { wpChart, wpLabel, driveChart, gameStory, statLeaders } from '../charts.js';
 import { conditionsLine } from '../../engine/weather.js';
+import { fieldSvg, latestPlay, naturalSeconds } from '../field.js';
 
 export const selfRendering = true;
 
@@ -131,18 +132,22 @@ export function paceDelay(base, delta, beat) {
 export const isBeat = (e) => !!e && ((e.scoring && e.type !== 'xp') || e.type === 'int' || e.type === 'fumble' || e.type === 'quarter');
 
 /**
- * The snap the field strip should draw: the most recent play in the log, which
- * is not always the most recent *event*.
+ * The play to announce: the most recent play in the log, which is not always
+ * the most recent *event*.
  *
  * A play that changes possession logs itself and then, inside the same step,
  * logs the new drive's header on top of it — so walking back past a drive
  * header (and the asides that can follow a play) is how you find the snap that
- * just happened. A kickoff, quarter break or extra point means the last snap is
- * over and the bar should clear, so the walk stops at anything else.
+ * just happened. A kickoff carries its spots like a snap and is announced like
+ * one; a quarter break or an extra point stops the walk.
  */
 const SKIP_BACK = new Set(['drive', 'injury', 'timeout', 'info']);
 // The last play announced, so a redraw that changes nothing says nothing.
 let lastSaid = null;
+// The play the field last animated, so a redraw that adds no play — a timeout,
+// the autoplay button, a trip to the depth chart and back — shows it as it
+// finished instead of running it again.
+let fieldShown = null;
 
 function lastSnap(log) {
   if (!Array.isArray(log)) return null;
@@ -165,6 +170,9 @@ export function view(root, params, ctx) {
   const coachDef = league.settings.coachDefense;
   let timer = null;
   let autoplay = false;
+  // How long autoplay will hold on the play about to be drawn, so the field
+  // finishes drawing it before the next snap replaces it.
+  let fieldBudget = null;
   // Coaching a game means running its clock: `wantsTimeout` stops spending this
   // club's timeouts and `g.tempo` starts being honoured. Every skip-ahead path
   // hands it back for its own duration, so a Sim to end is managed as it always
@@ -191,10 +199,13 @@ export function view(root, params, ctx) {
       // header behind it, and reaching further back would beat on the last one
       // again.
       const beat = g.log.slice(from).some(isBeat);
+      const wait = paceDelay(ctx.getState().prefs.autoplayMs, delta, beat);
       persist();
+      fieldBudget = wait;
       draw();
+      fieldBudget = null;
       if (!autoplay || g.final || decision()) { stopAuto(); draw(); return; }
-      timer = setTimeout(tick, paceDelay(ctx.getState().prefs.autoplayMs, delta, beat));
+      timer = setTimeout(tick, wait);
     };
     // The first play runs on the click rather than after a wait, so the button
     // answers straight away.
@@ -207,17 +218,7 @@ export function view(root, params, ctx) {
     const dec = decision();
     const off = g.possession;
     const [home, away] = g.teams;
-    const ballX = g.phase === 'play' ? (off === 0 ? g.ballOn : 100 - g.ballOn) : 50;
-    const fdX = g.phase === 'play' ? (off === 0 ? g.ballOn + g.toGo : 100 - g.ballOn - g.toGo) : null;
-    // Where this drive began, so the strip shows how far they have come rather
-    // than only where the ball is sitting.
-    const startX = g.drive && g.phase === 'play'
-      ? (off === 0 ? g.drive.startBallOn : 100 - g.drive.startBallOn) : null;
-    const driveFrom = startX != null ? Math.min(startX, ballX) : null;
-    const driveTo = startX != null ? Math.max(startX, ballX) : null;
-    // The play that just happened, in the same left-to-right frame the strip
-    // uses. `from` and `snapOff` come off the log entry because the ball has
-    // already moved (and on a turnover changed hands) by the time it is written.
+    const startX = g.drive && g.phase === 'play' ? g.drive.startBallOn : null;
     const ev = lastSnap(g.log);
     // A live game is the one screen where the thing worth knowing arrives on a
     // timer rather than on a tap, and it was silent. The play-by-play list is
@@ -226,32 +227,16 @@ export function view(root, params, ctx) {
     // same one-line channel a toast uses, once, and only while there is a game
     // still going on.
     if (ev && ev.text && !g.final && lastSaid !== ev.text) { lastSaid = ev.text; announce(ev.text); }
-    // Not `g.lastEvent`: a play that changes hands calls `changePossession` in
-    // the same step, and that logs the new drive's header on top of it. Punts,
-    // interceptions, fumbles, missed field goals and turnovers on downs all did
-    // that, so the bar for every one of them was overwritten before it drew.
-    // The phase is no authority either — a touchdown flips to `pat` and a made
-    // field goal to `kickoff` the moment they score.
-    const playable = ev && typeof ev.yards === 'number' && !g.final;
-    let play = null;
-    if (playable) {
-      const frame = (spotOn) => (ev.snapOff === 0 ? spotOn : 100 - spotOn);
-      const clamp100 = (n) => Math.max(0, Math.min(100, n));
-      const a = frame(clamp100(ev.from));
-      // Kicks carry their landing spot, because their `yards` is 0.
-      const b = frame(clamp100(ev.to != null ? ev.to : ev.from + ev.yards));
-      const kick = ev.type === 'punt' || ev.type === 'fg';
-      const turnover = ev.type === 'int' || ev.type === 'fumble'
-        || (ev.type === 'fg' && !ev.scoring) || /Turnover on downs/.test(ev.text || '');
-      play = {
-        from: Math.min(a, b), to: Math.max(a, b),
-        // Outcome, not club: a green team on a green field is invisible, and
-        // several of them are green. The drive band underneath still carries
-        // the colour, so identity is not lost.
-        kind: ev.scoring ? 'score' : turnover ? 'turn' : ev.type === 'penalty' ? 'flag'
-          : kick ? 'kick' : ev.yards < 0 ? 'loss' : 'gain',
-      };
-    }
+    // The field draws the latest play once, as it happens. Autoplay's hold on
+    // it caps how long the drawing takes, so it finishes before the next snap;
+    // a device that asks for less motion gets it as it finished.
+    const lp = latestPlay(g);
+    const fresh = !!lp && !(fieldShown && fieldShown.log === g.log && fieldShown.k === lp.k);
+    if (lp) fieldShown = { log: g.log, k: lp.k };
+    const calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const natural = lp ? naturalSeconds(lp.shape) : 0;
+    const seconds = fieldBudget != null ? Math.min(natural, Math.max(0.3, (fieldBudget / 1000) * 0.85)) : natural;
+    const field = fieldSvg(g, { animate: fresh && !calm, seconds });
     const dist = fgDistance(g.ballOn);
     const kicker = g.teams[off].comp.k;
     const fgP = Math.round(fgProbability(kicker, dist, g.weather) * 100);
@@ -373,17 +358,7 @@ export function view(root, params, ctx) {
         <div class="sb-team ${off === 1 && !g.final ? 'poss' : ''}"><span class="name">${teamChip(away, { responsive: true })}</span><span class="score">${g.score[1]}</span><span class="to">${'●'.repeat(g.timeouts[1])}${'○'.repeat(Math.max(0, 3 - g.timeouts[1]))}</span></div>
       </div>
       ${g.weather ? html`<p class="muted wxline">${conditionsLine(g.weather)}</p>` : ''}
-      <div class="fieldbar" aria-hidden="true">
-        <div class="ez left" style="background:${home.color};color:${textOn(home.color)}">${home.abbr}</div><div class="ez right" style="background:${away.color};color:${textOn(away.color)}">${away.abbr}</div>
-        ${raw([10, 20, 30, 40, 50, 60, 70, 80, 90].map((x) => `<div class="tick ${x === 50 ? 'half' : ''}" style="left:${6 + x * 0.88}%"></div>`).join(''))}
-        ${raw([20, 40, 50, 60, 80].map((x) => `<div class="yard" style="left:${6 + x * 0.88}%">${x > 50 ? 100 - x : x}</div>`).join(''))}
-        ${driveFrom != null && driveTo - driveFrom > 0.5
-          ? html`<div class="gained" style="left:${6 + driveFrom * 0.88}%;width:${(driveTo - driveFrom) * 0.88}%;background:${g.teams[off].color}"></div>` : ''}
-        ${play ? html`<div class="play ${play.kind}" style="left:${6 + play.from * 0.88}%;width:${Math.max(0.6, play.to - play.from) * 0.88}%"></div>` : ''}
-        ${fdX != null && fdX > 0 && fdX < 100 ? html`<div class="marker" style="left:${6 + fdX * 0.88}%"></div>` : ''}
-        ${g.phase === 'play' ? html`<div class="ball" style="left:${6 + ballX * 0.88}%"></div>` : ''}
-        ${g.phase === 'play' ? html`<div class="going ${off === 0 ? 'right' : 'left'}" style="left:${6 + ballX * 0.88}%">${off === 0 ? '▸' : '◂'}</div>` : ''}
-      </div>
+      <div class="field2d">${raw(field)}</div>
       ${g.phase === 'play' && g.drive ? html`<div class="drivenote muted">${g.teams[off].abbr} drive: ${g.drive.plays} play${g.drive.plays === 1 ? '' : 's'}, ${g.drive.yards >= 0 ? '' : '−'}${Math.abs(g.drive.yards)} yard${Math.abs(g.drive.yards) === 1 ? '' : 's'}${startX != null ? ` from ${spot(g, off, g.drive.startBallOn)}` : ''}</div>` : ''}
       ${story.length ? html`<div class="card tight" style="margin-bottom:.75rem"><h3>Game story</h3>${raw(story.map((s) => `<p style="margin:.3rem 0;font-size:.92rem">${s}</p>`).join(''))}</div>` : ''}
       <div class="card tight" style="margin-bottom:.75rem">

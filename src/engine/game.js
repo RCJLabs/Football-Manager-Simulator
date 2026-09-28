@@ -506,6 +506,12 @@ function doKickoff(g, rng) {
   const returner = pickReturner(recComp);
   const wantOnside = !g.freeKick && onsideKick(g, kicking);
   const plays = g.stats[kicking].team;
+  // Where the kick went, for the field view, in the kicking club's frame as a
+  // snap is in the snapping club's: kicked from `from`, came down at `land`
+  // (left off a touchback, whose landing nothing decides), finished at `to`.
+  // Read now: the flagged return below clears `freeKick` before it logs.
+  const kickFrom = g.freeKick ? 20 : 35;
+  const kick = (land, to, extra = {}) => ({ from: kickFrom, snapOff: kicking, ...(land == null ? {} : { land }), to: clamp(to, 0, 100), ...extra });
 
   if (wantOnside) {
     plays.plays++;
@@ -514,11 +520,11 @@ function doKickoff(g, rng) {
       g.possession = kicking;
       g.ballOn = at;
       tick(g, kicking, 4);
-      logEvent(g, { type: 'kickoff', text: `ONSIDE KICK recovered by ${g.teams[kicking].name} at ${spot(g, kicking, at)}!` });
+      logEvent(g, { type: 'kickoff', ...kick(at, at, { onside: true }), text: `ONSIDE KICK recovered by ${g.teams[kicking].name} at ${spot(g, kicking, at)}!` });
     } else {
       g.ballOn = 100 - (35 + rng.int(10, 15));
       tick(g, receiving, 4);
-      logEvent(g, { type: 'kickoff', text: `Onside kick fails. ${g.teams[receiving].name} take over at ${spot(g, receiving, g.ballOn)}.` });
+      logEvent(g, { type: 'kickoff', ...kick(100 - g.ballOn, 100 - g.ballOn, { onside: true }), text: `Onside kick fails. ${g.teams[receiving].name} take over at ${spot(g, receiving, g.ballOn)}.` });
     }
     g.phase = 'play';
     g.freeKick = false;
@@ -532,7 +538,7 @@ function doKickoff(g, rng) {
   const touchbackP = g.freeKick ? 0.15 : clamp(0.70 + (kpw - 82) * 0.012, 0.3, 0.9);
   if (rng.chance(touchbackP)) {
     g.ballOn = g.freeKick ? 35 : 25;
-    logEvent(g, { type: 'kickoff', text: `${g.teams[kicking].abbr} kickoff. Touchback.` });
+    logEvent(g, { type: 'kickoff', ...kick(null, 100 - g.ballOn), text: `${g.teams[kicking].abbr} kickoff. Touchback.` });
   } else {
     const retSkill = returner ? (returner.r.spd * 0.6 + (returner.r.elu ?? returner.r.rac ?? 75) * 0.4) : 80;
     let ret = Math.round(rng.normal(23 + (retSkill - 85) * 0.15, 7));
@@ -548,6 +554,7 @@ function doKickoff(g, rng) {
     tick(g, receiving, rng.int(5, 8));
     const retHold = g.penalties && ballOn < 100 ? rollReturnFoul(rng) : 0;
     if (retHold) {
+      const ran = ballOn;
       const back = Math.min(retHold, Math.max(0, ballOn - Math.max(1, catchAt)));
       ballOn = Math.max(1, ballOn - back);
       g.stats[receiving].team.penalties++;
@@ -555,21 +562,21 @@ function doKickoff(g, rng) {
       g.ballOn = ballOn;
       g.freeKick = false;
       g.phase = 'play';
-      logEvent(g, { type: 'kickoff', flag: true, text: `${g.teams[kicking].abbr} kickoff. ${returner ? shortName(returner) : 'Return'} brings it out, but FLAG: holding on ${g.teams[receiving].abbr} on the return, ${back} yards. ${g.teams[receiving].abbr} ball at ${spot(g, receiving, ballOn)}.` });
+      logEvent(g, { type: 'kickoff', ...kick(100 - catchAt, 100 - ballOn, { ran: 100 - ran }), flag: true, text: `${g.teams[kicking].abbr} kickoff. ${returner ? shortName(returner) : 'Return'} brings it out, but FLAG: holding on ${g.teams[receiving].abbr} on the return, ${back} yards. ${g.teams[receiving].abbr} ball at ${spot(g, receiving, ballOn)}.` });
       startDrive(g);
       return;
     }
     if (ballOn >= 100) {
       if (st) st.ret.td++;
       g.score[receiving] += 6;
-      logEvent(g, { type: 'td', scoring: true, text: `${g.teams[kicking].abbr} kickoff. ${shortName(returner)} returns it all the way for a TOUCHDOWN!` });
+      logEvent(g, { type: 'td', ...kick(100 - catchAt, 0), scoring: true, text: `${g.teams[kicking].abbr} kickoff. ${shortName(returner)} returns it all the way for a TOUCHDOWN!` });
       g.phase = 'pat';
       g.patTeam = receiving;
       g.freeKick = false;
       return;
     }
     g.ballOn = ballOn;
-    logEvent(g, { type: 'kickoff', text: `${g.teams[kicking].abbr} kickoff. ${returner ? shortName(returner) : 'Return'} to ${spot(g, receiving, ballOn)}.` });
+    logEvent(g, { type: 'kickoff', ...kick(100 - catchAt, 100 - ballOn), text: `${g.teams[kicking].abbr} kickoff. ${returner ? shortName(returner) : 'Return'} to ${spot(g, receiving, ballOn)}.` });
     maybeInjure(g, rng, { type: 'kickoff', returner, returnSide: receiving }, kicking, receiving);
   }
   g.freeKick = false;
@@ -615,7 +622,7 @@ function doPat(g, rng, choice) {
     }
     const good = rng.chance(clamp(p, 0.25, 0.7));
     if (good) g.score[team] += 2;
-    logEvent(g, { type: '2pt', scoring: good, text: `Two-point ${pass ? 'pass' : 'run'} is ${good ? 'GOOD' : 'no good'}. ${scoreLine(g)}` });
+    logEvent(g, { type: '2pt', call: pass ? 'pass_short' : 'run_in', scoring: good, text: `Two-point ${pass ? 'pass' : 'run'} is ${good ? 'GOOD' : 'no good'}. ${scoreLine(g)}` });
   } else {
     const k = comp.k;
     const kac = k ? k.r.kac : 75;
@@ -803,6 +810,19 @@ function applyOutcome(g, rng, o, sit) {
   // entry alone. The field strip draws the play itself, from here to
   // here-plus-yards, and needs both.
   const base = { type: o.type, call: o.call, defCall: o.defCall, yards: o.yards, from: sit.ballOn, snapOff: off, situation: prefix, text: o.text, flag: !!o.flag };
+  // What the field view draws a play from beyond its yards (ui/field.js): how
+  // far a throw went in the air, where a pass was picked off and how far it or
+  // a loose ball was run back, where a punt came down and where a flagged
+  // return was stopped, how a kick missed, whether the play went out of
+  // bounds — all in the snapping club's frame. Each is left off where it does
+  // not apply.
+  if (o.air != null) base.air = o.air;
+  if (o.type === 'int') { base.at = Math.round(o.intSpot * 10) / 10; base.ret = o.returnYds; }
+  if (o.type === 'fumble') base.ret = o.returnYds || 0;
+  if (o.land != null) base.land = o.land;
+  if (o.ran != null) base.ran = o.ran;
+  if (o.miss) base.miss = o.miss;
+  if (o.oob) base.oob = true;
 
   // Special outcomes first. Kicks are the one place `yards` does not describe
   // the ball's travel — a punt is logged at 0 and the flight lives in `puntTo`,

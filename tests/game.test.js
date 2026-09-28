@@ -191,16 +191,28 @@ test('serialized game can be resumed identically', () => {
 });
 
 test('every scrimmage play logs where it was snapped from and by whom', () => {
-  // The field strip draws the play as a bar, which means it needs the line of
-  // scrimmage and the frame to read it in. Neither is recoverable from the rest
-  // of the entry: `ballOn`/`off` are post-play on an ordinary snap, pre-flip on
-  // a turnover, and post-enforcement when a flag is tacked on.
+  // The field draws the play from the line of scrimmage, in the frame of the
+  // club that snapped it. Neither is recoverable from the rest of the entry:
+  // `ballOn`/`off` are post-play on an ordinary snap, pre-flip on a turnover,
+  // and post-enforcement when a flag is tacked on.
   const SCRIMMAGE = new Set(['run', 'pass', 'incomplete', 'sack', 'int', 'fumble', 'punt', 'fg', 'kneel', 'spike', 'penalty']);
   const KICK = new Set(['punt', 'fg']);
-  let drawn = 0, flags = 0, kicks = 0, ordinary = 0;
+  // A kickoff (and a kickoff run back for a score, logged as `td`) carries the
+  // same spots in the kicking club's frame, for the field to draw it.
+  const KICKOFF = new Set(['kickoff', 'td']);
+  let drawn = 0, flags = 0, kicks = 0, ordinary = 0, kickoffs = 0;
   for (let seed = 4000; seed < 4060; seed++) {
     const g = simulateGame(mk(seed));
     for (const e of g.log) {
+      if (KICKOFF.has(e.type)) {
+        kickoffs++;
+        assert.ok(e.from === 35 || e.from === 20, `kicked off from ${e.from}`);
+        assert.ok(e.to >= 0 && e.to <= 100, `a kickoff finished off the field at ${e.to}`);
+        // The kicking club: the other one has the ball after it, unless it
+        // was an onside kick the kickers came up with.
+        if (e.type === 'kickoff') assert.equal(e.snapOff, e.onside && /recovered by/.test(e.text) ? e.off : 1 - e.off, e.text);
+        continue;
+      }
       if (!SCRIMMAGE.has(e.type)) {
         assert.equal(e.from, undefined, `${e.type} should not claim a snap spot`);
         continue;
@@ -232,6 +244,7 @@ test('every scrimmage play logs where it was snapped from and by whom', () => {
   assert.ok(flags > 100, `only ${flags} penalties sampled`);
   assert.ok(kicks > 300, `only ${kicks} kicks sampled`);
   assert.ok(ordinary > 3000, `only ${ordinary} spot-checkable plays sampled`);
+  assert.ok(kickoffs > 500, `only ${kickoffs} kickoffs sampled`);
 });
 
 test('a coach can spend their own timeouts, and only at a legal moment', () => {
