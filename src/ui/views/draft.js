@@ -22,6 +22,7 @@ import { GM_PERSONALITIES } from '../../data/teams.js';
 import { ovrBadge, playerItem, playerModal, teamChip, toast, esc, withBusy } from '../components.js';
 import { scoutedOverall } from '../../engine/scouting.js';
 import { draftBoard, boardOverlay, snakeRows, scrollToPick, lastName } from '../draft-board.js';
+import { kickoffCard, wireKickoffCard } from '../kickoff-card.js';
 import { openPickTrade, pickOfferCard } from '../pick-trade.js';
 import { survivalOdds, usablePicks, nextPickFor, pickOfferCandidates, tryPickOffer, OFFER_BUDGET, executePickTrade } from '../../engine/draftpicks.js';
 
@@ -298,6 +299,7 @@ export function view(root, params, ctx) {
           <button class="btn primary lg" id="start">Start the season</button>
         </div>
       </div>
+      ${raw(kickoffCard(league, ctx, u))}
       ${ui.boardOpen ? raw(boardOverlay(draftBoard(league, snakeRows(league, draft), {
         labels: snakeRows(league, draft).map((_, i) => `R${i + 1}`), byId: ctx.byId, observer: u, order: draft.order,
       }), { title: 'The board', sub: `${draft.picks.length} picks` })) : ''}
@@ -307,6 +309,7 @@ export function view(root, params, ctx) {
       ctx.update((s) => { startSeason(s.league, ctx.byId); }, { silent: true });
       ctx.navigate('#/season');
     });
+    wireKickoffCard(root, ctx, drawComplete);
     const done = root.querySelector('#draft-view');
     done.querySelector('#openBoard')?.addEventListener('click', () => { ui.boardOpen = true; drawComplete(); });
     done.querySelector('#boardClose')?.addEventListener('click', () => { ui.boardOpen = false; drawComplete(); });

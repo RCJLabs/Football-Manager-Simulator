@@ -165,7 +165,13 @@ export function* simulateSteps(league, byId, pool, rng, target, { maxWeeks = 200
     else autoDraftAll(league, league.draft, pool, rng);
     decided.push(league.draftType === 'auction' ? 'the auction run for you' : 'the draft run for you');
     yield at('market');
-    startSeason(league, byId);
+    // Nobody was at the market's last screen to say which leftovers to take at
+    // kickoff, so the club takes them on the computer's rule, as it drafted.
+    const before = (league.transactions || []).length;
+    startSeason(league, byId, null, { staff: true });
+    const u = league.teams.findIndex((t) => t.isUser);
+    const took = (league.transactions || []).slice(before).filter((t) => t.team === u && t.type === 'fill' && t.drop).length;
+    if (took) decided.push(`${took} of the market's leftovers signed for you at kickoff`);
   }
   return { weeks, decided, from, to: { season: league.season, week: league.week, phase: league.phase }, pool, byId };
 }

@@ -11,6 +11,7 @@ import {
 } from '../../engine/auction.js';
 import { lotAdvice, lotNote, positionScarcity } from '../../engine/market.js';
 import { playerItem, playerModal, teamChip, toast, announce, ovrBadge, esc, posBadge, withBusy } from '../components.js';
+import { kickoffCard, wireKickoffCard } from '../kickoff-card.js';
 import { draftBoard, boardOverlay, auctionRows, scrollToPick, lastName } from '../draft-board.js';
 import { SPEEDS, DEFAULT_SPEED } from './draft.js';
 
@@ -414,6 +415,7 @@ function complete(root, ctx, league, u) {
       <p class="muted">You spent $${spent} of $${a.startBudgets ? a.startBudgets[u] : a.budget} on ${buys.length} players. $${a.budgets[u]} left on the table.${league.offseason ? ` Season ${league.season} is next.` : ''}</p>
       <button class="btn primary lg block" id="start">Start the season</button>
     </div>
+    ${raw(kickoffCard(league, ctx, u))}
     <div class="grid grid-3" style="margin-top:.75rem">
       <div class="card tight">
         <h3>What you bought</h3>
@@ -436,6 +438,7 @@ function complete(root, ctx, league, u) {
     ctx.update((s) => { startSeason(s.league, ctx.byId); }, { silent: true });
     ctx.navigate('#/season');
   });
+  wireKickoffCard(root, ctx, () => complete(root, ctx, league, u));
   root.querySelector('#auction-done').addEventListener('click', (e) => {
     const show = e.target.closest('[data-show]');
     if (show) playerModal(ctx.byId.get(show.dataset.show));

@@ -5,7 +5,7 @@ import { ROSTER_SLOTS } from '../src/data/positions.js';
 import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, registerPlayers, userTeamIndex } from '../src/engine/season.js';
 import { autoDraftAll } from '../src/engine/draft.js';
-import { simulateAhead } from '../src/engine/autosim.js';
+import { simulateAhead, simulateSteps } from '../src/engine/autosim.js';
 import { applyCareers, careerIndex } from '../src/engine/careers.js';
 import { leaguePool, leagueIndex } from '../src/engine/rookies.js';
 import { freeAgents, ownerMap, rostersValid } from '../src/engine/transactions.js';
@@ -132,8 +132,16 @@ test('a practice squad travels in a share code and the league keeps its shape', 
 
 test('a squad man ages and develops, because that is what he is down there for', () => {
   const lg = pro(46, 2);
+  // `league.dev` is the career ledger. The offseason starts a career for
+  // everyone a club holds then, the squad included, and steps it. A man sent
+  // down since the last one (the kickoff sends a rookie down when a veteran
+  // takes his place) has none yet, and gets his at the next, as every rookie
+  // does wherever he is.
+  const v = view(lg);
+  const run = simulateSteps(lg, v.byId, v.pool, new RNG(90), 'nextSeason');
+  let step = run.next();
+  while (!step.done && step.value.stage !== 'offseason') step = run.next();
   const onSquad = lg.teams.flatMap((t) => squadList(t));
   assert.ok(onSquad.length > 0, 'nobody is on a squad to check');
-  // `league.dev` is the career ledger, and only players a club holds are in it.
-  for (const id of onSquad) assert.ok(lg.dev?.[id], `${id} is on a squad but has no career running`);
+  for (const id of onSquad) assert.ok(lg.dev?.[id], `${id} went through an offseason on a squad with no career`);
 });

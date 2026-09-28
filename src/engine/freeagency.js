@@ -13,8 +13,10 @@
 // round only while it has a slot open, and once its open slots are no more
 // than the draft's rounds — measured, about three clubs in four when the
 // market opens — every man it signs here is a pick it does not make. Buy now,
-// draft less. A man nobody signs is not lost to the league: a slot still empty
-// after the draft is filled from whoever is left at kickoff, on the minimum.
+// draft less. A man nobody signs is not lost to the league straight away: a
+// slot still empty after the draft is filled from whoever is left at kickoff,
+// on the minimum. Whoever is still unsigned after that leaves the league,
+// bar a floor of journeymen kept for injuries (`drainAtKickoff`).
 //
 // Bids are sealed. Everyone puts in an offer, the market settles in one step,
 // and the best players settle first — which matters, because a club that wins
@@ -22,10 +24,13 @@
 // what makes the order interesting.
 
 import { ROSTER_SLOTS } from '../data/positions.js';
-import { overall } from './ratings.js';
+import { overall, TRUE_LEVERAGE } from './ratings.js';
 import { standings } from './season.js';
 import { freeAgents, ownerMap, lineupStrength, aiGreed } from './transactions.js';
-import { capOn, capHit, capSpace, marketSalary, MIN_SALARY, VET_YEARS, SLOT_RESERVE, PRO_CAP } from './cap.js';
+import { capOn, capHit, capSpace, marketSalary, letGo, deadCharge, teamContractIds, MIN_SALARY, VET_YEARS, SLOT_RESERVE, PRO_CAP } from './cap.js';
+import { proPools, signablePool, classYear } from './proleague.js';
+import { canStash, stash } from './squad.js';
+import { scoutReport } from './scouting.js';
 // Not from offseason.js, which imports this file: see the head of terms.js.
 import { FA_TERM, aiTerm, termsOpen, termsFor, priceOf } from './terms.js';
 
@@ -120,6 +125,15 @@ export const AI_FA_SHARE = 0.5;
 
 /** How far over the asking price a club will go, by how badly it wants him. */
 export const MAX_PREMIUM = 0.6;
+
+/**
+ * How much better a man left over by the market has to be than a starter for
+ * an AI club to take him at kickoff (`kickoffUpgrades`). The wire asked two
+ * points and a lineup gain of six, week after week; this happens once, so it
+ * asks for a real improvement, and five is the margin the holes it closes were
+ * measured at (DESIGN.md, "How even is the league, really").
+ */
+export const UPGRADE_MARGIN = 5;
 
 /**
  * How many times the market settles before it closes.
@@ -238,6 +252,187 @@ function gainFor(league, teamIdx, player, byId) {
   const before = lineupStrength(team.slots, byId, null);
   const after = lineupStrength({ ...team.slots, [slot.id]: player.id }, byId, null);
   return after - before;
+}
+
+/**
+ * How a club would make room at kickoff for a man the market left over, at a
+ * position it has filled: he takes the weakest starter's slot, the starter
+ * drops to the bench in place of the position's weakest backup if he is better
+ * than him, and whoever is left spare goes. Null when the club has an open
+ * slot for him, which the fill takes care of, or nobody he beats by
+ * `UPGRADE_MARGIN`. Only quarterback, back and receiver have a bench slot, so
+ * everywhere else the old starter is the man who goes.
+ *
+ * This year's draft class is never the man who makes way, as the starter or
+ * as the backup let go: a club does not cut or bury a pick it made weeks ago
+ * for a veteran on a one-year minimum. Allowed to, the top-up took rookie
+ * starters from two to four a club to under one, filled every practice squad
+ * by the fourth season, and by the eighth had half of a club's roster signed
+ * off the scrap heap (DESIGN.md, "The kickoff top-up").
+ */
+export function upgradePlan(league, teamIdx, player, byId) {
+  const team = league.teams[teamIdx];
+  const at = ROSTER_SLOTS.filter((s) => s.pos === player.pos);
+  if (at.some((s) => !team.slots[s.id])) return null;
+  const holder = (s) => byId.get(team.slots[s.id]);
+  const pick = (p) => !!p.generated && p.draftClass === classYear(league.season);
+  const starters = at.filter((s) => s.starter && holder(s) && !pick(holder(s)));
+  if (!starters.length) return null;
+  const weakest = starters.reduce((w, s) => (overall(holder(s)) < overall(holder(w)) ? s : w));
+  const starter = holder(weakest);
+  if (overall(player) < overall(starter) + UPGRADE_MARGIN) return null;
+  const bench = at.filter((s) => !s.starter && holder(s));
+  const worst = bench.length ? bench.reduce((w, s) => (overall(holder(s)) < overall(holder(w)) ? s : w)) : null;
+  const demote = worst && overall(holder(worst)) < overall(starter) && !pick(holder(worst)) ? worst : null;
+  const slots = { ...team.slots, [weakest.id]: player.id };
+  if (demote) slots[demote.id] = starter.id;
+  const gain = lineupStrength(slots, byId, null) - lineupStrength(team.slots, byId, null);
+  return { gain, slot: weakest.id, starter: starter.id, demote: demote ? demote.id : null, release: demote ? team.slots[demote.id] : starter.id };
+}
+
+/**
+ * Carry out a replacement: the spare man goes to the practice squad if he is
+ * young enough, as a waiver claim's drop does, and is let go otherwise; the
+ * old starter takes his place on the bench. The caller puts the new man in
+ * the starter's slot.
+ */
+export function makeRoom(league, teamIdx, plan, byId) {
+  const team = league.teams[teamIdx];
+  if (canStash(league, teamIdx, plan.release, byId)) stash(league, teamIdx, plan.release, byId);
+  else {
+    const held = ROSTER_SLOTS.find((s) => team.slots[s.id] === plan.release);
+    letGo(league, teamIdx, plan.release);
+    if (held) team.slots[held.id] = null;
+    (league.transactions ??= []).push({ week: 0, season: league.season, type: 'release', team: teamIdx, add: null, drop: plan.release });
+  }
+  if (plan.demote) team.slots[plan.demote] = plan.starter;
+}
+
+/** Who the market left over, by position and best first, as they stand now. */
+function leftovers(league, pool, byId) {
+  const owned = new Set(league.teams.flatMap((_, i) => teamContractIds(league, i)));
+  const left = new Map();
+  for (const raw of signablePool(league, pool)) {
+    if (owned.has(raw.id)) continue;
+    const p = byId.get(raw.id) || raw;
+    if (p.retired) continue;
+    if (!left.has(p.pos)) left.set(p.pos, []);
+    left.get(p.pos).push(p);
+  }
+  for (const list of left.values()) list.sort((a, b) => overall(b) - overall(a));
+  return left;
+}
+
+/** Sign a leftover into the place `plan` made for him, on the minimum for a year. */
+function takeLeftover(league, teamIdx, man, plan, byId) {
+  makeRoom(league, teamIdx, plan, byId);
+  league.teams[teamIdx].slots[plan.slot] = man.id;
+  if (capOn(league)) {
+    league.contracts ??= {};
+    league.contracts[man.id] = { salary: MIN_SALARY, years: 1, round: ROSTER_SLOTS.length, kept: 0, since: league.season };
+  }
+  (league.transactions ??= []).push({ week: 0, season: league.season, type: 'fill', team: teamIdx, add: man.id, drop: plan.release });
+  return { team: teamIdx, add: man.id, drop: plan.release };
+}
+
+/**
+ * The market's last word, just before the kickoff drain: a club takes a man
+ * the market left over who beats one of its starters by `UPGRADE_MARGIN`, on
+ * the minimum for a year, which is what the fill signs anybody on.
+ *
+ * Before the drain these men sat on the waiver wire all season and clubs
+ * claimed them there on the same terms. That topped the league up, but it did
+ * it during the season, worst club first, and scrambled the table. Draining
+ * them at kickoff without this took the top-up away, and the league shed
+ * talent it had nowhere to put: the average club's power fell four to five
+ * points further by the seventh season. Here the same top-up happens before a
+ * game is played, clubs in waiver order, after the fill has seen to every
+ * empty slot.
+ *
+ * The human's club takes its turn in the same order, under the same rule and
+ * on the same terms, but only for the men marked on the market's last screen
+ * (`league.kickoffWants`; see `kickoffChoices`), because nobody else decides
+ * who joins it. `staff` puts the human's club on the computer's rule when
+ * nothing is marked, which is what simulating through an offseason means: the
+ * draft was run for you, and so is this. The marks are spent here either way.
+ */
+export function kickoffUpgrades(league, pool, byId, { staff = false } = {}) {
+  const wants = league.kickoffWants || [];
+  delete league.kickoffWants;
+  if (!proPools(league) || !pool || !byId) return [];
+  const left = leftovers(league, pool, byId);
+  const worth = (pos) => TRUE_LEVERAGE[pos] ?? 1;
+  const positions = [...left.keys()].sort((a, b) => worth(b) - worth(a));
+  const order = league.waiverOrder?.length === league.teams.length ? league.waiverOrder : league.teams.map((_, i) => i);
+  const signed = [];
+  for (const ti of order) {
+    const team = league.teams[ti];
+    if (!team) continue;
+    if (team.isUser && (wants.length || !staff)) {
+      // Best first, so two men marked at one position take its two weakest
+      // places in the right order whichever was marked first.
+      const marked = wants.map((id) => byId.get(id)).filter(Boolean).sort((a, b) => overall(b) - overall(a));
+      for (const p of marked) {
+        const list = left.get(p.pos) || [];
+        const at = list.findIndex((x) => x.id === p.id);
+        if (at < 0) continue;
+        const plan = upgradePlan(league, ti, list[at], byId);
+        if (!plan || plan.gain <= 0) continue;
+        signed.push(takeLeftover(league, ti, list.splice(at, 1)[0], plan, byId));
+      }
+      continue;
+    }
+    for (const pos of positions) {
+      const list = left.get(pos);
+      while (list.length) {
+        const plan = upgradePlan(league, ti, list[0], byId);
+        if (!plan || plan.gain <= 0) break;
+        signed.push(takeLeftover(league, ti, list.shift(), plan, byId));
+      }
+    }
+  }
+  return signed;
+}
+
+/**
+ * What the market's last screen offers the human: every leftover who beats one
+ * of the club's starters by `UPGRADE_MARGIN` as things stand, the biggest gain
+ * first, with the place he would take and what becomes of the man in it — the
+ * practice squad, or released with whatever is still owed him.
+ *
+ * As things stand, because kickoff moves them: clubs fill their empty slots
+ * first and then take these men in waiver order, so a man on the list can be
+ * gone by the human's turn, and a second man marked at a position is measured
+ * against whoever is weakest once the first has been signed.
+ *
+ * Only men the club can see: a generated man nobody has had through a season
+ * is still a projection, and offering him only if he truly beats a starter by
+ * five would tell the human what the projection is hiding.
+ */
+export function kickoffChoices(league, pool, byId, teamIdx) {
+  if (!proPools(league) || !pool || !byId || !league.teams[teamIdx]) return [];
+  const out = [];
+  for (const list of leftovers(league, pool, byId).values()) {
+    for (const p of list) {
+      const plan = upgradePlan(league, teamIdx, p, byId);
+      // Every man at a position is measured against the same starter, and
+      // the list is best first, so the first who falls short ends it.
+      if (!plan) break;
+      if (plan.gain <= 0 || !scoutReport(league, p, teamIdx).known) continue;
+      const squad = canStash(league, teamIdx, plan.release, byId);
+      out.push({ player: p, plan, squad, dead: squad ? null : deadCharge(league.contracts?.[plan.release]) });
+    }
+  }
+  return out.sort((a, b) => b.plan.gain - a.plan.gain);
+}
+
+/** Mark a leftover for the human's club to take at kickoff, or unmark him. */
+export function markKickoffWant(league, id, on = true) {
+  const wants = (league.kickoffWants || []).filter((x) => x !== id);
+  if (on) wants.push(id);
+  if (wants.length) league.kickoffWants = wants;
+  else delete league.kickoffWants;
+  return wants;
 }
 
 /**

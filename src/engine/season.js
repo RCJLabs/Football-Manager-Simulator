@@ -11,7 +11,8 @@ import { PRO_TEAMS, CONFERENCES, DIVISIONS } from '../data/pro.js';
 import { DEFAULT_STRATEGY } from './playcall.js';
 import { RNG, hashSeed } from './rng.js';
 import { createDraft, assignGms } from './draft.js';
-import { signablePool, scheduleDrain } from './proleague.js';
+import { signablePool, scheduleDrain, proPools, drainAtKickoff } from './proleague.js';
+import { kickoffUpgrades } from './freeagency.js';
 import { squadList, agedOutOfSquad } from './squad.js';
 import { createAuction, TRUE_LEVERAGE, spreadBudgets, DEFAULT_BUDGET} from './auction.js';
 import { shownOverall } from './scouting.js';
@@ -28,7 +29,7 @@ import { leagueIndex } from './rookies.js';
 import { careerIndex } from './careers.js';
 import { FAINT_TURN } from './winprob.js';
 import { DEFAULT_DIFFICULTY } from './difficulty.js';
-import { capOn, cutToCap, rookieSalary, draftSize, MIN_SALARY, ROOKIE_YEARS, VET_YEARS } from './cap.js';
+import { capOn, cutToCap, rookieSalary, draftSize, MIN_SALARY, ROOKIE_YEARS, VET_YEARS, teamContractIds } from './cap.js';
 import { strategyRead } from './strategy.js';
 import { conditionsFor } from './weather.js';
 
@@ -679,7 +680,7 @@ export function sortDepthCharts(league, byId) {
 }
 
 /** Called when the draft or auction completes, and at the start of each later season. */
-export function startSeason(league, byId, pool = null) {
+export function startSeason(league, byId, pool = null, { staff = false, topUp = true, drain = true } = {}) {
   // A season starts from the draft or the auction that filled it, or — run
   // back on the same rosters — from the end of the last one, with no market
   // behind it to sign anybody at its terms.
@@ -702,6 +703,14 @@ export function startSeason(league, byId, pool = null) {
   // up is in his slot before the fill goes looking for somebody to put there.
   if (byId) agedOutOfSquad(league, byId);
   if (board) fillOpenSlots(league, board, byId);
+  // The market's last word before the drain below: see `kickoffUpgrades`.
+  // Before the cap check, which the minimum deals and any dead money it
+  // leaves are then held to like everything else. Not when the rosters were
+  // given rather than shopped for — a league opened from a code, or run back
+  // on the same rosters — because it would change the rosters it was given.
+  // `staff` is the simulator's: see `kickoffUpgrades`.
+  if (topUp && board && byId && proPools(league)) kickoffUpgrades(league, board, byId, { staff });
+  delete league.kickoffWants;
   // The cap binds at kickoff and nowhere else, so this is the one place it is
   // checked. A club over it sheds what it is paying most for per point of
   // lineup, and the slot that opens is filled off the board at the minimum —
@@ -710,6 +719,15 @@ export function startSeason(league, byId, pool = null) {
     syncContracts(league, byId, { market });
     for (let i = 0; i < league.teams.length; i++) cutToCap(league, i, byId);
     if (board) fillOpenSlots(league, board, byId);
+  }
+  // Whoever is still unsigned has had his market: free agency, the draft and
+  // the fill above. From a pro league's second season he retires here rather
+  // than wait on the wire — see `drainAtKickoff`. Last, so it sees the rosters
+  // the season actually starts with. A league opened from a code had its
+  // kickoff where it was made, and its wire travels as it stood.
+  if (drain && board && proPools(league)) {
+    const held = new Set(league.teams.flatMap((_, i) => teamContractIds(league, i)));
+    drainAtKickoff(league, held, signablePool(league, board));
   }
   if (byId) sortDepthCharts(league, byId);
   if (byId) fitUserStrategy(league, byId);
@@ -1284,6 +1302,6 @@ export function newSeasonSameRosters(league, byId) {
   league.results = [];
   league.injuries = {};
   clearIr(league, byId);
-  startSeason(league, byId);
+  startSeason(league, byId, null, { topUp: false });
   return league;
 }

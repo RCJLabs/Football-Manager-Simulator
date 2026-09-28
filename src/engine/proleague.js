@@ -22,14 +22,16 @@
 //     year's rookies, who are in the draft.
 //   - **The all-time players nobody drafted drain away.** Year one they are
 //     the free-agent market, which keeps the opening season of an all-time
-//     league feeling like one. They are never replenished, and each offseason
-//     another tranche goes.
+//     league feeling like one. They are never replenished. Whoever the second
+//     season's market passes over leaves at its kickoff, and from then on so
+//     does anybody still unsigned when a season kicks off (`drainAtKickoff`).
 //
 // The same save measured again after the split: every pick from season two on
 // is a rookie, and the all-time share of free agency falls 496, 445, 356, 279,
 // 150, 109, 75, 49, 24, 20, 15 and then nothing. From about season eight the
 // best player in the draft class outrates the best player on the market, which
-// is the whole point — the draft becomes the way a club gets better.
+// is the whole point — the draft becomes the way a club gets better. (That
+// was before the kickoff drain, which takes the leftovers a season sooner.)
 //
 // The opening draft is untouched: that is how the league gets populated, and
 // there are no rookies in season one to draft anyway.
@@ -45,14 +47,12 @@ export const DRAIN_SEASONS = 4;
  * How long a veteran who loses his place stays on the market.
  *
  * Counted in offseasons rather than in seasons, because that is when the drain
- * runs: a man unrostered when one offseason opens is signable through the year
- * that follows and gone at the next. In practice it is a season or two — the
- * drain schedules at the *start* of an offseason, so somebody who loses his
- * place later in the same one (in the keeper round, in free agency, at the
- * cap) is not noticed until the following year and gets that year as well.
- * That is a little generous and deliberately not tightened: the supply is the
- * binding constraint here, not the demand, and taking a year off the market
- * makes the league thinner rather than more realistic.
+ * runs: a man unrostered when one offseason opens is signable through the next
+ * one's market. It used to be through the whole year that follows, and that
+ * year was the season being played — see `drainAtKickoff`, which now ends a
+ * man's market at kickoff. The offseason's supply, which is the constraint
+ * this constant was set for, is the same either way: free agency, the draft
+ * and the kickoff fill all see him before the season starts.
  */
 export const MARKET_SEASONS = 1;
 
@@ -204,6 +204,61 @@ export function drainVeterans(league, rostered, available = null) {
   }
   if (gone.length) league.departed = [...(league.departed || []), ...gone];
   return gone;
+}
+
+/**
+ * Whether the kickoff drain takes generated men as well as all-time ones.
+ *
+ * The offseason drain never touches a generated man: the rookie classes are
+ * the league's supply, and a young man nobody signed may yet become somebody.
+ * At kickoff that reasoning runs out — he has had a market and a draft pass
+ * him over — and by a dynasty's seventh season a third of the wire's claims
+ * were generated men, so leaving them on it would leave the problem the drain
+ * is for growing back as the all-time players go.
+ */
+export const KICKOFF_DRAINS_GENERATED = true;
+
+/**
+ * Whoever nobody has signed by kickoff leaves the league, from a pro league's
+ * second season on.
+ *
+ * A man used to get a season to find a club (`MARKET_SEASONS`), and that season
+ * was the one being played. So the in-season wire held every veteran the market
+ * had passed over, the leftover all-timers above all, and the worst club in the
+ * standings claimed them first, on the minimum and outside the cap, which binds
+ * at kickoff and nowhere else. Measured over pro dynasties, a club that opened
+ * a season four points a game better than average kept a third of that edge to
+ * the end of the regular season, and the table was about a quarter clubs and
+ * three quarters dice (DESIGN.md, "How even is the league, really").
+ *
+ * The offseason's supply is untouched — free agency, the draft and the kickoff
+ * fill all see everybody first — and the floor still keeps each position's
+ * worst men on the market, so an injury can always be covered. All that
+ * changes is what a man nobody wanted does next: he retires, rather than wait
+ * on the wire for a club to lose its starter. The opening season is left out,
+ * as the rest of the two-pool rules are: its leftovers *are* the market that
+ * makes it feel like an all-time league. This year's undrafted rookies are
+ * not signable until next year's market, so they are not here either.
+ *
+ * `available` is the signable pool; returns the ids that left.
+ */
+// `kickoffUpgrades` (freeagency.js) runs just before this, and is what keeps
+// the league from shedding talent: the clubs take the leftovers who beat a
+// starter first, on the minimum, as they used to off the wire in week one.
+export function drainAtKickoff(league, rostered, available) {
+  if (!proPools(league)) return [];
+  league.drain ??= {};
+  const season = league.season ?? 1;
+  // A man who has retired with age is not cover for anybody, so he does not
+  // count towards a position's floor either: counted, he let the drain leave
+  // three punters where the floor asks for five.
+  const signable = (available || []).filter((p) => !p.retired);
+  for (const p of signable) {
+    if (rostered.has(p.id)) continue;
+    if (p.generated && !KICKOFF_DRAINS_GENERATED) continue;
+    league.drain[p.id] = season;
+  }
+  return drainVeterans(league, rostered, signable);
 }
 
 /** Everyone this league has shown the door. */

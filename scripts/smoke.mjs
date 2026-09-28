@@ -2125,6 +2125,71 @@ try {
     if (season !== 2) errors.push(`skipping the offseason saved a league in season ${season}, not 2`);
   }
 
+  // The market's last screen in a pro league from its second season: the men
+  // the market left over who beat one of the human's starters by five, to mark
+  // for kickoff. The computer clubs take such men by rule; this card is the
+  // human club's only way to them, so it has to be there and a mark has to
+  // land on the roster.
+  {
+    const { PLAYERS, PLAYERS_BY_ID } = await import(`${R}/src/data/db.js`);
+    const { RNG } = await import(`${R}/src/engine/rng.js`);
+    const { createLeague, startSeason, registerPlayers } = await import(`${R}/src/engine/season.js`);
+    const { autoDraftAll } = await import(`${R}/src/engine/draft.js`);
+    const { simulateSteps } = await import(`${R}/src/engine/autosim.js`);
+    const { leaguePool, leagueIndex } = await import(`${R}/src/engine/rookies.js`);
+    const { applyCareers, careerIndex } = await import(`${R}/src/engine/careers.js`);
+    const { kickoffChoices } = await import(`${R}/src/engine/freeagency.js`);
+    registerPlayers(PLAYERS_BY_ID);
+    const lg = createLeague({ name: 'Smoke Kickoff', mode: 'pro', numTeams: 32, franchise: 3, seed: 9435, draftType: 'snake', user: { name: 'Me', abbr: 'ME', color: '#fff' } });
+    autoDraftAll(lg, lg.draft, PLAYERS, new RNG(9435));
+    startSeason(lg, PLAYERS_BY_ID);
+    const idx = () => careerIndex(lg, leagueIndex(lg, PLAYERS_BY_ID));
+    const pool = () => applyCareers(lg, leaguePool(lg, PLAYERS));
+    const run = simulateSteps(lg, idx(), pool(), new RNG(9435 * 7), 'nextSeason');
+    for (let step = run.next(); !step.done && step.value.stage !== 'market'; step = run.next()) { /* to the draft's end */ }
+    const u = lg.teams.findIndex((t) => t.isUser);
+    // First in the order, so a man marked is still there at the human's turn.
+    lg.waiverOrder = [u, ...lg.teams.map((_, i) => i).filter((i) => i !== u)];
+    const offered = kickoffChoices(lg, pool(), idx(), u);
+    if (!offered.length) errors.push('the kickoff smoke league offers the human nobody, so the card goes unchecked');
+    await page.setViewportSize({ width: 360, height: 800 });
+    await settleSave();
+    await page.evaluate((league) => {
+      const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+      localStorage.setItem('gridiron-eras:slot:' + reg.active, JSON.stringify({ league, savedAt: Date.now() }));
+    }, JSON.parse(JSON.stringify(lg)));
+    await page.goto(`http://localhost:${port}/#/draft`);
+    await page.reload();
+    const card = await page.waitForSelector('#kickoff-card', { timeout: 8000 })
+      .then(() => page.evaluate(() => { const c = document.querySelector('#kickoff-card'); return { rows: c.querySelectorAll('.prow').length, text: c.textContent.replace(/\s+/g, ' ') }; }), () => null);
+    if (!card) errors.push('the draft\'s last screen in a pro league has no kickoff card');
+    else {
+      if (card.rows !== Math.min(12, offered.length)) errors.push(`the kickoff card lists ${card.rows} men where the engine offers ${offered.length}`);
+      if (!/you go 1st of 32/i.test(card.text)) errors.push(`the kickoff card does not say where the human picks: ${card.text.slice(0, 160)}`);
+      await checkOverflow('kickoff card');
+      await shot('17-kickoff-card');
+      const id = await page.$eval('#kickoff-card [data-kmark]', (b) => b.dataset.kmark).catch(() => null);
+      if (id) {
+        await page.click(`#kickoff-card [data-kmark="${id}"]`);
+        await sleep(250);
+        const label = await page.$eval(`#kickoff-card [data-kmark="${id}"]`, (b) => b.innerText.trim()).catch(() => null);
+        if (label !== 'Marked') errors.push(`marking a man left his button reading "${label}"`);
+        await page.click('#start');
+        await page.waitForFunction(() => location.hash === '#/season', null, { timeout: 15000 }).catch(() => errors.push('starting the season from the draft\'s last screen did not reach the season'));
+        await settleSave();
+        const after = await page.evaluate((mark) => {
+          const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+          const league = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league;
+          const me = league.teams.findIndex((t) => t.isUser);
+          return { season: league.season, on: Object.values(league.teams[me].slots).includes(mark), marks: league.kickoffWants ?? null };
+        }, id);
+        if (after.season !== 2) errors.push(`the kickoff smoke league started season ${after.season}, not 2`);
+        if (!after.on) errors.push('the man marked for kickoff is not on the human roster once the season starts');
+        if (after.marks) errors.push('the kickoff marks outlived the kickoff');
+      }
+    }
+  }
+
   // With no network the app launches from the copy of its page the service
   // worker keeps, and every page opened inside its scope used to replace that
   // copy: a mistyped address, or DESIGN.md, since the whole repository is

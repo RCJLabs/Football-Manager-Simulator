@@ -343,7 +343,7 @@ function freeAgency(root, league, ctx) {
       <details class="tight" style="margin:.2rem 0 .5rem">
         <summary style="cursor:pointer;font-size:.85rem" class="muted"><b>What a bid buys</b> · the man you choose, and what it costs you</summary>
         <p class="muted" style="margin:.3rem 0 0;font-size:.85rem">
-          These are veterans — men cut, or let go when their deal ran out. This year's rookies are not here; they go to the ${auction ? 'auction' : 'draft'}. A bid wins you the man you want, at no less than his asking price, for the length you choose. A man nobody signs stays on the market: a slot still empty after the ${auction ? 'auction' : 'draft'} is filled at kickoff from whoever is left, on the minimum for a year — cheap, but you get who is left rather than who you wanted.
+          These are veterans — men cut, or let go when their deal ran out. This year's rookies are not here; they go to the ${auction ? 'auction' : 'draft'}. A bid wins you the man you want, at no less than his asking price, for the length you choose. A man nobody signs stays on the market until kickoff: a slot still empty after the ${auction ? 'auction' : 'draft'} is filled from whoever is left, on the minimum for a year — cheap, but you get who is left rather than who you wanted. Then every club may take a leftover who beats one of its starters by five, on the same minimum, worst record first — yours are the men you mark on the ${auction ? 'auction' : 'draft'}'s last screen — and whoever is still unsigned retires, apart from a few journeymen at each position kept for injuries. So the wire during the season is cover, not a second market.
           ${auction
             ? 'And it comes out of the auction: the rookies are bid for from what is left under the cap, so every dollar spent here is one you cannot bid there, and every slot filled here is one fewer to buy.'
             : html`And it usually costs a pick: a club drafts once a round while it has a slot open, so once your open slots are no more than the draft's <b>${proDraftRounds(league)}</b> rounds, every man you sign here is a pick you do not make.`}
@@ -439,7 +439,7 @@ function freeAgency(root, league, ctx) {
     modal(`<h3 style="margin:.1rem 0">The market has closed</h3>
       ${rep.won.length ? `<p style="margin:.3rem 0"><b>Signed:</b> ${rep.won.map((w) => `${name(w.id)} <span class="muted">$${w.salary} × ${w.years ?? FA_YEARS}y</span>`).join(', ')}</p>` : '<p class="muted" style="margin:.3rem 0">You signed nobody.</p>'}
       ${rep.lost.length ? `<p style="margin:.3rem 0"><b>Missed out on:</b> ${rep.lost.map((l) => `${name(l.id)} <span class="muted">${lostLine(l)}</span>`).join(', ')}</p>` : ''}
-      <p class="muted" style="margin:.4rem 0 0;font-size:.85rem">${(after.offseason.signed || []).length} signings across the league. Whoever is left stays on the market, for any slot the ${after.draftType === 'auction' ? 'auction' : 'draft'} leaves open.</p>
+      <p class="muted" style="margin:.4rem 0 0;font-size:.85rem">${(after.offseason.signed || []).length} signings across the league. Whoever is left stays on the market for any slot the ${after.draftType === 'auction' ? 'auction' : 'draft'} leaves open, and retires at kickoff if nobody takes him.</p>
       <div class="row" style="gap:.4rem;margin-top:.6rem"><button class="btn primary" data-close>To the ${after.draftType === 'auction' ? 'auction' : 'draft'}</button></div>`, {
       onClose: () => ctx.navigate(after.draftType === 'auction' ? '#/auction' : '#/draft'),
     });

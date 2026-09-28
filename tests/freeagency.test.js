@@ -9,8 +9,9 @@ import { enterOffseason, confirmKeepers, aiKeepers, takeJob, closeFreeAgency } f
 import { capHit, overCap, marketSalary, PRO_CAP, SLOT_RESERVE } from '../src/engine/cap.js';
 import {
   askingBoard, biddingRoom, openCount, submitOffer, freeAgencyReport, openFreeAgency,
-  aiBid, AI_FA_SHARE, offerSalary, offerValue,
+  aiBid, AI_FA_SHARE, offerSalary, offerValue, upgradePlan, UPGRADE_MARGIN,
 } from '../src/engine/freeagency.js';
+import { overall } from '../src/engine/ratings.js';
 
 registerPlayers(byId);
 
@@ -179,4 +180,46 @@ test('a club with a single hole sits the market out, and that is deliberate', ()
   const shoppers = lg.teams.map((_, i) => i).filter((i) => bidsBy(i) > 0);
   assert.ok(shoppers.length > 0, 'no club bid at all, so the rule proves nothing');
   for (const i of shoppers) assert.ok(openCount(lg.teams[i]) >= 2, `club ${i} bid with ${openCount(lg.teams[i])} open slot`);
+});
+
+test('a man five better than a starter has a plan for his place, and the club makes room the way a club would', () => {
+  const lg = toMarket(12);
+  const ti = lg.teams.findIndex((t) => !t.isUser);
+  const team = lg.teams[ti];
+  const rated = (id) => overall(byId.get(id));
+  const onClub = new Set(Object.values(team.slots));
+  let checked = 0;
+  // Receivers have a backup slot for the old starter to drop into; safeties
+  // have none, so there the old starter is the one let go.
+  for (const pos of ['WR', 'S']) {
+    const at = ROSTER_SLOTS.filter((sl) => sl.pos === pos);
+    const starters = at.filter((sl) => sl.starter), bench = at.filter((sl) => !sl.starter);
+    const weakest = starters.reduce((w, sl) => (rated(team.slots[sl.id]) < rated(team.slots[w.id]) ? sl : w));
+    const floor = rated(team.slots[weakest.id]);
+    const better = PLAYERS.find((p) => p.pos === pos && overall(p) >= floor + UPGRADE_MARGIN && !onClub.has(p.id));
+    const close = PLAYERS.find((p) => p.pos === pos && overall(p) > floor && overall(p) < floor + UPGRADE_MARGIN && !onClub.has(p.id));
+    if (close) assert.equal(upgradePlan(lg, ti, close, byId), null, `a ${pos} plan for a man less than five better`);
+    if (!better) continue;
+    checked++;
+    const plan = upgradePlan(lg, ti, better, byId);
+    assert.ok(plan, `no ${pos} plan for a man five better than the weakest starter`);
+    assert.equal(plan.slot, weakest.id);
+    assert.equal(plan.starter, team.slots[weakest.id]);
+    assert.ok(plan.gain > 0);
+    const worstBench = bench.length ? bench.reduce((w, sl) => (rated(team.slots[sl.id]) < rated(team.slots[w.id]) ? sl : w)) : null;
+    if (worstBench && rated(team.slots[worstBench.id]) < floor) {
+      assert.equal(plan.demote, worstBench.id, 'the old starter did not drop to the bench');
+      assert.equal(plan.release, team.slots[worstBench.id], 'the weakest backup was not the one let go');
+    } else {
+      assert.equal(plan.demote, null);
+      assert.equal(plan.release, team.slots[weakest.id]);
+    }
+    // With a slot open at his position it is an ordinary signing, not a replacement.
+    const open = at[at.length - 1];
+    const held = team.slots[open.id];
+    team.slots[open.id] = null;
+    assert.equal(upgradePlan(lg, ti, better, byId), null, `a ${pos} replacement planned with a slot open`);
+    team.slots[open.id] = held;
+  }
+  assert.ok(checked > 0, 'no position had a free agent five better than its weakest starter');
 });

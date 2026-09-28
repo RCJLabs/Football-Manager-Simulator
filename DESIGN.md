@@ -506,13 +506,54 @@ The fantasy league is an all-time draft and should stay one. The pro league was 
 
 - **The draft is this year's rookie class and nothing else.** `draftablePool` narrows the board; `createDraft` records the eligible ids on the draft itself, so the board, the AI and the trade projection all read one list. It runs as many rounds as the class needs rather than one per roster slot — 176 rookies over 32 clubs is five, not twenty-seven.
 - **Free agency is everyone who was in the league and is not on a roster now**: cut, let go when a deal ran out, never re-signed. `signablePool` is the narrowing, and free agency, the waiver wire and the kickoff fill all go through it, so all three agree on who exists. Not this year's rookies — they are in the draft.
-- **The all-time players nobody drafted drain away.** Year one they *are* the market, which keeps an opening season feeling like an all-time league. From then on they leave.
+- **The all-time players nobody drafted drain away.** Year one they *are* the market, which keeps an opening season feeling like an all-time league. The second season's market is their last: whoever it passes over leaves at that kickoff.
 
-**The drain is a rule, not a snapshot.** The first version scheduled the 405 founding leftovers once and spread them over four seasons. It does not work, and the reason is worth keeping: the unrostered *set* churns even though its size cannot. A club cuts a man for cap room and he is unsigned from then on, never having been on the original list — so the original 405 leave and a fresh 405 take their place, and the market a rookie has to beat never thins at all. `scheduleDrain` therefore runs every offseason: whoever is off a roster gets a season to find another one, and then he is done.
+**The drain is a rule, not a snapshot.** The first version scheduled the 405 founding leftovers once and spread them over four seasons. It does not work, and the reason is worth keeping: the unrostered *set* churns even though its size cannot. A club cuts a man for cap room and he is unsigned from then on, never having been on the original list — so the original 405 leave and a fresh 405 take their place, and the market a rookie has to beat never thins at all. `scheduleDrain` therefore runs every offseason: whoever is off a roster gets a market to find another one — the offseason's free agency, draft and kickoff fill — and then he is done. It used to be a whole season; see the kickoff drain below.
 
 **And it has a floor, because it starved the league.** Run blind it took the market to no kickers and no punters, and clubs came out of an offseason unable to field one. The floor was first one spare per club per position, which is the wrong shape — a club fields one kicker and five offensive linemen, so a flat floor demands as much cover for the kicker as the whole league uses kickers. Across eleven positions it reserved 352 men, most of a market that settles near four hundred, and the drain could only ever reach the few dozen above that line. It is now a share of what the position is for (`DRAIN_FLOOR_SHARE`), and when a position is down to it the men who stay are the *worst* ones: a great player nobody will sign retires, and the journeyman is the one still taking calls in August.
 
-**What it measures out to.** The same save, same seed, after: every pick from season two on is a rookie, and the all-time share of free agency falls 496, 445, 356, 279, 150, 109, 75, 49, 24, 20, 15, and then nothing. From about season eight the best player in the draft class outrates the best player on the market, which is the whole point — the draft becomes how a club gets better. Across four seeds and eighteen to twenty seasons every club fields a full roster every year, no position runs dry, and no retired player is ever on a roster.
+**What it measures out to.** The same save, same seed, after (and before the kickoff drain below, which takes the leftovers at the second kickoff): every pick from season two on is a rookie, and the all-time share of free agency falls 496, 445, 356, 279, 150, 109, 75, 49, 24, 20, 15, and then nothing. From about season eight the best player in the draft class outrates the best player on the market, which is the whole point — the draft becomes how a club gets better. Across four seeds and eighteen to twenty seasons every club fields a full roster every year, no position runs dry, and no retired player is ever on a roster.
+
+**And a man's market now ends at kickoff (`drainAtKickoff`).** From the second season, whoever is still unsigned when a season kicks off leaves the league, down to the floor, generated men as well as all-time ones. He had a season before this, and that season was the one being played. The in-season wire therefore held every veteran the market had passed over, and the worst clubs in the table claimed them on the minimum, outside the cap. That was a second market, and it scrambled the standings: see **How even is the league, really**. The offseason's supply is untouched, because free agency, the draft and the kickoff fill all see everybody first. The floor now counts only men who could sign. Retired men had been counted towards it, which left some positions with three punters against a floor of five. Measured with the top-up below, on three 32-club dynasties over eight seasons:
+
+- 134 men are unsigned at every kickoff from season 2, which is the floor. The thinnest position is tight end, with five.
+- The best free agent sits 24 to 35 points below the median starter at quarterback, safety and the line, so the wire during a season is cover.
+- In-season claims fall to 1.4 to 2.1 a club a season, from 3.6 to 4.4.
+- Cap cuts at kickoff stay under 0.2 a club. Clubs start a season with $15 to $22 of room where they had $8 to $15, because what they sign at kickoff costs the minimum.
+- `tests/kickoff-drain.test.js` holds the floor, best-first, the opening season's exemption, this year's undrafted rookies waiting a year, that a second drain takes nobody, and that a league opened from a code keeps the rosters and the wire it was coded with.
+
+**The kickoff top-up (`kickoffUpgrades`), which the drain needs.** Drained alone, the leftovers were a talent sink. The in-season wire had been topping the league up (badly, since it did it during the season and worst club first, but it did it), and the drain took that away with nothing in its place. The AI's free agency cannot stand in for it. A club buys for only half its open slots (`AI_FA_SHARE`) and never replaces a man already in one, and most of a club's weak starters are rookies, who arrive after the market has closed. The AI clubs' average team power at kickoff and at the end of the regular season, on three dynasties with the same seeds:
+
+| | season 3 | season 5 | season 7 |
+| --- | --- | --- | --- |
+| before: the in-season wire | 85.9 → 87.0 | 82.7 → 85.3 | 81.5 → 83.2 |
+| the drain alone | 84.8 → 84.4 | 79.6 → 79.2 | 77.6 → 77.2 |
+| the drain, and a top-up that may displace anybody | 87.1 → 86.5 | 85.5 → 85.0 | 82.9 → 82.6 |
+| the drain, and a top-up that leaves this year's rookies alone (shipped) | 85.8 → 85.3 | 83.0 → 83.0 | 81.1 → 81.0 |
+
+Three fixes were tried.
+
+- **Replacement bids in free agency.** A club could bid for a man who beat one of its starters by five, not only for an open slot. They changed next to nothing: power stayed within half a point of the drain alone in every season measured, because the holes are made after the market closes, by the draft. They were taken out.
+- **A top-up at kickoff that may displace anybody.** Just before the drain, each club, in waiver order, takes the leftovers who beat one of its starters by five, on the minimum for a year, which is what the fill signs anybody on. It held the league's talent, and it broke the draft, because the men it displaced were mostly this year's rookies. Rookies starting fell from two to four a club to under one. Every practice squad was full by season 4. By season 8 half of a club's roster had been signed at a kickoff, off the scrap heap, and the spread at kickoff kept climbing, to 5.1 and 5.8 points in seasons 7 and 8.
+- **The same top-up, but nobody from this year's rookie class makes way for it** (`upgradePlan`), as the starter or as the backup let go. That is what shipped. A club does not cut or bury a pick it made weeks ago for a one-year veteran.
+
+What the shipped rule does over twelve seasons of three dynasties, AI clubs only:
+
+| | before | the drain alone | shipped |
+| --- | --- | --- | --- |
+| all-time players on a roster, seasons 5 / 8 / 12 | 20.8 / 18.1 / 5.5 | 13.5 / 8.6 / 2.3 | 18.9 / 13.9 / 3.8 |
+| rookies starting for a club, seasons 5 / 8 | 3.7 / 3.4 | 3.6 / 2.6 | 3.9 / 4.0 |
+| season 8's roster: drafted / bought in free agency / scraped (fill, top-up, wire); the rest are from the founding draft | 23% / 9% / 31% | 55% / 11% / 9% | 34% / 4% / 34% |
+| signed on the minimum at kickoff, a club a season, seasons 4 to 9 | 0.9 to 2.2 | 0.6 to 2.6 | 5.0 to 8.3 |
+
+The churn is about what it was, moved to before a game is played. The minimum signings used to be two or so at kickoff and four more off the wire during the season, and a third of a roster was scraped by season 8 then as now. The all-time players leave sooner than they did, but nothing like as soon as with the drain alone.
+
+**Your club's door to the same men.** The computer clubs take the leftovers by rule. Nothing let the human do the same, and with the in-season wire gone that would have been a market only the computer could use. The draft's last screen, or the auction's, now lists every leftover who beats one of your starters by five as things stand (`kickoffChoices`). Each row names the man he would replace, and says whether that man goes to the practice squad or is released and what he is still owed. A mark (`league.kickoffWants`) is taken at your turn in the same waiver order, on the same rule and terms, if the man is still there and still beats your weakest starter at his position by five. Marks are spent at kickoff either way.
+
+- Simulating through an offseason takes the leftovers for you on the computer's rule (`staff`), as it runs your draft, and says so.
+- A generated man nobody has had through a season is not offered. Offering him only when he truly beats a starter would tell you what his scouting range is hiding.
+- A league opened from a code, or run back on the same rosters, has no top-up, since it would change the rosters it was given. One opened from a code has no drain either, because its kickoff happened where it was made.
+- The order is waiver order, worst record first, so the top-up levels the league as well as supplying it. That is most of why its skill share sits a tenth under the drain alone's (see **How even is the league, really**). Whether a veteran on the minimum would rather sign with a contender, as real ones often do, is not modelled.
 
 **Three things it broke on the way, all of them real bugs it only exposed.**
 
@@ -6363,7 +6404,23 @@ The claims alone do all of it, and the reason sits in two rules that are each se
 
 So each week the worst clubs claim first, from a deep pool, for nothing, and the table converges. The effect fades as the drain empties the pool, which is why seasons 7 and 8 read better.
 
-**What would stop it, measured but not built.** In the same replay, the veterans nobody had signed by kickoff were removed from the market, so the wire held only men released during the season. Kept rose to **0.88**, the kickoff-to-end power correlation to 0.85, and the skill share to **0.45**, against the NFL's ~0.55. That is a prototype made by filtering the pool in `parity.mjs`, not a rule. The drain's floor, the trade backfill and a whole dynasty under it are untested, and it reverses the recorded choice not to tighten `MARKET_SEASONS`. The note on that constant argues supply for the *offseason* market, and a drain at kickoff would leave the offseason market as it is, so the two are not in conflict, but the call is a design one.
+**What stopped it: the kickoff drain, and the top-up before it.** Whoever nobody has signed by a season's kickoff now leaves the league, down to a floor of each position's worst men, and just before that the clubs take the leftovers who beat one of their starters by five (see **And a man's market now ends at kickoff** and **The kickoff top-up**, under the two pools). A prototype in the season-4 replay, the pool filtered to the men clubs held, kept 0.88 and lifted the skill share to 0.45. As built the drain was measured whole, on the three dynasties above with the same seeds, in three forms: one draining only the all-time players, as the offseason drain does; one draining everybody; and one draining everybody after the top-up, which is what shipped.
+
+| seasons 3–8, three leagues | before | drain: all-time players only | drain: everybody | drain and top-up (shipped) |
+| --- | --- | --- | --- | --- |
+| skill share | 0.20–0.49 (mean 0.34) | 0.34–0.55 (0.44) | 0.52–0.57 (0.55) | **0.31–0.52 (0.43)** |
+| kept | 0.30–0.50 | 0.67–0.87 | 0.75–1.00 | 0.68–0.92 |
+| kickoff strength against the season's differential | 0.38–0.69 | 0.56–0.76 | 0.63–0.81 | 0.51–0.62 |
+| spread at kickoff | 3.8–4.3 | not recorded | not recorded | 3.3–4.3 |
+| unsigned at kickoff | 451–739 | 199–367 | 101–133 | 134 |
+| in-season claims a league | 118–139 | 65–104 | 46–54 | 45–64 |
+
+The unsigned and claims rows come from two of the leagues in the first three columns, and from the three dynasties of the top-up's own measurements in the last.
+
+Draining only the all-time players works until the generated men fill the wire back up: by season 6 the best free agent was level with the median starter again, and claims climbed back towards a hundred. Draining everybody holds the table at about the NFL's share from season 3 on, but it took talent out of the league that nothing put back, and the top-up is what puts it back. With the top-up a club still keeps most of its kickoff edge through the season (kept 0.68 to 0.92, against 0.30 to 0.50 before). The skill share comes out a tenth under the drain alone's, because the top-up hands the best leftovers to the worst clubs first and so levels the league at kickoff. Three leagues carry about ±0.1 a season, so 0.43 against 0.55 is a real gap but not a precise one.
+
+- **One change to notice.** The clubs' spread now grows during a season, from 3.3 to 4.3 points at kickoff to 4.1 to 4.9 at the end of it. The likely reason is that a starter lost to injury is replaced from a wire of journeymen rather than by a free veteran. That is a reading, not a measurement.
+- **What the top-up changes.** Clubs no longer open a season with a hole a leftover could fill five points better, except the places held by this year's rookies, whom a club plays or develops, as the real thing does. Whether a veteran on the minimum should choose a contender over the worst club, as real ones often do, is the next question. It would widen the spread rather than narrow it.
 
 **Fantasy leagues do not have the problem.** Their wire stays shallow: the best free agent is two or more points better than a club's starter at 0.7 starting slots a club after the draft and 1.5 at season 4, against 9.0 in a pro league's fourth season. Their evenness is the draft's alone.
 

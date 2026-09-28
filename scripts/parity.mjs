@@ -5,7 +5,8 @@
 //   season    one regular season of each kind of league (the default)
 //   check     a club's strength read off one season, against a round robin
 //   dynasty   a pro dynasty, season by season
-//   wire      what wears a dynasty's spread down during a season
+//   wire      what wears a dynasty's spread down during a season (before the
+//             kickoff drain, the waiver claims; see DESIGN.md)
 //   all       all four
 //
 // A season's win totals spread out for two reasons: the clubs differ, and
@@ -253,9 +254,6 @@ function wireSection() {
     { key: 'IR + squad only', parts: { ir: 1, squad: 1 } },
     { key: 'trades only', parts: { trades: 1 } },
     { key: 'waivers only', parts: { waivers: 1 } },
-    // Not the game: whoever nobody had signed by kickoff has left the league,
-    // so the wire holds only men released during the season.
-    { key: 'unsigned gone', parts: ALL, streetGone: true },
   ];
   console.log('Season 4 of a pro dynasty, played from the same state and seeds with parts of the AI\'s week left out.');
   console.log('kept: the slope of end-of-season strength on kickoff strength; r(power): team power at kickoff against the end.\n');
@@ -273,11 +271,7 @@ function wireSection() {
     for (const v of VARIANTS) {
       const L = JSON.parse(frozen);
       const byId = index(L);
-      let pool = poolOf(L);
-      if (v.streetGone) {
-        const held = new Set(L.teams.flatMap((t) => [...Object.values(t.slots), ...(t.ir || []), ...(t.squad || [])]));
-        pool = pool.filter((p) => held.has(p.id));
-      }
+      const pool = poolOf(L);
       const rng = new RNG(seed * 7 + 3);
       while (L.phase === 'season') { simulateWeekAi(L, byId, { includeUser: true }); advanceWith(L, byId, pool, rng, v.parts); }
       const t = seasonTable(L, clubs);

@@ -238,7 +238,7 @@ export function leagueFromSnapshot(snap, players, byId) {
     league.migrationNote = `${n} player${n === 1 ? '' : 's'} named by this code ${n === 1 ? 'is' : 'are'} not in your player pool, so ${n === 1 ? 'that place was' : 'those places were'} filled from the market. Update the game and re-open the code to get the league as it was shared.`;
   }
   // Depth charts sort on current ratings, so the index has to know the ages.
-  startSeason(league, careerIndex(league, leagueIndex(league, byId)));
+  startSeason(league, careerIndex(league, leagueIndex(league, byId)), null, { topUp: false, drain: false });
   // After startSeason, not before: it runs syncTenure, which would count every
   // player's current season twice on top of a restored ledger.
   league.tenure = Object.fromEntries(Object.entries(snap.tenure || {}).map(([ti, heldBy]) => [ti,
