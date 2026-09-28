@@ -384,10 +384,26 @@ const CHECKS = [
     why: "two known violations — Csonka and Riggins, both the weight vector refusing to rate a power back — each recorded with a reason; a third means something moved. This expectation sat at 4 long after Barber was corrected and was only caught the first time anybody ran the full audit afterwards, which is the argument for running it",
   },
   {
+    name: 'the win-probability prior carries the home edge the document states',
+    cost: 'free',
+    from: async () => (await import('../src/engine/winprob.js')).HOME_EDGE_POINTS,
+    doc: /the home edge is about a point \(([\d.]+):/,
+    expect: 1.1, tol: 0,
+    why: 'fitted at 2.2 and left there after the line\'s weight fell and the edge was worth half that, until the kickoff chance was found predicting league games worse than a coin',
+  },
+  {
+    name: 'the home edge is still worth what the prior says',
+    cost: 'slow',
+    script: 'home-edge', extract: /home edge: ([\d.]+) ±/,
+    doc: /it is worth ([\d.]+) ± [\d.]+ points of margin/,
+    expect: 1.04, tol: 0.3,
+    why: 'the engine\'s edge sits on line and coverage composites, so it moves whenever their weight does, and the prior (HOME_EDGE_POINTS, 1.1) has to move with it; a reading outside the tolerance means refit the constant',
+  },
+  {
     name: 'the simulation fingerprint',
     cost: 'slow',
     script: 'game-fingerprint', extract: /fingerprint: ([0-9a-f]+)/,
-    expect: '3d12164e9c611d33', text: true,
+    expect: '5084f3d42d0a2b79', text: true,
     why: 'changes whenever the game engine does, which is what makes a careers-only change provable',
   },
 ];

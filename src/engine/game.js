@@ -491,6 +491,24 @@ function checkOvertimeEnd(g, { defensiveScore = false } = {}) {
   return false;
 }
 
+/**
+ * A touchdown that wins in overtime ends the game where it stands, with no
+ * try: once both sides have had the ball and the scorer is ahead, nothing a
+ * try could do changes the result. It used to be kicked anyway, so an
+ * overtime winner went 41-37 where the rules make it 40-37. A touchdown on a
+ * return is the scorer's possession, as the rules count it: a punt returned
+ * for a score after the other side's drive ends the game, and an opening
+ * kickoff returned for one still owes the kicking side its turn. A second
+ * possession's touchdown that leaves its side behind or level still tries.
+ */
+function overtimeWalkOff(g, team, { onReturn = false } = {}) {
+  if (!g.ot) return false;
+  if (onReturn) g.ot.possessed[team] = true;
+  if (!g.ot.possessed[0] || !g.ot.possessed[1] || g.score[team] <= g.score[1 - team]) return false;
+  finishGame(g);
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Kickoffs & PATs
 // ---------------------------------------------------------------------------
@@ -573,6 +591,7 @@ function doKickoff(g, rng) {
       g.phase = 'pat';
       g.patTeam = receiving;
       g.freeKick = false;
+      overtimeWalkOff(g, receiving, { onReturn: true });
       return;
     }
     g.ballOn = ballOn;
@@ -853,6 +872,7 @@ function applyOutcome(g, rng, o, sit) {
       g.score[defT] += 6;
       logEvent(g, { ...base, to: 0, scoring: true });
       g.phase = 'pat'; g.patTeam = defT; g.clockRunning = false;
+      overtimeWalkOff(g, defT, { onReturn: true });
       return;
     }
     logEvent(g, { ...base, to: o.puntBlocked ? clamp(sit.ballOn + o.yards, 0, 100) : 100 - o.puntTo });
@@ -949,6 +969,7 @@ function applyOutcome(g, rng, o, sit) {
     endDrive(g, 'TD');
     logEvent(g, { ...base, scoring: true });
     g.phase = 'pat'; g.patTeam = off; g.clockRunning = false;
+    overtimeWalkOff(g, off);
     return;
   }
   g.ballOn = newBallOn;

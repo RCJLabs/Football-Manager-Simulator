@@ -5,14 +5,20 @@
 //
 // Fit on synthetic games with penalties on: final margins spread about 12.5
 // points (standard deviation) between equal rosters, a point of team power is
-// worth about 3.3 points of margin, and the home edge is about two points.
+// worth about 3.3 points of margin, and the home edge is about a point.
+// The edge was fitted at 2.2 and went stale when the line's weight fell (the
+// engine's home edge sits on line and coverage composites); re-measured at
+// 1.04 ± 0.14 over 12,000 paired games (`npm run home-edge`, which the audit
+// re-runs) and 1.02 ± 0.36 over 1,632 pro league games. At 2.2 the kickoff
+// chance predicted league games worse than a coin (DESIGN.md, "The rest of
+// the week").
 // Calibration is checked in tests/winprob.test.js.
 
 import { teamPower } from './ratings.js';
 
 export const MARGIN_SD = 12.5;
 export const POINTS_PER_POWER = 3.3;
-export const HOME_EDGE_POINTS = 2.2;
+export const HOME_EDGE_POINTS = 1.1;
 const Q_LEN = 900;
 
 /** Standard normal CDF (Abramowitz-Stegun, good to 1e-7). */
