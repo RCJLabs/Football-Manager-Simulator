@@ -376,6 +376,12 @@ try {
   await page.evaluate(() => { document.querySelector('#moreOpts').open = true; });
   await page.check('input[name="coach"]');
   await page.check('input[name="injuries"][value="high"]');
+  // The crest picker: a shape other than the one the name gives, kept by the
+  // league the form creates. Everything else about a crest is worked out.
+  const setupShape = await page.$eval('#crestRow input[name="crestShape"]:not(:checked)', (i) => i.value);
+  await page.click(`#crestRow .crest-shape:has(input[value="${setupShape}"])`);
+  const setupPreview = await page.$eval('#crestRow .crest-preview svg', (s) => s.getAttribute('aria-label'));
+  if (!setupPreview.toLowerCase().includes(setupShape === 'round' ? 'roundel' : setupShape)) errors.push(`picking a ${setupShape} crest left the preview as "${setupPreview}"`);
   await checkOverflow('setup');
   await page.click('button[type="submit"]');
 
@@ -479,6 +485,13 @@ try {
   await page.waitForSelector('#play');
   await checkOverflow('season hub');
   await shot('05-season');
+  {
+    const chips = await page.evaluate(() => [document.querySelectorAll('.team-chip').length, document.querySelectorAll('.team-chip > svg.crest[aria-hidden="true"]').length]);
+    if (!chips[0] || chips[0] !== chips[1]) errors.push(`the hub has ${chips[0]} club chips and ${chips[1]} crests in them`);
+    await settleSave();
+    const kept = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const l = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; return l.teams.map((t) => (t.isUser ? t.crest?.shape : t.crest ? 'stored' : '')).join(''); });
+    if (kept !== setupShape) errors.push(`the league kept crests as "${kept}", expected only the human's ${setupShape}`);
+  }
 
   await page.click('#play');
   await page.waitForSelector('.scoreboard');
@@ -910,6 +923,13 @@ try {
   await page.waitForSelector('#injuries');
   await page.selectOption('#injuries', 'normal');
   await checkOverflow('settings');
+  // The human's crest can be changed later; the change is saved like any setting.
+  const laterShape = await page.$eval('#crestCard input[name="crestShape"]:not(:checked)', (i) => i.value);
+  await page.click(`#crestCard .crest-shape:has(input[value="${laterShape}"])`);
+  const crestSaved = await page.waitForFunction((want) => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const raw = localStorage.getItem('gridiron-eras:slot:' + reg.active); return raw && JSON.parse(__geDecode(raw)).league.teams.find((t) => t.isUser).crest?.shape === want; }, laterShape, { timeout: 3000 }).then(() => true).catch(() => false);
+  if (!crestSaved) errors.push(`changing the crest to a ${laterShape} in settings was not saved`);
+  await page.evaluate(() => document.querySelector('#crestCard').scrollIntoView({ block: 'center' }));
+  await shot('11c-crest');
   // The store saves on a short debounce.
   // Fictional names swap every name in the pool and back.
   await page.check('#fictional');

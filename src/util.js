@@ -68,6 +68,23 @@ function relLum([r, g, b]) {
  * against `TEAMS` and `PRO_TEAMS` rather than a sample, so a colour added later
  * cannot quietly fail.
  */
+/** A hex colour as [r, g, b], or null if it is not one. */
+export function rgbOf(hex) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return null;
+  const h = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1];
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/** WCAG contrast ratio between two hex colours, 1 to 21. */
+export function contrast(a, b) {
+  const x = rgbOf(a), y = rgbOf(b);
+  if (!x || !y) return 1;
+  const [hi, lo] = [relLum(x), relLum(y)].sort((p, q) => q - p);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 export function textOn(hex) {
   const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex || '');
   if (!m) return '#fff';

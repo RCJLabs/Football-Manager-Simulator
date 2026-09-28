@@ -32,7 +32,7 @@ export function createGame(home, away, options = {}) {
   const seed = options.seed ?? Math.floor(Math.random() * 4294967296);
   const rng = new RNG(seed);
   const teams = [home, away].map((t) => ({
-    id: t.id, name: t.name, abbr: t.abbr, color: t.color, isUser: !!t.isUser,
+    id: t.id, name: t.name, abbr: t.abbr, color: t.color, ...(t.crest ? { crest: { ...t.crest } } : {}), isUser: !!t.isUser,
     strategy: { ...t.strategy },
     lineup: cloneLineup(t.lineup),
     comp: null,

@@ -1,6 +1,6 @@
 import { html, render, raw, pct } from '../../util.js';
 import { fantasyPoints, fmtClock, fmtQuarter } from '../../engine/stats.js';
-import { teamChip, esc } from '../components.js';
+import { teamChip, teamMark, esc } from '../components.js';
 import { replacementFromId, fmtWeeks } from '../../engine/injuries.js';
 import { wpChart, driveChart } from '../charts.js';
 import { buildRecap, recapTop, reelCard, turnsCard, mountRecap } from '../recap.js';
@@ -89,7 +89,7 @@ export function view(root, params, ctx) {
     </div>
     ${recap ? raw(turnsCard(recap, box)) : ''}
     ${wp || drives ? html`<div class="card tight" style="margin-top:.75rem">
-      ${wp ? html`<div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span><span class="teamdot" style="background:${h.color}"></span>${h.abbr} above the line · <span class="teamdot" style="background:${a.color}"></span>${a.abbr} below</span></div>${raw(wp)}` : ''}
+      ${wp ? html`<div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span>${raw(teamMark(h))}${h.abbr} above the line · ${raw(teamMark(a))}${a.abbr} below</span></div>${raw(wp)}` : ''}
       ${drives ? html`<div class="muted" style="font-size:.78rem;margin-top:.5rem">Drives</div>${raw(drives)}` : ''}
     </div>` : ''}
     ${injuryRows ? html`<div class="card tight" style="margin-top:.75rem"><h3>Injuries</h3><ul class="plain ticker">${raw(injuryRows)}</ul></div>` : ''}

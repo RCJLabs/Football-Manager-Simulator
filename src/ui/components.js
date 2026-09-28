@@ -1,3 +1,4 @@
+import { crestSvg } from './crest.js';
 import { html, raw, esc, textOn } from '../util.js';
 import { fmtWeeks } from '../engine/injuries.js';
 import { overall } from '../engine/ratings.js';
@@ -69,7 +70,12 @@ export function teamChip(team, { abbr = false, responsive = false } = {}) {
   const label = responsive
     ? `<span class="t-short">${esc(team.abbr)}</span><span class="t-long">${esc(team.name)}</span>`
     : esc(abbr ? team.abbr : team.name);
-  return raw(`<span class="team-chip"><span class="teamdot" style="background:${esc(team.color)}"></span><span class="tn">${label}</span></span>`);
+  return raw(`<span class="team-chip">${crestSvg(team)}<span class="tn">${label}</span></span>`);
+}
+
+/** A club's crest alone, for a line that names the club in its own words. */
+export function teamMark(team) {
+  return crestSvg(team);
 }
 
 export function attrList(p, { highlight = true } = {}) {

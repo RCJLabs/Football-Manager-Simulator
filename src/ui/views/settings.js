@@ -1,6 +1,7 @@
-import { html, render, download } from '../../util.js';
+import { html, render, raw, download } from '../../util.js';
 import { exportJSON, importJSON, resetAll } from '../../store.js';
 import { modal } from '../components.js';
+import { crestEditor, wireCrestEditor } from '../crest.js';
 import { INJURY_LEVEL_LABELS } from '../../engine/injuries.js';
 import { capOn } from '../../engine/cap.js';
 import { encodeLeagueCode } from '../../engine/share.js';
@@ -61,6 +62,11 @@ export function view(root, params, ctx) {
         <label class="row" style="margin-top:.9rem;gap:.5rem;align-items:center"><input type="checkbox" id="tickerPref" ${s.prefs.ticker !== false ? 'checked' : ''}> Play each week back after it is simulated</label>
         <small class="muted">Every game of the week on one clock, twenty seconds from kickoff to the last final. Skip or close it any time; a finished week can be replayed from its games.</small>
       </div>
+      ${league ? html`<div class="card" id="crestCard">
+        <h2>Your crest</h2>
+        <p class="muted" style="margin:.2rem 0 0">Shown beside your club's name everywhere, and in a league code. Every other club's is worked out from its name and colour.</p>
+        ${raw(crestEditor(league.teams.find((t) => t.isUser)))}
+      </div>` : ''}
       <div class="card">
         <h2>Save data</h2>
         <p class="muted">Your league lives in this browser's local storage. Export a backup before clearing site data or switching devices.</p>
@@ -104,6 +110,10 @@ export function view(root, params, ctx) {
     </div>
   `);
   if (league) {
+    const me = league.teams.find((t) => t.isUser);
+    wireCrestEditor(root.querySelector('#crestCard .crest-edit'), () => me, (crest) => {
+      ctx.update((st) => { const u = st.league.teams.find((t) => t.isUser); if (Object.keys(crest).length) u.crest = crest; else delete u.crest; }, { silent: true });
+    });
     root.querySelector('#coach').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.coachMode = e.target.checked; }));
     root.querySelector('#coachDef').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.coachDefense = e.target.checked; }));
     root.querySelector('#injuries').addEventListener('change', (e) => ctx.update((st) => { st.league.settings.injuries = e.target.value; }, { silent: true }));

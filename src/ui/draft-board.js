@@ -21,11 +21,12 @@ import { esc } from '../util.js';
 import { overall } from '../engine/ratings.js';
 import { shownOverall } from '../engine/scouting.js';
 import { ovrClass } from './components.js';
+import { crestSvg } from './crest.js';
 
-/** How a club's column is headed: colour dot, abbreviation, and whose it is. */
+/** How a club's column is headed: crest, abbreviation, and whose it is. */
 function head(team, onClock) {
   return `<th class="bt ${team.isUser ? 'me' : ''} ${onClock ? 'clock' : ''}" title="${esc(team.name)}">
-    <span class="dot" style="background:${esc(team.color)}"></span>${esc(team.abbr)}</th>`;
+    ${crestSvg(team)}${esc(team.abbr)}</th>`;
 }
 
 /**

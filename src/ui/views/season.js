@@ -16,7 +16,7 @@ import { createGame, simulateGame } from '../../engine/game.js';
 import { fantasyPoints } from '../../engine/stats.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { DIVISIONS } from '../../data/pro.js';
-import { teamChip, toast, modal } from '../components.js';
+import { teamChip, teamMark, toast, modal } from '../components.js';
 import { pickBroker } from '../../engine/futurepicks.js';
 import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tradesOpen, liveOffers } from '../../engine/transactions.js';
 import { RNG } from '../../engine/rng.js';
@@ -341,7 +341,7 @@ export function view(root, params, ctx) {
         ${standingsCard}
         <div class="card tight">
           <h3>Season leaders</h3>
-          ${leaders.length ? raw(leaders.map((l) => `<div style="margin-bottom:.6rem"><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${l.title}</div>${l.rows.map((r) => `<div class="row between" style="font-size:.88rem;flex-wrap:nowrap;gap:.5rem"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span class="teamdot" style="background:${r.team.color}"></span>${r.p.name} <small class="muted">${r.p.pos} · ${r.team.abbr}</small></span><b class="mono">${r.val}</b></div>`).join('')}</div>`).join('')) : html`<p class="muted">No games played yet.</p>`}
+          ${leaders.length ? raw(leaders.map((l) => `<div style="margin-bottom:.6rem"><div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">${l.title}</div>${l.rows.map((r) => `<div class="row between" style="font-size:.88rem;flex-wrap:nowrap;gap:.5rem"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${teamMark(r.team)}${r.p.name} <small class="muted">${r.p.pos} · ${r.team.abbr}</small></span><b class="mono">${r.val}</b></div>`).join('')}</div>`).join('')) : html`<p class="muted">No games played yet.</p>`}
         </div>
         <div class="card tight">
           <h3>Power rankings${pro ? html` <small class="muted" style="text-transform:none;letter-spacing:0">· top 12 of 32</small>` : ''}</h3>

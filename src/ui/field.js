@@ -17,6 +17,7 @@
 // did; y runs from the far sideline (0) to the near one (W).
 
 import { esc, textOn } from '../util.js';
+import { crestOf } from './crest.js';
 
 export const W = 53.33;
 export const MID = W / 2;
@@ -623,10 +624,12 @@ function markings(teams, out) {
   // Turf, mown in five-yard bands.
   out.push('<rect x="-10" y="0" width="120" height="53.33" fill="var(--field-dark)"/>');
   for (let x = 0; x < 100; x += 10) out.push(`<rect x="${x}" y="0" width="5" height="53.33" fill="var(--field)"/>`);
-  // End zones in the clubs' colours, each defended by its own.
+  // End zones in the clubs' colours, each defended by its own: the first
+  // colour, edged at the goal line in the second (crest.js).
   for (const [t, x0] of [[home, -10], [away, 100]]) {
     const ink = textOn(t.color);
     out.push(`<rect x="${x0}" y="0" width="10" height="53.33" fill="${esc(t.color)}"/>`);
+    out.push(`<rect x="${x0 < 0 ? -1.1 : 100.1}" y="0" width="1" height="53.33" fill="${esc(crestOf(t).secondary)}"/>`);
     out.push(`<text x="${x0 + 5}" y="${MID}" transform="rotate(${x0 < 0 ? -90 : 90} ${x0 + 5} ${MID})" text-anchor="middle" dominant-baseline="central" font-size="5.6" font-weight="800" letter-spacing=".6" fill="${ink}" opacity=".9">${esc(t.abbr)}</text>`);
   }
   // Lines every five yards, the goal lines heavier, and the hash marks.

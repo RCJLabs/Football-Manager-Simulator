@@ -9,6 +9,7 @@ import { autoDraftAll, RNG } from '../../engine/draft.js';
 import { autoCompleteAll, BUDGET_SPREADS} from '../../engine/auction.js';
 import { PRO_TEAMS, CONFERENCES, DIVISIONS } from '../../data/pro.js';
 import { DIFFICULTY, LEVELS, DEFAULT_DIFFICULTY } from '../../engine/difficulty.js';
+import { crestEditor, wireCrestEditor } from '../crest.js';
 
 export function view(root, params, ctx) {
   const hasLeague = !!ctx.getState().league;
@@ -51,6 +52,7 @@ export function view(root, params, ctx) {
             <div><label>Color</label><input type="color" name="color" value="#e63946"></div>
           </div>
         </div>
+        <div id="crestRow"><label>Crest</label>${raw(crestEditor({ name: 'Time Travelers', abbr: 'TTV', color: '#e63946' }))}</div>
         <div>
           <label>How you build your team</label>
           <label class="check"><input type="radio" name="type" value="auction" checked> <span><b>Auction</b> — $200 cap, bid against the other GMs.</span></label>
@@ -145,6 +147,8 @@ export function view(root, params, ctx) {
   });
 
   const form = root.querySelector('#setup');
+  // The crest picker, wired once the form's other fields are (below).
+  let crest = null;
   const modeInputs = form.querySelectorAll('input[name="mode"]');
   const syncMode = () => {
     const pro = form.mode.value === 'pro';
@@ -213,6 +217,8 @@ export function view(root, params, ctx) {
       keepers: Number(f.get('keepers')),
       budgetSpread: draftType === 'auction' && mode !== 'pro' ? (BUDGET_SPREADS[f.get('spread')] ?? 0) : 0,
     });
+    const chosen = crest?.read() || {};
+    if (Object.keys(chosen).length) league.teams.find((t) => t.isUser).crest = chosen;
     league.settings.coachMode = f.get('coach') === 'on';
     league.settings.coachDefense = f.get('coachDef') === 'on';
     league.settings.careers = f.get('careers') === 'on';
@@ -236,4 +242,20 @@ export function view(root, params, ctx) {
     ctx.navigate(auto ? '#/season' : (draftType === 'auction' ? '#/auction' : '#/draft'));
   });
   form.color.addEventListener('input', () => { form.dataset.touchedColor = '1'; });
+  // The crest follows the club being set up: in a pro league the franchise's
+  // own name and colour until either is typed over.
+  const clubNow = () => {
+    const pro = form.mode.value === 'pro';
+    const base = pro ? PRO_TEAMS[Number(form.franchise.value)] || {} : {};
+    return {
+      name: form.name.value.trim() || base.name || 'My Team',
+      abbr: form.abbr.value.trim() || base.abbr || 'ME',
+      color: pro && !form.dataset.touchedColor ? base.color : form.color.value,
+    };
+  };
+  crest = wireCrestEditor(form.querySelector('#crestRow .crest-edit'), clubNow);
+  for (const el of [form.name, form.abbr, form.color, form.franchise]) el.addEventListener('input', () => crest.refresh());
+  form.franchise.addEventListener('change', () => crest.refresh());
+  modeInputs.forEach((i) => i.addEventListener('change', () => crest.refresh()));
+  crest.refresh();
 }

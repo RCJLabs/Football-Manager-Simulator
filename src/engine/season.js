@@ -772,7 +772,7 @@ export function gameSeed(league, week, home, away) {
 
 export function teamForGame(league, idx, byId) {
   const t = league.teams[idx];
-  return { id: t.id, name: t.name, abbr: t.abbr, color: t.color, isUser: t.isUser, strategy: t.strategy, lineup: buildLineup(t.slots, byId, league.injuries) };
+  return { id: t.id, name: t.name, abbr: t.abbr, color: t.color, ...(t.crest ? { crest: t.crest } : {}), isUser: t.isUser, strategy: t.strategy, lineup: buildLineup(t.slots, byId, league.injuries) };
 }
 
 export function currentWeek(league) {
@@ -1243,7 +1243,7 @@ function crown(league, idx) {
       rank: table.findIndex((r) => r.idx === u) + 1,
       record: { ...league.teams[u].record },
       playoff: playoffRun(league, u).text,
-      club: { name: league.teams[u].name, abbr: league.teams[u].abbr, color: league.teams[u].color },
+      club: { name: league.teams[u].name, abbr: league.teams[u].abbr, color: league.teams[u].color, ...(league.teams[u].crest ? { crest: league.teams[u].crest } : {}) },
       best: bestOf(league.teams[u], bookIndex(league)),
     },
     divRanks: isPro(league) ? Object.fromEntries(proStandings(league).flatMap((conf) => conf.divisions.flatMap((dv) => dv.rows.map((r, i) => [r.idx, i + 1])))) : null,

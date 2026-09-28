@@ -3,7 +3,7 @@ import { step, stepDrive, stepQuarter, simulateGame, decisionNeeded, spot, downT
 import { OFFENSE_CALLS, DEFENSE_CALLS, fgDistance, fgProbability, halfSecondsLeft, matchup } from '../../engine/playcall.js';
 import { fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { currentWeek, simulateWeekAi, recordResult, weekNumber, userTeamIndex } from '../../engine/season.js';
-import { teamChip, announce} from '../components.js';
+import { teamChip, teamMark, announce} from '../components.js';
 import { wpChart, wpLabel, driveChart, statLeaders } from '../charts.js';
 import { conditionsLine } from '../../engine/weather.js';
 import { fieldSvg, latestPlay, naturalSeconds } from '../field.js';
@@ -342,7 +342,7 @@ export function view(root, params, ctx) {
     // Live only: once the game ends the recap prints the same lines, and two
     // copies of the same thing is worse than one.
     const leaders = g.teams.map((t, side) => ({
-      abbr: t.abbr, color: t.color, rows: statLeaders(g.stats[side].players, ctx.byId),
+      team: t, abbr: t.abbr, color: t.color, rows: statLeaders(g.stats[side].players, ctx.byId),
     }));
     const leadSummary = leaders
       .map((l) => { const best = l.rows.find((r) => r.kind === 'pass') || l.rows[0]; return best ? `${l.abbr} ${best.name.split(' ').at(-1)}` : ''; })
@@ -380,13 +380,13 @@ export function view(root, params, ctx) {
       </div>
       ${recap ? raw(reelCard(recap, box) + turnsCard(recap, box, { extras: true })) : ''}
       ${g.log.length > 2 ? html`<div class="card tight" style="margin-bottom:.75rem">
-        <div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span><span class="teamdot" style="background:${home.color}"></span>${home.abbr} above the line · <span class="teamdot" style="background:${away.color}"></span>${away.abbr} below</span></div>
+        <div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span>${raw(teamMark(home))}${home.abbr} above the line · ${raw(teamMark(away))}${away.abbr} below</span></div>
         ${raw(wpChart(g.log, g.teams))}
         ${g.drives.length ? html`<details style="margin-top:.4rem"><summary class="muted" style="cursor:pointer;font-size:.8rem">Drive chart · ${g.drives.length} drives</summary>${raw(driveChart(g.drives, g.teams))}</details>` : ''}
         ${!g.final && leaders.some((l) => l.rows.length) ? html`<details class="leaders" style="margin-top:.4rem">
           <summary class="muted" style="cursor:pointer;font-size:.8rem">Leaders${leadSummary ? ` · ${leadSummary}` : ''}</summary>
           ${leaders.map((l) => l.rows.length ? html`<div class="leadside">
-            <div class="who"><span class="teamdot" style="background:${l.color}"></span>${l.abbr}</div>
+            <div class="who">${raw(teamMark(l.team))}${l.abbr}</div>
             <ul>${l.rows.map((r) => html`<li><b>${r.name}</b> <span class="muted">${r.line}</span></li>`)}</ul>
           </div>` : '')}
           <a class="muted" href="#/box/live" style="font-size:.78rem">Full box score →</a>

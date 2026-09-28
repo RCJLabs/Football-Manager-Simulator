@@ -2,6 +2,7 @@
 // Shared through the Web Share API where it exists, downloaded otherwise.
 import { ROSTER_SLOTS } from '../data/positions.js';
 import { overall } from '../engine/ratings.js';
+import { drawCrest, kitBand } from './crest.js';
 
 function roundRect(c, x, y, w, h, r) {
   c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
@@ -15,12 +16,15 @@ export function drawRosterCard(league, team, byId, { title } = {}) {
   canvas.width = W; canvas.height = H;
   const c = canvas.getContext('2d');
   c.fillStyle = '#0f1a12'; c.fillRect(0, 0, W, H);
-  c.fillStyle = team.color || '#e63946'; c.fillRect(0, 0, W, 10);
-  c.fillStyle = '#e8efe9'; c.font = 'bold 34px system-ui, sans-serif'; c.textBaseline = 'top';
-  c.fillText(team.name, 28, 34);
+  kitBand(c, team, W);
+  drawCrest(c, team, W - 88, 28, 72);
+  c.fillStyle = '#e8efe9'; c.font = 'bold 34px system-ui, sans-serif'; c.textBaseline = 'top'; c.textAlign = 'left';
+  // The crest holds the top right corner; a long name is squeezed short of it.
+  const room = W - 28 - 104;
+  c.fillText(team.name, 28, 34, room);
   c.fillStyle = '#9db3a3'; c.font = '18px system-ui, sans-serif';
   const r = team.record;
-  c.fillText(`${title || league.name} · Season ${league.season} · ${r.w}-${r.l}${r.t ? `-${r.t}` : ''} · PF ${r.pf} PA ${r.pa}`, 28, 78);
+  c.fillText(`${title || league.name} · Season ${league.season} · ${r.w}-${r.l}${r.t ? `-${r.t}` : ''} · PF ${r.pf} PA ${r.pa}`, 28, 78, room);
   c.fillText('Starters', 28, 116);
   let y = 146;
   for (const { slot, p } of starters) {
@@ -45,12 +49,14 @@ export function drawSeasonCard(result) {
   canvas.width = W; canvas.height = H;
   const c = canvas.getContext('2d');
   c.fillStyle = '#0f1a12'; c.fillRect(0, 0, W, H);
-  c.fillStyle = result.club.color || '#e63946'; c.fillRect(0, 0, W, 10);
-  c.textBaseline = 'top';
+  kitBand(c, result.club, W);
+  drawCrest(c, result.club, W - 88, 28, 72);
+  c.textBaseline = 'top'; c.textAlign = 'left';
   c.fillStyle = '#e8efe9'; c.font = 'bold 34px system-ui, sans-serif';
-  c.fillText(result.club.name, 28, 34);
+  const room = W - 28 - 104;
+  c.fillText(result.club.name, 28, 34, room);
   c.fillStyle = '#9db3a3'; c.font = '18px system-ui, sans-serif';
-  c.fillText(`${result.league} · season ${result.season} · ${result.teams} clubs`, 28, 78);
+  c.fillText(`${result.league} · season ${result.season} · ${result.teams} clubs`, 28, 78, room);
 
   const r = result.record;
   c.fillStyle = '#e8efe9'; c.font = 'bold 56px system-ui, sans-serif';

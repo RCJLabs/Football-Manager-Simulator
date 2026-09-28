@@ -115,6 +115,8 @@ export function snapshot(league, players) {
     settings: { ...league.settings },
     teams: league.teams.map((t) => ({
       n: t.name, a: t.abbr, c: t.color, g: t.gm, u: t.isUser ? 1 : 0,
+      // A crest the club chose; the rest are worked out from name and colour.
+      ...(t.crest ? { k: t.crest } : {}),
       s: ROSTER_SLOTS.map((sl) => slotRef(t.slots[sl.id])),
       ir: (t.ir || []).map((id) => slotRef(id)).filter((i) => i !== -1),
       sq: (t.squad || []).map((id) => slotRef(id)).filter((i) => i !== -1),
@@ -198,6 +200,7 @@ export function leagueFromSnapshot(snap, players, byId) {
   snap.teams.forEach((st, i) => {
     const t = league.teams[i];
     t.name = st.n; t.abbr = st.a; t.color = st.c; t.gm = st.g; t.isUser = !!st.u;
+    if (st.k) t.crest = { ...st.k };
     t.strategy = { ...t.strategy, ...(st.st || {}) };
     const slots = {};
     ROSTER_SLOTS.forEach((sl, k) => { slots[sl.id] = idAt(st.s[k]); });
