@@ -6304,20 +6304,75 @@ Three things an AI club does that a preset never did.
 
 ### How even is the league, really
 
-This section used to say the league was too even for tactics to matter, and that was measured on the wrong number. It rested on `teamPower` spread — 0.78 between the best and worst roster in an eight-club league, against a home edge of 1.1 — and `teamPower` turned out to explain **r = 0.34** of who actually beats whom. About a tenth. Every conclusion drawn from it was drawn from a weak proxy.
+This section has now been wrong twice, and both times for the same reason: it compared the league's spread with the wrong thing.
 
-Measured properly, by point differential from a round robin of every club against every other, 20 games a pairing across three leagues:
+- **First** it said the league was too even for tactics to matter. That rested on `teamPower` spread (0.78 between the best and worst roster in an eight-club league, against a home edge of 1.1), and `teamPower` explained only r = 0.34 of who beat whom at the time.
+- **Then** it measured the gap properly, by point differential from a round robin (20 games a pairing, three leagues): 5.5 points a game best to worst in an 8-club snake league, 6.4 in an auction. It compared that with tactics (the pass/run read is worth about half a point) and concluded there was "no structural problem here to fix".
 
-| league | best club to worst |
-| --- | --- |
-| 8-club snake | **5.5 points a game** |
-| 8-club auction | **6.4 points a game** |
+Whether a table means anything turns on neither. It turns on how the clubs' spread compares with a single game's randomness, and against that yardstick the league is flat. `npm run parity` (`scripts/parity.mjs`) measures it. A season's win totals spread for two reasons, the clubs differ and games are random. A coin flipped G times spreads by √G/2 on its own, so the share of the spread that is the clubs is 1 − (G/4) / var(wins). A club's true strength comes from a round robin of the rosters, because one season cannot tell it from luck: in the opening pro season a club's point differential correlates **0.19** with its round-robin strength (0.49 at eight clubs).
 
-That is not a flat league. The pass/run read is worth about half a point (see **The pass/run read**), so tactics come to roughly a twelfth of the roster gap, which is a defensible ratio rather than a broken one. The premise was wrong; there is no structural problem here to fix.
+**The first season**, played as the game plays it (the AI's whole week, injuries on). The clubs' spread is in points a game, taken as the standard deviation of round-robin strength less the round robin's own luck.
 
-What is true, and was never the point being argued: the draft distributes talent evenly *relative to what the pool allows*. An eight-club league could produce a 6.40 power spread and produces 0.88 — 12% of the available range, and the same 12% at every league size, because the snake order hands out equal draft capital and the roster template forbids concentrating it. The pool is not the constraint: at eight clubs every drafted player is 88 or better.
+| league | skill share | clubs' spread | one game's scatter | teamPower spread |
+| --- | --- | --- | --- | --- |
+| pro 32, snake | 0.16 | 1.44 | 13.7 | 0.34 |
+| pro 32, auction | 0.09 | 1.83 | 13.9 | 0.45 |
+| fantasy 8, snake | 0.07 | 1.19 | 13.1 | 0.23 |
+| fantasy 8, auction | 0.41 | 2.55 | 13.8 | 0.45 |
+| fantasy 12, snake | 0.22 | 1.39 | 13.4 | 0.29 |
+| NFL, published | ~0.55 | ~5 | 13.9 | |
 
-If more variety is ever wanted, the one lever that measured worth having is
+The NFL row is from published analyses, not measured here: win totals spread by about 3.1 over seventeen games, and margins scatter about 13.9 points around the betting line (Stern, 1991). A single season's skill share is noisy to about ±0.1 at these sample sizes (6 to 16 leagues a row).
+
+**Where the evenness is not.**
+
+- **Not the games.** A game scatters by 13.1 to 13.9 points, which is the real league's figure.
+- **Not the conversion.** A point of `teamPower` is worth 2.4 to 4.9 points a game against the 3.3 the kickoff prior assumes.
+- **It is the rosters.** Snake-drafted clubs sit 1.2 to 1.8 points a game apart where real clubs sit about 5, which is the finding the old section recorded and then waved off. The snake order hands out equal draft capital and the roster template forbids concentrating it, so an eight-club league uses 12% of the power range its pool allows. Only the auction gets near half the real spread, because unequal spending is what an auction permits.
+
+**A pro dynasty spreads out, and then a season wears it back down.** Three 32-club leagues over eight seasons (the human's club left out, since nothing manages it here). "Kept" is the slope of a club's end-of-season strength on its strength at kickoff: 1 keeps the spread, 0 erases it.
+
+| season | skill share | spread at kickoff | spread at season's end | kept | kickoff strength vs season's differential |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0.16 | 1.36 | 1.43 | 0.58 | 0.28 |
+| 2 | 0.22 | 3.25 | 2.62 | 0.40 | 0.50 |
+| 3 | 0.29 | 3.82 | 2.43 | 0.40 | 0.33 |
+| 4 | 0.26 | 4.23 | 2.56 | 0.34 | 0.39 |
+| 5 | 0.26 | 4.02 | 2.73 | 0.37 | 0.33 |
+| 6 | 0.35 | 3.98 | 3.12 | 0.42 | 0.50 |
+| 7 | 0.36 | 4.28 | 3.61 | 0.56 | 0.60 |
+| 8 | 0.49 | 4.24 | 3.67 | 0.63 | 0.56 |
+
+By season 3 the clubs open about 4 points apart, close to the real league. Only about a third of a club's kickoff edge is left by the end of the regular season (kept 0.34 to 0.40 in seasons 2 to 5), and a club's win share from one year to the next correlates at only 0.0 to 0.21.
+
+**What wears it down is the waiver wire.** Season 4 of four of those dynasties, replayed from the same state and seeds with parts of the AI's week left out:
+
+| the AI's week | skill share | kept | team power, kickoff vs end | moves a club |
+| --- | --- | --- | --- | --- |
+| as shipped | 0.12 | 0.34 | 0.38 | 10.2 |
+| none of it | 0.41 | 1.00 | 1.00 | 0 |
+| strategy drift only | 0.48 | 0.99 | 1.00 | 0 |
+| injured reserve and squad only | 0.49 | 0.88 | 0.93 | 3.6 |
+| trades only | 0.51 | 0.70 | 0.74 | 1.2 |
+| waiver claims only | 0.17 | 0.34 | 0.43 | 6.3 |
+
+The claims alone do all of it, and the reason sits in two rules that are each sensible alone.
+
+- **The market fills only empty slots.** Free agency lets a club bid for only half its open slots (`AI_FA_SHARE`) and never replaces a man already in one, so the rest of the holes go to rookies. At season 4's kickoff a club has **4.6 starting slots** where an unsigned man is five or more points better, and **61%** of those it could have afforded at his market price. One club had $22 of room and started a 60-rated punter while an 83 asked $5; another had $38 and started a 63-rated safety while an 87 asked $7.
+- **The wire is the market's leftovers at the minimum.** The all-time players nobody drafted drain away over four seasons, and every released man is signable for a year (`MARKET_SEASONS`), so for the first half of a dynasty the in-season wire holds the league's leftover stars. Nine quarterbacks rated 88 or 89 were unsigned at one season-4 kickoff. A claim takes one outside the cap, which binds at kickoff and nowhere else, and on the minimum.
+
+So each week the worst clubs claim first, from a deep pool, for nothing, and the table converges. The effect fades as the drain empties the pool, which is why seasons 7 and 8 read better.
+
+**What would stop it, measured but not built.** In the same replay, the veterans nobody had signed by kickoff were removed from the market, so the wire held only men released during the season. Kept rose to **0.88**, the kickoff-to-end power correlation to 0.85, and the skill share to **0.45**, against the NFL's ~0.55. That is a prototype made by filtering the pool in `parity.mjs`, not a rule. The drain's floor, the trade backfill and a whole dynasty under it are untested, and it reverses the recorded choice not to tighten `MARKET_SEASONS`. The note on that constant argues supply for the *offseason* market, and a drain at kickoff would leave the offseason market as it is, so the two are not in conflict, but the call is a design one.
+
+**Fantasy leagues do not have the problem.** Their wire stays shallow: the best free agent is two or more points better than a club's starter at 0.7 starting slots a club after the draft and 1.5 at season 4, against 9.0 in a pro league's fourth season. Their evenness is the draft's alone.
+
+Limits.
+
+- All of this is the AI clubs. The human's edge was not measured here. The unmanaged human club in these dynasties fell 6 to 12 points a game behind in some seasons, which says neglect costs a great deal but not what skill earns.
+- The season-4 replay is four leagues and the dynasty is three, so the per-season numbers carry about ±0.1.
+
+If more variety at the draft is ever wanted, the one lever that measured worth having is
 **unequal auction budgets**, and it is built now — a *Cap room* choice on the
 setup screen, auction only, off by default. See **Unequal cap room** below,
 which re-measures it and corrects one half of what this paragraph used to

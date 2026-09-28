@@ -12,6 +12,7 @@
     "icons": "node scripts/make-icons.mjs",
     "smoke": "node scripts/smoke.mjs",
     "auction": "node scripts/auction-sim.mjs",
+    "parity": "node scripts/parity.mjs",
     "strategy": "node scripts/strategy-sim.mjs",
     "moves": "node scripts/moves-sim.mjs",
     "injuries": "node scripts/injury-sim.mjs",
