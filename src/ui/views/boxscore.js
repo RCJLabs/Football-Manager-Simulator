@@ -2,7 +2,8 @@ import { html, render, raw, pct } from '../../util.js';
 import { fantasyPoints, fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { teamChip, esc } from '../components.js';
 import { replacementFromId, fmtWeeks } from '../../engine/injuries.js';
-import { wpChart, driveChart, gameStory } from '../charts.js';
+import { wpChart, driveChart } from '../charts.js';
+import { buildRecap, recapTop, reelCard, turnsCard, mountRecap } from '../recap.js';
 import { conditionsLine } from '../../engine/weather.js';
 
 export function view(root, params, ctx) {
@@ -29,7 +30,9 @@ export function view(root, params, ctx) {
   // A thinned log carries bare { q, wp } points so the win-probability chart
   // keeps its shape; they have nothing to print, so the list skips them.
   const plays = (box.log || []).filter((e) => e.text);
-  const story = box.final && box.log ? gameStory(box, ctx.byId) : [];
+  // The recap, for a game that kept its log: the result and the score by
+  // quarter, the player of the game, the highlights, the turning points.
+  const recap = box.final && box.log ? buildRecap(box, ctx.byId) : null;
   const wp = box.log ? wpChart(box.log, box.teams) : '';
   const drives = box.drives ? driveChart(box.drives, box.teams) : '';
   const injuryRows = (box.injuries || []).flatMap((list, side) => list.map((x) => {
@@ -65,6 +68,7 @@ export function view(root, params, ctx) {
       <div class="sb-team"><span class="name">${teamChip(a, { responsive: true })}</span><span class="score">${box.score[1]}</span></div>
     </div>
     ${box.weather ? html`<p class="muted wxline">${conditionsLine(box.weather)}</p>` : ''}
+    ${recap ? raw(recapTop(recap, box) + reelCard(recap, box)) : ''}
     <div class="card tight" style="margin-top:.75rem">
       <div class="stat-compare">
         ${raw(cmp('Total yards', (t) => t.totalYds))}
@@ -83,7 +87,7 @@ export function view(root, params, ctx) {
         ${raw(cmp('Possession', (t) => fmtClock(t.top)))}
       </div>
     </div>
-    ${story.length ? html`<div class="card tight" style="margin-top:.75rem"><h3>Game story</h3>${raw(story.map((s) => `<p style="margin:.3rem 0;font-size:.92rem">${s}</p>`).join(''))}</div>` : ''}
+    ${recap ? raw(turnsCard(recap, box)) : ''}
     ${wp || drives ? html`<div class="card tight" style="margin-top:.75rem">
       ${wp ? html`<div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span><span class="teamdot" style="background:${h.color}"></span>${h.abbr} above the line · <span class="teamdot" style="background:${a.color}"></span>${a.abbr} below</span></div>${raw(wp)}` : ''}
       ${drives ? html`<div class="muted" style="font-size:.78rem;margin-top:.5rem">Drives</div>${raw(drives)}` : ''}
@@ -96,4 +100,5 @@ export function view(root, params, ctx) {
     </div>
     ${plays.length ? html`<details class="card tight" style="margin-top:.75rem"><summary style="cursor:pointer"><b>${box.thinned ? 'How it went' : 'Full play-by-play'}</b></summary>${box.thinned ? html`<p class="muted" style="margin:.4rem 0 0;font-size:.78rem">Scores, flags, turnovers and injuries. Once a season is over its routine plays are dropped, because a pro save keeps seventeen play-by-plays and they are the biggest thing in it.</p>` : ''}<ul class="pbp" style="max-height:none;margin-top:.5rem">${raw(plays.map((e) => `<li class="${e.type === 'drive' ? 'drive' : e.flag ? 'penalty' : e.scoring ? 'scoring' : e.type === 'int' || e.type === 'fumble' ? 'turnover' : e.type === 'injury' ? 'injury' : ''}">${e.situation ? `<span class="sit">${e.situation}</span>` : ''}${e.text}</li>`).join(''))}</ul></details>` : ''}
   `);
+  return recap ? mountRecap(root, recap, box) : null;
 }

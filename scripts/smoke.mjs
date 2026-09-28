@@ -560,10 +560,37 @@ try {
   await page.click('.skipahead > summary');
   await page.click('#simEnd');
   await page.waitForSelector('#finish');
+  // The recap: a score by quarter that adds up to the scoreboard, the player
+  // of the game, and the highlights on the field, which step and play.
+  const recap = await page.evaluate(() => {
+    const board = [...document.querySelectorAll('.scoreboard .score')].map((x) => Number(x.textContent));
+    const rows = [...document.querySelectorAll('.linescore tbody tr')].map((tr) => [...tr.cells].slice(1).map((c) => Number(c.textContent)));
+    return { board, rows, potg: !!document.querySelector('.potg'), dots: document.querySelectorAll('.reel .rdot').length, cap: document.querySelector('.reel-cap')?.textContent || '' };
+  });
+  if (recap.rows.length !== 2) errors.push('the final screen has no score by quarter');
+  else recap.rows.forEach((r, side) => {
+    const total = r.at(-1), quarters = r.slice(0, -1).reduce((a, b) => a + b, 0);
+    if (total !== recap.board[side] || quarters !== total) errors.push(`the score by quarter reads ${r.join(' ')} for a side that scored ${recap.board[side]}`);
+  });
+  if (!recap.potg) errors.push('the final screen names no player of the game');
+  if (!recap.dots) errors.push('the final screen has no highlights');
+  else {
+    if (recap.dots > 1) {
+      await page.click('[data-reel="next"]');
+      const moved = await page.evaluate(() => ({ cap: document.querySelector('.reel-cap').textContent, count: document.querySelector('.reel-count').textContent }));
+      if (moved.cap === recap.cap || !/^2 of/.test(moved.count)) errors.push(`the highlights did not step on: ${moved.count}`);
+    }
+    await page.click('[data-reel="play"]');
+    const playing = await page.evaluate(() => ({ label: document.querySelector('[data-reel="play"]').textContent, moving: document.querySelectorAll('.reel-field animateMotion').length }));
+    if (!/Pause/.test(playing.label) || !playing.moving) errors.push(`playing the highlights did not play them (${playing.label}, ${playing.moving} moving parts)`);
+    await page.click('[data-reel="play"]');
+  }
+  await checkOverflow('the final recap');
   await shot('07-final');
 
   await page.click('a[href="#/box/live"]');
   await page.waitForSelector('.stat-compare');
+  if (!(await page.$('.recap .linescore')) || !(await page.$('.reel'))) errors.push('the box score of the game just played has no recap or highlights');
   await checkOverflow('box score');
   await shot('08-box');
 

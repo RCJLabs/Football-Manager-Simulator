@@ -556,15 +556,70 @@ const at = (v) => Math.round(v * 1000) / 1000;
  * `animate`, otherwise drawn as it finished.
  */
 export function fieldSvg(g, { animate = false, seconds = null } = {}) {
-  const [home, away] = g.teams;
   const last = latestPlay(g);
   const play = last ? last.shape : null;
   const live = g.phase === 'play' && !g.final;
   const off = g.possession;
   const X = (side, v) => (side === 0 ? v : 100 - v);
+  const T = seconds ?? (play ? naturalSeconds(play) : 1);
 
-  const out = [];
-  out.push('<svg class="field" viewBox="-10 0 120 53.33" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">');
+  const out = ['<svg class="field" viewBox="-10 0 120 53.33" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">'];
+  markings(g.teams, out);
+  if (play?.flash && animate) out.push(flashSvg(play, T));
+  // This drive's ground, in the attacking club's colour.
+  if (live && g.drive && Number.isFinite(g.drive.startBallOn)) {
+    const a = X(off, g.drive.startBallOn), b = X(off, g.ballOn);
+    if (Math.abs(b - a) > 0.5) out.push(`<rect class="gained" x="${n2(Math.min(a, b))}" y="0" width="${n2(Math.abs(b - a))}" height="53.33" fill="${esc(g.teams[off].color)}" opacity=".2"/>`);
+  }
+  // The line of scrimmage and the line to gain for the snap to come.
+  if (live) {
+    const los = X(off, g.ballOn);
+    out.push(`<path class="los" d="M${n2(los)} 0V53.33" stroke="#5aa9ff" stroke-width=".55"/>`);
+    const togo = g.ballOn + g.toGo;
+    if (togo < 100) out.push(`<path class="togo" d="M${n2(X(off, togo))} 0V53.33" stroke="#f2d14b" stroke-width=".55"/>`);
+    const dd = off === 0 ? 1 : -1;
+    out.push(`<path d="M${n2(los + dd * 0.9)} 1.1l${dd * 1.5} 1.05l${-dd * 1.5} 1.05z" fill="#5aa9ff"/>`);
+  }
+  if (play) out.push(playSvg(play, g.teams, { animate, seconds: T }));
+  out.push('</svg>');
+  return out.join('');
+}
+
+/**
+ * One play on its own, for a recap: the field without the game's state on it
+ * and, with `zoom`, cropped to the ground the play covered — kept in the
+ * field's proportions, so a close-up sits in the same box as the whole field.
+ */
+export function playFieldSvg(play, teams, { animate = false, seconds = null, zoom = false, label = true } = {}) {
+  const T = seconds ?? naturalSeconds(play);
+  const [x, y, w, h] = zoom ? playBox(play) : [-10, 0, 120, W];
+  const out = [`<svg class="field" viewBox="${n2(x)} ${n2(y)} ${n2(w)} ${n2(h)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">`];
+  markings(teams, out);
+  if (play.flash && animate) out.push(flashSvg(play, T));
+  out.push(playSvg(play, teams, { animate, seconds: T, label }));
+  out.push('</svg>');
+  return out.join('');
+}
+
+/** The ground a play covered, with a margin, in the field's proportions and inside its end lines. */
+export function playBox(play) {
+  const pts = [...play.ball.pts, ...play.lines.flatMap((l) => l.pts), ...play.actors.flatMap((a) => a.pts), ...play.marks.map((m) => m.at)];
+  let x0 = Math.min(...pts.map((p) => p[0])) - 4, x1 = Math.max(...pts.map((p) => p[0])) + 4;
+  let y0 = Math.min(...pts.map((p) => p[1])) - 4, y1 = Math.max(...pts.map((p) => p[1])) + 4;
+  const ratio = 120 / W;
+  let w = Math.max(x1 - x0, 34), h = y1 - y0;
+  if (w / h < ratio) w = h * ratio; else h = w / ratio;
+  if (h > W) { h = W; w = W * ratio; }
+  if (w > 120) { w = 120; h = W; }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  x0 = clamp(cx - w / 2, -10, 110 - w);
+  y0 = clamp(cy - h / 2, 0, W - h);
+  return [x0, y0, w, h];
+}
+
+/** Everything that does not move: turf, lines, numbers, uprights, both end zones. */
+function markings(teams, out) {
+  const [home, away] = teams;
   // Turf, mown in five-yard bands.
   out.push('<rect x="-10" y="0" width="120" height="53.33" fill="var(--field-dark)"/>');
   for (let x = 0; x < 100; x += 10) out.push(`<rect x="${x}" y="0" width="5" height="53.33" fill="var(--field)"/>`);
@@ -573,10 +628,6 @@ export function fieldSvg(g, { animate = false, seconds = null } = {}) {
     const ink = textOn(t.color);
     out.push(`<rect x="${x0}" y="0" width="10" height="53.33" fill="${esc(t.color)}"/>`);
     out.push(`<text x="${x0 + 5}" y="${MID}" transform="rotate(${x0 < 0 ? -90 : 90} ${x0 + 5} ${MID})" text-anchor="middle" dominant-baseline="central" font-size="5.6" font-weight="800" letter-spacing=".6" fill="${ink}" opacity=".9">${esc(t.abbr)}</text>`);
-  }
-  if (play?.flash && animate) {
-    const x0 = play.flash === 'left' ? -10 : 100;
-    out.push(`<rect x="${x0}" y="0" width="10" height="53.33" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;0;.55;.15" keyTimes="0;.82;.9;1" dur="${seconds + 0.6}s" fill="freeze"/></rect>`);
   }
   // Lines every five yards, the goal lines heavier, and the hash marks.
   let lines = '';
@@ -597,25 +648,12 @@ export function fieldSvg(g, { animate = false, seconds = null } = {}) {
   }
   // The uprights at each end line, seen from above.
   out.push(`<path d="M-9.6 ${MID - 3.08}V${MID + 3.08}M109.6 ${MID - 3.08}V${MID + 3.08}" stroke="#f2d14b" stroke-width=".5" stroke-linecap="round"/>`);
+}
 
-  // This drive's ground, in the attacking club's colour.
-  if (live && g.drive && Number.isFinite(g.drive.startBallOn)) {
-    const a = X(off, g.drive.startBallOn), b = X(off, g.ballOn);
-    if (Math.abs(b - a) > 0.5) out.push(`<rect class="gained" x="${n2(Math.min(a, b))}" y="0" width="${n2(Math.abs(b - a))}" height="53.33" fill="${esc(g.teams[off].color)}" opacity=".2"/>`);
-  }
-  // The line of scrimmage and the line to gain for the snap to come.
-  if (live) {
-    const los = X(off, g.ballOn);
-    out.push(`<path class="los" d="M${n2(los)} 0V53.33" stroke="#5aa9ff" stroke-width=".55"/>`);
-    const togo = g.ballOn + g.toGo;
-    if (togo < 100) out.push(`<path class="togo" d="M${n2(X(off, togo))} 0V53.33" stroke="#f2d14b" stroke-width=".55"/>`);
-    const dd = off === 0 ? 1 : -1;
-    out.push(`<path d="M${n2(los + dd * 0.9)} 1.1l${dd * 1.5} 1.05l${-dd * 1.5} 1.05z" fill="#5aa9ff"/>`);
-  }
-
-  if (play) out.push(playSvg(play, g, { animate, seconds: seconds ?? naturalSeconds(play) }));
-  out.push('</svg>');
-  return out.join('');
+/** The end zone a score went into, lit as it lands. */
+function flashSvg(play, T) {
+  const x0 = play.flash === 'left' ? -10 : 100;
+  return `<rect x="${x0}" y="0" width="10" height="53.33" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;0;.55;.15" keyTimes="0;.82;.9;1" dur="${n2(T + 0.6)}s" fill="freeze"/></rect>`;
 }
 
 /** How long a play takes on screen when nothing is hurrying it. */
@@ -623,10 +661,10 @@ export function naturalSeconds(play) {
   return Math.round(clamp(0.3 + play.seconds * 0.42, 0.55, 2.1) * 100) / 100;
 }
 
-function playSvg(p, g, { animate, seconds }) {
+function playSvg(p, teams, { animate, seconds, label = true }) {
   const T = Math.max(0.25, seconds);
   const out = ['<g class="play">'];
-  const color = (team) => g.teams[team === 'off' ? p.side : 1 - p.side].color;
+  const color = (team) => teams[team === 'off' ? p.side : 1 - p.side].color;
   // The men at the snap, faint, fading as the play runs.
   if (p.form) {
     const dots = (pts, team) => pts.map(([x, y]) => `<circle cx="${n2(x)}" cy="${n2(y)}" r=".72" fill="${esc(color(team))}" stroke="${team === 'off' ? '#fff' : '#0b1a10'}" stroke-width=".22"/>`).join('');
@@ -668,13 +706,15 @@ function playSvg(p, g, { animate, seconds }) {
   if (bm) out.push(`<g class="ballg"><animateMotion dur="${T}s" fill="freeze" calcMode="linear" rotate="auto" keyPoints="${bm.keyPoints}" keyTimes="${bm.keyTimes}" path="${bm.path}"/>${ball}</g>`);
   else { const [x, y] = p.end; out.push(`<g class="ballg" transform="translate(${n2(x)} ${n2(y)})">${ball}</g>`); }
   // What it came to, beside where it ended.
-  if (p.label) {
+  if (p.label && label) {
     const [ex, ey] = p.end;
-    // About 0.56 of the type size a character; kept whole inside the end lines.
-    const half = p.label.length * 2.9 * 0.28 + 0.6;
-    const lx = clamp(ex, -10 + half, 110 - half);
+    // Centred on where the play ended, unless that would run it past an end
+    // line; then it is set flush against the line, which holds whatever the
+    // width of the face — an estimate of it clipped "Touchdown" on a wider one.
+    const half = p.label.length * 2.9 * 0.36 + 0.6;
+    const [lx, anchor] = ex > 110 - half ? [109.4, 'end'] : ex < -10 + half ? [-9.4, 'start'] : [ex, 'middle'];
     const ly = ey < 9 ? ey + 5.2 : ey - 2.6;
-    const txt = `<text class="plabel" x="${n2(lx)}" y="${n2(ly)}" text-anchor="middle" font-size="2.9" font-weight="800" fill="${TONE[p.tone] || '#fff'}" stroke="#0b2014" stroke-width=".75" paint-order="stroke" stroke-linejoin="round">${esc(p.label)}</text>`;
+    const txt = `<text class="plabel" x="${n2(lx)}" y="${n2(ly)}" text-anchor="${anchor}" font-size="2.9" font-weight="800" fill="${TONE[p.tone] || '#fff'}" stroke="#0b2014" stroke-width=".75" paint-order="stroke" stroke-linejoin="round">${esc(p.label)}</text>`;
     out.push(animate ? `<g opacity="0">${txt}<animate attributeName="opacity" values="0;0;1" keyTimes="0;.88;1" dur="${T}s" fill="freeze"/></g>` : txt);
   }
   out.push('</g>');

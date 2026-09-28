@@ -111,51 +111,77 @@ export function statLeaders(players, byId) {
   ].filter(Boolean);
 }
 
-export function gameStory(box, byId) {
+/** "Legion of Boom beat Time Travelers 35-25." — or null before the final whistle. */
+export function resultLine(box) {
+  if (!box.final) return null;
   const [home, away] = box.teams;
   const [h, a] = box.score;
-  const out = [];
-  if (box.final) {
-    if (h === a) out.push(`${home.name} and ${away.name} tie ${h}-${a}${box.overtime ? ' after overtime' : ''}.`);
-    else {
-      const w = h > a ? home : away, l = h > a ? away : home;
-      const ws = Math.max(h, a), ls = Math.min(h, a);
-      const how = ws - ls >= 21 ? 'rout' : ws - ls >= 10 ? 'beat' : ws - ls >= 4 ? 'edge' : 'hold off';
-      out.push(`${w.name} ${how} ${l.name} ${ws}-${ls}${box.overtime ? ' in overtime' : ''}.`);
-    }
-  }
-  // Swings: the plays that moved win probability the most.
-  const log = box.log || [];
+  if (h === a) return `${home.name} and ${away.name} tie ${h}-${a}${box.overtime ? ' after overtime' : ''}.`;
+  const w = h > a ? home : away, l = h > a ? away : home;
+  const ws = Math.max(h, a), ls = Math.min(h, a);
+  const how = ws - ls >= 21 ? 'rout' : ws - ls >= 10 ? 'beat' : ws - ls >= 4 ? 'edge' : 'hold off';
+  return `${w.name} ${how} ${l.name} ${ws}-${ls}${box.overtime ? ' in overtime' : ''}.`;
+}
+
+/**
+ * The plays that turned a game, biggest first: up to three that moved win
+ * probability by `TURNING_POINT` or more, or in a game that never turned the
+ * single biggest, if it reached `FAINT_TURN`. `k` is the play's place in the
+ * log and `delta` the swing, from the home side.
+ */
+export function turningPoints(log) {
   const swings = [];
   let prev = null;
-  for (const e of log) {
-    if (typeof e.wp !== 'number') continue;
-    if (prev != null && e.situation) swings.push({ e, delta: e.wp - prev });
+  (log || []).forEach((e, k) => {
+    if (typeof e.wp !== 'number') return;
+    if (prev != null && e.situation) swings.push({ k, e, delta: e.wp - prev });
     prev = e.wp;
-  }
+  });
   swings.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
-  // The plays that mattered: up to three big swings, or the single biggest in a game that never turned.
   // The same two numbers `thinLog` keeps its plays by, imported rather than
   // repeated: if these drifted apart the archive would quietly stop containing
-  // the plays this line wants to name.
+  // the plays this wants to name.
   let top = swings.slice(0, 3).filter((s) => Math.abs(s.delta) >= TURNING_POINT);
   if (!top.length && swings.length && Math.abs(swings[0].delta) >= FAINT_TURN) top = swings.slice(0, 1);
+  return top;
+}
+
+/** A play's text without the score the engine appends to a scoring play. */
+export const playText = (e) => (e.text || '').replace(/\s*[A-Z]{2,4} \d+, [A-Z]{2,4} \d+\.$/, '');
+
+/** Each side's leaders in one line: "LOB: Joe Burrow 23/32, 292 yds, 2 TD; …". */
+export function starLines(box, byId) {
+  if (!box.players) return [];
+  const out = [];
+  for (const side of [0, 1]) {
+    const line = statLeaders(box.players[side], byId).map((l) => `${l.name} ${l.line}`);
+    if (line.length) out.push(`${box.teams[side].abbr}: ${line.join('; ')}`);
+  }
+  return out;
+}
+
+/** Who got hurt, in one line, or null. */
+export function injuryLine(box, byId) {
+  const hurt = (box.injuries || []).flatMap((list, side) => list.map((x) => ({ side, x })));
+  if (!hurt.length) return null;
+  return `Injuries: ${hurt.map(({ side, x }) => `${byId.get(x.id)?.name || x.name || x.id} (${box.teams[side].abbr}, ${x.kind}${x.weeks ? `, out ${x.weeks >= 50 ? 'for the season' : `${x.weeks} wk`}` : ''})`).join(', ')}.`;
+}
+
+export function gameStory(box, byId) {
+  const [home, away] = box.teams;
+  const out = [];
+  const result = resultLine(box);
+  if (result) out.push(result);
+  const top = turningPoints(box.log);
   if (top.length) {
     out.push(`${top.length > 1 ? 'Turning points' : 'Turning point'}: ${top.map((s) => {
       const gain = s.delta > 0 ? home : away;
-      return `${fmtQuarter(s.e.q)} ${fmtClock(s.e.clock)} — ${s.e.text.replace(/\s*[A-Z]{2,4} \d+, [A-Z]{2,4} \d+\.$/, '')} (${gain.abbr} +${Math.round(Math.abs(s.delta) * 100)}%)`;
+      return `${fmtQuarter(s.e.q)} ${fmtClock(s.e.clock)} — ${playText(s.e)} (${gain.abbr} +${Math.round(Math.abs(s.delta) * 100)}%)`;
     }).join(' · ')}`);
   }
-  // Stars.
-  if (box.players) {
-    const stars = [];
-    for (const side of [0, 1]) {
-      const line = statLeaders(box.players[side], byId).map((l) => `${l.name} ${l.line}`);
-      if (line.length) stars.push(`${box.teams[side].abbr}: ${line.join('; ')}`);
-    }
-    if (stars.length) out.push(`Stars — ${stars.join(' · ')}.`);
-  }
-  const hurt = (box.injuries || []).flatMap((list, side) => list.map((x) => ({ side, x })));
-  if (hurt.length) out.push(`Injuries: ${hurt.map(({ side, x }) => `${byId.get(x.id)?.name || x.name || x.id} (${box.teams[side].abbr}, ${x.kind}${x.weeks ? `, out ${x.weeks >= 50 ? 'for the season' : `${x.weeks} wk`}` : ''})`).join(', ')}.`);
+  const stars = starLines(box, byId);
+  if (stars.length) out.push(`Stars — ${stars.join(' · ')}.`);
+  const hurt = injuryLine(box, byId);
+  if (hurt) out.push(hurt);
   return out;
 }

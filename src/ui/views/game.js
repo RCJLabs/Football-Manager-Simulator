@@ -4,9 +4,10 @@ import { OFFENSE_CALLS, DEFENSE_CALLS, fgDistance, fgProbability, halfSecondsLef
 import { fmtClock, fmtQuarter } from '../../engine/stats.js';
 import { currentWeek, simulateWeekAi, recordResult, weekNumber, userTeamIndex } from '../../engine/season.js';
 import { teamChip, announce} from '../components.js';
-import { wpChart, wpLabel, driveChart, gameStory, statLeaders } from '../charts.js';
+import { wpChart, wpLabel, driveChart, statLeaders } from '../charts.js';
 import { conditionsLine } from '../../engine/weather.js';
 import { fieldSvg, latestPlay, naturalSeconds } from '../field.js';
+import { buildRecap, recapTop, reelCard, turnsCard, mountRecap } from '../recap.js';
 
 export const selfRendering = true;
 
@@ -173,6 +174,8 @@ export function view(root, params, ctx) {
   // How long autoplay will hold on the play about to be drawn, so the field
   // finishes drawing it before the next snap replaces it.
   let fieldBudget = null;
+  // The recap's reel, stopped whenever the view redraws or is left.
+  let stopRecap = null;
   // Coaching a game means running its clock: `wantsTimeout` stops spending this
   // club's timeouts and `g.tempo` starts being honoured. Every skip-ahead path
   // hands it back for its own duration, so a Sim to end is managed as it always
@@ -327,12 +330,16 @@ export function view(root, params, ctx) {
       tip: mu ? `${mu.yds.toFixed(1)} yards a play league-wide, against ${mu.base.toFixed(1)} for this call into a base look — ${mu.rank === 1 ? 'the best' : mu.rank === mu.of ? 'the worst' : `number ${mu.rank}`} of the ${mu.of} defences it could have met.` : '',
     } : null;
     const wpNow = g.lastEvent && typeof g.lastEvent.wp === 'number' ? g.lastEvent.wp : null;
-    const story = g.final ? gameStory({ teams: g.teams, score: g.score, final: true, overtime: g.quarter >= 5, log: g.log, players: [g.stats[0].players, g.stats[1].players], injuries: g.teams.map((t) => t.injuries || []) }, ctx.byId) : [];
+    // Once it is over, the recap: the result and the score by quarter, the
+    // player of the game, the highlights on the field where the live play was,
+    // and the turning points drawn close up.
+    const box = g.final ? { teams: g.teams, score: g.score, final: true, overtime: g.quarter >= 5, log: g.log, players: [g.stats[0].players, g.stats[1].players], injuries: g.teams.map((t) => t.injuries || []) } : null;
+    const recap = box ? buildRecap(box, ctx.byId) : null;
     // Who is having the game. Folded away like the drive chart, so it costs one
     // line closed; the summary carries the two names worth seeing at a glance,
     // which is the part you want while watching rather than while studying.
-    // Live only: once the game ends the story card above prints the same four
-    // lines as prose, and two copies of the same thing is worse than one.
+    // Live only: once the game ends the recap prints the same lines, and two
+    // copies of the same thing is worse than one.
     const leaders = g.teams.map((t, side) => ({
       abbr: t.abbr, color: t.color, rows: statLeaders(g.stats[side].players, ctx.byId),
     }));
@@ -358,9 +365,9 @@ export function view(root, params, ctx) {
         <div class="sb-team ${off === 1 && !g.final ? 'poss' : ''}"><span class="name">${teamChip(away, { responsive: true })}</span><span class="score">${g.score[1]}</span><span class="to">${'●'.repeat(g.timeouts[1])}${'○'.repeat(Math.max(0, 3 - g.timeouts[1]))}</span></div>
       </div>
       ${g.weather ? html`<p class="muted wxline">${conditionsLine(g.weather)}</p>` : ''}
-      <div class="field2d">${raw(field)}</div>
+      ${recap?.reel.length ? '' : html`<div class="field2d">${raw(field)}</div>`}
       ${g.phase === 'play' && g.drive ? html`<div class="drivenote muted">${g.teams[off].abbr} drive: ${g.drive.plays} play${g.drive.plays === 1 ? '' : 's'}, ${g.drive.yards >= 0 ? '' : '−'}${Math.abs(g.drive.yards)} yard${Math.abs(g.drive.yards) === 1 ? '' : 's'}${startX != null ? ` from ${spot(g, off, g.drive.startBallOn)}` : ''}</div>` : ''}
-      ${story.length ? html`<div class="card tight" style="margin-bottom:.75rem"><h3>Game story</h3>${raw(story.map((s) => `<p style="margin:.3rem 0;font-size:.92rem">${s}</p>`).join(''))}</div>` : ''}
+      ${recap ? raw(recapTop(recap, box)) : ''}
       <div class="card tight" style="margin-bottom:.75rem">
         ${clockbar}
         ${controls}
@@ -370,6 +377,7 @@ export function view(root, params, ctx) {
         </div>
         ${last.note ? html`<small class="muted">${last.note}</small>` : ''}` : ''}
       </div>
+      ${recap ? raw(reelCard(recap, box) + turnsCard(recap, box, { extras: true })) : ''}
       ${g.log.length > 2 ? html`<div class="card tight" style="margin-bottom:.75rem">
         <div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span><span class="teamdot" style="background:${home.color}"></span>${home.abbr} above the line · <span class="teamdot" style="background:${away.color}"></span>${away.abbr} below</span></div>
         ${raw(wpChart(g.log, g.teams))}
@@ -387,6 +395,8 @@ export function view(root, params, ctx) {
       <p class="muted" style="font-size:.8rem;margin-top:.5rem">${home.name} (home) vs ${away.name}. ${league.phase === 'playoffs' ? 'Playoff rules: overtime continues until someone wins.' : 'Regular season: one 10-minute overtime, ties allowed.'} <a href="#/season">Back to season hub</a> (the game is saved).</p>
     `);
 
+    stopRecap?.();
+    stopRecap = recap ? mountRecap(root, recap, box) : null;
     root.querySelector('#next')?.addEventListener('click', () => act(() => step(g)));
     root.querySelector('#drive')?.addEventListener('click', () => act(() => stepDrive(g)));
     root.querySelector('#quarter')?.addEventListener('click', () => act(() => stepQuarter(g)));
@@ -428,5 +438,5 @@ export function view(root, params, ctx) {
   document.addEventListener('keydown', onKey);
 
   draw();
-  return () => { stopAuto(); document.removeEventListener('keydown', onKey); };
+  return () => { stopAuto(); stopRecap?.(); document.removeEventListener('keydown', onKey); };
 }

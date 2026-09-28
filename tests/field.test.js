@@ -133,11 +133,16 @@ test('the drawing: still when asked, moving when asked, labels inside the end li
       const still = fieldSvg(view, { animate: false });
       assert.doesNotMatch(still, /<animate|<set /, 'a still field animates');
       const moving = fieldSvg(view, { animate: true, seconds: 1 });
-      const label = /<text class="plabel" x="([-\d.]+)"[^>]*>([^<]*)</.exec(moving);
+      const label = /<text class="plabel" x="([-\d.]+)" y="[-\d.]+" text-anchor="(\w+)"[^>]*>([^<]*)</.exec(moving);
       if (!label) continue;
       assert.match(moving, /<animateMotion/);
-      const half = label[2].length * 2.9 * 0.28;
-      assert.ok(+label[1] - half >= -10 && +label[1] + half <= 110, `"${label[2]}" runs past an end line at x=${label[1]}`);
+      // Set flush against an end line when near one; otherwise centred with
+      // room on both sides for a face wider than average.
+      const [x, anchor, text] = [+label[1], label[2], label[3]];
+      const half = text.length * 2.9 * 0.36;
+      if (anchor === 'end') assert.ok(x <= 110, `"${text}" set past the end line`);
+      else if (anchor === 'start') assert.ok(x >= -10, `"${text}" set past the end line`);
+      else assert.ok(x - half >= -10 && x + half <= 110, `"${text}" runs past an end line at x=${x}`);
     }
   }
 });
