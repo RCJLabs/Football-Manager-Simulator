@@ -295,9 +295,17 @@ details.fold[open] > summary { margin-bottom: .25rem; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab { padding: 0.35rem 0.7rem; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap; flex: none; min-height: 34px; }
 .tab.active { background: var(--accent); color: #1a1a1a; border-color: transparent; }
-/* Four section tabs come to 339px at the default padding, which is 3px more than
-   a 360px phone has. They are a fixed set, so they get to fit rather than scroll. */
+/* The section tabs are a fixed set, so they get to fit rather than scroll: a tab
+   scrolled off the end is one nobody finds. Four came to 339px at the default
+   padding, 3px more than a 360px phone has, hence the trim. Five come to 446px,
+   more than any phone has, so up to 520px they sit in two rows, three and two,
+   each a fixed share of the width, which holds whatever the font. */
 .tabs.sections .tab { padding-left: 0.55rem; padding-right: 0.55rem; }
+@media (max-width: 520px) {
+  .tabs.sections { display: grid; grid-template-columns: repeat(6, 1fr); overflow: visible; }
+  .tabs.sections .tab { grid-column: span 2; text-align: center; }
+  .tabs.sections .tab:nth-child(n+4) { grid-column: span 3; }
+}
 
 /* "Something needs you here", in less width than a number would cost. */
 .tab .dot { display: inline-block; width: 6px; height: 6px; margin-left: 0.3rem; border-radius: 50%; background: #e8974a; vertical-align: middle; }

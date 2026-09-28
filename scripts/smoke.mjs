@@ -607,8 +607,9 @@ try {
   await page.click('#simWeek');
   await page.waitForSelector('#advance');
 
-  // The team page is four tabs now: the depth chart alone was 27 rows deep and
-  // everything else was stacked under it in one scroll.
+  // The team page is five tabs now: the depth chart alone was 27 rows deep and
+  // everything else was stacked under it in one scroll. On a phone they sit in
+  // two rows, and every one of them has to be on the screen.
   await page.goto(`http://localhost:${port}/#/team/0`);
   await page.waitForSelector('.poshead');
   await checkOverflow('team page');
@@ -622,7 +623,7 @@ try {
     return { n: s.querySelectorAll('.tab').length, scrollW: s.scrollWidth, clientW: s.clientWidth,
       cut: [...s.querySelectorAll('.tab')].filter((a) => a.getBoundingClientRect().right > box.right + 1).map((a) => a.textContent.trim()) };
   });
-  if (tabStrip.n !== 4) errors.push(`the team page shows ${tabStrip.n} section tabs, expected 4`);
+  if (tabStrip.n !== 5) errors.push(`the team page shows ${tabStrip.n} section tabs, expected 5`);
   if (tabStrip.cut.length) errors.push(`section tabs do not fit at 360px: ${tabStrip.scrollW}px of tabs in a ${tabStrip.clientW}px strip, ${tabStrip.cut.join(', ')} off the end`);
 
   // The jump bar is the whole point of the grouping: a position in one tap. A
@@ -908,8 +909,53 @@ try {
     const shown = await page.evaluate(() => document.querySelectorAll('.stat-v').length);
     if (!shown) errors.push('team stats show no figures at all');
     if (hidden.length) errors.push(`${hidden.length} of ${shown} team-stat figures sit outside the screen at 360px: ${hidden.join('; ')}`);
+    // Each club's record for the season beside its figure: the user's row reads
+    // the user's record.
+    const recs = await page.evaluate(() => {
+      const card = document.querySelector('#statCat').closest('.card');
+      const head = [...card.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+      const col = head.indexOf('Record');
+      const mine = card.querySelector('tbody tr.me');
+      const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+      const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league;
+      const r = lg.teams.find((t) => t.isUser).record;
+      return { col, shownRec: col >= 0 && mine ? mine.cells[col].textContent.trim() : null, want: `${r.w}-${r.l}${r.t ? `-${r.t}` : ''}` };
+    });
+    if (recs.col < 0) errors.push('the every-club table has no record column');
+    else if (recs.shownRec !== recs.want) errors.push(`the every-club table gives the user's record as ${recs.shownRec}, not ${recs.want}`);
     await checkOverflow('team stats at 360px');
     await shot('09y-team-stats');
+    // Head to head, a regular season in: the user's club against everybody,
+    // every meeting on the books and nobody listed against himself.
+    const h2h = await page.evaluate(() => {
+      const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1'));
+      const lg = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league;
+      return { u: lg.teams.findIndex((t) => t.isUser), teams: lg.teams.length };
+    });
+    await page.goto(`http://localhost:${port}/#/team/${h2h.u}/h2h`);
+    await sleep(400);
+    const seen = await page.evaluate(() => {
+      const card = [...document.querySelectorAll('#team-view h3')].find((x) => /Against every club/.test(x.textContent))?.closest('.card');
+      const unmet = card?.querySelector('.unmet')?.textContent.split(':')[1]?.split('·').filter((x) => x.trim()).length || 0;
+      const first = card?.querySelector('tbody tr[data-team]')?.dataset.team ?? null;
+      return { rows: card ? card.querySelectorAll('tbody tr').length : 0, unmet, first, text: card ? card.textContent.replace(/\s+/g, ' ') : '', me: card ? card.querySelectorAll('tbody tr.me').length : -1 };
+    });
+    // Met or named as not met: every other club once, and nobody twice.
+    if (!seen.rows) errors.push('the head-to-head table lists nobody a regular season in');
+    if (seen.rows + seen.unmet !== h2h.teams - 1) errors.push(`the head-to-head card accounts for ${seen.rows} clubs met and ${seen.unmet} not, not the ${h2h.teams - 1} others`);
+    if (seen.me > 0) errors.push('the user\'s club is listed against itself');
+    if (!/\d+-\d+(-\d+)? in all/.test(seen.text)) errors.push(`the head-to-head card gives no total: ${seen.text.slice(0, 120)}`);
+    await checkOverflow('head to head at 360px');
+    await shot('09z-head-to-head');
+    // A club in the table opens its own head to head, the user's club among
+    // the ones it has met.
+    if (seen.first != null) {
+      await page.click(`#team-view tbody tr[data-team="${seen.first}"]`);
+      await sleep(400);
+      const theirs = await page.evaluate(() => ({ hash: location.hash, me: document.querySelectorAll('#team-view tbody tr.me').length }));
+      if (theirs.hash !== `#/team/${seen.first}/h2h`) errors.push(`a club in the head-to-head table opens ${theirs.hash}, not its own head to head`);
+      else if (theirs.me !== 1) errors.push(`the user's club is marked ${theirs.me} times on another club's head to head`);
+    }
     // Back where the season walk below expects to be.
     await page.goto(`http://localhost:${port}/#/season`);
     await sleep(400);
@@ -1788,8 +1834,31 @@ try {
         });
         if (!shown) errors.push('a filed season shows no figures');
         if (hidden) errors.push(`${hidden} of ${shown} figures from a filed season sit outside the screen at 360px`);
+        // The record beside a filed season's figures is that season's, not
+        // the one being played now.
+        const pu = past.teams.findIndex((t) => t.isUser);
+        const filed = past.archive.seasons[0].clubs[pu];
+        const wantRec = `${filed[0]}-${filed[1]}${filed[2] ? `-${filed[2]}` : ''}`;
+        const gotRec = await page.evaluate(() => {
+          const card = document.querySelector('#statCat').closest('.card');
+          const col = [...card.querySelectorAll('thead th')].map((th) => th.textContent.trim()).indexOf('Record');
+          const mine = card.querySelector('tbody tr.me');
+          return col >= 0 && mine ? mine.cells[col].textContent.trim() : null;
+        });
+        if (gotRec !== wantRec) errors.push(`a filed season's table gives the user's record as ${gotRec}, not the ${wantRec} filed`);
         await checkOverflow('team stats for a filed season');
         await shot('18-past-season');
+        // The club's own page: season one on the list, with where it finished.
+        await page.goto(`http://localhost:${port}/#/team/${pu}/h2h`);
+        await sleep(400);
+        const listed = await page.evaluate(() => {
+          const card = [...document.querySelectorAll('#team-view h3')].find((x) => /Season by season/.test(x.textContent))?.closest('.card');
+          return card ? [...card.querySelectorAll('tbody tr')].map((tr) => [...tr.cells].map((c) => c.textContent.trim())) : null;
+        });
+        const finish = past.history[0].finish.indexOf(pu) + 1;
+        if (!listed || listed.length !== 1) errors.push(`the season-by-season list reads ${JSON.stringify(listed)}; one season is filed`);
+        else if (listed[0][1] !== wantRec || !listed[0][2].startsWith(`${finish}`)) errors.push(`season one reads ${JSON.stringify(listed[0])}, not ${wantRec} and finishing ${finish}`);
+        await checkOverflow('season by season');
       }
       await page.goto(`http://localhost:${port}/#/season`);
       await sleep(400);

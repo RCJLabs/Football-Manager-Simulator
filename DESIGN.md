@@ -2451,8 +2451,18 @@ About 5% of what a pro save already grows by each season. That growth — 634 KB
 after one season to 1,202 KB after six — was measured along the way and is not
 this feature's; nothing here looks into it.
 
-Not built: a club page listing its series against everybody, and records per
-season in the Every club table. Both read what is now kept.
+Two screens read it since. Each club's page has a **Head to head** tab: the club
+against every other one — record, a percentage that counts a tie as half, most
+meetings first, a pro club's division rivals marked — and its seasons one by
+one, with the filed record, where it finished and its titles. A club it has
+never met is named in a line under the table rather than given a row of
+dashes: a pro club meets 14 different clubs in a regular season (checked on six
+leagues, every club), so after one season 17 of the 31 rows would be empty.
+Each row opens that club's own head to head, from its side. `league.history` is
+older than the archive, so a season from before it shows where the club
+finished and no record, and says why. And the Every club table on Team stats
+carries each club's record beside the figure — the filed one for a filed
+season, since the record on the club is the season being played.
 
 ### Every veteran contract was three years
 
@@ -7842,7 +7852,7 @@ Within the depth chart, twenty-seven rows get position group headers — name, h
 
 Two smaller things fell out of the measurement. `showAttrs` had been in the preferences since the beginning with nothing reading it; it is now the depth chart's density toggle, worth 577px. And `playerItem()` grew a `pos` option, because on a screen already grouped by position — with the slot badge saying which one he is — a third copy of the position next to the name only wrapped it onto a second line.
 
-The four section tabs come to 339px at the default `.tab` padding, which is 3px more than a 360px phone has, so `.tabs.sections` trims it; and the injury tab carries a dot rather than a count, since " (3)" put the strip back over the edge. Placing a man on injured reserve navigates to the Injuries tab, because otherwise he vanishes from the depth chart and reappears on a screen you are not looking at.
+The four section tabs come to 339px at the default `.tab` padding, which is 3px more than a 360px phone has, so `.tabs.sections` trims it; and the injury tab carries a dot rather than a count, since " (3)" put the strip back over the edge. A fifth, Head to head (see *Past seasons, and every series*), takes the row to 446px, which no phone has, so up to 520px the five sit in two rows — three and two, each a fixed share of the width. That also retires a fragility the four had: a row trimmed to fit a 336px strip exactly had no pixel to spare for a font a shade wider than the test browser's, and a grid of fixed shares does not depend on the font at all. Placing a man on injured reserve navigates to the Injuries tab, because otherwise he vanishes from the depth chart and reappears on a screen you are not looking at.
 
 ### The auction room, out loud
 

@@ -1,4 +1,4 @@
-import { html, render, raw } from '../../util.js';
+import { html, render, raw, ordinal } from '../../util.js';
 import { ROSTER_SLOTS, POSITION_ORDER, POSITIONS } from '../../data/positions.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { buildLineup, teamPower, overall } from '../../engine/ratings.js';
@@ -14,6 +14,7 @@ import { careerPhase, primeOf, rootOf } from '../../engine/careers.js';
 import { teamContractIds } from '../../engine/cap.js';
 import { movesOn, movesOpen, candidatesFor, convertPlayer, moveOptions, swapPositions, positionsFor } from '../../engine/convert.js';
 import { SETTLING } from '../../engine/translate.js';
+import { seriesTable, clubSeasons } from '../../engine/archive.js';
 
 // Grouped by what each one was measured to be worth, because presenting five
 // dials as five equal decisions is not what the numbers say. See strategy.js.
@@ -37,7 +38,7 @@ const GROUP_NOTES = {
  * Kept module-level and mirrored in the route the way moves.js does it, so it
  * survives a re-render and the back button works.
  */
-const TABS = [['depth', 'Depth'], ['squad', 'Squad'], ['injuries', 'Injuries'], ['strategy', 'Strategy']];
+const TABS = [['depth', 'Depth'], ['squad', 'Squad'], ['injuries', 'Injuries'], ['strategy', 'Strategy'], ['h2h', 'Head to head']];
 const ui = { tab: 'depth', devOpen: false };
 
 export function view(root, params, ctx) {
@@ -229,6 +230,39 @@ export function view(root, params, ctx) {
   const nothing = (what) => html`<div class="card tight"><p class="muted" style="margin:0">${what}</p></div>`;
   const hurtCount = hurt.length + onIr.length;
 
+  // Head to head: the club against everybody, where the matchup card quotes
+  // one series at a time, and its seasons one by one. Both read the archive.
+  const headToHead = (() => {
+    const { rows, since } = seriesTable(league, idx);
+    const rec = (r) => `${r.w}-${r.l}${r.t ? `-${r.t}` : ''}`;
+    const pct = (r) => r.pct.toFixed(3).replace(/^0/, '');
+    // Division rivals are the series a pro club plays twice a year.
+    const rival = (b) => team.conf != null && team.div != null && league.teams[b].conf === team.conf && league.teams[b].div === team.div;
+    // A club never met would be a row of dashes, and after one pro season 17
+    // of the 31 are, so they are named in a line under the table instead.
+    const met = rows.filter((r) => r.games);
+    const unmet = rows.filter((r) => !r.games);
+    const total = met.reduce((acc, r) => ({ w: acc.w + r.w, l: acc.l + r.l, t: acc.t + r.t }), { w: 0, l: 0, t: 0 });
+    const from = since > 1 ? `since season ${since}` : 'since the league began';
+    const seriesCard = met.length
+      ? html`<div class="card tight">
+          <h3 style="margin:0">Against every club</h3>
+          <p class="muted" style="margin:.2rem 0 .5rem;font-size:.85rem">Regular season and playoffs, ${from}: <b>${rec(total)}</b> in all. Most meetings first.</p>
+          <div class="table-wrap"><table style="font-size:.9rem"><thead><tr><th>Club</th><th class="num">Record</th><th class="num">Pct</th><th class="num hide-sm">Games</th></tr></thead><tbody>${raw(met.map((r) => `<tr class="clickable ${r.team.isUser ? 'me' : ''}" data-team="${r.idx}"><td>${teamChip(r.team, { abbr: true }).__raw}${rival(r.idx) ? ' <span class="badge">division</span>' : ''}</td><td class="num">${rec(r)}</td><td class="num">${pct(r)}</td><td class="num muted hide-sm">${r.games}</td></tr>`).join(''))}</tbody></table></div>
+          ${unmet.length ? html`<small class="muted unmet" style="display:block;margin-top:.4rem">${since > 1 ? 'No meeting on file' : 'Not met yet'}: ${unmet.map((r) => r.team.abbr).join(' · ')}</small>` : ''}
+        </div>`
+      : nothing(html`No games on file yet. Every meeting counts from the first week, playoffs included.`);
+    const seasons = clubSeasons(league, idx);
+    const seasonsCard = seasons.length
+      ? html`<div class="card tight">
+          <h3 style="margin:0">Season by season</h3>
+          <div class="table-wrap" style="margin-top:.4rem"><table style="font-size:.9rem"><thead><tr><th>Season</th><th class="num">Record</th><th class="num">Finished</th></tr></thead><tbody>${raw(seasons.map((s) => `<tr><td>${s.season}${s.champion ? ' <span class="badge bargain">champions</span>' : ''}</td><td class="num">${s.record ? rec(s.record) : '<span class="muted" title="Played before seasons were filed">—</span>'}</td><td class="num">${s.finish ? `${ordinal(s.finish)} of ${s.of}` : '—'}</td></tr>`).join(''))}</tbody></table></div>
+          ${seasons.some((s) => !s.record) ? html`<small class="muted">A season with no record was played before seasons were filed; where it finished was kept.</small>` : ''}
+        </div>`
+      : nothing(html`No season finished yet. Each one is filed here when it is crowned.`);
+    return html`<div class="stack">${seriesCard}${seasonsCard}</div>`;
+  })();
+
   const sections = {
     depth: html`<div class="stack"><div class="card tight">
       <div class="row between" style="align-items:baseline">
@@ -245,6 +279,7 @@ export function view(root, params, ctx) {
       <div class="card tight"><h3>Unit ratings</h3>${raw(unitTable(lineup))}</div>
     </div>`,
     injuries: irCard || reportCard ? html`<div class="stack">${reportCard}${irCard}</div>` : nothing('Nobody is hurt and the injured reserve is empty.'),
+    h2h: headToHead,
     strategy: html`<div class="stack">
       ${read ? html`<div class="card tight">
         <h3>What you built</h3>
@@ -301,6 +336,9 @@ export function view(root, params, ctx) {
   el.querySelector('#devMore')?.addEventListener('toggle', (e) => { ui.devOpen = e.target.open; });
   el.querySelector('#focusReset')?.addEventListener('click', () => ctx.update((st) => { resetFocus(st.league, idx); }));
   el.addEventListener('click', (e) => {
+    // A club in the head-to-head table opens its own, from its side.
+    const club = e.target.closest('tr[data-team]');
+    if (club) { ctx.navigate(`#/team/${club.dataset.team}/h2h`); return; }
     const fb = e.target.closest('[data-focus]');
     if (fb && canEdit) {
       let res;

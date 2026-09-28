@@ -136,6 +136,52 @@ export function series(league, a, b) {
   };
 }
 
+/**
+ * Club `a` against every other club, most meetings first — the figures
+ * `series` gives one pair at a time, in one pass over the season in play.
+ * `pct` counts a tie as half a win and is null before the two have met.
+ */
+export function seriesTable(league, a) {
+  const ar = league.archive;
+  const live = ar?.through == null || league.season > ar.through;
+  const games = live ? gamesOf(league) : [];
+  const rows = [];
+  league.teams.forEach((team, b) => {
+    if (b === a) return;
+    const rec = [...(ar?.series?.[pairKey(a, b)] || [0, 0, 0])];
+    for (const g of games) {
+      if (g.home !== g.away && pairKey(g.home, g.away) === pairKey(a, b)) tally(rec, g);
+    }
+    const aLow = a < b;
+    const w = aLow ? rec[0] : rec[1], l = aLow ? rec[1] : rec[0], t = rec[2];
+    const n = w + l + t;
+    rows.push({ idx: b, team, w, l, t, games: n, pct: n ? (w + t / 2) / n : null });
+  });
+  rows.sort((x, y) => y.games - x.games || (y.pct ?? -1) - (x.pct ?? -1) || x.idx - y.idx);
+  return { rows, since: ar?.since ?? league.season };
+}
+
+/**
+ * Club `a` season by season, newest first: its record where the season was
+ * filed, where it finished in the table, and whether it won the title.
+ * `league.history` is older than the archive, so a season from before the
+ * archive began has a finish and no record, and says so with a null.
+ */
+export function clubSeasons(league, a) {
+  const filed = new Map((league.archive?.seasons || []).map((s) => [s.season, s]));
+  return (league.history || []).map((h) => {
+    const c = filed.get(h.season)?.clubs?.[a];
+    const at = Array.isArray(h.finish) ? h.finish.indexOf(a) : -1;
+    return {
+      season: h.season,
+      record: c ? { w: c[0], l: c[1], t: c[2] } : null,
+      finish: at >= 0 ? at + 1 : null,
+      of: Array.isArray(h.finish) ? h.finish.length : league.teams.length,
+      champion: h.champion === a,
+    };
+  }).reverse();
+}
+
 /** "you lead 7–5", "level at 3–3–1", in words for a matchup card. */
 export function seriesLine(s, { who = 'you' } = {}) {
   if (!s.games) return 'first meeting';

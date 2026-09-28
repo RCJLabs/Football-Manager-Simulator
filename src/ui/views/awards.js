@@ -116,7 +116,10 @@ export function view(root, params, ctx) {
       const cat = CATEGORY_BY_KEY[ui.statCat] || TEAM_CATEGORIES[0];
       const ranked = rankTeams(rows, cat);
       const options = groups.map(([side, label]) => `<optgroup label="${label}">${TEAM_CATEGORIES.filter((c) => c.side === side).map((c) => `<option value="${c.key}" ${c.key === cat.key ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</optgroup>`).join('');
-      const tableRows = ranked.map((r) => `<tr class="${r.idx === u ? 'me' : ''}"><td class="num muted">${r.rank ?? '—'}</td><td>${chip(r)}</td><td class="num"><b class="stat-v">${esc(fmtCategory(cat, r.v))}</b></td><td class="num muted hide-sm">${r.games} gp</td></tr>`).join('');
+      // The record that season beside the figure, so a club's numbers are read
+      // against how it did: a filed season kept it, the current one is live.
+      const recOf = (r) => { const x = r.record || league.teams[r.idx]?.record || {}; return `${x.w ?? 0}-${x.l ?? 0}${x.t ? `-${x.t}` : ''}`; };
+      const tableRows = ranked.map((r) => `<tr class="${r.idx === u ? 'me' : ''}"><td class="num muted">${r.rank ?? '—'}</td><td>${chip(r)}</td><td class="num"><b class="stat-v">${esc(fmtCategory(cat, r.v))}</b></td><td class="num muted">${recOf(r)}</td><td class="num muted hide-sm">${r.games} gp</td></tr>`).join('');
 
       body = html`
         ${raw(picker)}
@@ -126,7 +129,7 @@ export function view(root, params, ctx) {
         <div class="card tight" style="margin-top:.75rem">
           <h3 style="margin-top:0">Every club</h3>
           <select id="statCat" aria-label="Category" style="max-width:100%;margin-bottom:.5rem">${raw(options)}</select>
-          <div class="table-wrap"><table style="font-size:.9rem"><thead><tr><th class="num">#</th><th>Club</th><th class="num lbl">${esc(cat.label)}</th><th class="num hide-sm">Games</th></tr></thead><tbody>${raw(tableRows)}</tbody></table></div>
+          <div class="table-wrap"><table style="font-size:.9rem"><thead><tr><th class="num">#</th><th>Club</th><th class="num lbl">${esc(cat.label)}</th><th class="num">Record</th><th class="num hide-sm">Games</th></tr></thead><tbody>${raw(tableRows)}</tbody></table></div>
         </div>`;
     }
   } else if (ui.tab === 'records') {

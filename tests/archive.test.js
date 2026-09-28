@@ -5,7 +5,7 @@ import { RNG } from '../src/engine/rng.js';
 import { createLeague, startSeason, registerPlayers, simulateWeekAi, advanceWeek, userTeamIndex, newSeasonSameRosters } from '../src/engine/season.js';
 import { autoDraftAll } from '../src/engine/draft.js';
 import { seasonTeamStats, rankTeams, fmtCategory, CATEGORY_BY_KEY } from '../src/engine/teamstats.js';
-import { archiveSeason, archivedSeasons, pastRows, series, seriesLine } from '../src/engine/archive.js';
+import { archiveSeason, archivedSeasons, pastRows, series, seriesLine, seriesTable, clubSeasons } from '../src/engine/archive.js';
 
 registerPlayers(byId);
 
@@ -154,4 +154,64 @@ test('the series reads as words', () => {
   assert.equal(seriesLine({ w: 2, l: 4, t: 1, games: 7 }), 'you trail 2–4–1');
   assert.equal(seriesLine({ w: 3, l: 3, t: 1, games: 7 }), 'level at 3–3–1');
   assert.equal(seriesLine({ w: 4, l: 1, t: 0, games: 5 }, { who: 'DAL' }), 'DAL leads 4–1');
+});
+
+/** Every one of a club's table rows is the series for that pair, most meetings first. */
+function checkTable(lg) {
+  for (let a = 0; a < lg.teams.length; a++) {
+    const { rows, since } = seriesTable(lg, a);
+    assert.equal(rows.length, lg.teams.length - 1);
+    assert.ok(!rows.some((r) => r.idx === a), 'a club is listed against itself');
+    for (const r of rows) {
+      const s = series(lg, a, r.idx);
+      assert.deepEqual([r.w, r.l, r.t, r.games], [s.w, s.l, s.t, s.games], `${a} v ${r.idx}`);
+      assert.equal(since, s.since);
+      assert.equal(r.pct, r.games ? (r.w + r.t / 2) / r.games : null);
+    }
+    for (let i = 1; i < rows.length; i++) assert.ok(rows[i - 1].games >= rows[i].games, 'not most meetings first');
+  }
+}
+
+test('a club\'s table against everybody is every series it has, filed and in play', () => {
+  const lg = playSeason(45);
+  // Crowned: the season is filed and the schedule still holds it, so a table
+  // that counted both would double every game. Each club's games add up to
+  // the games it played, playoffs included.
+  checkTable(lg);
+  const games = [...lg.schedule.flatMap((w) => w.games), ...(lg.playoffs?.rounds || []).flatMap((r) => r.games)].filter((g) => g.result);
+  for (let a = 0; a < lg.teams.length; a++) {
+    const played = games.filter((g) => g.home === a || g.away === a).length;
+    assert.equal(seriesTable(lg, a).rows.reduce((n, r) => n + r.games, 0), played, `club ${a}'s games`);
+  }
+  // And a new season under way on top of the filed one.
+  newSeasonSameRosters(lg, byId);
+  for (let w = 0; w < 4; w++) { simulateWeekAi(lg, byId, { includeUser: true }); advanceWeek(lg, byId); }
+  checkTable(lg);
+});
+
+test('a club\'s seasons read its filed record, where it finished and its titles, newest first', () => {
+  const lg = playSeason(46);
+  newSeasonSameRosters(lg, byId);
+  while (lg.phase === 'season' || lg.phase === 'playoffs') { simulateWeekAi(lg, byId, { includeUser: true }); advanceWeek(lg, byId); }
+  let champions = 0;
+  for (let a = 0; a < lg.teams.length; a++) {
+    const seasons = clubSeasons(lg, a);
+    assert.deepEqual(seasons.map((x) => x.season), [2, 1]);
+    for (const x of seasons) {
+      const h = lg.history.find((e) => e.season === x.season);
+      assert.equal(x.finish, h.finish.indexOf(a) + 1);
+      assert.equal(x.of, lg.teams.length);
+      assert.equal(x.champion, h.champion === a);
+      assert.deepEqual(x.record, pastRows(lg, x.season)[a].record);
+      if (x.champion) champions++;
+    }
+  }
+  assert.equal(champions, 2, 'one champion a season');
+  // A league from before the archive kept where everybody finished and not
+  // what they did: those seasons read with no record, not a made-up one.
+  delete lg.archive;
+  for (const x of clubSeasons(lg, 0)) {
+    assert.equal(x.record, null);
+    assert.ok(x.finish >= 1);
+  }
 });
