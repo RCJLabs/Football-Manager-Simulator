@@ -344,6 +344,14 @@ details.fold[open] > summary { margin-bottom: .25rem; }
 .chart.race .race-tag { font-size: 18px; font-weight: 700; }
 .chart.race .race-tag.me { font-size: 20px; }
 .odds-line { margin: .1rem 0 .5rem; font-size: .95rem; }
+/* Why the next game matters (stories.js): on the matchup card, and its lead
+   line under the club on the home screen. */
+.stories { list-style: none; margin: -.2rem 0 .6rem; padding: 0; font-size: .88rem; }
+.stories li { position: relative; padding-left: .85rem; margin: .15rem 0; }
+.stories li::before { content: ''; position: absolute; left: .1rem; top: .55em; width: .35rem; height: .35rem; border-radius: 50%; background: var(--accent-ink); }
+.stories li.story-stakes { font-weight: 600; }
+.next-up { margin: .6rem 0 0; font-size: .9rem; line-height: 1.5; }
+.next-up .next-story { font-size: .88rem; }
 .odds-move { font-size: .8rem; font-weight: 700; }
 .odds-move.up { color: var(--good); }
 .odds-move.down { color: var(--bad); }

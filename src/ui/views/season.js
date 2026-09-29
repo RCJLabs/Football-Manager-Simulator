@@ -22,6 +22,7 @@ import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tr
 import { RNG } from '../../engine/rng.js';
 import { scoutingReport, fmtCategory, ordinal } from '../../engine/teamstats.js';
 import { series, seriesLine } from '../../engine/archive.js';
+import { storylines } from '../../engine/stories.js';
 import { conditionsFor, describeWeather, weatherNote } from '../../engine/weather.js';
 import { tickerGames, tickerCard, mountTicker, queueTicker, tickerFor } from '../ticker.js';
 
@@ -37,6 +38,9 @@ const recOf = (r) => `${r.w}-${r.l}${r.t ? `-${r.t}` : ''}`;
 
 // Which chance the race chart is showing, kept while the app is open.
 const raceUi = { metric: null };
+// The week whose odds reading has been asked for, so a reading that cannot be
+// taken is not asked for again on every draw.
+let oddsAsked = null;
 
 export function view(root, params, ctx) {
   const state = ctx.getState();
@@ -56,10 +60,14 @@ export function view(root, params, ctx) {
   // The odds entering this week or round, read once and kept for the race
   // (odds.js). A week already under way keeps the reading taken before it;
   // a finished one is never read, because it would count its own results.
-  if (!complete && (league.phase === 'season' || league.phase === 'playoffs')) {
-    const have = oddsPoints(league).find((pt) => pt.key === oddsKey(league));
-    if (!have || have.runs < ODDS_RUNS) ctx.update((s) => { refreshOdds(s.league, ctx.byId); }, { silent: true });
-  }
+  // It is taken after the hub has drawn, not before: a full reading costs
+  // about a fifth of a second on a phone (DESIGN.md), which the hub used to
+  // spend before showing anything. It draws with what it has, says the odds
+  // are being read, and fills them in where they go when they land (the end
+  // of this function).
+  const oddsKeyNow = league.phase === 'season' || league.phase === 'playoffs' ? oddsKey(league) : null;
+  const oddsFresh = !!oddsKeyNow && oddsPoints(league).some((pt) => pt.key === oddsKeyNow && pt.runs >= ODDS_RUNS);
+  const oddsReading = !complete && !!oddsKeyNow && !oddsFresh;
   const power = powerRankings(league, ctx.byId);
   const playoffs = league.phase === 'playoffs';
   const roundName = playoffs ? wk.name : null;
@@ -128,6 +136,14 @@ export function view(root, params, ctx) {
         const text = s.games ? `${from}: ${seriesLine(s)}.` : s.since > 1 ? `No meeting on file since season ${s.since}.` : 'First meeting.';
         return html`<p class="muted series" style="font-size:.85rem;margin-top:-.4rem">${text}</p>`;
       })()}
+      ${(() => {
+        // Why this one matters, most notable first (stories.js): what a win
+        // and a loss do to the playoff chance, a rematch, a run, a milestone
+        // or a record in reach, a man who changed sides.
+        if (myGame.result || opp.isUser) return '';
+        const st = storylines(league, ctx.byId);
+        return html`<ul class="stories" id="stories" ${st.length ? '' : 'hidden'}>${raw(storyItems(st))}</ul>`;
+      })()}
       ${(() => { if (myGame.result || opp.isUser) return ''; const oc = composites(fillLineup(buildLineup(opp.slots, ctx.byId, injuries))), mc = composites(fillLineup(buildLineup(me.slots, ctx.byId, injuries))); const notes = makeGameplan(oc, mc).notes; return notes.length ? html`<p class="muted" style="font-size:.85rem;margin-top:-.4rem">Their game plan: ${notes.join('; ')}.</p>` : ''; })()}
       ${(() => {
         // How they have actually played, beside how they look on paper. The
@@ -187,26 +203,38 @@ export function view(root, params, ctx) {
   const usedMarks = [...new Set(Object.values(marks).map(markerLetter).filter(Boolean))].sort();
   const legend = usedMarks.length ? `<small class="muted" style="display:block;margin-top:.4rem">${usedMarks.map((m) => `<b>${m}</b> ${MARKER_LEGEND[m]}`).join(' · ')}</small>` : '';
   // The chances beside the table: of making the playoffs during the season,
-  // of the title once they have started. Gone when the season is over.
-  const oddsNow = league.phase === 'season' || league.phase === 'playoffs' ? oddsPoints(league).find((pt) => pt.key === oddsKey(league)) : null;
-  const inPlayoffs = oddsNow && oddsNow.key.startsWith('p');
-  const oddsHead = oddsNow ? `<th class="num" title="${inPlayoffs ? 'Chance of winning the title' : 'Chance of making the playoffs'}">${inPlayoffs ? 'Title' : 'PO%'}</th>` : '';
-  const oddsCell = (idx) => {
-    if (!oddsNow) return '';
-    if (inPlayoffs) return `<td class="num odds">${league.playoffs.pools.some((p) => p.alive.includes(idx)) ? fmtShare(oddsNow.title[idx]) : '—'}</td>`;
-    return `<td class="num odds">${fmtShare(oddsNow.playoff[idx], { sure: marks[idx]?.playoff, gone: marks[idx]?.eliminated })}</td>`;
+  // of the title once they have started. Gone when the season is over. While
+  // this week's reading is being taken the column is there with a mark in each
+  // cell, filled in when the reading lands.
+  const oddsNow = oddsKeyNow ? oddsPoints(league).find((pt) => pt.key === oddsKeyNow) : null;
+  const inPlayoffs = league.phase === 'playoffs';
+  const oddsCol = !!oddsNow || oddsReading;
+  const oddsHead = oddsCol ? `<th class="num" title="${inPlayoffs ? 'Chance of winning the title' : 'Chance of making the playoffs'}">${inPlayoffs ? 'Title' : 'PO%'}</th>` : '';
+  const oddsText = (idx, point) => {
+    if (!point) return '…';
+    if (inPlayoffs) return league.playoffs.pools.some((p) => p.alive.includes(idx)) ? fmtShare(point.title[idx]) : '—';
+    return fmtShare(point.playoff[idx], { sure: marks[idx]?.playoff, gone: marks[idx]?.eliminated });
   };
+  const oddsCell = (idx) => (oddsCol ? `<td class="num odds" data-odds="${idx}">${oddsText(idx, oddsNow)}</td>` : '');
   // The race: the human's chances, and how they and the rivals' have moved.
-  const metrics = raceMetrics(league);
-  const metric = metrics.includes(raceUi.metric) ? raceUi.metric : inPlayoffs && metrics.includes('title') ? 'title' : metrics[0];
-  const line = oddsLine(league, u, marks);
-  const raceCard = line || metrics.length ? html`<div class="card tight" id="race-card">
+  // Until this week's reading lands the latest one may be last week's, and a
+  // line built on it would pass last week's chances off as this week's; a
+  // quick reading of this week, left by simulating ahead, is this week's.
+  const raceCardHtml = (reading) => {
+    const metrics = raceMetrics(league);
+    const metric = metrics.includes(raceUi.metric) ? raceUi.metric : inPlayoffs && metrics.includes('title') ? 'title' : metrics[0];
+    const haveNow = !!oddsKeyNow && oddsPoints(league).some((pt) => pt.key === oddsKeyNow);
+    const line = reading && !haveNow ? '' : oddsLine(league, u, marks);
+    if (!line && !metrics.length && !reading) return raw('');
+    return html`<div class="card tight" id="race-card">
     <h3>The race</h3>
-    ${line ? html`<p class="odds-line">${raw(line)}</p>` : ''}
+    ${line ? html`<p class="odds-line">${raw(line)}</p>` : reading ? html`<p class="odds-line muted" aria-busy="true">Reading this ${playoffs ? 'round' : 'week'}'s odds…</p>` : ''}
     ${metrics.length > 1 ? html`<div class="tabs" role="group" aria-label="Chart">${raw(metrics.map((mm) => `<button type="button" class="tab${mm === metric ? ' active' : ''}" data-race="${mm}" aria-pressed="${mm === metric}">${mm === 'title' ? 'Title' : 'Playoffs'}</button>`).join(''))}</div>` : ''}
     <div id="race-chart">${raw(metric ? raceChart(league, u, metric) : '')}</div>
     <small class="muted" style="display:block;margin-top:.3rem">The rest of the season played ${ODDS_RUNS.toLocaleString('en-US')} times, through the tiebreakers and the bracket, with every club as strong as it is now. Trades and injuries still to come are not in it.</small>
-  </div>` : '';
+  </div>`;
+  };
+  const raceCard = raceCardHtml(oddsReading);
   if (pro) {
     const table = proStandings(league);
     standingsCard = table.map((conf, ci) => {
@@ -426,8 +454,33 @@ export function view(root, params, ctx) {
     ctx.update((s) => { newSeasonSameRosters(s.league, ctx.byId); s.game = null; });
     toast(`Season ${league.season + 1} begins`);
   });
+  // This week's odds, now that the hub is on screen: after the next frame has
+  // been painted, then into the three places that read them, in place, since
+  // drawing the whole hub again costs more than the reading does (DESIGN.md).
+  // If the hub has been drawn again meanwhile, that newer hub is drawn once
+  // more instead; if it has been left, the reading is simply kept for later.
+  if (oddsReading && oddsAsked !== `${league.season}:${oddsKeyNow}`) {
+    const asked = oddsAsked = `${league.season}:${oddsKeyNow}`;
+    requestAnimationFrame(() => setTimeout(() => {
+      const lg = ctx.getState().league;
+      if (!lg || `${lg.season}:${oddsKey(lg)}` !== asked) return;
+      ctx.update((s) => { refreshOdds(s.league, ctx.byId); }, { silent: true });
+      if (!el.isConnected) { if (document.querySelector('#season-view')) ctx.notify(); return; }
+      const card = el.querySelector('#race-card');
+      if (card) card.outerHTML = raceCardHtml(false).__raw;
+      const point = oddsPoints(lg).find((pt) => pt.key === oddsKeyNow);
+      el.querySelectorAll('td[data-odds]').forEach((td) => { td.textContent = oddsText(Number(td.dataset.odds), point); });
+      const list = el.querySelector('#stories');
+      if (list) { const st = storylines(lg, ctx.byId); list.innerHTML = storyItems(st); list.hidden = !st.length; }
+    }, 0));
+  }
   const stopTicker = ticking ? mountTicker(root, tickGames, { key: tickKey, playoff: playoffs, onClose: () => ctx.notify() }) : null;
   return () => stopTicker?.();
+}
+
+/** The storylines as list items (stories.js). */
+function storyItems(list) {
+  return list.map((x) => html`<li class="story-${x.kind}">${x.text}</li>`.__raw).join('');
 }
 
 function seasonLeaders(league, byId) {

@@ -2323,7 +2323,9 @@ try {
     }, JSON.parse(JSON.stringify(lg)));
     await page.goto(`http://localhost:${port}/#/season`);
     await page.reload();
-    const race = await page.waitForSelector('#race-card', { timeout: 8000 }).then(() => page.evaluate(() => {
+    // The hub draws first and reads the week's odds after (season.js), so the
+    // card says it is reading them until the line lands.
+    const race = await page.waitForFunction(() => /^Playoffs/.test(document.querySelector('#race-card .odds-line')?.textContent || ''), null, { timeout: 8000 }).then(() => page.evaluate(() => {
       const c = document.querySelector('#race-card');
       return { line: c.querySelector('.odds-line')?.textContent.replace(/\s+/g, ' ').trim(), svg: c.querySelector('svg.race')?.getAttribute('aria-label'), tabs: [...c.querySelectorAll('[data-race]')].map((b) => b.textContent) };
     }), () => null);
@@ -2340,8 +2342,25 @@ try {
       const now = await page.$eval('#race-card svg.race', (s) => s.getAttribute('aria-label')).catch(() => null);
       if (!/^Title chances by week: /.test(now || '')) errors.push(`switching the race chart to the title left it reading "${now}"`);
     }
-    const table = await page.evaluate(() => ({ heads: [...document.querySelectorAll('table.standings th')].filter((t) => t.textContent === 'PO%').length, cells: document.querySelectorAll('table.standings td.odds').length }));
-    if (table.heads !== 8 || table.cells !== 32) errors.push(`the standings show ${table.heads} odds columns and ${table.cells} odds cells, expected 8 and 32`);
+    const table = await page.evaluate(() => ({ heads: [...document.querySelectorAll('table.standings th')].filter((t) => t.textContent === 'PO%').length, cells: document.querySelectorAll('table.standings td.odds').length, waiting: [...document.querySelectorAll('table.standings td.odds')].filter((td) => td.textContent === '…').length }));
+    if (table.heads !== 8 || table.cells !== 32 || table.waiting) errors.push(`the standings show ${table.heads} odds columns and ${table.cells} odds cells (${table.waiting} still waiting), expected 8 and 32 filled in`);
+    // What the next game is worth, from the reading just taken (stories.js):
+    // this league, halfway through a pro season, has a real swing to report.
+    const stories = await page.$$eval('#stories li', (ls) => ls.map((l) => l.textContent));
+    if (!stories.some((t) => /^Playoff chance with a win: (\d+%|<1%|>99%)\. With a loss: (\d+%|<1%|>99%)\.$/.test(t))) errors.push(`the matchup card's storylines are ${JSON.stringify(stories)}, with no stakes`);
+    await checkOverflow('hub with storylines');
+    await page.evaluate(() => document.querySelector('#stories')?.scrollIntoView({ block: 'center' }));
+    await shot('18b-stories');
+    // Somebody coming back lands on the home screen, and the next game is there.
+    await page.goto(`http://localhost:${port}/#/`);
+    const next = await page.waitForSelector('.next-up', { timeout: 5000 }).then(() => page.$eval('.next-up', (e) => e.textContent.replace(/\s+/g, ' ').trim())).catch(() => '');
+    // The storyline sits on its own line under the opponent, after a <br>, so
+    // it follows the record with no space between them in the text.
+    if (!/^Next · Week \d+ (vs|at) .+\d+-\d+(-\d+)?Playoff chance with a win/.test(next)) errors.push(`the home screen's next game reads "${next}"`);
+    await checkOverflow('home with the next game');
+    await shot('18c-next-up');
+    await page.goto(`http://localhost:${port}/#/season`);
+    await page.waitForSelector('#race-card');
     await settleSave();
     const saved = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); const l = JSON.parse(__geDecode(localStorage.getItem('gridiron-eras:slot:' + reg.active))).league; const pts = l.odds?.points || []; return { n: pts.length, last: pts[pts.length - 1]?.runs, key: pts[pts.length - 1]?.key, week: l.week }; });
     if (saved.last !== 1000 || saved.key !== `w${saved.week}`) errors.push(`the hub did not keep a full reading for the week it opened on: ${JSON.stringify(saved)}`);

@@ -358,6 +358,14 @@ export function playoffOdds(league, byId, { runs = ODDS_RUNS, seed = null } = {}
   const keys = Object.keys(run);
   const cmp = comparator(ctx, run);
   const keep = 1 - TIE_CHANCE;
+  // The human's game this week, while it is still to play. Every run plays it,
+  // so the runs split by how it went say what a win, a loss and a tie each
+  // leave the playoff chance at: the stakes (`out.stake`, counts in the order
+  // won, lost, tied). No extra finishes are drawn for it, and none are skewed.
+  const me = league.teams.findIndex((t) => t.isUser);
+  const mine = me < 0 ? -1 : ctx.games.findIndex((g) => g.at === 0 && (g.home === me || g.away === me));
+  const stake = mine < 0 ? null : { team: me, runs: [0, 0, 0], playoff: [0, 0, 0] };
+  let went = 0;
   for (let r = 0; r < runs; r++) {
     for (const k of keys) run[k].set(base[k]);
     const rk = runKey(r);
@@ -370,6 +378,7 @@ export function playoffOdds(league, byId, { runs = ODDS_RUNS, seed = null } = {}
         const x = gmu[i] + GAME_SD * Z[(((u - TIE_CHANCE) / keep) * SLICES) | 0];
         m = Math.round(x) || (x >= 0 ? 1 : -1);
       }
+      if (i === mine) went = m === 0 ? 2 : (m > 0) === (h === me) ? 0 : 1;
       const hs = LOSER_POINTS + (m > 0 ? m : 0), as = LOSER_POINTS + (m < 0 ? -m : 0);
       PF[h] += hs; PA[h] += as; PF[a] += as; PA[a] += hs;
       if (m > 0) { W[h]++; L[a]++; HW[h * N + a]++; HL[a * N + h]++; }
@@ -384,7 +393,12 @@ export function playoffOdds(league, byId, { runs = ODDS_RUNS, seed = null } = {}
     }
     for (const i of divisionWinners) out.division[i]++;
     out.title[playBracket(ctx, rk, pools.map((seeds) => ({ seeds, alive: seeds })))]++;
+    if (stake) {
+      stake.runs[went]++;
+      if (pools.some((seeds) => seeds.includes(me))) stake.playoff[went]++;
+    }
   }
+  if (stake) out.stake = stake;
   return finish(out);
 }
 
@@ -412,6 +426,7 @@ export function refreshOdds(league, byId, { runs = ODDS_RUNS } = {}) {
   if (!o) return null;
   const mille = (a) => a.map((x) => Math.round(x * 1000));
   const point = { key, runs: o.runs, playoff: mille(o.playoff), division: mille(o.division), title: mille(o.title) };
+  if (o.stake) point.stake = o.stake;
   if (have) Object.assign(have, point);
   else league.odds.points.push(point);
   return point;

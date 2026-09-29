@@ -1,6 +1,8 @@
 import { html, render, raw } from '../../util.js';
 import { teamChip, toast, modal, esc } from '../components.js';
 import { fmtPhase } from './season.js';
+import { userGameThisWeek } from '../../engine/season.js';
+import { storylines } from '../../engine/stories.js';
 import { listSlots, switchSlot, removeSlot, nameSlot, openNewSlot } from '../../store.js';
 
 /**
@@ -63,6 +65,15 @@ export function view(root, params, ctx) {
   const u = league.teams.findIndex((t) => t.isUser);
   const me = league.teams[u];
   const cont = league.phase === 'draft' ? (league.draftType === 'auction' ? '#/auction' : '#/draft') : league.phase === 'offseason' ? '#/offseason' : '#/season';
+  // Somebody coming back to a league lands here, so the next game and the one
+  // thing most worth knowing about it are here too (stories.js).
+  const game = league.phase === 'season' || league.phase === 'playoffs' ? userGameThisWeek(league) : null;
+  const next = game && !game.result ? (() => {
+    const opp = league.teams[game.home === u ? game.away : game.home];
+    const when = league.phase === 'playoffs' ? league.playoffs.rounds[league.playoffs.round - 1].name : `Week ${league.week}`;
+    const top = storylines(league, ctx.byId, { limit: 1 })[0];
+    return html`<p class="next-up"><span class="muted">Next · ${when}</span> ${game.home === u || game.neutral ? 'vs' : 'at'} ${teamChip(opp)} <span class="muted">${opp.record.w}-${opp.record.l}${opp.record.t ? `-${opp.record.t}` : ''}</span>${top ? html`<br><span class="next-story">${top.text}</span>` : ''}</p>`;
+  })() : '';
   render(root, html`
     <div class="card">
       <div class="row between">
@@ -80,6 +91,7 @@ export function view(root, params, ctx) {
         <div>${teamChip(me)} <span class="muted">${me.record.w}-${me.record.l}${me.record.t ? `-${me.record.t}` : ''}</span></div>
         <a class="btn sm" href="#/team/${u}">Roster &amp; strategy</a>
       </div>
+      ${next}
     </div>
     <div class="features" style="margin-top:1rem">
       <a class="feature" href="#/players"><b>Player pool</b><span class="muted">Browse every player and who owns them.</span></a>
