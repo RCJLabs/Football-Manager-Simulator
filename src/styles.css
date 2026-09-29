@@ -901,3 +901,17 @@ details > summary { cursor: pointer; }
 }
 .skipnav:focus { transform: translateY(0); }
 @media (prefers-reduced-motion: no-preference) { .skipnav { transition: transform 0.12s ease; } }
+
+/* Era cards in the page (the cards themselves: eracards.css). A row of them
+   scrolls sideways on a phone with the next showing at the edge, and sits
+   centred where it fits. */
+.ec-strip { overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; padding: .35rem .25rem 1rem; margin: 0 -.25rem; }
+.ec-strip > ul { display: flex; gap: .9rem; width: max-content; margin: 0 auto; padding: 0; list-style: none; }
+.ec-strip > ul > li { scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; gap: .45rem; width: min-content; }
+.ec-strip .ec { font-size: .8rem; }
+.ec-cap { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: center; }
+.ec-line { font-size: .8rem; color: var(--muted); text-align: center; }
+.champ-honours { font-size: 1rem; margin: 1.2rem 0 .1rem; }
+.champ-honours a { font-size: .85rem; font-weight: 500; margin-left: .35rem; }
+.draft-head .my-pick { margin-top: .55rem; display: flex; flex-direction: column; gap: .3rem; }
+.draft-head .my-pick .ec-cap { text-align: left; }

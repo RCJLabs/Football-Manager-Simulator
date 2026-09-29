@@ -20,6 +20,7 @@ import { currentPicker, overallPickNumber, availablePlayers, openSlotsByPos, mak
 import { startSeason } from '../../engine/season.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { ovrBadge, playerItem, playerModal, teamChip, toast, esc, withBusy } from '../components.js';
+import { eraCard } from '../eracard.js';
 import { scoutedOverall } from '../../engine/scouting.js';
 import { draftBoard, boardOverlay, snakeRows, scrollToPick, lastName } from '../draft-board.js';
 import { kickoffCard, wireKickoffCard } from '../kickoff-card.js';
@@ -240,6 +241,13 @@ export function view(root, params, ctx) {
       const t = league.teams[lastPick.team];
       return `<span class="pick-line ${fresh ? 'fresh' : ''}"><b>#${lastPick.overall}</b> ${teamChip(t, { abbr: true }).__raw} take <b>${esc(lastName(p.name))}</b> <small class="muted">${esc(p.pos)} · ${p.season}</small></span>`;
     })() : '<span class="muted">Waiting on the first pick.</span>';
+    // Your pick as a card while the room carries on: the moment of it, kept
+    // until the clock comes back round. Not on your own turn, when the head
+    // should be short and the list is what you are looking at.
+    const myLast = mine ? null : draft.picks.findLast((pk) => pk.team === u && pk.playerId);
+    const myCard = myLast && ctx.byId.get(myLast.playerId)
+      ? `<div class="my-pick"><span class="ec-cap">Your pick · round ${myLast.round || 1}, #${myLast.overall}</span>${eraCard(ctx.byId.get(myLast.playerId), { wide: true, tap: true })}</div>`
+      : '';
 
     render(root, html`<div id="draft-view">
       <div class="card tight draft-head ${mine ? 'mine' : ''}">
@@ -251,6 +259,7 @@ export function view(root, params, ctx) {
           ? html`<b>You are on the clock.</b> <span class="muted">Pick a man below, or let the room carry on.</span>`
           : raw(`<span class="spinner"></span><b>${teamChip(clockTeam).__raw} on the clock…</b>`)}</div>
         <div class="ticker-line">${raw(announce)}</div>
+        ${raw(myCard)}
         <div class="needs" style="margin-top:.45rem">${raw(POSITION_ORDER.map((pos) => `<span class="need ${open[pos] ? 'open' : ''}" data-filter="${pos}">${pos} ${open[pos] ? `×${open[pos]}` : '✓'}</span>`).join(''))}</div>
         <div class="btn-group" style="margin-top:.6rem">
           <button class="btn sm primary" id="openBoard">Draft board <span class="muted">${draft.picks.length}/${draftRounds(draft) * league.teams.length}</span></button>
@@ -427,6 +436,9 @@ export function view(root, params, ctx) {
       // Show it before handing the room back: `run` only redraws when it is
       // about to stop, so without this your own pick waits for the next AI one.
       draw();
+      // The list you picked from goes with your turn, which left the page
+      // below the head, and your pick's card is in the head: bring it back.
+      root.querySelector('.draft-head')?.scrollIntoView({ block: 'nearest' });
       run();
     } catch (err) {
       toast(err.message);

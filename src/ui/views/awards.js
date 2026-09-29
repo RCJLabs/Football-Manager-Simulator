@@ -4,6 +4,7 @@ import { seasonAwards, hallOfFame, RECORD_LABELS, TEAM_RECORD_LABELS, HOF_THRESH
 import { playerModal, teamChip, esc, posBadge, toast } from '../components.js';
 import { seasonResult, encodeResultCode, decodeResultCode, compareResults, cardSeasons, fmtRecord } from '../../engine/result.js';
 import { drawSeasonCard, shareCanvas } from '../share-card.js';
+import { honourCards } from '../eracard.js';
 import { seasonTeamStats, rankTeams, TEAM_CATEGORIES, CATEGORY_BY_KEY, fmtCategory } from '../../engine/teamstats.js';
 import { archivedSeasons, pastRows } from '../../engine/archive.js';
 
@@ -31,6 +32,7 @@ export function view(root, params, ctx) {
       const all = POSITION_ORDER.filter((pos) => a.allLeague[pos]).map((pos) => `<div style="margin:.35rem 0"><span class="badge pos">${pos}</span> ${a.allLeague[pos].map((e) => who(e)).join(' · ') || '<span class="muted">—</span>'}</div>`).join('');
       body = html`
         <p class="muted" style="margin:0 0 .5rem;font-size:.85rem">${league.phase === 'season' ? `The race after ${a.games} game${a.games === 1 ? '' : 's'}. Players need half the season to qualify.` : 'Final honours for the season.'} MVP scores each player against his own position first, then by how much the position matters.</p>
+        ${league.phase === 'season' ? '' : raw(honourCards(a, byId, league.teams))}
         <div class="grid grid-2">
           <div class="card tight"><h3>MVP race</h3><ol class="plain ticker" style="max-height:none">${raw(race || '<li class="muted">Nobody qualifies yet.</li>')}</ol></div>
           <div class="card tight"><h3>Honours</h3>

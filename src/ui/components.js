@@ -8,6 +8,8 @@ import { POSITIONS, eraOf, edgeness, ratedAsEdge } from '../data/positions.js';
 import { careerPhase, rootOf } from '../engine/careers.js';
 import { hallScore, HOF_THRESHOLD, HOF_MIN_SEASONS } from '../engine/awards.js';
 import { scoutReport, coarseAttrs, scoutLabel, shownOverall, readyLabel } from '../engine/scouting.js';
+import { houseHead, cardCanvas, cardImageSupported, cardFileName } from './eracard.js';
+import { shareCanvas } from './share-card.js';
 
 export function ovrClass(o) {
   return o >= 95 ? 'o95' : o >= 90 ? 'o90' : o >= 85 ? 'o85' : o >= 80 ? 'o80' : 'o0';
@@ -345,10 +347,18 @@ export function careerBlock(p) {
 export function playerModal(p, extra = '') {
   const def = POSITIONS[p.pos];
   const editing = !!getState().prefs?.ratingEditor;
-  const rows = def.attrs.map((a) => `<div class="slider-row"><div class="lbl"><span>${ATTR_NAMES[a] || a}${p.baseR && p.baseR[a] !== p.r[a] ? ` <small class="muted">(was ${p.baseR[a]})</small>` : ''}</span>${editing ? `<input type="number" class="rating-edit" data-attr="${a}" min="40" max="99" value="${p.r[a]}" style="width:4.5rem;padding:.2rem .4rem;text-align:right">` : `<b>${p.r[a]}</b>`}</div><div class="bar"><i style="width:${p.r[a]}%"></i></div></div>`).join('');
+  // A rookie the scouts have only projected reads to the nearest five here as
+  // on every other screen. This printed his true figures under a rating shown
+  // as a range, which gave the range away. The rating editor, which exists to
+  // rewrite the true figures, still shows them.
+  const view = editing ? null : scoutView();
+  const shown = view ? coarseAttrs(view.league, p, view.observer) : def.attrs.map((a) => ({ attr: a, value: p.r[a], exact: true }));
+  const rows = shown.map(({ attr: a, value, exact }) => `<div class="slider-row"><div class="lbl"><span>${ATTR_NAMES[a] || a}${exact && p.baseR && p.baseR[a] !== p.r[a] ? ` <small class="muted">(was ${p.baseR[a]})</small>` : ''}</span>${editing ? `<input type="number" class="rating-edit" data-attr="${a}" min="40" max="99" value="${p.r[a]}" style="width:4.5rem;padding:.2rem .4rem;text-align:right">` : `<b>${exact ? '' : '~'}${value}</b>`}</div><div class="bar"><i style="width:${value}%"></i></div></div>`).join('');
   const m = modal(html`
-    <div class="row between"><h2 style="margin:0">${p.name}</h2><span class="row" style="gap:.35rem">${raw(compareButton(p))}<button class="btn sm ghost" data-close aria-label="Close">✕</button></span></div>
-    <p class="muted">${def.name} · ${p.generated ? `generated rookie, class of ${p.season}` : `${p.season} ${p.team} · ${eraOf(p.season)}`} · Overall <span id="ovrNow">${ovrBadge(p)}</span></p>
+    ${raw(houseHead(p, {
+      rating: `<span class="sr-only">Overall</span><span id="ovrNow">${ovrBadge(p).__raw}</span>`,
+      actions: `${compareButton(p)}<button class="btn sm ghost" data-close aria-label="Close">✕</button>`,
+    }))}
     ${p.retired ? html`<p class="muted" style="margin:-.3rem 0 0">Retired at ${p.age}. He stays in the record books; he cannot be signed.</p>`
       : p.age != null ? html`<p class="muted" style="margin:-.3rem 0 0">Age ${p.age}, ${careerPhase(rootOf(p).pos, p.age)}${!p.moved && p.base && overall(p) !== overall(p.base) ? ` · ${overall(p) > overall(p.base) ? 'up' : 'down'} ${Math.abs(overall(p) - overall(p.base))}${p.seasons ? ` in ${p.seasons} season${p.seasons === 1 ? '' : 's'}` : ''} from the ${p.base.season} version you signed` : ''}.</p>` : ''}
     ${movedLine(p)}
@@ -358,12 +368,25 @@ export function playerModal(p, extra = '') {
     ${raw(careerBlock(p))}
     ${raw(rows)}
     ${editing ? html`<small class="muted">Rating editor is on (settings). Edits apply everywhere at once and export as a diff.</small>` : ''}
+    <div class="btn-group" data-share-row hidden style="margin-top:.6rem"><button type="button" class="btn sm" data-share-card>Share as a card</button></div>
     ${raw(extra)}
-  `);
+  `, { label: p.name });
+  // His era card as a picture, where the browser can make one (eracard.js).
+  cardImageSupported().then((ok) => { const row = m.el.querySelector('[data-share-row]'); if (ok && row) row.hidden = false; });
   // Comparing is a two-tap gesture: arm it on one player, and the next player
   // modal you open offers to finish it. Deliberately not a route and not app
   // state — it is a half-finished gesture, so it dies with the session.
-  m.el.addEventListener('click', (e) => {
+  m.el.addEventListener('click', async (e) => {
+    const share = e.target.closest('[data-share-card]');
+    if (share) {
+      share.disabled = true;
+      try {
+        const how = await shareCanvas(await cardCanvas(p), cardFileName(p));
+        toast(how === 'shared' ? 'Shared' : 'Saved as a PNG');
+      } catch (err) { if (err && err.name !== 'AbortError') toast(err.message); }
+      share.disabled = false;
+      return;
+    }
     if (e.target.closest('[data-cmp-start]')) { setPendingCompare(p); m.close(); toast(`Now pick someone to compare with ${p.name}`); return; }
     if (e.target.closest('[data-cmp-cancel]')) { clearPendingCompare(); m.close(); return; }
     if (e.target.closest('[data-cmp-with]')) {

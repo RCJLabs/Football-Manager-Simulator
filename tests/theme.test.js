@@ -51,7 +51,12 @@ test('no rule names a colour: every one comes from a theme token', () => {
 
 test('every token a rule or a module asks for is defined, and the light theme overrides only tokens that exist', () => {
   const defined = { ...OTHER_ROOT, ...DARK };
-  const asked = new Set([...CSS.matchAll(/var\(\s*(--[\w-]+)\s*([,)])/g)].filter((m) => m[2] === ')').map((m) => m[1]));
+  // The era cards keep their own colours (eracards.css), but the player card's
+  // header sits on the page and takes the page's tokens, so its asks count too.
+  // --frame is the cards' own, set on every card.
+  const cards = readFileSync(join(ROOT, 'src/eracards.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(cards, /\.ec \{ --frame:/);
+  const asked = new Set([...`${CSS}\n${cards.replaceAll('var(--frame)', '')}`.matchAll(/var\(\s*(--[\w-]+)\s*([,)])/g)].filter((m) => m[2] === ')').map((m) => m[1]));
   const js = [];
   const walk = (dir) => { for (const f of readdirSync(dir)) { const p = join(dir, f); if (statSync(p).isDirectory()) walk(p); else if (p.endsWith('.js')) js.push(p); } };
   walk(join(ROOT, 'src/ui'));

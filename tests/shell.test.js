@@ -35,6 +35,14 @@ function reachable(entries) {
   return seen;
 }
 
+test('every stylesheet the page links is in the service worker shell', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const sheets = [...html.matchAll(/<link rel="stylesheet" href="\.\/([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(sheets.includes('src/styles.css') && sheets.includes('src/eracards.css'), sheets.join(', '));
+  const have = shell();
+  assert.deepEqual(sheets.filter((f) => !have.has(f)), []);
+});
+
 test('every module the app and its save worker import is in the service worker shell', () => {
   const have = shell();
   const graph = reachable(['src/main.js', 'src/save-worker.js']);

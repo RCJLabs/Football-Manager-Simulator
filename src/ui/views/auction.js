@@ -2,7 +2,7 @@ import { html, render, raw } from '../../util.js';
 import { valuePanel, valueHint } from '../value-panel.js';
 import { POSITION_ORDER, ROSTER_SLOTS, POSITIONS } from '../../data/positions.js';
 import { ERAS } from '../../data/db.js';
-import { overall, buildLineup } from '../../engine/ratings.js';
+import { buildLineup } from '../../engine/ratings.js';
 import { RNG } from '../../engine/rng.js';
 import { startSeason } from '../../engine/season.js';
 import {
@@ -10,7 +10,9 @@ import {
   currentNominator, nominatable, autoCompleteAll, autoUserMax, canRoster, MIN_BID, TOTAL_SLOTS,
 } from '../../engine/auction.js';
 import { lotAdvice, lotNote, positionScarcity } from '../../engine/market.js';
-import { playerItem, playerModal, teamChip, toast, announce, ovrBadge, esc, posBadge, withBusy } from '../components.js';
+import { shownOverall } from '../../engine/scouting.js';
+import { playerItem, playerModal, teamChip, toast, announce, esc, withBusy } from '../components.js';
+import { eraCard, spokenRating } from '../eracard.js';
 import { kickoffCard, wireKickoffCard } from '../kickoff-card.js';
 import { draftBoard, boardOverlay, auctionRows, scrollToPick, lastName } from '../draft-board.js';
 import { SPEEDS, DEFAULT_SPEED } from './draft.js';
@@ -162,7 +164,7 @@ export function view(root, params, ctx) {
       </div>
       <div class="card tight">
         <h3>My roster (${TOTAL_SLOTS - left}/${TOTAL_SLOTS})</h3>
-        ${raw(unitGrades(buildLineup(me.slots, ctx.byId)))}
+        ${raw(unitGrades(buildLineup(me.slots, ctx.byId), league, u))}
       </div>
       <div class="card tight">
         <div class="slider-row">
@@ -184,7 +186,7 @@ export function view(root, params, ctx) {
     const q = ui.q.trim().toLowerCase();
     const rows = cands
       .filter((p) => (ui.pos === 'ALL' || p.pos === ui.pos) && (ui.era === 'ALL' || `${Math.floor(p.season / 10) * 10}s` === ui.era) && (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase() === q))
-      .sort((x, y) => (guide.prices.get(y.id) - guide.prices.get(x.id)) || overall(y) - overall(x));
+      .sort((x, y) => (guide.prices.get(y.id) - guide.prices.get(x.id)) || shownOverall(league, y, u) - shownOverall(league, x, u));
     const shown = rows.slice(0, ui.limit);
     const posOpen = POSITION_ORDER.filter((p) => open[p]);
     main = html`
@@ -217,20 +219,13 @@ export function view(root, params, ctx) {
     // was last said. It moves when you win a lot, and that is announced on its
     // own, so repeating it on every lot is a third of the sentence spent on
     // something the listener was told a moment ago.
-    onBlock = () => `On the block: ${p.name}, ${POSITIONS[p.pos].name}, ${overall(p)} overall, asking $${ask}.`
+    onBlock = () => `On the block: ${p.name}, ${POSITIONS[p.pos].name}, ${spokenRating(p)}, asking $${ask}.`
       + (mine ? ' Your nomination.' : ` Nominated by ${league.teams[a.current.nominator].name}.`)
       + purseIfChanged(a.budgets[u], left);
     main = html`
       <div class="card stack">
-        <div class="row between"><h2 style="margin:0">On the block</h2><small class="muted">${mine ? 'Your nomination' : `Nominated by ${league.teams[a.current.nominator].abbr}`}</small></div>
-        <div class="row" style="gap:.6rem;flex-wrap:nowrap;align-items:flex-start">
-          ${ovrBadge(p)}
-          <div style="min-width:0">
-            <div style="font-weight:800;font-size:1.05rem">${p.name} ${posBadge(p.pos)}</div>
-            <div class="muted" style="font-size:.85rem">${p.season} ${p.team} · asking <b>$${ask}</b></div>
-          </div>
-        </div>
-        <div class="attrs row" style="gap:.1rem .6rem">${raw(attrRow(p))}</div>
+        <div class="row between"><h2 style="margin:0">On the block</h2><small class="muted">${mine ? 'Your nomination' : `Nominated by ${league.teams[a.current.nominator].abbr}`} · asking <b>$${ask}</b></small></div>
+        ${raw(eraCard(p, { wide: true, tap: true }))}
         ${raw(lotPanel(a, league, ctx, u, p, guide))}
         ${mine ? html`<p class="muted" style="margin:0;font-size:.82rem">You opened at $1. Set your maximum, or pass and hope nobody else bids.</p>` : ''}
         <div class="slider-row">
@@ -352,10 +347,6 @@ export function view(root, params, ctx) {
   return stopAuction;
 }
 
-function attrRow(p) {
-  return Object.entries(p.r).map(([k, v]) => `<span class="attr ${v >= 92 ? 'hi' : v <= 70 ? 'lo' : ''}">${k} <b>${v}</b></span>`).join('');
-}
-
 function priceNote(guide, id) {
   const ask = guide.prices.get(id);
   return ask ? `<p class="muted">Asking price $${ask}.</p>` : '';
@@ -391,12 +382,16 @@ function lastNameOf(name) {
   return bits.length > 1 ? bits[bits.length - 1] : name;
 }
 
-/** Live unit grades, so you can see the holes you are leaving as you spend. */
-function unitGrades(lineup) {
+/**
+ * Live unit grades, so you can see the holes you are leaving as you spend.
+ * Averaged on what you believe of each man, as every list ranks: on the true
+ * overall, a unit of one unscouted rookie printed his hidden rating.
+ */
+function unitGrades(lineup, league, u) {
   const want = { QB: 1, RB: 2, WR: 3, TE: 1, OL: 5, DL: 4, LB: 3, CB: 2, S: 2, K: 1, P: 1 };
   const rows = Object.entries(want).map(([pos, n]) => {
     const arr = (lineup[pos] || []).slice(0, n);
-    const avg = arr.length ? Math.round(arr.reduce((s, p) => s + overall(p), 0) / arr.length) : 0;
+    const avg = arr.length ? Math.round(arr.reduce((s, p) => s + shownOverall(league, p, u), 0) / arr.length) : 0;
     const filled = (lineup[pos] || []).length;
     return `<dt>${pos} <small class="muted">${filled}/${n}</small></dt><dd><div class="row" style="flex-wrap:nowrap"><div class="bar" style="flex:1"><i style="width:${avg}%"></i></div><b style="min-width:2rem;text-align:right">${avg || '—'}</b></div></dd>`;
   });
@@ -422,7 +417,7 @@ function complete(root, ctx, league, u) {
         <ul class="plist">${raw(buys.map((s) => playerItem(ctx.byId.get(s.playerId), { attrs: false, meta: ` · <b>$${s.price}</b>` })).join(''))}</ul>
       </div>
       <div class="stack">
-        <div class="card tight"><h3>Your units</h3>${raw(unitGrades(lineup))}</div>
+        <div class="card tight"><h3>Your units</h3>${raw(unitGrades(lineup, league, u))}</div>
         <div class="card tight">
           <h3>Biggest sales</h3>
           <ul class="plain ticker">${raw(a.sold.slice().sort((x, y) => y.price - x.price).slice(0, 10).map((s) => {

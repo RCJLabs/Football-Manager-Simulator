@@ -16,7 +16,8 @@ import { createGame, simulateGame } from '../../engine/game.js';
 import { fantasyPoints } from '../../engine/stats.js';
 import { GM_PERSONALITIES } from '../../data/teams.js';
 import { DIVISIONS } from '../../data/pro.js';
-import { teamChip, teamMark, toast, modal } from '../components.js';
+import { teamChip, teamMark, toast, modal, playerModal } from '../components.js';
+import { honourCards } from '../eracard.js';
 import { pickBroker } from '../../engine/futurepicks.js';
 import { advanceWeekWithMoves, freeAgents, claimsThisWeek, tradeDeadlineWeek, tradesOpen, liveOffers } from '../../engine/transactions.js';
 import { RNG } from '../../engine/rng.js';
@@ -95,13 +96,18 @@ export function view(root, params, ctx) {
       <div style="font-size:3rem">🏆</div>
       <h1>${champ.name} are the champions</h1>
       <p class="muted">Season ${league.season} · ${rec(champ)} in the regular season${champ.isUser ? ' · That\'s you!' : ''}</p>
-      ${(() => { const aw = (league.history || []).find((h) => h.season === league.season)?.awards; return aw && aw.mvp ? html`<p class="muted" style="margin-top:-.4rem">MVP: <b>${ctx.byId.get(aw.mvp.id)?.name}</b> (${league.teams[aw.mvp.team].abbr}) · <a href="#/awards/honours">all honours</a></p>` : ''; })()}
       <div class="btn-group" style="justify-content:center;margin-top:.75rem">
         <a class="btn primary lg" href="#/offseason">Start the offseason: keepers, ${pro ? 'free agency, ' : ''}then the ${league.draftType === 'auction' ? 'auction' : 'draft'}</a>
         <button class="btn" id="again">Run it back with these rosters</button>
         <a class="btn" href="#/awards/card">Season card</a>
         <a class="btn ghost" href="#/new">Start a new league</a>
       </div>
+      ${(() => {
+        // The season's honours as era cards, under the way on: the thing to do
+        // next comes first and the celebration after it.
+        const cards = honourCards((league.history || []).find((h) => h.season === league.season)?.awards, ctx.byId, league.teams);
+        return cards ? html`<h2 class="champ-honours">Season ${league.season} honours <a href="#/awards/honours">all of them</a></h2>${raw(cards)}` : '';
+      })()}
     </div>`;
   } else if (myGame) {
     const oppIdx = myGame.home === u ? myGame.away : myGame.home;
@@ -386,6 +392,8 @@ export function view(root, params, ctx) {
 
   const el = root.querySelector('#season-view');
   el.addEventListener('click', (e) => {
+    const show = e.target.closest('[data-show]');
+    if (show && ctx.byId.get(show.dataset.show)) { playerModal(ctx.byId.get(show.dataset.show)); return; }
     const tr = e.target.closest('tr[data-team]');
     if (tr) ctx.navigate(`#/team/${tr.dataset.team}`);
     const tab = e.target.closest('[data-race]');

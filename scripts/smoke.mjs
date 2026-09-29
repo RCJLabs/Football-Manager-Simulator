@@ -5,6 +5,7 @@
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { readFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 // Resolved from this file, never written down: a copy of this script running in
 // another checkout must smoke-test THAT tree's engine, not this one's.
@@ -206,6 +207,37 @@ async function checkA11y(where) {
  * It found one thing on its first run and it was a real one: the overall badge
  * worn by every player rated 90 to 94 was white on #3a9d5a at 3.41:1.
  */
+/**
+ * Every decade's era card in the running app, in this run's theme and text
+ * size: portrait in a strip as the honours show them, wide in a panel as the
+ * auction block does, and the player card's header, with a rookie's range for
+ * the one frame a range appears in. The walk through a league only meets the
+ * decades its lots and picks happen to come from; this meets all nine.
+ */
+async function checkEraDeck() {
+  const n = await page.evaluate(async () => {
+    const { eraCard, houseHead, DECADES, decadeOf } = await import('./src/ui/eracard.js');
+    const { PLAYERS } = await import('./src/data/db.js');
+    const one = DECADES.map((d) => PLAYERS.find((p) => decadeOf(p.season) === d && p.name.length > 12) || PLAYERS.find((p) => decadeOf(p.season) === d));
+    const rk = { ...one[one.length - 1], id: 'smoke-rookie', name: 'Smoke Rookie', generated: true, season: 2031, team: 'RK' };
+    const range = eraCard(rk, { view: null, wide: true }).replace('class="ec ec-2020 ec-wide', 'class="ec ec-2020 ec-wide ec-range').replace(/(<span class="sr-only">Overall <\/span>)\d+/, '$172–84');
+    const deck = document.createElement('div');
+    deck.id = 'smoke-deck';
+    deck.innerHTML = `<div class="ec-strip"><ul>${one.map((p) => `<li><span class="ec-cap">Most valuable player</span>${eraCard(p, { view: null })}<span class="ec-line">XXX · a line</span></li>`).join('')}</ul></div>`
+      + one.map((p) => `<div class="card stack">${eraCard(p, { view: null, wide: true })}${houseHead(p, { rating: '<span class="ovr o90">91</span>', actions: '<button type="button" class="btn sm ghost">Compare…</button>' })}</div>`).join('')
+      + `<div class="card stack">${range}</div>`;
+    document.getElementById('app').appendChild(deck);
+    // Every attribute keeps its bar: a rule for the strip's items once
+    // reached the rows inside each card and folded their bars to nothing.
+    const flat = [...deck.querySelectorAll('.ec-bar')].filter((b) => b.getBoundingClientRect().width < 8).length;
+    return { cards: deck.querySelectorAll('.ec').length, bars: deck.querySelectorAll('.ec-bar').length, flat };
+  });
+  if (n.cards !== 19) errors.push(`the era card deck drew ${n.cards} cards, expected 19`);
+  if (n.flat) errors.push(`${n.flat} of ${n.bars} attribute bars on the era cards are drawn with no width`);
+  await checkOverflow('era cards, every decade');
+  await page.evaluate(() => document.getElementById('smoke-deck').remove());
+}
+
 async function checkContrast(where) {
   const bad = await page.evaluate(() => {
     const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
@@ -528,11 +560,12 @@ try {
     }
     if (bid) {
       // The three controls a bid actually needs: raise, commit, and get out.
-      if (!kbChecked.bid) { await checkKeyboard('auction, a lot on the block', ['#bid', '#pass']); kbChecked.bid = true; }
+      if (!kbChecked.bid) { await checkKeyboard('auction, a lot on the block', ['#bid', '#pass']); kbChecked.bid = true; await page.$eval('#auction-view .ec-wide', (c) => c.closest('.card').scrollIntoView({ block: 'start' })).catch(() => {}); await shot('02c-auction-block'); }
       const up = await page.evaluate(() => {
-        const el = document.querySelector('#auction-view .card.stack div[style*="font-weight:800"]');
+        const el = document.querySelector('#auction-view .ec-wide .ec-name');
         return el ? el.textContent.replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ') : null;
       });
+      if (!up && !blocked.noCard) { blocked.noCard = true; errors.push('auction: the man on the block is not on his era card'); }
       // Read the transcript AS THE LOT STANDS, not at the end. The sale is
       // announced too and names the same player, so asking whether his name was
       // ever said is a question that answers itself once the lot is over.
@@ -568,6 +601,7 @@ try {
 
   await page.waitForSelector('#play');
   await checkOverflow('season hub');
+  await checkEraDeck();
   await shot('05-season');
   {
     const chips = await page.evaluate(() => [document.querySelectorAll('.team-chip').length, document.querySelectorAll('.team-chip > svg.crest[aria-hidden="true"]').length]);
@@ -1314,8 +1348,16 @@ try {
   if (!(await page.$('.champ'))) errors.push('the season never produced a champion');
   await checkOverflow('season complete');
   await shot('09e-champion');
-  const mvpLine = await page.$eval('.champ', (e) => e.textContent);
-  if (!/MVP:/.test(mvpLine)) errors.push('the champion card names no MVP');
+  {
+    // The season's honours as era cards, the MVP's among them, each opening his player card.
+    const champ = await page.evaluate(() => ({
+      cards: document.querySelectorAll('.champ .ec-strip .ec').length,
+      caps: [...document.querySelectorAll('.champ .ec-cap')].map((c) => c.textContent),
+      taps: document.querySelectorAll('.champ .ec-strip .ec-name button[data-show]').length,
+    }));
+    if (!champ.caps.some((c) => c.includes('Most valuable player'))) errors.push(`the champion card shows no MVP card (${champ.cards} card(s): ${champ.caps.join(' | ')})`);
+    if (champ.taps !== champ.cards) errors.push(`${champ.cards - champ.taps} honour card(s) on the champion card do not open the player card`);
+  }
   await page.goto(`http://localhost:${port}/#/awards/honours`);
   await page.waitForSelector('#awards-view');
   await checkOverflow('awards honours');
@@ -1542,6 +1584,29 @@ try {
   const wanted = await page.$eval('button[data-draft]', (b) => b.dataset.draft);
   await page.click('button[data-draft]');
   await sleep(300);
+  {
+    // Your pick shows as his era card while the room picks. On your own turn
+    // the head stays short, and a snake draft hands an end seat two picks
+    // running, so then the second is taken and looked for instead.
+    const readHead = () => page.evaluate(() => ({ mine: !!document.querySelector('.draft-head.mine'), card: document.querySelector('.draft-head .my-pick .ec')?.dataset.card || null }));
+    let head = await readHead(), last = wanted;
+    if (head.mine) {
+      if (head.card) errors.push('on your own turn the draft room still shows your last pick\'s card');
+      last = await page.$eval('button[data-draft]:not([disabled])', (b) => b.dataset.draft);
+      await page.click(`button[data-draft="${last}"]`);
+      await sleep(300);
+      head = await readHead();
+    }
+    if (head.mine) errors.push('three picks running in a snake draft');
+    else if (head.card !== last) errors.push(`after your pick the draft room shows ${head.card ? `the wrong man's card (${head.card})` : 'no card'} for it`);
+    else {
+      // Your turn's list goes when you pick; the room brings the head, and the card in it, back into view.
+      const top = await page.$eval('.draft-head .my-pick', (c) => c.getBoundingClientRect().top);
+      if (top < 0 || top > 800) errors.push(`after your pick its card is ${Math.round(top)}px from the top of the screen, out of sight`);
+      await checkOverflow('draft room, your pick as a card');
+      await shot('02a-draft-pick');
+    }
+  }
   await page.click('#openBoard');
   await page.waitForSelector('.board-full .board');
   const onBoard = await page.evaluate(
@@ -1891,8 +1956,24 @@ try {
         if (!/58,211 pass yds/.test(txt)) errors.push('the career line does not carry his passing yards');
         if (!/2. MVP/.test(txt)) errors.push('the career line does not carry his honours');
         if (!/Hall of Fame/.test(txt)) errors.push('a two-time MVP with a title is not shown as a Hall of Famer');
+        if (!(await page.$('.modal header.hc .hc-band .hc-year'))) errors.push('the player card has no decade band in its header');
         await checkOverflow('player modal with a career');
         await shot('16-career');
+        // Share as a card: offered where the browser can draw one (Chromium
+        // can), and what comes out is the card as a PNG.
+        const offered = await page.waitForSelector('.modal [data-share-row]:not([hidden])', { timeout: 3000 }).catch(() => null);
+        if (!offered) errors.push('the player card never offered Share as a card');
+        else {
+          const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 8000 }).catch(() => null), page.click('.modal [data-share-card]')]);
+          if (!dl) errors.push('Share as a card produced no picture');
+          else {
+            const buf = readFileSync(await dl.path());
+            const png = buf.length > 24 && buf.toString('latin1', 1, 4) === 'PNG';
+            const w = png ? buf.readUInt32BE(16) : 0, h = png ? buf.readUInt32BE(20) : 0;
+            if (!png || !/\.png$/.test(dl.suggestedFilename())) errors.push(`Share as a card gave ${dl.suggestedFilename()}, not a PNG`);
+            else if (w !== 738 || h !== 976 || buf.length < 20000) errors.push(`the card picture is ${w}x${h}, ${buf.length} bytes: expected 738x976 and a drawn card`);
+          }
+        }
         const close = await page.$('[data-close]');
         if (close) await close.click();
       }

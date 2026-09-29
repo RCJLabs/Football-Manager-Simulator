@@ -1,0 +1,244 @@
+/* Era cards (src/ui/eracard.js; DESIGN.md "Era cards").
+ *
+ * A card is its own object. It looks the same on a dark page and a light one,
+ * so its colours are its own rather than the theme's, and this file is not
+ * held to the rule styles.css is, that every colour is a token
+ * (tests/theme.test.js). The one exception is the player card's restrained
+ * header (.hc), which sits on the page: it takes the page's tokens and keeps
+ * only its decade band.
+ *
+ * Only fonts every phone already has, because the game runs offline. The
+ * decades are told apart by weight, case, slant, spacing and what surrounds
+ * the letters, not by type that would have to be downloaded and cached.
+ *
+ * Every gradient that text sits on has a solid background-color under it, the
+ * colour the text mostly sits on. The smoke's contrast probe reads colours,
+ * not gradients, so without one it would measure the card's text against
+ * whatever is behind the card.
+ *
+ * All sizes are in em of the card's own font-size, so a card is drawn at any
+ * size by setting one number, and it follows the game's text size.
+ */
+
+.ec { --frame: .6em; font-size: 1rem; width: 16.5em; aspect-ratio: 5 / 7; position: relative; border-radius: .75em; overflow: hidden; isolation: isolate;
+  box-shadow: 0 .5em 1.4em rgba(0,0,0,.35), 0 .1em .3em rgba(0,0,0,.35);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.15; flex: none; text-align: left; overflow-wrap: anywhere; }
+.ec-in { position: absolute; inset: var(--frame); display: flex; flex-direction: column; overflow: hidden; border-radius: .45em; }
+.ec-head { display: flex; align-items: center; justify-content: space-between; gap: .5em; padding: .5em .6em .4em; }
+.ec-ovr { font-weight: 900; font-size: 1.45em; line-height: 1; min-width: 1.9em; text-align: center; padding: .16em .25em; font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
+.ec-range .ec-ovr { font-size: 1.1em; padding: .3em .4em; }
+.ec-tag { font-size: .78em; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; white-space: nowrap; }
+.ec-art { flex: 1; position: relative; display: grid; place-items: center; margin: 0 .6em; overflow: hidden; min-height: 5em; }
+.ec-big { position: relative; z-index: 1; font-size: 5.4em; font-weight: 900; line-height: .9; letter-spacing: -.03em; white-space: nowrap; }
+.ec-rk { position: absolute; z-index: 2; top: 1.35em; right: -1.55em; transform: rotate(35deg); width: 7.4em; text-align: center; font-size: .66em; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; padding: .2em 0; }
+.ec-plate { padding: .5em .65em .15em; }
+.ec-name { font-size: 1.15em; font-weight: 800; }
+.ec-name .tap { text-transform: inherit; letter-spacing: inherit; font-variant: inherit; text-align: left; }
+.ec-sub { font-size: .72em; margin-top: .2em; }
+.ec-attrs { list-style: none; margin: 0; padding: .35em .65em .6em; display: grid; gap: .2em; }
+.ec-attrs li { display: grid; grid-template-columns: 6.6em 1fr 2.3em; align-items: center; gap: .45em; font-size: .72em; }
+.ec-bar { height: .45em; border-radius: 1em; overflow: hidden; }
+.ec-bar i { display: block; height: 100%; border-radius: inherit; }
+.ec-attrs b { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* 1940s: a tinted print on cream stock. Serif, small capitals, a brick-red
+   stamp, halftone dots in the art, the edges browned with age. */
+.ec-1940 { --frame: .65em; background: #efe3c4; color: #3b2716; font-family: Georgia, 'Noto Serif', 'Times New Roman', serif; }
+.ec-1940::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(110,70,25,.22)); pointer-events: none; }
+.ec-1940 .ec-in { border: 1px solid rgba(59,39,22,.5); border-radius: .2em; }
+.ec-1940 .ec-art { background-color: #c9a36e; background-image: radial-gradient(circle at 50% 38%, #ead6aa, #b58a53 85%); border-radius: .15em; box-shadow: inset 0 0 0 1px rgba(59,39,22,.35); }
+.ec-1940 .ec-art::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(59,39,22,.4) .06em, transparent .075em); background-size: .26em .26em; }
+.ec-1940 .ec-big { font-weight: 700; color: #3b2716; opacity: .85; letter-spacing: .02em; text-shadow: 0 .02em 0 rgba(255,245,215,.55); }
+.ec-1940 .ec-ovr { background: #9b3a28; color: #f7ecd4; font-weight: 700; border-radius: 50%; width: 1.95em; height: 1.95em; min-width: 0; padding: 0; display: grid; place-items: center; font-size: 1.3em; box-shadow: inset 0 0 0 .1em #f7ecd4, inset 0 0 0 .15em #9b3a28; }
+.ec-1940.ec-range .ec-ovr { width: auto; height: auto; border-radius: 1em; padding: .3em .5em; font-size: 1.05em; }
+.ec-1940 .ec-tag { font-style: italic; text-transform: none; letter-spacing: .02em; font-weight: 400; font-size: .85em; color: #5a3f24; }
+.ec-1940 .ec-name { font-variant: small-caps; letter-spacing: .05em; font-weight: 700; font-size: 1.22em; }
+.ec-1940 .ec-sub { font-style: italic; color: #5a3f24; }
+.ec-1940 .ec-bar { background: rgba(59,39,22,.14); height: .3em; border-radius: 0; }
+.ec-1940 .ec-bar i { background: #5a3f24; }
+.ec-1940 .ec-rk { background: #9b3a28; color: #f7ecd4; }
+
+/* 1950s: painted skies and a pennant. Navy ink, a red italic serif letter
+   stood out from the sky by a cream and a navy shadow. */
+.ec-1950 { --frame: .55em; background: #f5eddc; color: #1c2f4a; font-family: Georgia, 'Noto Serif', 'Times New Roman', serif; }
+.ec-1950 .ec-art { background-color: #9cc5d3; background-image: linear-gradient(180deg, #5f9fbf 0%, #9cc5d3 48%, #f0d7a2 100%); border-radius: .3em; }
+.ec-1950 .ec-art::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.28) .07em, transparent .085em); background-size: .3em .3em; }
+.ec-1950 .ec-big { font-style: italic; font-weight: 700; color: #b3312b; text-shadow: .045em .045em 0 #f5eddc, .09em .09em 0 #1c2f4a; letter-spacing: 0; }
+.ec-1950 .ec-ovr { background: #1c2f4a; color: #f5eddc; border-radius: .2em .2em 1em 1em; padding: .18em .3em .3em; }
+.ec-1950 .ec-tag { background: #b3312b; color: #fff8ea; padding: .35em 1.6em .35em .7em; clip-path: polygon(0 0, 84% 0, 100% 50%, 84% 100%, 0 100%); letter-spacing: .06em; }
+.ec-1950 .ec-name { font-style: italic; font-weight: 700; font-size: 1.25em; }
+.ec-1950 .ec-sub { color: #3d4f66; }
+.ec-1950 .ec-bar { background: #e2d6bd; }
+.ec-1950 .ec-bar i { background: #1c2f4a; }
+.ec-1950 .ec-rk { background: #1c2f4a; color: #f5eddc; }
+
+/* 1960s: flat colour blocks. An orange border, a round-cornered teal window,
+   heavy capitals, a black disc for the rating. */
+.ec-1960 { --frame: .7em; background: #e8742a; color: #161310; }
+.ec-1960 .ec-in { background: #fbf6ea; border-radius: .7em; }
+.ec-1960 .ec-art { background: #1f7f86; border-radius: 1.3em; }
+.ec-1960 .ec-art::before { content: ''; position: absolute; width: 5.5em; height: 5.5em; right: -1.4em; top: -1.6em; border-radius: 50%; background: #f2c230; }
+.ec-1960 .ec-big { color: #fbf6ea; text-transform: uppercase; letter-spacing: -.05em; }
+.ec-1960 .ec-ovr { background: #161310; color: #fbf6ea; border-radius: 50%; width: 2em; height: 2em; min-width: 0; padding: 0; display: grid; place-items: center; font-size: 1.25em; }
+.ec-1960.ec-range .ec-ovr { width: auto; height: auto; border-radius: 1em; padding: .3em .5em; font-size: 1.05em; }
+.ec-1960 .ec-tag { color: #8c3f12; }
+.ec-1960 .ec-name { text-transform: uppercase; font-weight: 900; letter-spacing: .01em; }
+.ec-1960 .ec-sub { color: #5a4a3a; }
+.ec-1960 .ec-bar { background: #ebe0ca; }
+.ec-1960 .ec-bar i { background: #1f7f86; }
+.ec-1960 .ec-rk { background: #f2c230; color: #161310; }
+
+/* 1970s: earth-tone stripes. Rounded everything, a heavy letter with a
+   brown drop shadow over mustard, orange and brown. */
+.ec-1970 { background: #5a3a22; color: #3f2512; }
+.ec-1970 .ec-in { background: #f3e6c9; border-radius: 1.1em; }
+.ec-1970 .ec-art { background-color: #d9622b; background-image: linear-gradient(180deg, #e0a526 0 33.4%, #d9622b 33.4% 66.7%, #8a3f1d 66.7% 100%); border-radius: 1em; }
+.ec-1970 .ec-big { color: #f7ecd3; text-shadow: .06em .06em 0 #4a2a14; letter-spacing: -.04em; }
+.ec-1970 .ec-ovr { background: #a8461a; color: #fff6e2; border-radius: 1em; padding: .2em .5em; }
+.ec-1970 .ec-tag { color: #6b3a18; }
+.ec-1970 .ec-name { font-weight: 900; letter-spacing: -.01em; }
+.ec-1970 .ec-sub { color: #6b4a2e; }
+.ec-1970 .ec-bar { background: #e6d5b0; }
+.ec-1970 .ec-bar i { background: linear-gradient(90deg, #e0a526, #d9622b); }
+.ec-1970 .ec-rk { background: #4a2a14; color: #f7ecd3; }
+
+/* 1980s: neon on black. A grid running to a striped sun, chrome capitals in
+   italic, a magenta frame that glows. */
+.ec-1980 { background: #0d0b1e; color: #f2f0ff; }
+.ec-1980 .ec-in { border: 1px solid #ff3ea5; box-shadow: 0 0 .5em rgba(255,62,165,.55), inset 0 0 .6em rgba(255,62,165,.25); }
+.ec-1980 .ec-art { background: linear-gradient(180deg, #140b33 0%, #3a0d52 52%, #0d0b1e 52%); border-radius: .2em; }
+.ec-1980 .ec-art::before { content: ''; position: absolute; left: 50%; top: 18%; width: 5.6em; height: 5.6em; margin-left: -2.8em; border-radius: 50%;
+  background: repeating-linear-gradient(180deg, transparent 0 58%, #3a0d52 58% 64%, transparent 64% 72%, #3a0d52 72% 78%, transparent 78% 84%, #3a0d52 84% 88%), linear-gradient(180deg, #ffd166, #ff3ea5 70%); }
+.ec-1980 .ec-art::after { content: ''; position: absolute; left: 0; right: 0; top: 52%; bottom: 0; border-top: .07em solid #ff3ea5;
+  /* Cross-lines further apart and heavier as the floor comes toward the
+     viewer, and rays from a vanishing point on the horizon: a receding grid
+     without a 3D transform, so it sits exactly where it is drawn. */
+  background:
+    linear-gradient(180deg, transparent 0 7%, rgba(51,255,255,.55) 7% 8.5%, transparent 8.5% 19%, rgba(51,255,255,.65) 19% 21%, transparent 21% 36%, rgba(51,255,255,.75) 36% 38.5%, transparent 38.5% 60%, rgba(51,255,255,.85) 60% 63%, transparent 63% 90%, rgba(51,255,255,.9) 90% 94%, transparent 94%),
+    repeating-conic-gradient(from 90deg at 50% 0%, rgba(51,255,255,.7) 0 .7deg, transparent .7deg 11.25deg); }
+.ec-1980 .ec-big { font-style: italic; text-transform: uppercase; letter-spacing: -.02em;
+  background: linear-gradient(180deg, #ffffff 0%, #d7e8ff 44%, #34507e 50%, #e9f4ff 58%, #98b3d6 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 .06em #33ffff) drop-shadow(.04em .04em 0 #1a0033); }
+.ec-1980 .ec-ovr { background: #ff3ea5; color: #14061f; font-style: italic; transform: skew(-8deg); }
+.ec-1980 .ec-tag { color: #7ff7ff; font-style: italic; }
+.ec-1980 .ec-name { text-transform: uppercase; font-style: italic; font-weight: 900; text-shadow: 0 0 .35em rgba(51,255,255,.55); }
+.ec-1980 .ec-sub { color: #c9c2ea; }
+.ec-1980 .ec-bar { background: #251f45; }
+.ec-1980 .ec-bar i { background: linear-gradient(90deg, #33ffff, #ff3ea5); }
+.ec-1980 .ec-rk { background: #33ffff; color: #0d0b1e; }
+
+/* 1990s: foil and marble. A gold border, a teal-to-purple ground with a
+   holographic sheen, gold italic capitals slanted into motion. */
+.ec-1990 { background-color: #c9961e; background-image: linear-gradient(135deg, #a8740a, #ffe38a 28%, #b8860b 50%, #fff0b3 72%, #a8740a); color: #ffffff; }
+.ec-1990 .ec-in { background-color: #0f5c6e; background-image: radial-gradient(circle at 20% 15%, rgba(255,255,255,.12), transparent 40%), linear-gradient(160deg, #0f5c6e, #3b2474 70%, #2a1650); }
+.ec-1990 .ec-art { background: linear-gradient(115deg, rgba(255,0,128,.28), rgba(255,200,0,.24) 25%, rgba(0,255,170,.24) 50%, rgba(0,140,255,.28) 75%, rgba(170,0,255,.28)); border-radius: .3em; box-shadow: inset 0 0 0 1px rgba(255,227,138,.55); }
+.ec-1990 .ec-big { font-style: italic; text-transform: uppercase; transform: skew(-8deg);
+  background: linear-gradient(180deg, #fff6c9 0%, #e2b23c 48%, #fff0b3 58%, #a8740a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(.05em .05em 0 #140a2a); }
+.ec-1990 .ec-ovr { background-color: #e8c65a; background-image: linear-gradient(180deg, #fff0b3, #d9a520); color: #20103a; border-radius: 50%; width: 2em; height: 2em; min-width: 0; padding: 0; display: grid; place-items: center; font-size: 1.25em; font-style: italic; }
+.ec-1990.ec-range .ec-ovr { width: auto; height: auto; border-radius: 1em; padding: .3em .5em; font-size: 1.05em; }
+.ec-1990 .ec-tag { color: #fff1c7; font-style: italic; }
+.ec-1990 .ec-name { text-transform: uppercase; font-style: italic; font-weight: 900; }
+.ec-1990 .ec-plate { position: relative; }
+.ec-1990 .ec-plate::after { content: ''; position: absolute; left: .55em; right: 30%; bottom: 0; height: .22em; background: linear-gradient(90deg, #00d6c9, #ff7a1a); transform: skew(-30deg); border-radius: 1em; }
+.ec-1990 .ec-sub { color: #d9d2f2; padding-bottom: .35em; }
+.ec-1990 .ec-bar { background: rgba(255,255,255,.14); }
+.ec-1990 .ec-bar i { background: linear-gradient(90deg, #00d6c9, #ffe38a); }
+.ec-1990 .ec-rk { background: #ff7a1a; color: #20103a; }
+
+/* 2000s: chrome and a refractor's shimmer. Silver stock, a gunmetal panel
+   with fine diagonal lines, chrome capitals, wide-spaced type. */
+.ec-2000 { background-color: #c8cfd8; background-image: linear-gradient(135deg, #f1f4f7, #a5afbb 38%, #f7f9fb 55%, #858f9b 100%); color: #eef1f5; }
+.ec-2000::after { content: ''; position: absolute; inset: 0; background: conic-gradient(from 30deg, rgba(255,0,120,.14), rgba(255,220,0,.14), rgba(0,230,160,.14), rgba(0,150,255,.14), rgba(180,0,255,.14), rgba(255,0,120,.14)); mix-blend-mode: soft-light; pointer-events: none; }
+.ec-2000 .ec-in { background: #1f252c; box-shadow: inset 0 0 0 1px #0c0f12, 0 0 0 1px rgba(255,255,255,.5); border-radius: .25em; }
+.ec-2000 .ec-art { background: repeating-linear-gradient(135deg, #2c333b 0 .35em, #262c33 .35em .7em); border-radius: .15em; box-shadow: inset 0 0 0 1px #3d4650; }
+.ec-2000 .ec-big { text-transform: uppercase; letter-spacing: .02em;
+  background: linear-gradient(180deg, #ffffff 0%, #c4ccd6 46%, #5d6875 52%, #eef2f6 64%, #a9b3bf 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(.03em .03em 0 #000000); }
+.ec-2000 .ec-ovr { background-color: #d0d7df; background-image: linear-gradient(180deg, #ffffff, #aeb8c4); color: #0c0f12; border-radius: .2em; clip-path: polygon(12% 0, 88% 0, 100% 50%, 88% 100%, 12% 100%, 0 50%); padding: .18em .5em; }
+.ec-2000 .ec-tag { color: #c4ccd6; letter-spacing: .18em; }
+.ec-2000 .ec-name { text-transform: uppercase; letter-spacing: .1em; font-size: 1.02em; }
+.ec-2000 .ec-sub { color: #aab4c0; letter-spacing: .05em; }
+.ec-2000 .ec-bar { background: #2e353d; border-radius: 0; }
+.ec-2000 .ec-bar i { background: linear-gradient(90deg, #8f9aa6, #f1f4f7); }
+.ec-2000 .ec-rk { background: #eef1f5; color: #0c0f12; }
+
+/* 2010s: minimal. White stock, a hairline, a flat block of colour with the
+   letters in outline, light type set large. */
+.ec-2010 { --frame: .5em; background: #ffffff; color: #111418; box-shadow: 0 .5em 1.4em rgba(0,0,0,.3), 0 0 0 1px rgba(0,0,0,.12); }
+.ec-2010 .ec-in { border: 1px solid #111418; border-radius: 0; }
+.ec-2010 .ec-art { background: #1d3b6f; margin: 0; }
+.ec-2010 .ec-big { color: transparent; -webkit-text-stroke: .025em #ffffff; font-weight: 800; letter-spacing: 0; }
+.ec-2010 .ec-ovr { color: #111418; border: .08em solid #111418; border-radius: 50%; width: 1.9em; height: 1.9em; min-width: 0; padding: 0; display: grid; place-items: center; font-weight: 700; font-size: 1.25em; }
+.ec-2010.ec-range .ec-ovr { width: auto; height: auto; border-radius: 1em; padding: .25em .5em; font-size: 1.05em; }
+.ec-2010 .ec-tag { color: #4a5563; font-weight: 600; }
+.ec-2010 .ec-name { font-weight: 400; font-size: 1.3em; letter-spacing: -.01em; }
+.ec-2010 .ec-sub { color: #4a5563; text-transform: uppercase; letter-spacing: .08em; font-size: .64em; }
+.ec-2010 .ec-bar { background: #e6e9ee; border-radius: 0; height: .3em; }
+.ec-2010 .ec-bar i { background: #1d3b6f; }
+.ec-2010 .ec-rk { background: #111418; color: #ffffff; }
+
+/* 2020s: a prism. Black stock, a colour field that shifts across the art,
+   a glassy highlight, heavy type and a white rating block. */
+.ec-2020 { --frame: .45em; background: #0b0b0f; color: #ffffff; }
+.ec-2020 .ec-art { background-color: #06d6a0; background-image: conic-gradient(from 200deg at 50% 65%, #ff4d6d, #ffd166, #06d6a0, #118ab2, #8338ec, #ff4d6d); border-radius: .6em; }
+.ec-2020 .ec-art::before { content: ''; position: absolute; inset: 0; background: linear-gradient(140deg, rgba(255,255,255,.45), rgba(255,255,255,0) 38%), radial-gradient(circle at 70% 110%, rgba(0,0,0,.35), transparent 60%); }
+.ec-2020 .ec-big { color: #0b0b0f; letter-spacing: -.05em; text-shadow: 0 .02em .12em rgba(255,255,255,.35); }
+.ec-2020 .ec-ovr { background: #ffffff; color: #0b0b0f; border-radius: .3em; }
+.ec-2020 .ec-tag { color: #cfd3dc; }
+.ec-2020 .ec-name { font-weight: 900; font-size: 1.22em; letter-spacing: -.01em; }
+.ec-2020 .ec-sub { color: #b6bcc8; }
+.ec-2020 .ec-bar { background: #23232b; }
+.ec-2020 .ec-bar i { background: linear-gradient(90deg, #06d6a0, #118ab2, #8338ec); }
+.ec-2020 .ec-rk { background: #ffd166; color: #0b0b0f; }
+
+/* Wide: the same card on its side, for a panel that has controls under it
+   (the auction block, the draft room). The art shrinks to a window at the
+   left, drawn at .62 of its size so everything in it keeps its proportions,
+   and every attribute is listed, two to a row on a phone, since this is where
+   the player is being bought. Selectors carry .ec twice over so a decade's
+   own rules never outrank them. */
+.ec.ec-wide { width: 100%; max-width: 30em; aspect-ratio: auto; container-type: inline-size; }
+.ec.ec-wide .ec-in { position: relative; inset: auto; margin: var(--frame); display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'art head' 'art plate' 'attrs attrs'; align-items: start; }
+.ec.ec-wide .ec-art { grid-area: art; align-self: stretch; font-size: .62em; width: 9.5em; min-height: 8.5em; margin: .9em 0 0 .9em; }
+.ec.ec-wide .ec-big { font-size: 4.3em; }
+.ec.ec-wide.ec-2010 .ec-art { margin: 0; }
+.ec.ec-wide .ec-rk { top: 1.2em; right: -1.9em; font-size: .95em; width: 7.8em; }
+.ec.ec-wide .ec-head { grid-area: head; padding: .55em .65em .1em; }
+.ec.ec-wide .ec-tag { white-space: normal; text-align: right; }
+.ec.ec-wide .ec-plate { grid-area: plate; padding: .2em .65em .3em; }
+.ec.ec-wide .ec-attrs { grid-area: attrs; grid-template-columns: repeat(auto-fill, minmax(7em, 1fr)); gap: .4em .9em; padding: .55em .65em .65em; }
+.ec.ec-wide .ec-attrs li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'l v' 'bar bar'; row-gap: .2em; gap: .2em .5em; font-size: .75em; }
+.ec.ec-wide .ec-l { grid-area: l; }
+.ec.ec-wide .ec-attrs b { grid-area: v; }
+.ec.ec-wide .ec-bar { grid-area: bar; height: .28em; }
+/* A narrow card (a phone at the larger text sizes) keeps its room for the
+   name and the rating: the art's window shrinks to a stamp, and the rookie
+   ribbon, too small to read there, goes; the tag still says "Class of". */
+@container (max-width: 17em) {
+  .ec.ec-wide .ec-art { font-size: .4em; margin: 1.4em 0 0 1.4em; }
+  .ec.ec-wide.ec-2010 .ec-art { margin: 0; }
+  .ec.ec-wide .ec-rk { display: none; }
+}
+
+/* The player card's header, restrained: the game's own surface and type, the
+   decade carried only by a band of its colour with the year set in it. Every
+   band holds white text at 4.5:1 or better. */
+.hc { display: grid; grid-template-columns: 2.5em minmax(0, 1fr); gap: .75em; align-items: stretch; margin: 0 0 .5rem; }
+.hc-band { display: flex; align-items: center; justify-content: center; border-radius: .5em; padding: .5em 0; color: #ffffff; min-height: 5.2em; }
+.hc-year { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 700; font-size: 1.15em; letter-spacing: .06em; line-height: 1; }
+.hc-year b { font-weight: 900; }
+.hc-body { min-width: 0; display: flex; flex-direction: column; gap: .2rem; }
+.hc-top { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .45rem; }
+.hc-top .hc-actions { margin-left: auto; display: flex; gap: .35rem; }
+.hc-name { margin: 0; }
+.hc-sub { margin: 0; color: var(--muted); font-size: .9rem; }
+.hc-1940 .hc-band { background: #8a6236; } .hc-1940 .hc-year { font-family: Georgia, 'Noto Serif', 'Times New Roman', serif; font-style: italic; }
+.hc-1950 .hc-band { background: #b3312b; } .hc-1950 .hc-year { font-family: Georgia, 'Noto Serif', 'Times New Roman', serif; font-style: italic; }
+.hc-1960 .hc-band { background: #1b6f75; }
+.hc-1970 .hc-band { background: #8a3f1d; box-shadow: inset -.3em 0 #e0a526, inset -.6em 0 #d9622b; }
+.hc-1980 .hc-band { background: #b0146e; box-shadow: inset 0 0 0 .12em #33ffff; } .hc-1980 .hc-year { font-style: italic; }
+.hc-1990 .hc-band { background-color: #0f5c6e; background-image: linear-gradient(160deg, #0f5c6e, #3b2474); } .hc-1990 .hc-year { font-style: italic; }
+.hc-2000 .hc-band { background-color: #5d6875; background-image: linear-gradient(180deg, #5d6875, #3d4650); }
+.hc-2010 .hc-band { background: #1d3b6f; }
+.hc-2020 .hc-band { background-color: #0e6f90; background-image: linear-gradient(180deg, #6a2bd0, #0e6f90 50%, #057a5c); }
