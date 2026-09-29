@@ -6314,6 +6314,134 @@ with.
 
 The controls under the strip were five equal buttons — next play, next drive, end of quarter, sim to end, autoplay — measuring 179px of an 844px phone, a fifth of the screen for the least interesting thing on it, and pushing the play-by-play under the fold. Watching a game is one action. It is now two big buttons, **Next play** and **Autoplay**, with the three skip-ahead buttons folded into a disclosure: things you want occasionally and never by accident. 121px instead of 179px, the play-by-play starts at 513px instead of 572px, and the page is 1088px instead of 1147px. The coach-mode panels are unchanged, and `Sim to end` still stands on its own there.
 
+### The play board
+
+Coach mode handed the human one side's calls and showed nothing of the other
+side's but the last one, in the matchup chip. The other side's calls are not
+random. `chooseDefense` moves its weights with the down, the distance and the
+field, and with the club's blitz and deep-shell dials and its game plan;
+`chooseOffense` does the same with the run and the pass. A real coordinator
+reads that off the other side as the game goes, and every snap in the log
+already carried both calls. The board reads them back (`engine/tendencies.js`,
+drawn by `ui/playboard.js`), and nothing is stored, so a game in progress from
+before it existed has its board the moment it is opened.
+
+- **A line over the calls** says what the other side has shown in the
+  situation this call is in: "Their defence on 3rd & long: Deep Shell 3 ·
+  Blitz 2 · Base 1". On defence it is their offence, run or pass. Until the
+  situation has come up it gives every down instead, and before the first
+  snap it says nothing.
+- **A fold under the calls** holds the game so far: the other side's calls by
+  situation, with the one the call is in marked, and a grid of calls against
+  looks. The grid is always offence down the side and defence across, the
+  shape of `CALL_GRID`: the human's calls against their looks with the ball,
+  theirs against the human's without. It opens with the other side's game
+  plan, as the hub's matchup card printed it before kickoff: what they meant
+  to do, above what they have done.
+- **A diagram on every call button.**
+
+**Six situations, from what the calls lean on.** Measured over 400 games
+between two 85-rated clubs at the default dials; fourth downs count with third.
+
+| Situation | Snaps a game, each side | Base | Stack the Box | Blitz | Deep Shell | Thrown |
+|---|---|---|---|---|---|---|
+| 1st down | 26.1 | 58% | 13% | 18% | 11% | 48% |
+| 2nd down, 3 or more to go | 17.8 | 54% | 14% | 20% | 12% | 61% |
+| 3rd & 3–6 | 4.2 | 55% | 13% | 20% | 12% | 88% |
+| 3rd & 7+ | 6.4 | 47% | 2% | 28% | 23% | 94% |
+| Short yardage, 2nd–4th & 1–2 | 3.9 | 44% | 35% | 18% | 3% | 39% |
+| Inside the 10 | 4.3 | 52% | 29% | 17% | 2% | 49% |
+
+The defence treats second down and third and medium alike; they are split
+because the offence does not, 61% thrown against 88%. The goal line is checked
+first, so third and two at the five is inside the 10.
+
+**Counts, not percentages.** Third and long comes up six times a game for each
+side and short yardage four. "3 of 5" says how little that is, where "60%"
+would hide it. What a player can act on within a game is the shift between
+situations, which is large (the box stacked on 35% of short-yardage snaps and
+2% of third and longs), and a club's dials, which are real: the blitz dial
+alone moves a club's first-down blitzes from 8% to 31% between its ends.
+
+**Points, not yards.** Each box in the grid is points added a play: the
+expected points of what the snap left, less what it started from, on the
+`expectedPoints` curve the fourth-down calls and the win probability use. A
+score is its points and then the ball handed back from a kickoff, which is how
+the fourth-down arithmetic prices a field goal, with the extra point counted
+as made. A turnover costs what the other side's first down is worth from where
+it takes over. Yards are the obvious measure and the wrong one for a board
+split by down and distance: two yards on third and one is a first down, two
+yards on third and eight is a punt, and a pick thrown forty yards downfield is
+no yards at all. Over the same 400 games, points order the pairings as the
+yards grid does:
+
+| points a play | Base | Stack the Box | Blitz | Deep Shell |
+|---|---|---|---|---|
+| Inside Run | −0.02 | −0.09 | −0.02 | +0.08 |
+| Outside Run | −0.02 | −0.06 | +0.07 | +0.14 |
+| Screen | −0.17 | +0.01 | +0.22 | −0.38 |
+| Short Pass | −0.08 | +0.18 | −0.11 | −0.47 |
+| Medium Pass | +0.09 | +0.41 | 0.00 | −0.09 |
+| Deep Shot | +0.08 | +0.54 | +0.01 | −0.40 |
+| Play Action | −0.02 | +0.35 | −0.04 | −0.24 |
+
+The run loses against the stacked box and gains against the shell, the screen
+beats the blitz, and the deep ball punishes the box and walks into the shell.
+In points the blitz costs a defence less than its yards suggest. Sacks and
+hurried throws are the likely reason; that part is not measured here.
+
+**The honest limit, which the board says.** One play's points have a standard
+deviation of 1.24 around a mean of −0.02, the gaps the grid is about are a few
+tenths, and a
+game fills about 20 of the 28 boxes for each side with a median of two plays in
+each. A box is what happened, not evidence of what will, and the note under the
+grid says so in about those words. A test holds the mean near zero over forty
+games: if the engine drifts away from the curve, the board turns green or red
+everywhere, and that is where it would show.
+
+**The down and distance are read back from the play-by-play.** A play's own
+log entry holds the down and distance after it: `logEvent` snapshots the game
+once the play has moved it. The ones it was called on are in the line the
+play-by-play prints before it ("Q3 4:12 · 3rd & 7 at DAL 35"), which the engine
+writes from the state at the call, with the spot in `from`. Storing the two
+numbers on every play would cost bytes in every saved game log, and would give
+a game already under way a board only from the next snap. Reading them back
+costs neither. A test holds the reading to the live state before every snap of
+25 games; checked when it was written, it matched all 28,157 snaps of 200. Where
+a turnover hands the ball over is priced from the fields the play logs, and a
+test holds it to where the next drive starts: within about half a yard,
+because an interception is spotted to a tenth and a drive to a whole yard.
+
+**The diagrams** are drawn in the button's own colour, so they follow the theme
+and a pressed button, and are hidden from a screen reader, because the label
+says what the call is. The first set drew whole formations and read as noise
+at the size a phone gives them, about three and a half pixels a yard, so each
+shows only its idea: the run's path, the route, the fake, two deep halves, a
+crowded line, the second level coming through the gaps. Placement was measured
+at 360px. Beside the name, the drawing pushed six of the seven names onto two
+lines. Above it, the offensive calls grew from 275px to 393px. Inline in front
+of the name they take 293px, and all 18px of the difference is "Medium Pass"
+wrapping in the test browser's fallback font, DejaVu Sans, which is wider than
+Roboto; on an Android phone it probably fits, which is not measured.
+
+**Folds stay as the player leaves them.** Every redraw replaces the page, so a
+fold opened by hand shut on the next snap: under autoplay the leaders and the
+drive chart shut about once a second, and a board that shut every time a call
+was made would have been no board at all. The view keeps the folds a player has
+opened for the session, and the smoke test checks the board across a call and
+the leaders across a snap.
+
+**Not built.** The logs of the human's earlier games are kept, so a report on
+an opponent from past meetings is possible; this is one game's worth. And the
+board never suggests a call. The code knows the exact weights, and a suggestion
+from them would be the answer rather than a read.
+
+One thing went wrong on the way, and it pointed at an older problem.
+`.board` was already the draft board's class, `width: max-content`, so the
+first cut of the fold measured 1,440px inside a 336px card, with only the row
+labels showing. The smoke test's overflow check did not see it, and could not
+have: see **the page must never scroll sideways**, below.
+
 ## Awards, records and the hall of fame (`awards.js`)
 
 The final closes the books. Every player with a stat line is scored against his own position first: how many standard deviations above the league's starters at that position (players with at least half the season) he finished, on fantasy points, with punters rated on placement and distance and linemen, who keep no statistics, left out. The MVP is the best of those z-scores weighted by positional leverage, so a quarterback wins most years, as one does in the real league, while a back or receiver with a truly outlying season can beat him. Offensive and defensive players of the year are the best z-scores on their side of the ball, the kicker award goes on points, and coach of the year to the club that finished furthest above its roster's power rank. An all-league team takes the top scorers at each position in starter numbers, and the season leaders are recorded in eleven categories. The awards screen shows the same race mid-season, so the MVP argument runs all year.
@@ -8050,6 +8178,8 @@ Layout is phone-first and the page must never scroll sideways. Two rules keep it
 2. Player lists are not tables. `playerItem()` in `ui/components.js` renders a `.prow` grid that stacks name, meta and ratings on a phone and spreads into rating / name / attributes / action columns from 860px. Tables are reserved for standings and box scores, where they sit in a `.table-wrap` scroller and drop low-value columns under 560px via `.hide-sm`.
 
 `teamChip(team, { responsive: true })` renders the abbreviation on a phone and the full club name from 560px, so scoreboards and matchup rows stay legible instead of ellipsised. The smoke test asserts no horizontal overflow on every screen at 360, 768 and 1280px and names the offending element when it finds one.
+
+**For most of the project that last check could not fail.** It was written in the same commit as the `overflow-x: hidden` guards on `html` and `body`, and it read the document's scroll width, which those guards pin to the viewport: anything wider than the screen is clipped by the body, not scrolled, so a 1,000px block on a 360px page read 360. On a phone clipped means cut off. It now reads the body's scroll width as well (1,012 for the same block) and names the outermost element past the edge, leaving out whatever sits inside a box of its own that scrolls. It was found when a fold on the game screen measured 1,440px and the smoke passed. Run again across every screen of the smoke, in the dark theme, it found nothing else.
 
 3. A screen re-rendered by a state change keeps its scroll position. `mount()` in `main.js` compares the view and its route params against the last mount and only jumps to the top when the screen actually changed. Every state change re-renders the open view through the same path a route change takes, so before this, moving one player down the depth chart threw you back to the top of a page four and a half screens long.
 

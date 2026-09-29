@@ -602,6 +602,33 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .playcalls .btn { flex-direction: column; gap: 0.1rem; padding: 0.5rem 0.35rem; text-align: center; min-height: 52px; }
 .playcalls .btn small { color: inherit; opacity: 0.7; font-weight: 500; font-size: 0.68rem; line-height: 1.2; }
 .playcalls .btn.special { border-color: var(--special-edge); }
+/* The play board (ui/playboard.js): a diagram beside each call's name, drawn in the
+   button's own colour; the line over the calls; the fold under them. */
+.playcalls .call-head { display: inline-flex; align-items: center; gap: 0.35rem; }
+.playcalls .call-head .callicon { width: 2.1em; height: auto; flex: none; }
+.playcalls .call-head > span { font-size: 0.9rem; }
+.callicon .faint { opacity: 0.45; }
+.tendency { margin: 0.35rem 0 0; font-size: 0.82rem; }
+.playboard { margin-top: 0.5rem; }
+.playboard > summary { font-size: 0.8rem; padding: 0.15rem 0; }
+.pb-plan { font-size: 0.8rem; margin: 0.4rem 0 0; }
+/* Wider than the card only at the largest text sizes, where it scrolls on its
+   own rather than pushing the page; the names break between words, never
+   inside one. */
+.pb-scroll { overflow-x: auto; margin-top: 0.6rem; }
+.pb-table { font-size: 0.8rem; }
+.pb-table caption { caption-side: top; text-align: left; font-size: 0.78rem; font-weight: 600; padding: 0 0 0.2rem; }
+.pb-table th, .pb-table td { padding: 0.25rem 0.3rem; }
+.pb-table th.lbl { font-size: 0.78rem; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 500; overflow-wrap: normal; min-width: 5.5em; }
+.pb-table td.nil { color: var(--muted); }
+.pb-table tr.now > * { background: color-mix(in srgb, var(--accent) 12%, var(--bg-2)); }
+.pb-table .nowtag { font-size: 0.64rem; font-weight: 700; color: var(--accent-ink); text-transform: uppercase; letter-spacing: 0.04em; }
+.pb-grid td small { display: block; color: var(--muted); font-size: 0.66rem; }
+.pb-grid .pts { font-weight: 600; }
+.pb-grid .pts.good { color: var(--good); }
+.pb-grid .pts.bad { color: var(--bad); }
+.pb-grid tfoot th, .pb-grid tfoot td { border-bottom: 0; }
+.pb-note { font-size: 0.74rem; margin: 0.4rem 0 0; }
 
 .pbp { list-style: none; margin: 0; padding: 0; max-height: 26rem; overflow-y: auto; font-size: 0.88rem; }
 .pbp li { padding: 0.45rem 0.55rem; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }

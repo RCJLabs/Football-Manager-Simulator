@@ -355,19 +355,28 @@ const heard = () => page.evaluate(() => window.__said || []);
 async function checkOverflow(where) {
   const bad = await page.evaluate(() => {
     const docW = document.documentElement.clientWidth;
-    if (document.documentElement.scrollWidth <= docW + 1) return null;
+    // Both html and body are guarded with overflow-x: hidden (styles.css), so
+    // content wider than the screen is clipped by the body rather than
+    // scrolling the page, and the document itself never reads wider than the
+    // viewport. This used to read the document alone, and so it could not
+    // fail: a 1,000px block on a 360px page read 360. The body's own scroll
+    // width is where clipped content shows, and on a phone clipped is cut
+    // off, not merely scrolled.
+    const scrollW = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+    if (scrollW <= docW + 1) return null;
+    // Name the outermost elements past the edge, not what sits inside a box of
+    // its own that scrolls or clips: that box is the one reaching the page.
+    const boxed = (el) => {
+      for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) if (getComputedStyle(a).overflowX !== 'visible') return true;
+      return false;
+    };
     const offenders = [];
     for (const el of document.querySelectorAll('body *')) {
       const r = el.getBoundingClientRect();
-      if (r.width === 0) continue;
-      if (r.right > docW + 1 || r.left < -1) {
-        const style = getComputedStyle(el);
-        // An element that scrolls internally is fine; it is not pushing the page.
-        if (style.overflowX === 'auto' || style.overflowX === 'scroll') continue;
-        offenders.push(`${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ')[0]} right=${Math.round(r.right)}`);
-      }
+      if (r.width === 0 || (r.right <= docW + 1 && r.left >= -1) || boxed(el)) continue;
+      offenders.push(`${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ')[0]} right=${Math.round(r.right)}`);
     }
-    return { docW, scrollW: document.documentElement.scrollWidth, offenders: offenders.slice(0, 5) };
+    return { docW, scrollW, offenders: offenders.slice(0, 5) };
   });
   if (bad) errors.push(`overflow on ${where}: page is ${bad.scrollW}px wide in a ${bad.docW}px viewport — ${bad.offenders.join(', ') || 'no single offender found'}`);
   await checkNav(where);
@@ -576,6 +585,45 @@ try {
     if (!field.label || !field.ball) errors.push(`the field does not draw the play just run (label ${field.label}, ball ${field.ball})`);
   }
   await shot('06-game');
+  // The play board (ui/playboard.js): a diagram on every call, a line over
+  // the calls saying what their defence has shown in this situation, and a
+  // fold holding the game so far, which stays open from one call to the next.
+  const toOffence = async () => {
+    for (let i = 0; i < 60 && !(await page.$('[data-off="run_in"]')); i++) {
+      const pat = await page.$('[data-pat="xp"]');
+      const next = await page.$('#next');
+      if (pat) await pat.click(); else if (next) await next.click(); else break;
+      await sleep(20);
+    }
+    return !!(await page.$('[data-off="run_in"]'));
+  };
+  if (!(await toOffence())) console.log('note: no offensive call came up; the play board checks did not run');
+  else {
+    const drawn = await page.evaluate(() => [...document.querySelectorAll('.playcalls [data-off]:not([data-off="ai"])')].map((b) => !!b.querySelector('svg.callicon[aria-hidden="true"]')));
+    if (drawn.length !== 7 || drawn.some((x) => !x)) errors.push(`the play calls carry ${drawn.filter(Boolean).length} diagrams across ${drawn.length} buttons`);
+    const line = await page.evaluate(() => document.querySelector('.tendency')?.textContent.replace(/\s+/g, ' ').trim() || '');
+    const where = '(on 1st down|on 2nd down|on 3rd & medium|on 3rd & long|in short yardage|inside the 10)';
+    const look = '(Base|Stack the Box|Blitz|Deep Shell) \\d+';
+    if (!new RegExp(`^(Their defence ${where}: |None ${where} yet\\. Their defence on every down: )${look}( · ${look})*$`).test(line)) errors.push(`the line over the calls reads "${line}"`);
+    await page.click('.playboard > summary');
+    const board = await page.evaluate(() => {
+      const b = document.querySelector('.playboard');
+      return {
+        open: b.open, tables: b.querySelectorAll('table').length, now: b.querySelectorAll('tr.now').length,
+        snaps: Number((b.querySelector('summary').textContent.match(/(\d+) snaps?/) || [])[1]),
+        corner: Number(b.querySelector('.pb-grid tfoot td:last-child small')?.textContent),
+      };
+    });
+    if (!board.open || board.tables !== 2) errors.push(`the play board opened ${board.open ? '' : 'shut '}with ${board.tables} tables`);
+    if (!(board.snaps > 0) || board.snaps !== board.corner) errors.push(`the play board counts ${board.snaps} snaps and its grid ${board.corner}`);
+    if (board.now !== 1) errors.push(`the play board marks ${board.now} situations as the one the call is in`);
+    await checkOverflow('play board');
+    await shot('06b-playboard');
+    await page.click('[data-off="pass_med"]');
+    await sleep(20);
+    if (await toOffence() && !(await page.$eval('.playboard', (b) => b.open))) errors.push('the play board shut when a call was made');
+    if (await page.$('.playboard[open]')) await page.click('.playboard > summary');
+  }
   // `Sim to end` moved behind a disclosure on the watching controls — three
   // buttons you want occasionally and never by accident. It still stands on its
   // own in the coach-mode panels, so advance until the other club has the ball,
@@ -613,6 +661,16 @@ try {
     if (moving) errors.push(`with reduced motion asked for, the field still animates (${moving} animations)`);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
   } else console.log('note: no play to step with reduced motion; that check did not run');
+  // A fold opened by hand is still open after the next snap. Every redraw
+  // replaces the page, and the leaders used to shut under autoplay about once
+  // a second.
+  if (await page.$('.leaders') && await page.$('#next')) {
+    await page.click('.leaders > summary');
+    await page.click('#next');
+    await sleep(30);
+    if (await page.$('.leaders') && !(await page.$('.leaders[open]'))) errors.push('the leaders fold shut on the next snap');
+    if (await page.$('.leaders[open]')) await page.click('.leaders > summary');
+  } else console.log('note: no leaders fold under the watching controls; that check did not run');
   for (let i = 0; i < 60 && !(await page.$('.skipahead')); i++) {
     const pat = await page.$('[data-pat="xp"]');
     const off = await page.$('[data-off="pass_med"]');
@@ -1039,8 +1097,22 @@ try {
   // land before the page does anything else on the spot at level 1. Deflate is
   // deterministic, so packing what is stored again says which wrote it — and a
   // browser that could not run the worker would be saving at level 1 here.
+  //
+  // The last write before this can be an on-the-spot one: `settleSave` above
+  // works by sending the page a pagehide, which is what flushes at level 1,
+  // and the name toggles since then each queue a routine save that goes to the
+  // worker a quarter of a second later. Read at once, the worker's copy had
+  // sometimes not landed yet, and the check failed on the flush it was reading
+  // (once in the three runs where this was found). So it waits for the
+  // routine save, three seconds at most: a worker that never runs never lands
+  // one, and that still fails.
   {
-    const raw = await page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); return localStorage.getItem('gridiron-eras:slot:' + reg.active); });
+    const stored = () => page.evaluate(() => { const reg = JSON.parse(localStorage.getItem('gridiron-eras:slots:v1')); return localStorage.getItem('gridiron-eras:slot:' + reg.active); });
+    let raw = await stored();
+    for (let t = 0; t < 30 && raw && raw.startsWith('\u0001GE1:') && encode(decode(raw), 6) !== raw; t++) {
+      await sleep(100);
+      raw = await stored();
+    }
     if (!raw || !raw.startsWith('\u0001GE1:')) errors.push('the open slot is stored as plain JSON, not packed');
     else if (encode(decode(raw), 6) !== raw) errors.push(`a routine save was not packed by the worker${encode(decode(raw), 1) === raw ? ': it was packed on the page, so the worker never ran' : ''}`);
   }

@@ -9,6 +9,8 @@ import { conditionsLine } from '../../engine/weather.js';
 import { fieldSvg, latestPlay, naturalSeconds } from '../field.js';
 import { buildRecap, recapTop, reelCard, turnsCard, mountRecap } from '../recap.js';
 import { queueTicker } from '../ticker.js';
+import { readSnaps } from '../../engine/tendencies.js';
+import { PLAY_KEYS, callIcon, tendencyLine, playBoard } from '../playboard.js';
 
 export const selfRendering = true;
 
@@ -150,6 +152,13 @@ let lastSaid = null;
 // the autoplay button, a trip to the depth chart and back — shows it as it
 // finished instead of running it again.
 let fieldShown = null;
+// The folds a player has opened. Every redraw replaces the page, so a fold
+// opened by hand closed again on the next snap: the leaders and the drive
+// chart shut under autoplay about once a second, and a play board that shut
+// every time a call was made would be no board at all. Kept for the session,
+// so one opened in one game is open in the next.
+const openFolds = new Set();
+const foldOpen = (name) => (openFolds.has(name) ? 'open' : '');
 
 function lastSnap(log) {
   if (!Array.isArray(log)) return null;
@@ -245,6 +254,12 @@ export function view(root, params, ctx) {
     const kicker = g.teams[off].comp.k;
     const fgP = Math.round(fgProbability(kicker, dist, g.weather) * 100);
 
+    // Every snap so far, read back from the log, for the board and the line
+    // over the calls. Only while a call is being made: it is the one moment
+    // they are for.
+    const calling = dec === 'offense' || dec === 'defense';
+    const snaps = calling ? readSnaps(g.log) : null;
+
     let controls;
     if (g.final) {
       controls = html`<div class="row" style="justify-content:center;margin:.5rem 0">
@@ -252,11 +267,11 @@ export function view(root, params, ctx) {
         <button class="btn primary lg" id="finish">Continue to season</button>
       </div>`;
     } else if (dec === 'offense') {
-      const playKeys = ['run_in', 'run_out', 'pass_short', 'pass_med', 'pass_deep', 'screen', 'pa_pass'];
       controls = html`
         <div class="row between"><b>Your call — ${downText(g)} at ${spot(g, off, g.ballOn)}</b><small class="muted">${fmtQuarter(g.quarter)} ${fmtClock(g.clock)}</small></div>
+        ${tendencyLine(g, dec, userSide, snaps)}
         <div class="playcalls" style="margin:.5rem 0">
-          ${playKeys.map((k) => html`<button class="btn" data-off="${k}">${OFFENSE_CALLS[k].label}<small>${PLAY_HELP[k]}</small></button>`)}
+          ${PLAY_KEYS.map((k) => html`<button class="btn call" data-off="${k}"><span class="call-head">${raw(callIcon(k))}<span>${OFFENSE_CALLS[k].label}</span></span><small>${PLAY_HELP[k]}</small></button>`)}
           <button class="btn ghost" data-off="ai">Let the AI call it<small>Use my strategy</small></button>
         </div>
         <div class="btn-group">
@@ -270,8 +285,9 @@ export function view(root, params, ctx) {
     } else if (dec === 'defense') {
       controls = html`
         <div class="row between"><b>Defensive call — ${downText(g)}, ${g.teams[off].abbr} at ${spot(g, off, g.ballOn)}</b><small class="muted">${fmtQuarter(g.quarter)} ${fmtClock(g.clock)}</small></div>
+        ${tendencyLine(g, dec, userSide, snaps)}
         <div class="playcalls" style="margin:.5rem 0">
-          ${Object.entries(DEFENSE_CALLS).map(([k, d]) => html`<button class="btn" data-def="${k}">${d.label}<small>${d.desc}</small></button>`)}
+          ${Object.entries(DEFENSE_CALLS).map(([k, d]) => html`<button class="btn call" data-def="${k}"><span class="call-head">${raw(callIcon(k))}<span>${d.label}</span></span><small>${d.desc}</small></button>`)}
         </div>
         <div class="btn-group"><button class="btn ghost" data-def="ai">Let the AI call it</button><span class="spacer"></span><button class="btn ghost" id="simEnd">Sim to end</button></div>`;
     } else if (dec === 'pat') {
@@ -377,13 +393,14 @@ export function view(root, params, ctx) {
           ${last.mu && last.mu.verdict !== 'straight' ? html`<span class="edge v-${last.mu.verdict}" title="${last.tip}">${last.mu.delta >= 0 ? '▲ +' : '▼ −'}${Math.abs(last.mu.delta).toFixed(1)}</span>` : ''}
         </div>
         ${last.note ? html`<small class="muted">${last.note}</small>` : ''}` : ''}
+        ${calling ? playBoard(g, dec, userSide, snaps, { open: openFolds.has('board') }) : ''}
       </div>
       ${recap ? raw(reelCard(recap, box) + turnsCard(recap, box, { extras: true })) : ''}
       ${g.log.length > 2 ? html`<div class="card tight" style="margin-bottom:.75rem">
         <div class="row between" style="font-size:.78rem"><span class="muted">Win probability</span><span>${raw(teamMark(home))}${home.abbr} above the line · ${raw(teamMark(away))}${away.abbr} below</span></div>
         ${raw(wpChart(g.log, g.teams))}
-        ${g.drives.length ? html`<details style="margin-top:.4rem"><summary class="muted" style="cursor:pointer;font-size:.8rem">Drive chart · ${g.drives.length} drives</summary>${raw(driveChart(g.drives, g.teams))}</details>` : ''}
-        ${!g.final && leaders.some((l) => l.rows.length) ? html`<details class="leaders" style="margin-top:.4rem">
+        ${g.drives.length ? html`<details style="margin-top:.4rem" data-fold="drives" ${foldOpen('drives')}><summary class="muted" style="cursor:pointer;font-size:.8rem">Drive chart · ${g.drives.length} drives</summary>${raw(driveChart(g.drives, g.teams))}</details>` : ''}
+        ${!g.final && leaders.some((l) => l.rows.length) ? html`<details class="leaders" style="margin-top:.4rem" data-fold="leaders" ${foldOpen('leaders')}>
           <summary class="muted" style="cursor:pointer;font-size:.8rem">Leaders${leadSummary ? ` · ${leadSummary}` : ''}</summary>
           ${leaders.map((l) => l.rows.length ? html`<div class="leadside">
             <div class="who">${raw(teamMark(l.team))}${l.abbr}</div>
@@ -398,6 +415,9 @@ export function view(root, params, ctx) {
 
     stopRecap?.();
     stopRecap = recap ? mountRecap(root, recap, box) : null;
+    root.querySelectorAll('details[data-fold]').forEach((d) => d.addEventListener('toggle', () => {
+      if (d.open) openFolds.add(d.dataset.fold); else openFolds.delete(d.dataset.fold);
+    }));
     root.querySelector('#next')?.addEventListener('click', () => act(() => step(g)));
     root.querySelector('#drive')?.addEventListener('click', () => act(() => stepDrive(g)));
     root.querySelector('#quarter')?.addEventListener('click', () => act(() => stepQuarter(g)));
