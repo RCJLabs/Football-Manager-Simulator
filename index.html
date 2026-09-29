@@ -6,7 +6,21 @@
   <title>Gridiron Eras</title>
   <meta name="description" content="Draft real football players from every era and simulate a season against AI-built all-time teams.">
   <meta name="theme-color" content="#0f1a12">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="dark light">
+  <!-- Theme and text size before the first paint, so a light page never
+       flashes dark first. A copy of applyAppearance in src/ui/theme.js;
+       tests/theme.test.js holds the two to the same answers. -->
+  <script>
+    (function () {
+      var p = {}, d = document.documentElement;
+      try { p = JSON.parse(localStorage.getItem('gridiron-eras:prefs:v1')) || {}; } catch (e) { p = {}; }
+      var light = p.theme === 'light' || (p.theme !== 'dark' && !!window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+      d.setAttribute('data-theme', light ? 'light' : 'dark');
+      if (p.textSize === 'l' || p.textSize === 'xl') d.setAttribute('data-text', p.textSize);
+      var bar = document.querySelector('meta[name="theme-color"]');
+      if (bar) bar.setAttribute('content', light ? '#f1f4f1' : '#0f1a12');
+    })();
+  </script>
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">

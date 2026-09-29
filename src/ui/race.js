@@ -39,9 +39,10 @@ export function oddsLine(league, u, marks = {}) {
   return parts.join(' · ');
 }
 
-// Lines other than the human's, in an order that stays readable on the dark
-// ground; the human's own is the accent.
-const PALETTE = ['#7cc4f5', '#57cc99', '#f4a261', '#c3a6ff', '#ef6461'];
+// Lines other than the human's, from the theme (styles.css, --series-*), where
+// each is held to 4.5:1 on the card of its own theme, since the end labels are
+// text in the same colour; the human's own line is the accent's ink.
+const PALETTE = [1, 2, 3, 4, 5].map((n) => `var(--series-${n})`);
 
 /**
  * Who the chart follows beside the human: a pro club's own division, or in a
@@ -80,7 +81,7 @@ export function raceChart(league, u, metric = 'playoff') {
   const grid = [0, 500, 1000].map((v) => `<line x1="${padL}" x2="${W - padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"${v === 500 ? ' stroke-dasharray="4 4"' : ''}/><text x="${padL - 6}" y="${(y(v) + 5).toFixed(1)}" text-anchor="end" class="race-axis">${v / 10}%</text>`).join('');
   const ticks = [0, Math.floor((pts.length - 1) / 2), pts.length - 1].filter((v, i, a) => a.indexOf(v) === i)
     .map((i) => `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" class="race-axis">${label(pts[i])}</text>`).join('');
-  const colour = (i, k) => (i === u ? 'var(--accent)' : PALETTE[k % PALETTE.length]);
+  const colour = (i, k) => (i === u ? 'var(--accent-ink)' : PALETTE[k % PALETTE.length]);
   const lines = clubs.map((i, k) => {
     const d = pts.map((p, j) => `${j ? 'L' : 'M'}${x(j).toFixed(1)},${y(p[metric][i]).toFixed(1)}`).join(' ');
     return `<path d="${d}" fill="none" stroke="${colour(i, k)}" stroke-width="${i === u ? 3 : 1.6}" stroke-linejoin="round"${i === u ? '' : ' stroke-opacity="0.9"'}/>`;

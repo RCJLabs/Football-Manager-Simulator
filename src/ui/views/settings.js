@@ -2,6 +2,7 @@ import { html, render, raw, download } from '../../util.js';
 import { exportJSON, importJSON, resetAll } from '../../store.js';
 import { modal } from '../components.js';
 import { crestEditor, wireCrestEditor } from '../crest.js';
+import { THEMES, THEME_LABELS, TEXT_SIZES, TEXT_LABELS, applyAppearance } from '../theme.js';
 import { INJURY_LEVEL_LABELS } from '../../engine/injuries.js';
 import { capOn } from '../../engine/cap.js';
 import { encodeLeagueCode } from '../../engine/share.js';
@@ -16,14 +17,23 @@ export function view(root, params, ctx) {
   const league = s.league;
   render(root, html`
     <div class="grid grid-2">
+      <div class="card" id="appearance">
+        <h2>Appearance</h2>
+        <p class="choice-label" id="themeLbl">Theme</p>
+        <div class="choices" role="radiogroup" aria-labelledby="themeLbl">${THEMES.map((k) => html`<label class="choice"><input type="radio" name="theme" value="${k}" ${(s.prefs.theme || 'system') === k ? 'checked' : ''}><span>${THEME_LABELS[k]}</span></label>`)}</div>
+        <small class="muted">System follows the light or dark setting on your phone or computer, and changes when it does.</small>
+        <p class="choice-label" id="textLbl">Text size</p>
+        <div class="choices" role="radiogroup" aria-labelledby="textLbl">${TEXT_SIZES.map((k) => html`<label class="choice"><input type="radio" name="textSize" value="${k}" ${(s.prefs.textSize || 'm') === k ? 'checked' : ''}><span>${TEXT_LABELS[k]}</span></label>`)}</div>
+        <small class="muted">Everything but the charts and the field, which are drawn to scale.</small>
+      </div>
       <div class="card">
         <h2>Game settings</h2>
+        ${league ? html`
         <div class="row between" style="align-items:center;margin-bottom:.5rem">
-          <label style="margin:0">How good the opposition is</label>
+          <label style="margin:0" for="difficulty">How good the opposition is</label>
           <select id="difficulty" style="max-width:10rem">${LEVELS.map((k) => html`<option value="${k}" ${(league.settings.difficulty || DEFAULT_DIFFICULTY) === k ? 'selected' : ''}>${DIFFICULTY[k].label}</option>`)}</select>
         </div>
         <small class="muted" style="display:block;margin-bottom:.75rem">${DIFFICULTY[league.settings.difficulty || DEFAULT_DIFFICULTY].blurb} It moves how the other clubs bid, scout and trade, never the simulation.</small>
-        ${league ? html`
           <label class="check"><input type="checkbox" id="coach" ${league.settings.coachMode ? 'checked' : ''}> Coach mode — call offensive plays in my games</label>
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="coachDef" ${league.settings.coachDefense ? 'checked' : ''}> Call defensive plays too</label>
           <label class="check" style="margin-top:.4rem"><input type="checkbox" id="penalties" ${league.settings.penalties !== false ? 'checked' : ''}> Penalties — flags for false starts, holding, interference and the rest</label>
@@ -53,7 +63,7 @@ export function view(root, params, ctx) {
           </div>
           <small class="muted">How many players each club carries into next season's market.</small>
           `}
-        ` : html`<p class="muted">Create a league to set coach mode.</p>`}
+        ` : html`<p class="muted">Start a league to set the opposition, coach mode and its rules.</p>`}
         <div class="slider-row" style="margin-top:1rem">
           <div class="lbl"><span>Autoplay speed</span><b id="speedLbl">${(s.prefs.autoplayMs / 1000).toFixed(1)}s per play</b></div>
           <input type="range" id="speed" min="200" max="3000" step="100" value="${s.prefs.autoplayMs}">
@@ -161,6 +171,16 @@ export function view(root, params, ctx) {
       note.textContent = how === 'shared' ? 'Shared.' : 'Saved as a PNG.';
     } catch (err) { if (err && err.name !== 'AbortError') note.textContent = err.message; }
   });
+  // Appearance is the page's, not the league's: it applies at once and keeps
+  // across leagues. Text size changes how much fits along the top bar, which is
+  // refitted on a resize, so it is told it has one.
+  for (const [name, key] of [['theme', 'theme'], ['textSize', 'textSize']]) {
+    root.querySelectorAll(`input[name="${name}"]`).forEach((input) => input.addEventListener('change', () => {
+      ctx.update((st) => { st.prefs[key] = input.value; }, { silent: true });
+      applyAppearance(ctx.getState().prefs);
+      if (key === 'textSize') window.dispatchEvent(new Event('resize'));
+    }));
+  }
   const speed = root.querySelector('#speed');
   speed.addEventListener('input', () => { root.querySelector('#speedLbl').textContent = `${(speed.value / 1000).toFixed(1)}s per play`; });
   speed.addEventListener('change', () => ctx.update((st) => { st.prefs.autoplayMs = Number(speed.value); }, { silent: true }));

@@ -377,7 +377,7 @@ The hub leads with a club's chances: "Playoffs 64% ▲6 · Division 22% · Title
 - The low preseason figure is the league being even, not the model being blind: a season's table is about half dice (see **How even is the league, really**).
 - Fantasy leagues read the same way: 0.04, 0.37 and 0.77.
 
-**The tiebreakers are a copy, and a test holds it to the real ones.** `makeComparator` reads `league.results` afresh for every tied comparison, and a thousand finishes through it took a third of a second at midseason on a desktop. `odds.js` keeps the season as head-to-head tables and runs the same tests in the same order with the same arithmetic. The member lists start in club order before sorting, as the real ones do, because a sort only agrees with another sort from the same starting order. `tests/odds.test.js` seeds 300 random finishes both ways (a quarter of them full of tied records, to reach the deep tiebreakers), and 1,600 more agreed while it was built. A reading then takes about 45 ms at week 1 and 30 ms at midseason on the same desktop.
+**The tiebreakers are a copy, and a test holds it to the real ones.** `makeComparator` reads `league.results` afresh for every tied comparison, and a thousand finishes through it took a third of a second at midseason on a desktop. `odds.js` keeps the season as head-to-head tables and runs the same tests in the same order with the same arithmetic. The member lists start in club order before sorting, as the real ones do, because a sort only agrees with another sort from the same starting order. `tests/odds.test.js` seeds 300 random finishes both ways (a quarter of them full of tied records, to reach the deep tiebreakers), and 1,600 more agreed while it was built. A reading then takes about 45 ms at week 1 and 30 ms at midseason on the same desktop. On a phone it is slower, and how much slower was measured later with Chromium's CPU throttling, which stands in for a phone and is not one: at a quarter of this desktop's speed (roughly a mid-range phone) a full reading takes 192 ms at week 1 and 156 ms at halfway, and at a sixth 250 and 220. The hub takes one when it opens on a week it has not read, so on a phone that is a pause of about a fifth of a second once a week. It is not moved off the main thread; if it shows, a reading taken after the hub has drawn is the first thing to try.
 
 **Common random numbers.** Every game's draw in every run is keyed by the run and the game, not taken in turn from a stream. Run 417 plays week 12's game between two clubs off the same number whichever week the odds are read in. So from one week to the next the race moves because of results and injuries, not because the dice were rolled again: read fresh each week, 1,000 runs wobble about a point and a half on their own. Draws come from a table of 4,096 normal quantiles, so a draw is a lookup rather than a logarithm, a root and a cosine.
 
@@ -7847,6 +7847,35 @@ Each check is mutation-tested: restoring the old badge green, dropping
 `aria-current`, and removing the focus ring each fail smoke, on the intended
 line.
 
+#### Two more things the probe could not see
+
+The light theme was the first change the contrast probe had to vouch for across
+a whole palette, and two gaps turned up on the way. It measured SVG text by its
+CSS `color`, but a chart label is drawn in its `fill`, so every chart label
+passed whatever it looked like. It reads the fill now, at the size the drawing
+is scaled to; text on the field and in a crest sits on the drawing's own ground,
+which no ancestor carries, and is left to its own checks. And it read only an
+element's own opacity, so a row faded to half was measured as if at full
+strength. It multiplies every ancestor's opacity now, and ignores a pulse, which
+reaches full strength every beat.
+
+That second one was not only a light-theme problem. Rows are faded to say "set
+back": a bench player on the depth chart, a hurt one in free agency, a position
+already filled in the draft. As shipped, those rows measured 2.3 to 2.9:1 in the
+dark theme: the name, the year and team, the figures and the rating badge. They
+are set back with the muted ink instead of opacity, which holds 4.5:1, and keep
+their rating badge at full strength. "Barely matters" in the value panel, which
+was faded to 0.8, is outlined instead; an empty save slot keeps its dashed edge
+and loses its fade, which took its text to 3.8:1 on the light page; and coach
+mode's "pinched" call, red at 0.85, measured 4.04:1 on the dark card and is
+drawn at full strength, told apart from "lost" by its missing border and wash
+as it always was. All of these change how the dark theme looks, on purpose.
+
+The smoke runs in either theme: `SMOKE_SCHEME=light` covers the light one, and by
+default it covers the dark one as before. Whichever it covers, it switches to the
+other on the settings screen and measures it there, so neither goes wholly
+unmeasured.
+
 ### Reachable without a mouse
 
 The audit counted 154 buttons against 18 aria attributes, zero live regions and
@@ -8035,6 +8064,24 @@ Every club was a coloured dot and stored one colour, so two clubs in similar red
 **Accessibility.** A crest beside a name is decoration and is `aria-hidden`; the name is the text. The editor's preview is the one crest with a label, since nothing beside it says what shape it is. The shape picker is a radio group of visually hidden inputs with a visible focus ring, reachable by keyboard; the smoke run tabs through it.
 
 What it is not: the crests are generated, not designed, and one letter cannot tell apart two clubs sharing an initial and a hue — the shape usually does, but not always. The club colours themselves were not changed, and the computer clubs cannot be edited.
+
+### Light and dark, and the size of the text (`styles.css`, `ui/theme.js`)
+
+There was one theme, dark, and no way to make the text bigger. A light page reads better in daylight, which is where a phone game gets played, and a larger text size is what a phone's own accessibility setting offers everywhere else.
+
+**Where colour lives.** The stylesheet had 25 colour tokens and 142 colours written straight into rules, and six UI modules wrote 86 more. A second theme is only as complete as the rules that remember to use it, so every colour now comes from a token: the dark theme's in `:root`, the light theme's in `:root[data-theme="light"]`. There are 110 colour tokens and the light theme sets 78 of them; the other 32 (the gold fill and the ink on it, the rating badges, the turf, the save-failure bar, the toast, the pulse stripes) carry their own ground and read the same on either page. Two tokens were being used and never defined, `--card` and `--fg`, so those rules had always drawn their fallback. `tests/theme.test.js` fails on a colour written into a rule outside the two theme blocks, on a token used and not defined, and on a colour literal in any UI module but five that draw on a ground of their own: the field, a crest, the share cards, the colour picker's default club colour, and the browser bar colour a meta tag has to name.
+
+**The dark theme did not move.** Every declaration of the old and new stylesheets was resolved against the dark tokens and compared. Apart from new rules, the differences are a dead rule removed (`.teamdot`, unused since the crests), three one-unit colour changes (the skip link's ink, a chip's hover text, the transparent end of a flash animation), the pill rules the crest picker now shares with the appearance settings (20 declarations, every value the same), and the deliberate changes to faded text described under the contrast check below.
+
+**The accent is two things.** Gold works as a fill on either page (the primary button, the active tab), but as text or a thin line on a light page it is 1.6:1. So `--accent` stays the fill and `--accent-ink` is the accent as text, border or focus ring: the same gold in the dark theme and `#7d5c00` in the light, 6.2:1 on white. Every place the accent was text or a line uses the ink: 28 in the stylesheet, plus the race chart's own line, the drive chart's scoring labels and the champion on the awards page.
+
+**The light palette was measured, not picked.** Every text pair the screens draw is held to 4.5:1, and every line that marks a state (the focus ring, the border that says "yours" or "chosen", a form field's edge) to 3:1. The test reads these from the tokens, so a token edited later is measured again. The 21 badge tones were derived: each dark tone's hue as a pale wash with a deep ink, stepped darker until the pair clears 5:1. The race chart's rival lines have a set per theme, each 4.5:1 on its card, since the label at the end of each is text in the same colour. A crest's rim turns over: light on the dark page so a dark crest shows, dark on the light page so a light one does.
+
+**Choosing it.** Settings → Appearance: System, Dark or Light, and Default, Large or Larger text (115% and 130%, Android's own large and largest font scales). System is the default, so a phone set to light opens the light theme, including for players who have only ever seen the dark one; Dark puts it back. The choice is a preference, not part of a league, and applies at once. It has to be on the page before the first paint or a light page flashes dark, and a module loads too late for that, so `index.html` carries a copy of `applyAppearance` as an inline script. The test runs the two against each other for 200 combinations of setting, system scheme and storage, including storage that throws and a save that is not JSON. The browser bar follows through the theme-color meta tag (`BAR_COLOURS`, held to each theme's `--bg`). Two things do not follow, and neither is checked: the installed app's splash screen comes from the manifest and stays dark, and the Android app's status bar is set by its wrapper.
+
+**Text size is the root font size.** 106 of the stylesheet's 109 font sizes were already in rem or em, so one attribute on `<html>` carries the page. Charts and the field are drawings with their own proportions and keep their size; scaling their labels would push them into each other and out of the drawing. The smoke runs at either size (`SMOKE_TEXT=l|xl`), and every screen it visits held at 130% on a 360-pixel phone.
+
+**What building it found.** Settings had never opened for anyone without a league. The opposition dial read the league before anything checked there was one, so a fresh install's Settings tab showed "Something broke". That is where the theme is chosen, so it is fixed, and the smoke now opens Settings before it creates a league.
 
 ### The draft board (`ui/draft-board.js`)
 

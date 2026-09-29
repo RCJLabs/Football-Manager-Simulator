@@ -1,23 +1,124 @@
 :root {
+  /* The dark theme, and the tokens every rule below draws its colour from.
+     Nothing outside this block and the light one after it names a colour:
+     tests/theme.test.js fails on any that does, because a rule that names
+     its own colour is a rule the light theme silently misses. */
+  color-scheme: dark;
   --bg: #0f1a12;
   --bg-2: #15241a;
   --bg-3: #1c3023;
   --line: #2a4432;
   --text: #e8efe9;
   --muted: #9db3a3;
+  /* The accent is two things. As a fill (a button, the active tab, a bar) gold
+     works on either page; as text or a thin line on the page it needs to be
+     darker on a light one, so that is its own token. */
   --accent: #e9c46a;
-  --accent-2: #f4a261;
+  --accent-ink: #e9c46a;
+  --accent-hover: #f0d080;
+  --on-accent: #1a1a1a;
+  --on-accent-dim: rgba(26, 26, 26, 0.72);
   --good: #57cc99;
   --bad: #ef6461;
   --info: #7cc4f5;
   --field: #2f7d3f;
   --field-dark: #276a35;
+  --field-edge: #1f4a2a;
+  --card: #12211a;
+  --deep: #0b1410;
+  --bar-bg: rgba(15, 26, 18, 0.94);
+  --tabbar-bg: rgba(15, 26, 18, 0.96);
+  --btn-hover: #244232;
+  --input-line: #2a4432;
+  --stripe: rgba(255, 255, 255, 0.018);
+  --ring: #3c6b4d;
+  --clock-cell: #21362a;
+  --clock-ink: #9fd3b0;
+  --clock-head-ink: #eaf6ee;
+  --dot: #e8974a;
+  --dot-on-accent: #7a3d00;
+  --special-edge: #4a3a1e;
+  --champ-glow: #3a2f10;
+  --champ-edge: #7a6220;
+  --flag: #e8c547;
+  /* A crest's edge (crest.js): light on the dark page, so a dark crest shows. */
+  --crest-rim: rgba(255, 255, 255, 0.55);
+  --notice-bg: #2b2a1a; --notice-edge: #5a5220; --notice-ink: #efe6b0;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --toast-bg: #1a1a1a; --toast-ink: #fff;
+  --alarm-bg: #5c1a1a; --alarm-ink: #ffe9e9; --alarm-edge: #ff6b6b; --alarm-strong: #fff; --alarm-link: #ffd8d8;
+  /* Rating badges and bars carry their own ink, so they read the same on either page. */
+  --ovr: #333; --ovr-ink: #fff; --ovr-95: #d4a017; --ovr-95-ink: #1a1a1a; --ovr-90: #31854d; --ovr-85: #2f7d9a; --ovr-80: #5b6b7a; --ovr-0: #444;
+  --vbar-wins: #3a9d5a; --vbar-price: #8a6d3b;
+  --pulse-upset: #3a9d5a; --pulse-blowout: #2f7d9a; --pulse-injury: #a34a47; --pulse-streak: #d4a017; --pulse-trade: #7a5ea8; --pulse-ot: #c47f2a;
+  /* The race chart's other clubs (race.js); the human's own line is the accent. */
+  --series-1: #7cc4f5; --series-2: #57cc99; --series-3: #f4a261; --series-4: #c3a6ff; --series-5: #ef6461;
+  /* Badge tones: a wash and the ink that reads on it. */
+  --t-green: #2c4a37; --t-green-ink: #cfe6d6; --t-khaki: #3b3a2b; --t-khaki-ink: #e6dfb0; --t-steel: #2c3a4a; --t-steel-ink: #cfe0f0;
+  --t-moss: #24382b; --t-moss-ink: #b9d2c3; --t-red: #4a2626; --t-red-ink: #ffb3b0; --t-grey: #3a3a3a; --t-grey-ink: #cfcfcf;
+  --t-sky: #2c3a4a; --t-sky-ink: #bcd6f0; --t-sand: #3a3428; --t-sand-ink: #ddc79a; --t-plum: #3d2f3d; --t-plum-ink: #d9b8d9;
+  --t-teal: #2b3f4a; --t-teal-ink: #b6dcec; --t-tan: #3a3328; --t-tan-ink: #e0c79d; --t-rust: #4a3226; --t-rust-ink: #f0c4aa;
+  --t-amber: #4a3f1f; --t-amber-ink: #f0dba0; --t-mint: #23402c; --t-mint-ink: #a9e0bb; --t-clay: #46342a; --t-clay-ink: #edc4a6;
+  --t-slate: #2e3a46; --t-slate-ink: #c6d8e8; --t-ochre: #4a3f26; --t-ochre-ink: #e6d3a3; --t-leaf: #24382b; --t-leaf-ink: #9fe0b8;
+  --t-fire: #5a2d0c; --t-fire-ink: #ffd7a8; --t-flame: #5c3a1a; --t-flame-ink: #ffdfae; --t-gold: #4a3a1e; --t-gold-ink: #e9c46a;
   --radius: 10px;
   --shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --gutter: 0.75rem;
 }
+/* The light theme. Set on <html> before the first paint (index.html, theme.js),
+   from the setting or, left to the system, from prefers-color-scheme. Every
+   text pair here was measured to 4.5:1 or better; the accent ink, focus ring
+   and form borders to 3:1 as lines. The field keeps its turf and the share
+   cards stay dark: both are pictures with their own ground. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f1f4f1;
+  --bg-2: #ffffff;
+  --bg-3: #e3eae4;
+  --line: #c8d4ca;
+  --text: #16211a;
+  --muted: #4c5e52;
+  --accent-ink: #7d5c00;
+  --good: #176b3c;
+  --bad: #b3261e;
+  --info: #0b5cad;
+  --card: #ffffff;
+  --deep: #e6ece7;
+  --bar-bg: rgba(255, 255, 255, 0.94);
+  --tabbar-bg: rgba(255, 255, 255, 0.97);
+  --btn-hover: #d7e1d9;
+  --input-line: #7f9184;
+  --stripe: rgba(0, 0, 0, 0.035);
+  --ring: #8fb39a;
+  --clock-cell: #e0efe5;
+  --clock-ink: #1f6b3a;
+  --clock-head-ink: #14532d;
+  --dot: #c25e0c;
+  --special-edge: #c9a53a;
+  --champ-glow: #f6e7b0;
+  --champ-edge: #c9a53a;
+  /* Dark on the light page, so a light crest shows. */
+  --crest-rim: rgba(0, 0, 0, 0.4);
+  --notice-bg: #fbf3d0; --notice-edge: #d8c46a; --notice-ink: #4d4100;
+  --scrim: rgba(0, 0, 0, 0.45);
+  --series-1: #0b63c4; --series-2: #1a7f37; --series-3: #b3470a; --series-4: #7a42d6; --series-5: #c42b2b;
+  --t-green: #e1ede4; --t-green-ink: #346543; --t-khaki: #f1eedd; --t-khaki-ink: #6c6322; --t-steel: #dde7f1; --t-steel-ink: #244e75;
+  --t-moss: #e2ece6; --t-moss-ink: #3c5d49; --t-red: #f3dcdb; --t-red-ink: #772622; --t-grey: #e7e7e7; --t-grey-ink: #4d4d4d;
+  --t-sky: #dbe7f3; --t-sky-ink: #224d77; --t-sand: #f0eadd; --t-sand-ink: #725a27; --t-plum: #ede1ed; --t-plum-ink: #643564;
+  --t-teal: #dbebf2; --t-teal-ink: #225e77; --t-tan: #f1e9dd; --t-tan-ink: #745725; --t-rust: #f3e4db; --t-rust-ink: #774222;
+  --t-amber: #f3eddb; --t-amber-ink: #776022; --t-mint: #def0e4; --t-mint-ink: #297040; --t-clay: #f3e5db; --t-clay-ink: #774622;
+  --t-slate: #dfe7ef; --t-slate-ink: #2c4e6d; --t-ochre: #f2ecdc; --t-ochre-ink: #775f22; --t-leaf: #ddf1e4; --t-leaf-ink: #247041;
+  --t-fire: #f3e8db; --t-fire-ink: #775022; --t-flame: #f3e9db; --t-flame-ink: #775522; --t-gold: #f3ecdb; --t-gold-ink: #775e22;
+  --shadow: 0 2px 10px rgba(16, 32, 20, 0.08);
+}
+/* Text size, from the setting. Everything but a few fixed minimums is in rem
+   or em, so the root size carries the page; the steps are Android's own large
+   and largest font scales. Charts and the field are drawings with their own
+   proportions and keep their size. */
+:root[data-text="l"] { font-size: 115%; }
+:root[data-text="xl"] { font-size: 130%; }
 @media (min-width: 700px) { :root { --gutter: 1rem; } }
 
 * { box-sizing: border-box; }
@@ -39,7 +140,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 /* Any grid/flex child that contains a scroller must be allowed to shrink. */
 .grid > *, .stack > *, .row > *, .matchup > *, .topbar > *, .card > * { min-width: 0; }
 
-.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem var(--gutter); padding-top: calc(0.5rem + env(safe-area-inset-top)); background: rgba(15, 26, 18, 0.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem var(--gutter); padding-top: calc(0.5rem + env(safe-area-inset-top)); background: var(--bar-bg); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 800; color: var(--text); letter-spacing: 0.02em; white-space: nowrap; font-size: 0.95rem; flex: none; }
 .brand-ball { display: inline-block; transform: rotate(-20deg); }
 .brand-text { display: inline; }
@@ -65,7 +166,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
   .tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
     display: flex; align-items: stretch;
-    background: rgba(15, 26, 18, 0.96); backdrop-filter: blur(8px);
+    background: var(--tabbar-bg); backdrop-filter: blur(8px);
     border-top: 1px solid var(--line);
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -79,9 +180,9 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
   .tabitem span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tabitem svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
   .tabitem:hover { text-decoration: none; color: var(--text); }
-  .tabitem.active, .tabitem[aria-expanded="true"] { color: var(--accent); }
+  .tabitem.active, .tabitem[aria-expanded="true"] { color: var(--accent-ink); }
   /* A lit bar above the active tab, the way a tab bar says where you are. */
-  .tabitem.active::before { content: ''; position: absolute; top: 0; width: 2.2rem; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent); }
+  .tabitem.active::before { content: ''; position: absolute; top: 0; width: 2.2rem; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent-ink); }
   .tabitem { position: relative; }
 
 }
@@ -89,7 +190,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 /* What does not fit goes here rather than off the end of a sideways scroll. */
 .nav-more { flex: none; color: var(--muted); background: transparent; border: 1px solid var(--line); padding: 0.3rem 0.55rem; border-radius: 999px; font-size: 0.85rem; white-space: nowrap; cursor: pointer; }
 .nav-more:hover, .nav-more[aria-expanded="true"] { background: var(--bg-3); color: var(--text); }
-.nav-menu { position: fixed; z-index: 45; display: flex; flex-direction: column; gap: 0.15rem; min-width: 9rem; padding: 0.3rem; background: var(--card, #12211a); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+.nav-menu { position: fixed; z-index: 45; display: flex; flex-direction: column; gap: 0.15rem; min-width: 9rem; padding: 0.3rem; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
 .nav-menu[hidden] { display: none; }
 .nav-menu a { color: var(--text); padding: 0.45rem 0.6rem; border-radius: 6px; font-size: 0.9rem; white-space: nowrap; }
 .nav-menu a:hover, .nav-menu a.active { background: var(--bg-3); text-decoration: none; }
@@ -110,16 +211,16 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 .card h2, .card h3 { margin-top: 0; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; background: var(--bg-3); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.8rem; cursor: pointer; font-weight: 600; transition: transform 0.05s ease, background 0.15s ease; user-select: none; text-decoration: none; min-height: 40px; }
-.btn:hover { background: #244232; text-decoration: none; }
+.btn:hover { background: var(--btn-hover); text-decoration: none; }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn.primary { background: var(--accent); color: #1a1a1a; border-color: transparent; }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 /* `.muted` assumes the dark page behind it. On an accent-filled surface it was
    grey-green on gold at 1.34:1 — the "N sold" counter inside the auction's
    room button, and the same in the draft. Dimmed ink instead: 0.72 alpha over
    the gold measures 5.26:1. */
-.btn.primary .muted, .tab.active .muted, .tab.active small { color: rgba(26, 26, 26, 0.72); }
-.btn.primary:hover { background: #f0d080; }
+.btn.primary .muted, .tab.active .muted, .tab.active small { color: var(--on-accent-dim); }
+.btn.primary:hover { background: var(--accent-hover); }
 .btn.danger { background: transparent; color: var(--bad); border-color: var(--bad); }
 .btn.ghost { background: transparent; }
 .btn.sm { padding: 0.3rem 0.6rem; font-size: 0.85rem; min-height: 32px; }
@@ -129,8 +230,8 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 .btn-group .btn { flex: 1 1 auto; }
 @media (min-width: 560px) { .btn-group .btn { flex: 0 0 auto; } }
 
-.field-input, input[type="text"], input[type="search"], select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.65rem; font: max(16px, 1rem) var(--font); width: 100%; max-width: 100%; }
-input[type="color"] { width: 3rem; height: 2.6rem; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.field-input, input[type="text"], input[type="search"], select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--input-line); border-radius: 8px; padding: 0.5rem 0.65rem; font: max(16px, 1rem) var(--font); width: 100%; max-width: 100%; }
+input[type="color"] { width: 3rem; height: 2.6rem; padding: 0; border: 1px solid var(--input-line); border-radius: 8px; background: var(--bg); }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 0.25rem; }
 /* An explicit display rule otherwise beats the browser's [hidden] default,
@@ -153,7 +254,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* Cells are nowrap by default; a label that can be long enough to push its
    row's figures off a phone has to be let go explicitly. */
 td.lbl, th.lbl { white-space: normal; overflow-wrap: anywhere; }
-tr.me td { background: rgba(233, 196, 106, 0.08); }
+tr.me td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 tr.clickable { cursor: pointer; }
 tr.clickable:hover td { background: var(--bg-3); }
 tr.dim td { color: var(--muted); }
@@ -161,76 +262,80 @@ tr.dim td { color: var(--muted); }
 @media (min-width: 560px) { .hide-sm { display: table-cell; } }
 
 .badge { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; background: var(--bg-3); color: var(--muted); vertical-align: middle; white-space: nowrap; }
-.badge.pos { background: #2c4a37; color: #cfe6d6; min-width: 2.3rem; text-align: center; }
-.badge.era { background: #3b3a2b; color: #e6dfb0; }
-.badge.gm { background: #2c3a4a; color: #cfe0f0; }
-.badge.slot { background: #24382b; color: #b9d2c3; font-family: var(--mono); }
-.badge.out { background: #4a2626; color: #ffb3b0; }
-.badge.rep { background: #3a3a3a; color: #cfcfcf; }
-.badge.rookie { background: #2c3a4a; color: #bcd6f0; }
-.badge.age { background: #3a3428; color: #ddc79a; font-family: var(--mono); }
-.badge.retired { background: #3d2f3d; color: #d9b8d9; }
+.badge.pos { background: var(--t-green); color: var(--t-green-ink); min-width: 2.3rem; text-align: center; }
+/* A bench man who would start, or a hurt man back fit (team.js). */
+.badge.fit { background: var(--t-green); color: var(--t-green-ink); }
+.badge.era { background: var(--t-khaki); color: var(--t-khaki-ink); }
+.badge.gm { background: var(--t-steel); color: var(--t-steel-ink); }
+.badge.slot { background: var(--t-moss); color: var(--t-moss-ink); font-family: var(--mono); }
+.badge.out { background: var(--t-red); color: var(--t-red-ink); }
+.badge.rep { background: var(--t-grey); color: var(--t-grey-ink); }
+.badge.rookie { background: var(--t-sky); color: var(--t-sky-ink); }
+.badge.age { background: var(--t-sand); color: var(--t-sand-ink); font-family: var(--mono); }
+.badge.retired { background: var(--t-plum); color: var(--t-plum-ink); }
 /* Trade finder: who is going cheap, what a man costs you, where you are thin. */
-.badge.block { background: #2b3f4a; color: #b6dcec; }
-.badge.cost { background: #3a3328; color: #e0c79d; font-family: var(--mono); }
-.badge.need { background: #4a3226; color: #f0c4aa; min-width: 2.3rem; text-align: center; }
+.badge.block { background: var(--t-teal); color: var(--t-teal-ink); }
+.badge.cost { background: var(--t-tan); color: var(--t-tan-ink); font-family: var(--mono); }
+.badge.need { background: var(--t-rust); color: var(--t-rust-ink); min-width: 2.3rem; text-align: center; }
 /* Draft: whether a man lasts to your next pick, and the pick-trading room. */
-.badge.lasts.gone { background: #4a2626; color: #ffb3b0; }
-.badge.lasts.risky { background: #4a3f1f; color: #f0dba0; }
+.badge.lasts.gone { background: var(--t-red); color: var(--t-red-ink); }
+.badge.lasts.risky { background: var(--t-amber); color: var(--t-amber-ink); }
 .pick-list { max-height: 15rem; overflow: auto; }
 .pick-row .nm { font-family: var(--mono); font-weight: 700; }
-.pick-offer { margin-top: .5rem; border-color: var(--accent); }
+.pick-offer { margin-top: .5rem; border-color: var(--accent-ink); }
 /* The three save slots: numbered, always all three, empty ones included. */
 .slot-list { margin-top: .5rem; display: grid; gap: .4rem; }
 .slot-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .55rem .6rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--bg-2); }
-.slot-row.me { border-color: var(--accent); }
-.slot-row.empty { opacity: .75; border-style: dashed; }
+.slot-row.me { border-color: var(--accent-ink); }
+/* The dashed edge says empty; a fade on top took its muted text under 4.5:1 on the light page. */
+.slot-row.empty { border-style: dashed; }
 .slot-no { font-family: var(--mono); font-weight: 700; color: var(--muted); min-width: 1.2rem; text-align: center; }
 .slot-what { flex: 1 1 11rem; min-width: 0; }
 .slot-row .btn-group { margin-left: auto; }
 /* The two markets: what a free agent adds, and whether a keeper is a bargain. */
-.badge.gain { background: #23402c; color: #a9e0bb; font-family: var(--mono); }
-.badge.rivals { background: #46342a; color: #edc4a6; }
-.badge.bargain { background: #23402c; color: #a9e0bb; }
-.badge.overpay { background: #4a2626; color: #ffb3b0; }
+.badge.gain { background: var(--t-mint); color: var(--t-mint-ink); font-family: var(--mono); }
+.badge.rivals { background: var(--t-clay); color: var(--t-clay-ink); }
+.badge.bargain { background: var(--t-mint); color: var(--t-mint-ink); }
+.badge.overpay { background: var(--t-red); color: var(--t-red-ink); }
 /* Auction: what losing the lot in front of you would mean. */
 .lot-advice { border: 1px solid var(--line); border-radius: .5rem; padding: .45rem .55rem; background: var(--bg-2); }
-.ovr.range { background: #2e3a46; color: #c6d8e8; font-size: .78rem; min-width: 3.4rem; letter-spacing: -.02em; }
+.ovr.range { background: var(--t-slate); color: var(--t-slate-ink); font-size: .78rem; min-width: 3.4rem; letter-spacing: -.02em; }
 .attr.est b { color: var(--muted); font-weight: 600; }
 .seat { display: inline-block; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .1rem .4rem; border-radius: 4px; margin-right: .3rem; }
-.seat.safe { background: #24382b; color: #b9d2c3; }
-.seat.warm { background: #4a3f26; color: #e6d3a3; }
-.seat.hot { background: #4a2626; color: #ffb3b0; }
+.seat.safe { background: var(--t-moss); color: var(--t-moss-ink); }
+.seat.warm { background: var(--t-ochre); color: var(--t-ochre-ink); }
+.seat.hot { background: var(--t-red); color: var(--t-red-ink); }
 ul.log { list-style: none; margin: .3rem 0 0; padding: 0; font-size: .88rem; }
 ul.log li { padding: .25rem 0; border-bottom: 1px solid var(--line); }
 ul.log li:last-child { border-bottom: 0; }
 ul.log .muted { font-family: var(--mono); font-size: .78rem; margin-right: .35rem; }
 ul.pulse { list-style: none; margin: .3rem 0 0; padding: 0; font-size: .88rem; }
 ul.pulse li { padding: .3rem 0 .3rem .6rem; border-left: 3px solid var(--bg-3); margin-bottom: .2rem; }
-ul.pulse li.p-upset { border-left-color: #3a9d5a; }
-ul.pulse li.p-blowout, ul.pulse li.p-shutout { border-left-color: #2f7d9a; }
-ul.pulse li.p-injury { border-left-color: #a34a47; }
-ul.pulse li.p-streak { border-left-color: #d4a017; }
-ul.pulse li.p-trade, ul.pulse li.p-waiver { border-left-color: #7a5ea8; }
-ul.pulse li.p-overtime { border-left-color: #c47f2a; }
+ul.pulse li.p-upset { border-left-color: var(--pulse-upset); }
+ul.pulse li.p-blowout, ul.pulse li.p-shutout { border-left-color: var(--pulse-blowout); }
+ul.pulse li.p-injury { border-left-color: var(--pulse-injury); }
+ul.pulse li.p-streak { border-left-color: var(--pulse-streak); }
+ul.pulse li.p-trade, ul.pulse li.p-waiver { border-left-color: var(--pulse-trade); }
+ul.pulse li.p-overtime { border-left-color: var(--pulse-ot); }
 details.fold { border: 1px solid var(--line); border-radius: 10px; padding: .6rem .75rem; background: var(--bg-2); }
 details.fold > summary { cursor: pointer; font-size: .92rem; list-style-position: outside; }
 details.fold[open] > summary { margin-bottom: .25rem; }
 .value-table td, .value-table th { vertical-align: middle; }
 .value-table .vcell { min-width: 5.5rem; white-space: nowrap; }
 .vbar { display: inline-block; height: .55rem; border-radius: 3px; vertical-align: middle; min-width: 2px; }
-.vbar.wins { background: #3a9d5a; }
-.vbar.price { background: #8a6d3b; }
+.vbar.wins { background: var(--vbar-wins); }
+.vbar.price { background: var(--vbar-price); }
 .vnum { font-family: var(--mono); font-size: .72rem; color: var(--muted); margin-left: .3rem; }
 .verdict { font-family: var(--mono); font-size: .78rem; font-weight: 700; padding: .05rem .3rem; border-radius: 4px; }
-.verdict.good { background: #24382b; color: #9fe0b8; }
+.verdict.good { background: var(--t-leaf); color: var(--t-leaf-ink); }
 .verdict.fair { background: var(--bg-3); color: var(--muted); }
-.verdict.poor { background: #4a3f26; color: #e6d3a3; }
-.verdict.bad { background: #4a2626; color: #ffb3b0; }
-.verdict.nil { background: var(--bg-3); color: var(--muted); opacity: .8; }
+.verdict.poor { background: var(--t-ochre); color: var(--t-ochre-ink); }
+.verdict.bad { background: var(--t-red); color: var(--t-red-ink); }
+/* Outlined rather than faded, so it reads as less than "about right" and still reads. */
+.verdict.nil { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
 .clinch { display: inline-block; min-width: 1.1rem; margin-right: .3rem; font-family: var(--mono); font-size: .75rem; font-weight: 700; text-align: center; border-radius: 4px; padding: 0 .2rem; background: var(--bg-3); color: var(--muted); }
-.clinch.x, .clinch.y, .clinch.z { background: #2c4a37; color: #cfe6d6; }
-.clinch.e { background: #4a2626; color: #ffb3b0; }
+.clinch.x, .clinch.y, .clinch.z { background: var(--t-green); color: var(--t-green-ink); }
+.clinch.e { background: var(--t-red); color: var(--t-red-ink); }
 .chart { display: block; width: 100%; height: auto; margin-top: .35rem; }
 .chart.wp { height: 72px; }
 /* The race: a club's chances week by week (race.js). */
@@ -243,18 +348,17 @@ details.fold[open] > summary { margin-bottom: .25rem; }
 .odds-move.up { color: var(--good); }
 .odds-move.down { color: var(--bad); }
 td.odds { white-space: nowrap; }
-.wpnow { font-size: .78rem; color: var(--accent); font-weight: 700; margin-top: .15rem; }
-.ovr { display: inline-flex; align-items: center; justify-content: center; min-width: 2.3rem; height: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: 6px; background: #333; color: #fff; flex: none; }
+.wpnow { font-size: .78rem; color: var(--accent-ink); font-weight: 700; margin-top: .15rem; }
+.ovr { display: inline-flex; align-items: center; justify-content: center; min-width: 2.3rem; height: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: 6px; background: var(--ovr); color: var(--ovr-ink); flex: none; }
 /* Badge greens/blues carry white text at 16px bold, so each needs 4.5:1 to
    clear WCAG AA. Measured: o95 7.33, o85 4.65, o80 5.48, o0 9.74 — and o90 was
    3.41 on #3a9d5a, the one tier that failed, on the badge worn by every player
    rated 90 to 94. Darkened 15% to #31854d, which reads 4.57 and stays plainly
    green against the blue below it. `scripts/smoke.mjs` measures this now. */
-.ovr.o95 { background: #d4a017; color: #1a1a1a; } .ovr.o90 { background: #31854d; } .ovr.o85 { background: #2f7d9a; } .ovr.o80 { background: #5b6b7a; } .ovr.o0 { background: #444; }
+.ovr.o95 { background: var(--ovr-95); color: var(--ovr-95-ink); } .ovr.o90 { background: var(--ovr-90); } .ovr.o85 { background: var(--ovr-85); } .ovr.o80 { background: var(--ovr-80); } .ovr.o0 { background: var(--ovr-0); }
 .attr { font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .attr b { color: var(--text); font-weight: 700; }
 .attr.hi b { color: var(--good); } .attr.lo b { color: var(--bad); }
-.teamdot { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 50%; vertical-align: middle; margin-right: 0.3rem; border: 1px solid rgba(255,255,255,0.25); flex: none; }
 .team-chip { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 700; min-width: 0; }
 .team-chip span.tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A club's crest (crest.js): sized to the text it sits in, never squeezed. */
@@ -262,15 +366,23 @@ td.odds { white-space: nowrap; }
 .team-chip .crest { width: 1.1em; height: 1.32em; }
 :not(.team-chip) > .crest { margin-right: 0.3rem; }
 .crest.lg { width: 3rem; height: 3.6rem; vertical-align: middle; }
+.crest .rim { stroke: var(--crest-rim); }
 .crest-edit { display: flex; gap: .8rem; align-items: center; margin-top: .4rem; }
 .crest-preview { flex: none; }
 .crest-fields { min-width: 0; }
 .crest-shapes { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .45rem; }
-.crest-shape { display: inline-flex; margin: 0; cursor: pointer; }
-.crest-shape input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.crest-shape span { display: inline-flex; align-items: center; gap: .3rem; padding: .3rem .55rem; border: 1px solid var(--line); border-radius: 999px; font-size: .82rem; color: var(--muted); min-height: 34px; }
-.crest-shape input:checked + span { border-color: var(--accent); color: var(--text); }
-.crest-shape input:focus-visible + span { outline: 2px solid var(--info); outline-offset: 2px; }
+/* A row of pills that is really a radio group: the crest's shape, and the
+   appearance settings. The radio stays in the page for keyboards and screen
+   readers; the pill is what is seen. */
+.crest-shape, .choice { display: inline-flex; margin: 0; cursor: pointer; }
+.crest-shape input, .choice input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.crest-shape span, .choice span { display: inline-flex; align-items: center; gap: .3rem; padding: .3rem .55rem; border: 1px solid var(--line); border-radius: 999px; font-size: .82rem; color: var(--muted); min-height: 34px; }
+.crest-shape input:checked + span, .choice input:checked + span { border-color: var(--accent-ink); color: var(--text); }
+.crest-shape input:focus-visible + span, .choice input:focus-visible + span { outline: 2px solid var(--info); outline-offset: 2px; }
+.choices { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .3rem; }
+.choice span { padding-left: .8rem; padding-right: .8rem; font-weight: 600; }
+.choice-label { font-size: .9rem; color: var(--muted); margin: .7rem 0 .3rem; }
+.choice-label:first-of-type { margin-top: .2rem; }
 .crest-shape .crest { margin-right: 0; }
 .crest-color { display: inline-flex; align-items: center; gap: .5rem; font-size: .85rem; margin: 0; }
 .t-long { display: none; }
@@ -280,8 +392,12 @@ td.odds { white-space: nowrap; }
 .plist { list-style: none; margin: 0; padding: 0; }
 .prow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.15rem 0.55rem; align-items: center; padding: 0.5rem 0.55rem; border-bottom: 1px solid var(--line); }
 .prow:last-child { border-bottom: 0; }
-.prow.dim { opacity: 0.5; }
-.prow.me { background: rgba(233, 196, 106, 0.07); }
+/* Set back, not faded: a bench man, a hurt one, a position already filled.
+   The row used to be drawn at half opacity, which took its text to 2.3-2.9:1
+   on the dark page and lower on the light one. The name and figures step down
+   to the muted ink instead, which holds 4.5:1, and the rating keeps its badge. */
+.prow.dim .nm, .prow.dim .attr b { color: var(--muted); }
+.prow.me { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .prow .who { min-width: 0; }
 .prow .nm { font-weight: 700; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; overflow-wrap: anywhere; }
 .prow .nm .tap { cursor: pointer; }
@@ -320,7 +436,7 @@ td.odds { white-space: nowrap; }
 .tabs { display: flex; gap: 0.25rem; overflow-x: auto; scrollbar-width: none; padding-bottom: 0.2rem; -webkit-overflow-scrolling: touch; max-width: 100%; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab { padding: 0.35rem 0.7rem; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap; flex: none; min-height: 34px; }
-.tab.active { background: var(--accent); color: #1a1a1a; border-color: transparent; }
+.tab.active { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 /* The section tabs are a fixed set, so they get to fit rather than scroll: a tab
    scrolled off the end is one nobody finds. Four came to 339px at the default
    padding, 3px more than a 360px phone has, hence the trim. Five come to 446px,
@@ -334,20 +450,20 @@ td.odds { white-space: nowrap; }
 }
 
 /* "Something needs you here", in less width than a number would cost. */
-.tab .dot { display: inline-block; width: 6px; height: 6px; margin-left: 0.3rem; border-radius: 50%; background: #e8974a; vertical-align: middle; }
-.tab.active .dot { background: #7a3d00; }
+.tab .dot { display: inline-block; width: 6px; height: 6px; margin-left: 0.3rem; border-radius: 50%; background: var(--dot); vertical-align: middle; }
+.tab.active .dot { background: var(--dot-on-accent); }
 
 .needs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .need { font-size: 0.78rem; padding: 0.2rem 0.5rem; border-radius: 999px; background: var(--bg-3); color: var(--muted); cursor: pointer; }
-.need.open { background: #4a3a1e; color: var(--accent); }
+.need.open { background: var(--t-gold); color: var(--t-gold-ink); }
 .clock { font-size: 1.05rem; font-weight: 800; }
 .ticker { max-height: 15rem; overflow-y: auto; font-size: 0.85rem; }
 .ticker li { padding: 0.3rem 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .ticker li:last-child { border-bottom: 0; }
-.ticker li.me { color: var(--accent); }
+.ticker li.me { color: var(--accent-ink); }
 ul.plain { list-style: none; margin: 0; padding: 0; }
 
-.scoreboard { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.4rem; background: #0b1410; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem 0.5rem; }
+.scoreboard { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.4rem; background: var(--deep); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem 0.5rem; }
 .sb-team { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; text-align: center; min-width: 0; }
 .sb-team .name { font-weight: 800; font-size: 0.82rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-team .score { font-size: 2rem; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -355,13 +471,13 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .sb-team .to { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.12em; }
 .sb-mid { text-align: center; font-variant-numeric: tabular-nums; flex: none; }
 .sb-mid .q { font-weight: 800; font-size: 0.95rem; }
-.sb-mid .dd { color: var(--accent); font-weight: 700; font-size: 0.85rem; }
+.sb-mid .dd { color: var(--accent-ink); font-weight: 700; font-size: 0.85rem; }
 .sb-mid .spot { color: var(--muted); font-size: 0.75rem; }
 @media (min-width: 560px) { .sb-team .name { font-size: 0.95rem; } .sb-team .score { font-size: 2.4rem; } .sb-mid .q { font-size: 1.1rem; } }
 
 /* The field: drawn in yards and scaled to the card, so a phone gets the whole
    of it at 150px tall and a desktop gets it capped rather than a foot deep. */
-.field2d { margin: 0.5rem 0 0.15rem; border-radius: 6px; overflow: hidden; border: 1px solid #1f4a2a; background: var(--field-dark); line-height: 0; }
+.field2d { margin: 0.5rem 0 0.15rem; border-radius: 6px; overflow: hidden; border: 1px solid var(--field-edge); background: var(--field-dark); line-height: 0; }
 .field2d svg { display: block; width: 100%; height: auto; }
 .field2d text { font-family: var(--font); }
 @media (min-width: 700px) { .field2d { max-width: 760px; margin-left: auto; margin-right: auto; } }
@@ -373,11 +489,11 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .linescore { font-size: 0.9rem; font-variant-numeric: tabular-nums; width: auto; min-width: 15rem; }
 .linescore th, .linescore td { padding: 0.2rem 0.5rem; }
 .potg { margin-top: 0.6rem; padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-3); }
-.potg-k { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); font-weight: 700; }
+.potg-k { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-ink); font-weight: 700; }
 .potg-n { margin: 0.15rem 0; }
 .potg-l { font-size: 0.9rem; }
 .potg-f { font-size: 0.78rem; }
-.swing { display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 0.05rem 0.4rem; border-radius: 999px; background: var(--bg-3); color: var(--accent); white-space: nowrap; }
+.swing { display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 0.05rem 0.4rem; border-radius: 999px; background: var(--bg-3); color: var(--accent-ink); white-space: nowrap; }
 .turns h3 { margin-top: 0; }
 .tps { display: grid; gap: 0.7rem; }
 .tp { display: grid; grid-template-columns: 132px 1fr; gap: 0.6rem; align-items: start; }
@@ -393,26 +509,26 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .reel-bar { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 .reel-dots { display: inline-flex; gap: 0.3rem; margin-left: auto; }
 .rdot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
-.rdot.on { background: var(--accent); }
+.rdot.on { background: var(--accent-ink); }
 @media (min-width: 700px) { .tp { grid-template-columns: 220px 1fr; } }
 
 /* The week played back: every game on one clock, a score flashing as it lands. */
 .ticker-card { margin-bottom: 0.75rem; }
 .tk-head h3 { margin: 0; }
-.tk-clock { font-size: 0.85rem; color: var(--accent); font-weight: 700; }
+.tk-clock { font-size: 0.85rem; color: var(--accent-ink); font-weight: 700; }
 .tk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin: 0.55rem 0; }
 @media (min-width: 700px) { .tk-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .tk-game { border: 1px solid var(--line); border-radius: 8px; padding: 0.35rem 0.5rem; background: var(--bg); font-size: 0.85rem; }
-.tk-game.mine { border-color: var(--accent); }
+.tk-game.mine { border-color: var(--accent-ink); }
 .tk-row { display: flex; justify-content: space-between; align-items: center; gap: 0.3rem; padding: 0.05rem 0.2rem; border-radius: 4px; }
 .tk-row .tk-s { font-variant-numeric: tabular-nums; min-width: 1.6em; text-align: right; color: var(--muted); }
 .tk-row.lead .tk-s { color: var(--text); }
 .tk-game.final .tk-row.lead { font-weight: 700; }
 .tk-row.hit { animation: tkhit 1.2s ease-out; }
-@keyframes tkhit { from { background: rgba(233, 196, 106, 0.45); } to { background: transparent; } }
+@keyframes tkhit { from { background: color-mix(in srgb, var(--accent) 45%, transparent); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .tk-row.hit { animation: none; } }
 .tk-st { font-size: 0.72rem; margin-top: 0.15rem; min-height: 1.2em; display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.35rem; }
-.badge.upset { background: #5a2d0c; color: #ffd7a8; }
+.badge.upset { background: var(--t-fire); color: var(--t-fire-ink); }
 .tk-bar { margin-top: 0.4rem; }
 /* Held at its full height from kickoff so the boards below never move. */
 .ticker-card .tk-feed { font-size: 0.82rem; margin: 0.45rem 0 0; height: calc(3 * 1.6em); overflow: hidden; }
@@ -458,11 +574,11 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .callvs .calls b { font-weight: 600; }
 .callvs .sep { color: var(--muted); font-weight: 400; padding: 0 0.1rem; }
 .callvs .edge { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.78rem; padding: 0.1rem 0.4rem; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
-.callvs .edge.v-won { color: var(--good); border-color: rgba(87, 204, 153, 0.45); background: rgba(87, 204, 153, 0.1); }
-.callvs .edge.v-edge { color: var(--good); opacity: 0.85; }
+.callvs .edge.v-won { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); background: color-mix(in srgb, var(--good) 10%, transparent); }
+.callvs .edge.v-edge { color: var(--good); }
 .callvs .edge.v-even { color: var(--muted); }
-.callvs .edge.v-pinched { color: var(--bad); opacity: 0.85; }
-.callvs .edge.v-lost { color: var(--bad); border-color: rgba(239, 100, 97, 0.45); background: rgba(239, 100, 97, 0.1); }
+.callvs .edge.v-pinched { color: var(--bad); }
+.callvs .edge.v-lost { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); background: color-mix(in srgb, var(--bad) 10%, transparent); }
 
 /* The clock controls, shown only in the last five minutes of a half. The
    timeout sits on its own row because it is the urgent one and wants a thumb;
@@ -477,17 +593,17 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 @media (min-width: 620px) { .playcalls { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .playcalls .btn { flex-direction: column; gap: 0.1rem; padding: 0.5rem 0.35rem; text-align: center; min-height: 52px; }
 .playcalls .btn small { color: inherit; opacity: 0.7; font-weight: 500; font-size: 0.68rem; line-height: 1.2; }
-.playcalls .btn.special { border-color: #4a3a1e; }
+.playcalls .btn.special { border-color: var(--special-edge); }
 
 .pbp { list-style: none; margin: 0; padding: 0; max-height: 26rem; overflow-y: auto; font-size: 0.88rem; }
 .pbp li { padding: 0.45rem 0.55rem; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .pbp li .sit { display: block; color: var(--muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
-.pbp li.scoring { background: rgba(87, 204, 153, 0.12); border-left: 3px solid var(--good); }
-.pbp li.turnover { background: rgba(239, 100, 97, 0.12); border-left: 3px solid var(--bad); }
-.pbp li.injury { background: rgba(239, 100, 97, 0.08); border-left: 3px dashed var(--bad); font-style: italic; }
-.pbp li.penalty { background: rgba(232, 197, 71, 0.1); border-left: 3px solid #e8c547; }
+.pbp li.scoring { background: color-mix(in srgb, var(--good) 12%, transparent); border-left: 3px solid var(--good); }
+.pbp li.turnover { background: color-mix(in srgb, var(--bad) 12%, transparent); border-left: 3px solid var(--bad); }
+.pbp li.injury { background: color-mix(in srgb, var(--bad) 8%, transparent); border-left: 3px dashed var(--bad); font-style: italic; }
+.pbp li.penalty { background: color-mix(in srgb, var(--flag) 10%, transparent); border-left: 3px solid var(--flag); }
 .pbp li.drive { background: var(--bg-3); color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
-.pbp li.quarter, .pbp li.final { background: #0b1410; font-weight: 700; text-align: center; }
+.pbp li.quarter, .pbp li.final { background: var(--deep); font-weight: 700; text-align: center; }
 .pbp li.latest { animation: flash 0.6s ease; }
 /* The newest play flashes a RING rather than washing the row gold.
    At the old `rgba(233,196,106,0.35)` the `.sit` line under a penalty read
@@ -496,8 +612,8 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
    the text nothing; the tint that remains keeps `.sit` at 4.97:1. Same idiom
    the draft board already uses for a fresh pick. */
 @keyframes flash {
-  from { box-shadow: inset 0 0 0 2px rgba(233, 196, 106, 0.9); background: rgba(233, 196, 106, 0.12); }
-  to { box-shadow: inset 0 0 0 2px rgba(233, 196, 106, 0); background: transparent; }
+  from { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent-ink) 90%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  to { box-shadow: inset 0 0 0 2px transparent; background: transparent; }
 }
 
 .standings td:first-child { font-weight: 700; }
@@ -508,11 +624,11 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .matchup .side .tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .matchup .side small { white-space: nowrap; font-weight: 500; }
 .matchup .vs { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 800; flex: none; font-size: 0.9rem; }
-.matchup.mine { border-color: var(--accent); }
+.matchup.mine { border-color: var(--accent-ink); }
 .matchup .w { color: var(--good); }
 .bracket { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
 @media (min-width: 760px) { .bracket { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); } }
-.champ { text-align: center; padding: 1.5rem 0.75rem; background: linear-gradient(180deg, #3a2f10, var(--bg-2)); border: 1px solid #7a6220; border-radius: var(--radius); }
+.champ { text-align: center; padding: 1.5rem 0.75rem; background: linear-gradient(180deg, var(--champ-glow), var(--bg-2)); border: 1px solid var(--champ-edge); border-radius: var(--radius); }
 .champ h1 { font-size: 1.6rem; }
 
 .stat-compare { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.25rem 0.5rem; font-variant-numeric: tabular-nums; font-size: 0.88rem; }
@@ -530,7 +646,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
    hold 27 rounds by 32 clubs; now the draft carries on behind it and the board
    gets the whole viewport, including whatever the phone's notch and gesture bar
    leave of it. */
-.board-full { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--bg, #0f1a12); }
+.board-full { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--bg); }
 .board-full-head, .board-full-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); }
 .board-full-head { padding-top: calc(0.5rem + env(safe-area-inset-top)); }
 .board-full-foot { border-bottom: 0; border-top: 1px solid var(--line); justify-content: center; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
@@ -545,42 +661,42 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .board-full .board .bm { font-size: 0.6rem; }
 .board-full .board .bl { min-width: 1.8rem; }
 /* Your own column, findable at a glance among thirty-one others. */
-.board-full .board .bc.mine { background: rgba(233, 196, 106, 0.06); }
+.board-full .board .bc.mine { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 @media (min-width: 700px) { .board-full .board .bc { min-width: 5rem; max-width: 5rem; } }
 .board { border-collapse: separate; border-spacing: 0; font-size: 0.72rem; width: max-content; }
 .board th, .board td { padding: 0.25rem 0.35rem; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
-.board thead th { position: sticky; top: 0; z-index: 2; background: var(--card, #12211a); font-family: var(--mono); font-size: 0.68rem; white-space: nowrap; text-align: left; }
-.board .bl { position: sticky; left: 0; z-index: 1; background: var(--card, #12211a); font-family: var(--mono); color: var(--muted); font-weight: 400; text-align: right; min-width: 2.1rem; }
+.board thead th { position: sticky; top: 0; z-index: 2; background: var(--card); font-family: var(--mono); font-size: 0.68rem; white-space: nowrap; text-align: left; }
+.board .bl { position: sticky; left: 0; z-index: 1; background: var(--card); font-family: var(--mono); color: var(--muted); font-weight: 400; text-align: right; min-width: 2.1rem; }
 .board thead .bl { z-index: 3; }
-.board thead th.me { color: var(--accent); }
-.board thead th.clock { background: #2c4a37; color: #eaf6ee; }
+.board thead th.me { color: var(--accent-ink); }
+.board thead th.clock { background: var(--t-green); color: var(--clock-head-ink); }
 .board .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.25rem; vertical-align: baseline; }
 
 .board .bc { min-width: 5.6rem; max-width: 5.6rem; vertical-align: top; cursor: pointer; }
-.board .bc.empty { cursor: default; background: repeating-linear-gradient(135deg, transparent, transparent 5px, rgba(255,255,255,0.018) 5px, rgba(255,255,255,0.018) 10px); }
+.board .bc.empty { cursor: default; background: repeating-linear-gradient(135deg, transparent, transparent 5px, var(--stripe) 5px, var(--stripe) 10px); }
 .board .bo { display: inline-block; min-width: 1.5rem; padding: 0 0.15rem; border-radius: 3px; font-family: var(--mono); font-size: 0.66rem; text-align: center; }
 .board .bn { display: block; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board .bm { display: block; color: var(--muted); font-size: 0.64rem; }
-.board .bp { float: right; font-family: var(--mono); color: var(--accent); }
-.board .bc.clock { background: #21362a; box-shadow: inset 0 0 0 1px #3c6b4d; }
-.board .onclock { display: block; color: #9fd3b0; font-family: var(--mono); font-size: 0.6rem; line-height: 1.1; white-space: normal; animation: onclock 1.4s ease-in-out infinite; }
+.board .bp { float: right; font-family: var(--mono); color: var(--accent-ink); }
+.board .bc.clock { background: var(--clock-cell); box-shadow: inset 0 0 0 1px var(--ring); }
+.board .onclock { display: block; color: var(--clock-ink); font-family: var(--mono); font-size: 0.6rem; line-height: 1.1; white-space: normal; animation: onclock 1.4s ease-in-out infinite; }
 @keyframes onclock { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 
 /* The pick landing. Brief, once, and only on the cell that just changed. */
 .board .bc.fresh { animation: landed 0.55s ease-out; }
 @keyframes landed {
-  0% { transform: scale(0.82); background: #e9c46a; color: #1a1a1a; }
-  55% { background: #e9c46a; color: #1a1a1a; }
+  0% { transform: scale(0.82); background: var(--accent); color: var(--on-accent); }
+  55% { background: var(--accent); color: var(--on-accent); }
   100% { transform: scale(1); background: transparent; }
 }
 
 /* The room's state, above the board. */
 .draft-head .whoson { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.35rem; flex-wrap: wrap; }
-.draft-head.mine { box-shadow: inset 0 0 0 2px var(--accent); }
+.draft-head.mine { box-shadow: inset 0 0 0 2px var(--accent-ink); }
 .draft-head .ticker-line { margin-top: 0.3rem; min-height: 1.3rem; font-size: 0.85rem; }
 .pick-line.fresh { animation: slidein 0.45s ease-out; display: inline-block; }
 @keyframes slidein { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
-.spinner { width: 11px; height: 11px; border: 2px solid #3c6b4d; border-top-color: var(--accent); border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite; }
+.spinner { width: 11px; height: 11px; border: 2px solid var(--ring); border-top-color: var(--accent-ink); border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .speed { display: flex; gap: 0.2rem; }
 .speed .tab { padding: 0.15rem 0.45rem; font-size: 0.7rem; min-height: 0; text-transform: lowercase; }
@@ -588,33 +704,33 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 /* Everything above is decoration on top of a board that is legible without it. */
 @media (prefers-reduced-motion: reduce) {
   .board .bc.fresh, .pick-line.fresh, .board .onclock { animation: none; }
-  .spinner { animation: none; border-top-color: #3c6b4d; }
-  .board .bc.fresh { box-shadow: inset 0 0 0 2px var(--accent); }
+  .spinner { animation: none; border-top-color: var(--ring); }
+  .board .bc.fresh { box-shadow: inset 0 0 0 2px var(--accent-ink); }
   /* The play-by-play flash was left out of this block: somebody who asked for
      reduced motion still got the newest play animating at them every snap. */
-  .pbp li.latest { animation: none; box-shadow: inset 0 0 0 2px var(--accent); }
+  .pbp li.latest { animation: none; box-shadow: inset 0 0 0 2px var(--accent-ink); }
 }
 
 /* Depth-chart furniture: a jump bar and a header per position group. Twenty-seven
    rows is four and a half screens on a phone, so the list needs landmarks and a
    way past them. The bar sticks under the topbar; `scroll-margin-top` keeps a
    jumped-to header from landing underneath it. */
-.jump { display: flex; gap: 0.3rem; overflow-x: auto; padding: 0.35rem 0; margin: 0 0 0.2rem; scrollbar-width: none; position: sticky; top: 0; background: var(--card, #12211a); z-index: 3; }
+.jump { display: flex; gap: 0.3rem; overflow-x: auto; padding: 0.35rem 0; margin: 0 0 0.2rem; scrollbar-width: none; position: sticky; top: 0; background: var(--card); z-index: 3; }
 .jump::-webkit-scrollbar { display: none; }
 .jump .chip { flex: 0 0 auto; font-family: var(--mono); font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
-.jump .chip:hover, .jump .chip:focus-visible { color: var(--fg, #e8f0ea); border-color: #3c6b4d; }
+.jump .chip:hover, .jump .chip:focus-visible { color: var(--text); border-color: var(--ring); }
 
 .poshead { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; margin: 0.7rem 0 0.1rem; padding-top: 0.3rem; border-top: 1px solid var(--line); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; scroll-margin-top: 3.2rem; }
 .poshead:first-of-type { border-top: 0; margin-top: 0.2rem; }
 .poshead small { font-family: var(--mono); font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); }
-.badge.warn { background: #5c3a1a; color: #ffdfae; }
+.badge.warn { background: var(--t-flame); color: var(--t-flame-ink); }
 
 /* A form's primary action, pinned to the bottom of the screen. Everything above
    it has a default, so the button is reachable at once and the form is there for
    anyone who wants to change something rather than a gate in front of it.
    Fixed rather than sticky: the bar is the last thing in its form, so a sticky
    element has no range left to stick over and simply sits where it falls. */
-.actionbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: flex; gap: 0.5rem; justify-content: center; align-items: center; padding: 0.6rem var(--gutter); padding-bottom: calc(0.6rem + env(safe-area-inset-bottom)); background: rgba(15, 26, 18, 0.94); backdrop-filter: blur(8px); border-top: 1px solid var(--line); }
+.actionbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: flex; gap: 0.5rem; justify-content: center; align-items: center; padding: 0.6rem var(--gutter); padding-bottom: calc(0.6rem + env(safe-area-inset-bottom)); background: var(--bar-bg); backdrop-filter: blur(8px); border-top: 1px solid var(--line); }
 .actionbar .btn { flex: 1; max-width: 20rem; }
 .actionbar .btn.ghost { flex: 0 0 auto; }
 /* Room for it on the whole screen, not just the card: the bar is fixed to the
@@ -622,21 +738,21 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .has-actionbar { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
 
 /* Saving has stopped working. Loud on purpose, and it stays until it is fixed. */
-.savewarn { background: #5c1a1a; color: #ffe9e9; border-bottom: 2px solid #ff6b6b; padding: 0.6rem 1rem; font-size: 0.9rem; line-height: 1.45; }
+.savewarn { background: var(--alarm-bg); color: var(--alarm-ink); border-bottom: 2px solid var(--alarm-edge); padding: 0.6rem 1rem; font-size: 0.9rem; line-height: 1.45; }
 .savewarn[hidden] { display: none; }
-.savewarn strong { color: #fff; }
-.savewarn a { color: #ffd8d8; text-decoration: underline; white-space: nowrap; }
+.savewarn strong { color: var(--alarm-strong); }
+.savewarn a { color: var(--alarm-link); text-decoration: underline; white-space: nowrap; }
 
-.toast { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #1a1a1a; color: #fff; padding: 0.6rem 1rem; border-radius: 999px; box-shadow: var(--shadow); z-index: 50; font-size: 0.9rem; max-width: 92vw; text-align: center; }
+.toast { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--toast-bg); color: var(--toast-ink); padding: 0.6rem 1rem; border-radius: 999px; box-shadow: var(--shadow); z-index: 50; font-size: 0.9rem; max-width: 92vw; text-align: center; }
 .toast[hidden] { display: none; }
 
-.modal-back { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 40; padding: 0.75rem; }
+.modal-back { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: 40; padding: 0.75rem; }
 .modal { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem; max-width: 520px; width: 100%; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow); }
 
 .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.2rem 0.6rem; font-size: 0.88rem; align-items: center; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; }
 .bar { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
-.bar > i { display: block; height: 100%; background: var(--accent); }
+.bar > i { display: block; height: 100%; background: var(--accent-ink); }
 /* Work with no count to show: a slide, by transform, so it keeps moving while
    a long step holds the page. With reduced motion, a slow fade instead. */
 .busy-bar { margin-top: 0.6rem; }
@@ -646,7 +762,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 @media (prefers-reduced-motion: reduce) { .busy-bar > i { width: 100%; animation: busy-fade 1.6s ease-in-out infinite alternate; } }
 .slider-row { display: grid; grid-template-columns: 1fr; gap: 0.15rem; margin-bottom: 0.6rem; }
 .slider-row .lbl { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.82rem; color: var(--muted); }
-.notice { background: #2b2a1a; border: 1px solid #5a5220; color: #efe6b0; border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.88rem; }
+.notice { background: var(--notice-bg); border: 1px solid var(--notice-edge); color: var(--notice-ink); border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.88rem; }
 .depth-btns { display: inline-flex; gap: 0.15rem; }
 .empty { color: var(--muted); text-align: center; padding: 1.25rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -693,10 +809,10 @@ details > summary { cursor: pointer; }
 .cmp-row .track i { display: block; height: 100%; background: var(--muted); border-radius: 999px; }
 .cmp-row .track i.none { background: transparent; }
 /* The side that leads this row is the one that gets the colour. */
-.cmp-row.a-up .track i.a, .cmp-row.a-up .v.a { color: var(--accent); }
-.cmp-row.a-up .track i.a { background: var(--accent); }
-.cmp-row.b-up .track i.b, .cmp-row.b-up .v.b { color: var(--accent); }
-.cmp-row.b-up .track i.b { background: var(--accent); }
+.cmp-row.a-up .track i.a, .cmp-row.a-up .v.a { color: var(--accent-ink); }
+.cmp-row.a-up .track i.a { background: var(--accent-ink); }
+.cmp-row.b-up .track i.b, .cmp-row.b-up .v.b { color: var(--accent-ink); }
+.cmp-row.b-up .track i.b { background: var(--accent-ink); }
 .cmp-note { font-size: 0.78rem; margin: 0.7rem 0 0; }
 
 @media (max-width: 420px) {
@@ -708,14 +824,16 @@ details > summary { cursor: pointer; }
 /* Focus. There was one :focus-visible rule in this whole file, on a chip, so
    every other control fell back to whatever the browser draws — visible, but
    thin and low-contrast against this palette. Nothing here removes an outline;
-   it replaces a default with something that can actually be seen on dark green. */
+   it replaces a default with something that can actually be seen on dark green.
+   The ring is the accent's ink, so on the light page it is the dark gold,
+   6.2:1 on white, rather than a gold that would all but vanish there. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-ink);
   outline-offset: 2px;
   border-radius: 4px;
 }
 .btn:focus-visible, .tab:focus-visible, .tabitem:focus-visible, .nav a:focus-visible, .nav-more:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-ink);
   outline-offset: 2px;
 }
 /* The dialog takes focus on open so the reader starts inside it; that is a
@@ -726,7 +844,7 @@ details > summary { cursor: pointer; }
 .skipnav {
   position: fixed; top: 0; left: 0; z-index: 100;
   transform: translateY(-120%);
-  background: var(--accent); color: #12211a; font: inherit; font-weight: 700;
+  background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700;
   border: 0; border-radius: 0 0 8px 0; padding: 0.6rem 0.9rem; cursor: pointer;
 }
 .skipnav:focus { transform: translateY(0); }

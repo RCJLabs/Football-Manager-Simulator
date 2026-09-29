@@ -69,7 +69,7 @@ export function driveChart(drives, teams, { rowH = 14 } = {}) {
     return `<g>
       <text x="${padL - 4}" y="${y0 + rowH * 0.7}" text-anchor="end" font-size="9" fill="var(--muted)">${esc(t.abbr)}</text>
       <rect x="${x1.toFixed(1)}" y="${y0 + 2}" width="${Math.max(2, x2 - x1).toFixed(1)}" height="${rowH - 4}" rx="2" fill="${esc(t.color)}" fill-opacity="${score ? 0.95 : 0.55}"/>
-      <text x="${(x2 + 4).toFixed(1)}" y="${y0 + rowH * 0.7}" font-size="9" fill="${score ? 'var(--accent)' : 'var(--muted)'}" font-weight="${score ? 700 : 400}">${esc(label)}</text>
+      <text x="${(x2 + 4).toFixed(1)}" y="${y0 + rowH * 0.7}" font-size="9" fill="${score ? 'var(--accent-ink)' : 'var(--muted)'}" font-weight="${score ? 700 : 400}">${esc(label)}</text>
     </g>`;
   }).join('');
   const ticks = [0, 25, 50, 75, 100].map((yd) => `<line x1="${fx(yd)}" x2="${fx(yd)}" y1="12" y2="${H - 6}" stroke="var(--line)" stroke-dasharray="${yd === 50 ? '0' : '2 3'}"/><text x="${fx(yd)}" y="9" text-anchor="middle" font-size="8" fill="var(--muted)">${yd === 0 ? 'own goal' : yd === 100 ? 'goal' : yd === 50 ? '50' : ''}</text>`).join('');

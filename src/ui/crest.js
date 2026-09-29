@@ -10,8 +10,10 @@
 // Legibility at chip size (about 16 pixels) decides the design. Four plain
 // silhouettes that read as different at that size, a single letter, and the
 // letter at 4.5:1 or better against the field it sits on, the contrast WCAG
-// asks of text. A thin light rim keeps a dark crest visible on the dark page
-// and on the green field.
+// asks of text. A thin rim keeps a crest visible against the page: light on
+// the dark theme, so a dark crest shows, and dark on the light one, so a light
+// crest does (styles.css, --crest-rim). The share cards are always dark and
+// draw the light rim.
 
 import { esc, contrast, rgbOf } from '../util.js';
 import { hashSeed } from '../engine/rng.js';
@@ -68,7 +70,7 @@ export function crestSvg(team, { label = null, cls = '' } = {}) {
   const c = crestOf(team);
   const a11y = label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"';
   return `<svg class="crest${cls ? ` ${cls}` : ''}" viewBox="0 0 20 24" ${a11y} focusable="false">`
-    + `<path d="${PATHS[c.shape]}" fill="${esc(c.primary)}" stroke="rgba(255,255,255,.55)" stroke-width="1"/>`
+    + `<path class="rim" d="${PATHS[c.shape]}" fill="${esc(c.primary)}" stroke="rgba(255,255,255,.55)" stroke-width="1"/>`
     + `<path d="${PATHS[c.shape]}" fill="none" stroke="${esc(c.secondary)}" stroke-width="1.6" transform="translate(10 12) scale(.8) translate(-10 -12)"/>`
     + `<text x="10" y="12.6" text-anchor="middle" dominant-baseline="middle" font-size="10.5" font-weight="800" font-family="system-ui,sans-serif" fill="${esc(c.ink)}">${esc(c.letter)}</text>`
     + '</svg>';

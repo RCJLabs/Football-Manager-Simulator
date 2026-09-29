@@ -102,7 +102,7 @@ export function view(root, params, ctx) {
       : '';
     return playerItem(p, {
       cls: inj ? 'dim' : slot.starter || stepsUp ? '' : 'dim',
-      meta: `<span class="badge slot">${slot.id}</span>${p.moved ? `<span class="badge" title="${esc(`Moved from ${p.moved.from} for ${p.moved.season}${p.settling ? ` and still learning the job: ${p.settling} off every skill this season` : ''}`)}">was ${p.moved.from}${p.settling ? ` · −${p.settling}` : ''}</span>` : ''}${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge" style="background:#2c4a37;color:#cfe6d6">starts</span>' : '<span class="badge">bench</span>'}${deal}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
+      meta: `<span class="badge slot">${slot.id}</span>${p.moved ? `<span class="badge" title="${esc(`Moved from ${p.moved.from} for ${p.moved.season}${p.settling ? ` and still learning the job: ${p.settling} off every skill this season` : ''}`)}">was ${p.moved.from}${p.settling ? ` · −${p.settling}` : ''}</span>` : ''}${outBadge(inj).__raw}${slot.starter ? '' : stepsUp ? '<span class="badge fit">starts</span>' : '<span class="badge">bench</span>'}${deal}${fp ? `<span class="badge" title="fantasy points">${fp.toFixed(1)} fp</span>` : ''}`,
       action: `${irable ? `<button class="btn sm" data-ir="${esc(p.id)}" title="${esc(`Free his slot; he stays yours and keeps healing. ${irOpen} place${irOpen === 1 ? '' : 's'} left.`)}">To IR</button>` : ''}${downable(p) ? `<button class="btn sm" data-down="${esc(p.id)}" title="${esc(`Free his slot; he stays yours, keeps developing and costs the minimum. ${squadOpen} place${squadOpen === 1 ? '' : 's'} left.`)}">Send down</button>` : ''}${arrows}`,
       era: false,
       attrs: showAttrs,
@@ -200,7 +200,7 @@ export function view(root, params, ctx) {
       return playerItem(p, {
         attrs: false,
         cls: fit ? '' : 'dim',
-        meta: fit ? ' · <span class="badge" style="background:#2c4a37;color:#cfe6d6">fit</span>' : ` · ${esc(inj ? inj.kind : 'injured')}, <b>${fmtWeeks(inj ? inj.weeks : 0)}</b>`,
+        meta: fit ? ' · <span class="badge fit">fit</span>' : ` · ${esc(inj ? inj.kind : 'injured')}, <b>${fmtWeeks(inj ? inj.weeks : 0)}</b>`,
         action: canEdit ? `${fit ? `<button class="btn sm primary" data-activate="${esc(p.id)}">Activate</button>` : ''}<button class="btn sm danger" data-release="${esc(p.id)}">Release</button>` : '',
       });
     }).join('')}</ul>`) : html`<p class="muted" style="margin:0;font-size:.85rem">Empty. A player out ${IR_MIN_WEEKS} weeks or more can be parked here, which frees his roster slot to sign cover. He keeps healing and keeps his contract, but he cannot play or be traded until you activate him, which costs a roster spot in turn.</p>`}
@@ -285,7 +285,7 @@ export function view(root, params, ctx) {
         <h3>What you built</h3>
         <p style="margin:.1rem 0 .4rem"><b>${read.lean === 'run' ? 'A running team.' : read.lean === 'pass' ? 'A throwing team.' : 'An even team.'}</b> <span class="muted">${read.why}</span></p>
         <div class="row between" style="align-items:baseline;gap:.6rem;flex-wrap:wrap">
-          <span class="muted" style="font-size:.9rem">Suits this squad: <b style="color:var(--fg,#e8f0ea)">${Math.round(read.rate * 100)}% pass</b> · you are at ${Math.round(read.current * 100)}%</span>
+          <span class="muted" style="font-size:.9rem">Suits this squad: <b style="color:var(--text)">${Math.round(read.rate * 100)}% pass</b> · you are at ${Math.round(read.current * 100)}%</span>
           ${canEdit && read.act ? html`<button class="btn sm primary" id="useFit">Set it there</button>` : ''}
         </div>
         <small class="muted">${read.act ? `Moving it is ${read.strength}.` : read.even ? 'Your squad is even enough that this is close to a free choice.' : 'Your dial is already about where it should be.'} The read comes from who is on the field now, so it moves when you sign, drop or lose somebody.</small>

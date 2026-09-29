@@ -159,7 +159,7 @@ export function view(root, params, ctx) {
             <div class="row between"><h3 style="margin:0">Your season</h3>${seasons.length > 1 ? html`<select id="cardSeason" style="max-width:9rem">${seasons.map((n) => html`<option value="${n}" ${n === season ? 'selected' : ''}>Season ${n}</option>`)}</select>` : ''}</div>
             <p style="margin:.4rem 0 0;font-size:1.6rem;font-weight:800">${fmtRecord(r)}</p>
             <p class="muted" style="margin:0">${ordOf(mine.rank)} of ${mine.teams} · PF ${r.pf} · PA ${r.pa}</p>
-            <p style="margin:.4rem 0 0"><b style="color:${mine.champion && mine.champion.mine ? 'var(--accent)' : 'inherit'}">${mine.playoff.replace(/^./, (x) => x.toUpperCase())}</b></p>
+            <p style="margin:.4rem 0 0"><b style="color:${mine.champion && mine.champion.mine ? 'var(--accent-ink)' : 'inherit'}">${mine.playoff.replace(/^./, (x) => x.toUpperCase())}</b></p>
             <div class="kv" style="margin-top:.5rem">
               <dt>Champion</dt><dd>${mine.champion ? mine.champion.name : '—'}</dd>
               <dt>MVP</dt><dd>${mine.mvp ? `${mine.mvp.name} · ${mine.mvp.pos} · ${mine.mvp.club}` : '—'}</dd>

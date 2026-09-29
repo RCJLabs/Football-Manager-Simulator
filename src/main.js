@@ -7,6 +7,7 @@ import { applyOverrides } from './data/tuning.js';
 import { leaguePool, leagueIndex } from './engine/rookies.js';
 import { applyCareers, careerIndex } from './engine/careers.js';
 import { toast } from './ui/components.js';
+import { applyAppearance, followSystem } from './ui/theme.js';
 import { esc } from './util.js';
 import * as home from './ui/views/home.js';
 import * as setup from './ui/views/setup.js';
@@ -338,6 +339,10 @@ route('/settings', () => mount(settings));
 
 registerPlayers(PLAYERS_BY_ID);
 load();
+// index.html has already put the theme and text size on the page; this is the
+// same thing from the module, and keeps a page left to the system in step with it.
+applyAppearance(getState().prefs || {});
+followSystem(() => getState().prefs);
 // Preferences that reshape the pool: fictional names and rating edits.
 {
   const prefs = getState().prefs || {};

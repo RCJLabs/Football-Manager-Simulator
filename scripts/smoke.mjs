@@ -16,7 +16,25 @@ const server = spawn(process.execPath, [require.resolve('http-server/bin/http-se
 await sleep(800);
 const browser = await chromium.launch();
 // Narrowest phone we support: 360 CSS px (Galaxy S-series portrait).
-const page = await browser.newPage({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+// The app follows the system's light or dark setting until told otherwise, and
+// Playwright's system is light unless it is asked for something else. So the
+// run names the scheme it covers: dark by default, as it always was, and
+// SMOKE_SCHEME=light for the light theme. SMOKE_TEXT=l or xl runs it all at a
+// larger text size, set the way the player sets it.
+const SCHEME = process.env.SMOKE_SCHEME === 'light' ? 'light' : 'dark';
+const TEXT = ['l', 'xl'].includes(process.env.SMOKE_TEXT) ? process.env.SMOKE_TEXT : '';
+const page = await browser.newPage({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: SCHEME });
+if (TEXT) {
+  // Before any script of the page's own, and again after the run empties
+  // storage, so every screen is drawn at the size asked for.
+  await page.addInitScript((size) => {
+    try {
+      const key = 'gridiron-eras:prefs:v1';
+      const prefs = JSON.parse(localStorage.getItem(key) || '{}');
+      if (!prefs.textSize) localStorage.setItem(key, JSON.stringify({ ...prefs, textSize: size }));
+    } catch { /* no storage, no size */ }
+  }, TEXT);
+}
 // Saves are packed (src/savecodec.js), and the checks below read them where
 // they lie, some from inside waitForFunction, which needs an answer at once.
 // So the page is given the app's own codec as a plain script before anything
@@ -218,21 +236,43 @@ async function checkContrast(where) {
       const txt = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim())
         .map((n) => n.textContent.trim()).join(' ');
       if (!txt) continue;
+      // Text in a chart is drawn in its fill, not its colour, and at whatever
+      // size the drawing is scaled to; measured by its colour, which is what
+      // this did before the light theme, a chart label always passed. Text on
+      // the field or in a crest sits on the drawing's own ground, which no
+      // ancestor carries, so those are left to their own checks.
+      const svg = el instanceof SVGElement ? el.ownerSVGElement : null;
+      if (svg && (el.closest('.field2d') || el.closest('svg.crest'))) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.1) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) continue;
-      const fgc = parse(cs.color);
+      // A disabled control is exempt from the contrast rule; everything else is
+      // measured as drawn, faded by every ancestor's opacity as well as its own.
+      // Reading only the element's own opacity, as this did, meant a whole row
+      // dimmed to half (a bench player's) was measured as if at full strength.
+      // A pulse (an opacity animation) is measured at full strength: it is on
+      // screen at full strength every beat.
+      if (el.closest('button:disabled, [aria-disabled="true"]')) continue;
+      let faded = 1;
+      for (let n = el; n && n.nodeType === 1 && n !== document.body; n = n.parentElement) {
+        const ncs = n === el ? cs : getComputedStyle(n);
+        if (ncs.animationName === 'none') faded *= parseFloat(ncs.opacity);
+      }
+      const fgc = parse(svg ? cs.fill : cs.color);
+      if (fgc && svg) fgc.a *= parseFloat(cs.fillOpacity || '1');
+      if (fgc) fgc.a *= faded;
       if (!fgc || fgc.a < 0.1) continue;
       const { rgb: bg, from } = bgOf(el);
       const fg = fgc.a >= 0.999 ? fgc.rgb : blend(fgc.rgb, bg, fgc.a);
       const l1 = lum(fg), l2 = lum(bg);
       const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-      const px = parseFloat(cs.fontSize), bold = parseInt(cs.fontWeight, 10) >= 700;
+      const vb = svg && svg.viewBox && svg.viewBox.baseVal;
+      const px = parseFloat(cs.fontSize) * (vb && vb.width ? svg.getBoundingClientRect().width / vb.width : 1), bold = parseInt(cs.fontWeight, 10) >= 700;
       const need = (px >= 24 || (bold && px >= 18.66)) ? 3 : 4.5;
       if (ratio < need - 0.01) {
         out.push(`${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ').slice(0, 2).join('.')}`
-          + ` ${ratio.toFixed(2)}:1 (needs ${need}) ${cs.color} on rgb(${bg.map(Math.round).join(',')})`
+          + ` ${ratio.toFixed(2)}:1 (needs ${need}) ${svg ? cs.fill : cs.color} on rgb(${bg.map(Math.round).join(',')})`
           + ` from ${from} "${txt.slice(0, 20)}"`);
       }
     }
@@ -340,6 +380,16 @@ try {
   await page.waitForSelector('.hero');
   await checkOverflow('home');
   await shot('01-home');
+  if ((await page.evaluate(() => document.documentElement.dataset.theme)) !== SCHEME) errors.push(`a ${SCHEME} system opened the ${await page.evaluate(() => document.documentElement.dataset.theme)} theme`);
+  // Settings has to open before there is a league, since that is where the
+  // page's appearance is chosen; it used to throw for anyone without one.
+  await page.goto(`http://localhost:${port}/#/settings`);
+  await page.waitForSelector('#appearance', { timeout: 5000 }).catch(() => {});
+  const bare = await page.evaluate(() => ({ appearance: !!document.querySelector('#appearance'), broke: /Something broke/.test(document.querySelector('#app')?.textContent || '') }));
+  if (!bare.appearance || bare.broke) errors.push(`settings with no league: ${JSON.stringify(bare)}`);
+  else await checkOverflow('settings with no league');
+  await page.goto(`http://localhost:${port}/#/`);
+  await page.waitForSelector('.hero');
   // Fantasy is the default and hides the pro league's systems entirely, so the
   // first screen is where a player learns there is another kind of league.
   const tiles = await page.$eval('.features', (e) => e.textContent);
@@ -930,6 +980,39 @@ try {
   if (!crestSaved) errors.push(`changing the crest to a ${laterShape} in settings was not saved`);
   await page.evaluate(() => document.querySelector('#crestCard').scrollIntoView({ block: 'center' }));
   await shot('11c-crest');
+  // Appearance: a choice applies at once and outlives a reload, and System
+  // follows whatever scheme the page is given. The theme this run is not
+  // covering gets one screen measured here, so neither goes wholly unchecked.
+  {
+    // A button eases its background over 0.15s, so straight after a switch it
+    // is part-way between the two themes' fills; measure once it has arrived.
+    const settle = () => page.waitForFunction(() => !document.getAnimations().some((a) => a instanceof CSSTransition && a.playState === 'running'), null, { timeout: 3000 }).catch(() => {});
+    const now = async () => { await settle(); return page.evaluate(() => [document.documentElement.dataset.theme, getComputedStyle(document.body).backgroundColor]); };
+    const other = SCHEME === 'dark' ? 'light' : 'dark';
+    const ground = { dark: 'rgb(15, 26, 18)', light: 'rgb(241, 244, 241)' };
+    await page.click(`#appearance .choice:has(input[value="${other}"])`);
+    let [theme, bg] = await now();
+    if (theme !== other || bg !== ground[other]) errors.push(`choosing ${other} left the page ${theme} on ${bg}`);
+    await settleSave();
+    await page.reload();
+    await page.waitForSelector('#appearance');
+    [theme, bg] = await now();
+    if (theme !== other || bg !== ground[other]) errors.push(`after a reload the ${other} theme came back ${theme} on ${bg}`);
+    await checkOverflow(`settings in the ${other} theme`);
+    await page.evaluate(() => document.querySelector('#appearance').scrollIntoView({ block: 'center' }));
+    await shot(`11d-${other}`);
+    await page.click('#appearance .choice:has(input[value="system"])');
+    [theme] = await now();
+    if (theme !== SCHEME) errors.push(`System left the page ${theme} under a ${SCHEME} system`);
+    // Text size moves the root, and nothing may spill sideways at the largest.
+    await page.click('#appearance .choice:has(input[value="xl"])');
+    await settle();
+    const root = await page.evaluate(() => getComputedStyle(document.documentElement).fontSize);
+    if (root !== '20.8px') errors.push(`the largest text size set the root to ${root}`);
+    await checkOverflow('settings at the largest text');
+    await page.click(`#appearance .choice:has(input[value="${TEXT || 'm'}"])`);
+    await settleSave();
+  }
   // The store saves on a short debounce.
   // Fictional names swap every name in the pool and back.
   await page.check('#fictional');
@@ -2295,4 +2378,4 @@ try {
 await browser.close();
 server.kill();
 if (errors.length) { console.error('ERRORS:\n' + errors.join('\n')); process.exit(1); }
-console.log('smoke OK — no console errors, no horizontal overflow at 360/768/1280px');
+console.log(`smoke OK (${SCHEME} theme${TEXT ? `, text ${TEXT}` : ''}) — no console errors, no horizontal overflow at 360/768/1280px`);
