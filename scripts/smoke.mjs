@@ -379,6 +379,31 @@ async function checkOverflow(where) {
     return { docW, scrollW, offenders: offenders.slice(0, 5) };
   });
   if (bad) errors.push(`overflow on ${where}: page is ${bad.scrollW}px wide in a ${bad.docW}px viewport — ${bad.offenders.join(', ') || 'no single offender found'}`);
+  // A word the layout had to break across three lines or more. Only a box far
+  // narrower than the word does that, and the one that did was a player's
+  // name beside two buttons at the largest text size, a letter to a line,
+  // with nothing past the edge for the check above to see. A long word split
+  // once in a narrow table cell is left alone; hyphens and dashes are places
+  // a line may break anyway.
+  const shredded = await page.evaluate(() => {
+    const out = [];
+    const walker = document.createTreeWalker(document.querySelector('#app') || document.body, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const el = n.parentElement;
+      if (!el || !el.getClientRects().length || el.closest('.sr-only, svg')) continue;
+      const re = /[^\s\-\u2010-\u2015]{3,}/g;
+      let m;
+      while ((m = re.exec(n.data))) {
+        range.setStart(n, m.index);
+        range.setEnd(n, m.index + m[0].length);
+        const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top))).size;
+        if (lines >= 3) out.push(`"${m[0]}" over ${lines} lines in ${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ')[0]}`);
+      }
+    }
+    return out;
+  });
+  if (shredded.length) errors.push(`words broken apart on ${where}: ${[...new Set(shredded)].slice(0, 5).join('; ')}${shredded.length > 5 ? ` and ${shredded.length - 5} more` : ''}`);
   await checkNav(where);
   await checkA11y(where);
   await checkContrast(where);
@@ -661,6 +686,16 @@ try {
     if (moving) errors.push(`with reduced motion asked for, the field still animates (${moving} animations)`);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
   } else console.log('note: no play to step with reduced motion; that check did not run');
+  const toWatching = async () => {
+    for (let i = 0; i < 60 && !(await page.$('.skipahead')); i++) {
+      const pat = await page.$('[data-pat="xp"]');
+      const off = await page.$('[data-off="pass_med"]');
+      const def = await page.$('[data-def="ai"]');
+      if (pat) await pat.click(); else if (off) await off.click(); else if (def) await def.click(); else break;
+      await sleep(20);
+    }
+  };
+  await toWatching();
   // A fold opened by hand is still open after the next snap. Every redraw
   // replaces the page, and the leaders used to shut under autoplay about once
   // a second.
@@ -671,13 +706,7 @@ try {
     if (await page.$('.leaders') && !(await page.$('.leaders[open]'))) errors.push('the leaders fold shut on the next snap');
     if (await page.$('.leaders[open]')) await page.click('.leaders > summary');
   } else console.log('note: no leaders fold under the watching controls; that check did not run');
-  for (let i = 0; i < 60 && !(await page.$('.skipahead')); i++) {
-    const pat = await page.$('[data-pat="xp"]');
-    const off = await page.$('[data-off="pass_med"]');
-    const def = await page.$('[data-def="ai"]');
-    if (pat) await pat.click(); else if (off) await off.click(); else if (def) await def.click(); else break;
-    await sleep(20);
-  }
+  await toWatching();
   await page.click('.skipahead > summary');
   await page.click('#simEnd');
   await page.waitForSelector('#finish');

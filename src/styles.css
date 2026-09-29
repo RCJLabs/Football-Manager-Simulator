@@ -296,7 +296,9 @@ tr.dim td { color: var(--muted); }
 .badge.gain { background: var(--t-mint); color: var(--t-mint-ink); font-family: var(--mono); }
 .badge.rivals { background: var(--t-clay); color: var(--t-clay-ink); }
 .badge.bargain { background: var(--t-mint); color: var(--t-mint-ink); }
-.badge.overpay { background: var(--t-red); color: var(--t-red-ink); }
+/* A sentence, not a label ("you owe $2 a year for 2 more seasons"), so it
+   wraps where a badge would not. */
+.badge.overpay { background: var(--t-red); color: var(--t-red-ink); white-space: normal; }
 /* Auction: what losing the lot in front of you would mean. */
 .lot-advice { border: 1px solid var(--line); border-radius: .5rem; padding: .45rem .55rem; background: var(--bg-2); }
 .ovr.range { background: var(--t-slate); color: var(--t-slate-ink); font-size: .78rem; min-width: 3.4rem; letter-spacing: -.02em; }
@@ -367,8 +369,12 @@ td.odds { white-space: nowrap; }
 .attr { font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .attr b { color: var(--text); font-weight: 700; }
 .attr.hi b { color: var(--good); } .attr.lo b { color: var(--bad); }
-.team-chip { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 700; min-width: 0; }
+/* The name ellipsises, but only if the chip is kept to its line: a club's
+   name in a heading at the largest text size ran 84px off a phone. */
+.team-chip { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 700; min-width: 0; max-width: 100%; }
 .team-chip span.tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A page's own title wraps rather than losing the end of the club's name. */
+h1 .team-chip span.tn { white-space: normal; }
 /* A club's crest (crest.js): sized to the text it sits in, never squeezed. */
 .crest { display: inline-block; width: 1.05em; height: 1.26em; flex: none; vertical-align: -0.28em; }
 .team-chip .crest { width: 1.1em; height: 1.32em; }
@@ -416,6 +422,13 @@ td.odds { white-space: nowrap; }
 .prow .meta { font-size: 0.76rem; color: var(--muted); display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap; }
 .prow .act { display: flex; gap: 0.25rem; align-items: center; justify-self: end; }
 .prow .attrs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.05rem 0.5rem; margin-top: 0.15rem; }
+/* At the larger text sizes a phone's row has no room for a name beside the
+   action buttons: the name's column gave way first, and a name beside two
+   buttons broke a letter to a line. There the buttons take a row of their
+   own, last. The default size keeps them beside the name. */
+@media (max-width: 859px) {
+  :root[data-text] .prow .act { grid-column: 1 / -1; justify-self: end; order: 1; }
+}
 @media (min-width: 860px) {
   /* Wide layout: rating | name | attributes | action, in that visual order,
      regardless of DOM order (the action markup comes before the attributes). */
@@ -784,7 +797,11 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 .modal-back { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: 40; padding: 0.75rem; }
 .modal { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem; max-width: 520px; width: 100%; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow); }
 
-.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.2rem 0.6rem; font-size: 0.88rem; align-items: center; }
+/* The label column takes what it needs up to 60% and wraps past that. As
+   `auto` it grew to its whole label before the figures got anything, so a
+   long label at the largest text size ("Still owed to men who have left")
+   left the figure column 0px wide and the figures hung off the screen. */
+.kv { display: grid; grid-template-columns: fit-content(60%) minmax(0, 1fr); gap: 0.2rem 0.6rem; font-size: 0.88rem; align-items: center; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; }
 .bar { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--accent-ink); }
